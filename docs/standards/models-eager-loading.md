@@ -14,36 +14,57 @@ retroactively via `load()` after the query has already run.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (runtime safety check + custom sniffs)
 
-This is an architectural / semantic / process standard. It is **not** enforced
-by a PHPCS sniff. Enforcement is via **code review and developer discipline**.
+The standard **is enforceable**: Laravel ships a lazy-loading safety check
+that turns violations into exceptions, and the token-visible slices around it
+are sniffable.
 
-A token-based PHPCS sniff inspects one file's tokens in isolation at lint time.
-This standard is about *where* relationships should be loaded — a judgement
-about the query site, the data actually used there, and the cost of loading it
-— which spans the model, every query against it, and the consuming code. No
-single file's tokens carry enough of that picture to verify it.
+### Runtime safety check
 
-## Partial enforcement assessment
+Enable `Model::preventLazyLoading()` in the application service provider:
 
-One narrow, token-visible slice was found: **a non-empty
-`protected $with = [...];` property on a model**. The standard's first rule
-prohibits exactly that construct, and it is readable by single-file token
-analysis — a class property named `$with` whose array default contains at
-least one element. Per this standard's execution process, that slice is not
-implemented here; it is tracked as a focused sniff issue:
-[#153](https://github.com/mike-bronner/phpcs-rules/issues/153).
+```php
+use Illuminate\Database\Eloquent\Model;
 
-- **`->load(` call check** (the other obvious candidate) — rejected. At token
-  level the receiver's type is unknown: `load` is a common method name outside
-  Eloquent (config loaders, file loaders, translators, third-party SDKs), so a
-  string match on `->load(` cannot tell lazy eager loading on a model from an
-  unrelated call. The rule is also a stated preference ("try to"), with
-  legitimate `load()` uses such as conditionally loading relations on an
-  already-retrieved model. High false-positive rate for a slice review catches
-  easily.
+public function boot(): void
+{
+    Model::preventLazyLoading(! $this->app->isProduction());
+}
+```
 
-Everything else about the standard — judging whether a given query loads the
-right relationships at the right place, and keeping eager loading proportionate
-to the data actually used — remains enforced by code review.
+With the check active, accessing a relationship that was not eager loaded
+throws `Illuminate\Database\LazyLoadingViolationException` (outside
+production). A missing query-site `with()` surfaces immediately in development
+and tests as a hard failure instead of degrading into silent N+1 queries —
+models must be eager loaded, exactly as the standard requires.
+
+### Custom sniffs
+
+- **Safety check present** — the `preventLazyLoading` call in the service
+  provider's `boot()` is single-file token-visible, so a sniff can verify the
+  runtime enforcement is actually switched on. Focused sniff issue:
+  [#154](https://github.com/mike-bronner/phpcs-rules/issues/154).
+- **Non-empty `$with`** — a populated `protected $with = [...];` property on a
+  model (the construct the first rule prohibits) is readable by single-file
+  token analysis. Focused sniff issue:
+  [#153](https://github.com/mike-bronner/phpcs-rules/issues/153).
+
+### Rejected heuristic
+
+- **`->load(` call check** — rejected. At token level the receiver's type is
+  unknown: `load` is a common method name outside Eloquent (config loaders,
+  file loaders, translators, third-party SDKs), so a string match on `->load(`
+  cannot tell lazy eager loading on a model from an unrelated call. The rule
+  is also a stated preference ("try to"), with legitimate `load()` uses such
+  as conditionally loading relations on an already-retrieved model. High
+  false-positive rate for a slice that review and the runtime check already
+  cover.
+
+## What remains code review
+
+The safety check makes *implicit* lazy loading impossible, and the sniffs
+cover the `$with` property and the check's presence. Judging whether a given
+query loads the *right* relationships at the right place — and preferring
+query-site `with()` over a later explicit `load()` (which the runtime check
+does not forbid) — remains a query-site design call for code review.
