@@ -8,3 +8,4 @@ that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
 - [Models: Eager Loading](docs/standards/models-eager-loading.md) — Tier 3, not statically enforceable
+- [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
