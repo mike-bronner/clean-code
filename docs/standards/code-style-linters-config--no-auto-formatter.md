@@ -30,8 +30,9 @@ can recover neither.
 
 - **Formatter directive comments** — *heuristic found.* Auto-formatter usage
   leaves one token-visible artifact: on/off and ignore directives committed in
-  comments (`@formatter:off` / `@formatter:on` from JetBrains IDEs,
-  `prettier-ignore` from Prettier's PHP plugin). These markers exist only to
+  comments (`@formatter:off` / `@formatter:on`, originating in Eclipse and
+  honored by JetBrains/PhpStorm and other formatters; `prettier-ignore` from
+  Prettier's PHP plugin). These markers exist only to
   steer an auto-formatter — carving out regions it would otherwise rewrite —
   so their presence in a scanned file is direct evidence a formatter is being
   run over it. Comment contents are plain single-file token data
@@ -40,12 +41,11 @@ can recover neither.
 - **Committed formatter config files** (`.php-cs-fixer.dist.php`, `.php_cs`,
   `pint.json`) — considered and rejected. PHPCS's file scanner skips hidden
   files by default and never tokenizes JSON, so these configs never reach a
-  sniff. A filesystem probe from each scanned file up to the project root
-  (the mechanism behind the missing-test check in
-  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128)) is anchored
-  to the *project*, not the file being scanned: it would either re-fire on
-  every file in the run or need run-global state, neither of which fits
-  PHPCS's per-file reporting model. Better caught in review or by a CI script.
+  sniff. A filesystem probe from each scanned file up to the project root is
+  anchored to the *project*, not the file being scanned: it would either
+  re-fire on every file in the run or need run-global state, neither of which
+  fits PHPCS's per-file reporting model. Better caught in review or by a CI
+  script.
 - **`phpcbf` runs** — not detectable. PHPCS's own fixer is exactly the class
   of tool the standard bans, but its output is indistinguishable from
   hand-corrected code; auto-fixing leaves no token trace.
