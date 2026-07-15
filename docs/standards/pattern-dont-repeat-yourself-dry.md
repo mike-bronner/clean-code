@@ -10,35 +10,33 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (custom sniff)
 
-This is an architectural / semantic standard. It is **not** enforced by a PHPCS
-sniff. Enforcement is via **code review and developer discipline**.
+The textual side of this standard **is statically lintable**: repeating blocks
+of near-identical code are token-visible, and a custom sniff can flag them by
+comparing normalized code blocks against a configurable minimum length.
+Focused sniff issue:
+[#134](https://github.com/mike-bronner/phpcs-rules/issues/134).
 
-DRY is about duplicated *knowledge*, not duplicated text: two token-identical
-blocks may encode different business rules that merely coincide today, and the
-standard itself defers abstraction until reuse actually arrives. Whether a
-piece of duplication has earned an abstraction is a judgement about intent and
-cross-file relationships that no single file's tokens can decide.
+- **Detection** — two or more blocks of at least the configured number of
+  lines whose normalized token streams (comments and whitespace stripped) are
+  near-identical are flagged as duplication candidates.
+- **Configurable threshold** — the minimum block length is a sniff property so
+  projects can tune sensitivity; around 5 lines of near-identical code is the
+  suggested default.
+- **Warning severity, not error** — the standard explicitly tolerates
+  duplication until an abstraction is warranted ("don't abstract
+  prematurely"), so the sniff points at abstraction candidates rather than
+  mandating a fix.
+- **Same-file scope** — a PHPCS sniff sees one file's tokens at a time.
+  Project-wide copy/paste detection is the domain of a dedicated copy/paste
+  detector such as `phpcpd`, not a PHPCS sniff.
 
-## Partial enforcement assessment
+## What remains code review
 
-The standard was assessed for a narrow, token-based heuristic that could catch
-a subset:
-
-- **Duplicate method bodies within a file** — *heuristic found.* Two or more
-  function/method bodies in the same file whose normalized token streams
-  (comments and whitespace stripped) are identical are a high-confidence
-  copy-paste signal, detectable by pure single-file token analysis. Because #4
-  explicitly tolerates duplication until an abstraction is warranted, the
-  sniff is scoped as a warning that points at abstraction candidates rather
-  than an error. Focused sniff issue:
-  [#134](https://github.com/mike-bronner/phpcs-rules/issues/134).
-- **Cross-file duplication** — *out of sniff reach.* Project-wide copy/paste
-  detection needs every file's tokens at once; that is the domain of a
-  dedicated copy/paste detector such as `phpcpd`, not a PHPCS sniff. No issue
-  opened here — it would be a tooling recommendation, not a rule in this set.
-
-The semantic core of the standard — recognizing duplicated *knowledge* and
-judging when duplication has earned an abstraction — remains enforced by code
-review.
+DRY is ultimately about duplicated *knowledge*, not duplicated text: two
+near-identical blocks may encode different business rules that merely coincide
+today, and the standard itself defers abstraction until reuse actually
+arrives. Whether a flagged duplication has earned an abstraction is a
+judgement about intent and cross-file relationships — that call stays with
+code review.
