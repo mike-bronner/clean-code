@@ -9,5 +9,8 @@
         <testsuite name="CleanCode">
             <directory>CleanCode/Tests</directory>
         </testsuite>
+        <testsuite name="Standards">
+            <directory>tests/Standards</directory>
+        </testsuite>
     </testsuites>
 </phpunit>
