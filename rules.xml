@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="MikeBronnerCleanCode"
+         xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Master ruleset for mike-bronner/phpcs-rules. Individual sniff standards get wired in here via rule refs as they land — see CONTRIBUTING.md.</description>
+
+    <arg name="extensions" value="php"/>
+
+    <!--
+        Wire individual standards in below as they land. Custom sniffs live in
+        the CleanCode standard; Slevomat rules are referenced individually,
+        e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
+    -->
+    <rule ref="./CleanCode/ruleset.xml"/>
+</ruleset>
