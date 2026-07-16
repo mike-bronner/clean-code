@@ -7,4 +7,5 @@ Each standard is documented under [`docs/standards/`](docs/standards/). Standard
 that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
+- [Clear Code: Group Code By Concepts](docs/standards/clear-code-group-code-by-concepts.md) — Tier 3, not lintable; enforced via code review (partial blank-line heuristic noted, follow-up sniff issue left to a human)
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
