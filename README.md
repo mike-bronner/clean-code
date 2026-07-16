@@ -40,4 +40,4 @@ developer discipline rather than a PHPCS rule.
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
 - [Conditionals: Mapping Arrays](docs/standards/conditionals-mapping-arrays.md) — Tier 2, custom sniff: same-variable if/elseif chain detection ([#163](https://github.com/mike-bronner/phpcs-rules/issues/163))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
-- [Models: Persistence Methods (Repository Pattern)](docs/standards/models-persistence-methods-repository-pattern.md) — Tier 3, not statically enforceable; partial slice tracked in [#186](https://github.com/mike-bronner/phpcs-rules/issues/186)
+- [Models: Persistence Methods (Repository Pattern)](docs/standards/models-persistence-methods-repository-pattern.md) — Tier 2, custom sniff: generic CRUD calls on non-`$this` receivers ([#37](https://github.com/mike-bronner/phpcs-rules/issues/37))

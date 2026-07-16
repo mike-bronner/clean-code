@@ -22,33 +22,38 @@ defines the persistence conventions the model itself carries instead.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (custom sniff, partial)
 
-This is an architectural / semantic standard. It is **not** enforced by a
-PHPCS sniff. Enforcement is via **code review and developer discipline**.
+The highest-signal slice of this standard **is statically lintable**: a
+generic CRUD call (`save`, `update`, `delete`, `create`) on a receiver
+**other than `$this`** — e.g. `$user->save()` in a controller — is a
+token-visible signal that persistence is being driven from outside the model.
+Calls on `$this` are the blessed usage: the model's own descriptive methods
+calling `$this->save()` internally. Sniff:
+`CleanCode.Models.DisallowExternalPersistenceCalls`
+([#37](https://github.com/mike-bronner/phpcs-rules/issues/37), superseding
+the follow-up issue
+[#186](https://github.com/mike-bronner/phpcs-rules/issues/186)).
 
-A token-based PHPCS sniff inspects one file's tokens in isolation at lint
-time, with no type information. Whether a method name reveals business intent
-(`addListingInfo()` vs `updateData()`), whether data parsing/assignment lives
-inside the model, and whether a call receiver is actually an Eloquent model
-are semantic judgements no single file's tokens can decide.
-
-## Partial enforcement assessment
-
-One narrow slice **is** catchable by a token-based sniff: a generic CRUD call
-(`save`, `update`, `delete`, `create`) on a receiver **other than `$this`** —
-e.g. `$user->save()` in a controller — is a token-visible signal that
-persistence is being driven from outside the model. Calls on `$this` are the
-blessed usage: the model's own descriptive methods calling `$this->save()`
-internally.
-
-A focused sniff issue has been opened for exactly that slice —
-[#186](https://github.com/mike-bronner/phpcs-rules/issues/186) — warning
-severity, since the check is name-based and PHPCS cannot see receiver types.
-The complementary "no dedicated repository classes" slice already has its own
-focused sniff issue,
-[#126](https://github.com/mike-bronner/phpcs-rules/issues/126), spun out of
-Pattern: Repository.
+- **Detection** — an instance method call (`->` or `?->`) named from the
+  configured list on any receiver other than `$this` is flagged, whether the
+  receiver is a variable, a property, or a chained call.
+- **Configurable method list** — the flagged names are a public sniff
+  property (`persistenceMethods`); the shipped default is `create`, `delete`,
+  `save`, `update`.
+- **Warning severity, not error** — the check is name-based; PHPCS has no
+  type information, so a same-named method on a non-Eloquent object (e.g. a
+  client library's `save()`) triggers a false positive.
+- **Boundaries** — static `Model::create([...])` stays out: at the token
+  level it is indistinguishable from named constructors and factory APIs.
+  `tests/` is excluded via ruleset path scoping in `rules.xml` — factory
+  chains (`User::factory()->create()`) make the pattern idiomatic there.
+  Query-builder calls inside a model's own Queries traits share the token
+  shape and will warn; scope those paths out in the ruleset or suppress
+  inline. The complementary "no dedicated repository classes" slice has its
+  own focused sniff issue,
+  [#126](https://github.com/mike-bronner/phpcs-rules/issues/126), spun out
+  of Pattern: Repository.
 
 ## What remains code review
 
