@@ -7,4 +7,5 @@ Each standard is documented under [`docs/standards/`](docs/standards/). Standard
 that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
+- [Models: Structure (Attributes/Queries traits)](docs/standards/models-structure-attributes-queries-traits.md) — Tier 3, code review; partial slice: accessor/mutator/scope methods declared in a class body ([#192](https://github.com/mike-bronner/phpcs-rules/issues/192))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
