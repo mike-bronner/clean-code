@@ -32,7 +32,7 @@ are declared directly in a class body instead of a trait. Focused sniff issue:
 - **Modern attributes** — methods whose return type resolves to
   `Illuminate\Database\Eloquent\Casts\Attribute`.
 - **Local query scopes** — `scope*()` method names (and the `#[Scope]`
-  attribute on Laravel ≥ 12).
+  attribute on Laravel ≥ 12.4).
 
 The enclosing scope (class vs. trait) is token-visible via PHPCS conditions,
 so "model-magic method declared in a class body" is a high-signal heuristic
