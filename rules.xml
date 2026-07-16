@@ -12,4 +12,12 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!--
+        Code Style: Industry Standards (PSR1/2/12) — #49.
+        PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
+        PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
+        flag PSR12-correct code, e.g. multi-line function declarations).
+    -->
+    <rule ref="PSR12"/>
 </ruleset>
