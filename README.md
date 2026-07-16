@@ -7,4 +7,5 @@ Each standard is documented under [`docs/standards/`](docs/standards/). Standard
 that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
+- [Dependency Injection](docs/standards/dependency-injection.md) — Tier 3, code review; partial slice: `new` inside constructor bodies ([#176](https://github.com/mike-bronner/phpcs-rules/issues/176))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
