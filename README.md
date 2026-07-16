@@ -39,5 +39,5 @@ developer discipline rather than a PHPCS rule.
 
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
 - [Conditionals: Mapping Arrays](docs/standards/conditionals-mapping-arrays.md) — Tier 2, custom sniff: same-variable if/elseif chain detection ([#163](https://github.com/mike-bronner/phpcs-rules/issues/163))
-- [Constructors: Primary + Named Constructors](docs/standards/constructors-primary-named-constructors.md) — Tier 3, code review; delegation-check sniff slice ([#184](https://github.com/mike-bronner/phpcs-rules/issues/184))
+- [Constructors: Primary + Named Constructors](docs/standards/constructors-primary-named-constructors.md) — Tier 2, custom sniffs: named-constructor delegation check ([#184](https://github.com/mike-bronner/phpcs-rules/issues/184)) + combined-constructor detection ([#193](https://github.com/mike-bronner/phpcs-rules/issues/193))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
