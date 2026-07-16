@@ -8,3 +8,4 @@ that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
+- [Pattern: Model-View-Controller (MVC)](docs/standards/pattern-model-view-controller-mvc.md) — Tier 3, code review; partial slice: RESTful controller-method naming ([#167](https://github.com/mike-bronner/phpcs-rules/issues/167))
