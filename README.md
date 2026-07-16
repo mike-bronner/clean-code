@@ -7,4 +7,5 @@ Each standard is documented under [`docs/standards/`](docs/standards/). Standard
 that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
+- [Conditionals: Mapping Arrays](docs/standards/conditionals-mapping-arrays.md) — Tier 3, code review; partial-enforcement sniff: same-variable if/elseif chains ([#163](https://github.com/mike-bronner/phpcs-rules/issues/163))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
