@@ -13,8 +13,8 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 The trigger pattern of this standard **is statically lintable**: sequential
 conditions with the same result surface in the token stream as adjacent
 branches whose bodies are token-identical after normalization (comments and
-whitespace stripped) — the same normalized-block comparison already used by
-the DRY sniff ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
+whitespace stripped) — the same normalized-block comparison approach planned
+for the DRY sniff ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
 Two combination patterns are behavior-preserving and safe to flag. Focused
 sniff issue:
 [#181](https://github.com/mike-bronner/phpcs-rules/issues/181).
