@@ -22,7 +22,7 @@ class DisallowDebugFunctionsUnitTest extends AbstractSniffUnitTest
             3 => 1,
             4 => 1,
             5 => 1,
-            18 => 1,
+            21 => 1,
         ];
     }
 

@@ -78,11 +78,38 @@ class DisallowDebugFunctionsSniff implements Sniff
             return;
         }
 
+        if (
+            $prev !== false
+            && $tokens[$prev]['code'] === T_NS_SEPARATOR
+            && $this->isQualifiedName($phpcsFile, $prev) === true
+        ) {
+            return;
+        }
+
         $phpcsFile->addError(
             'Debug function %s() must not be committed',
             $stackPtr,
             'Found',
             [$tokens[$stackPtr]['content']]
         );
+    }
+
+    /**
+     * Whether the T_NS_SEPARATOR at $separatorPtr belongs to a qualified name
+     * (App\Utils\dump, namespace\dump) rather than a fully-qualified global
+     * one (\var_dump). Qualified names resolve outside the global namespace,
+     * so they are never the forbidden global debug functions.
+     */
+    private function isQualifiedName(File $phpcsFile, int $separatorPtr): bool
+    {
+        $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
+
+        if ($beforeSeparator === false) {
+            return false;
+        }
+
+        $tokens = $phpcsFile->getTokens();
+
+        return in_array($tokens[$beforeSeparator]['code'], [T_STRING, T_NAMESPACE], true);
     }
 }
