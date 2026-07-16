@@ -12,4 +12,13 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!--
+        Factory chains (User::factory()->create()) make generic CRUD calls
+        idiomatic in tests, so the external-persistence sniff stays out of
+        test paths.
+    -->
+    <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
 </ruleset>
