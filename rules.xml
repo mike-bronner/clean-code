@@ -7,9 +7,38 @@
     <arg name="extensions" value="php"/>
 
     <!--
+        Pin sniff behaviour to the package's PHP floor (composer.json requires
+        ^8.1) so version-gated Slevomat options (union/intersection hints,
+        standalone null/true/false, …) resolve the same on every runtime.
+        Consumer rulesets can override with their own <config> tag.
+    -->
+    <config name="php_version" value="80100"/>
+
+    <!--
         Wire individual standards in below as they land. Custom sniffs live in
         the CleanCode standard; Slevomat rules are referenced individually,
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!--
+        Type Hints and Return Types (#45): every method parameter, return
+        value, and property carries a native type hint. Only the missing-hint
+        codes are enforced; the annotation-centric codes (traversable
+        @param/@var specifications, useless-annotation cleanup, less-specific
+        native hints) police doc blocks, which the standard does not mandate.
+    -->
+    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    </rule>
 </ruleset>
