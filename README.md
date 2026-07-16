@@ -1,6 +1,36 @@
 # phpcs-rules
 PHPCS linter rules for all coding standards defined in https://mikebronner.dev/clean-code.
 
+## Installation
+
+```bash
+composer require --dev mike-bronner/phpcs-rules
+```
+
+The package is a `phpcodesniffer-standard`, so the **CleanCode** standard
+auto-registers with PHP_CodeSniffer on install (via the dealerdirect composer
+installer) — `vendor/bin/phpcs -i` lists it.
+
+## Usage
+
+Run the master ruleset (`rules.xml`), which wires together the CleanCode
+sniffs and any referenced Slevomat rules:
+
+```bash
+vendor/bin/phpcs --standard=vendor/mike-bronner/phpcs-rules/rules.xml src/
+```
+
+Or reference it from your project's own `phpcs.xml.dist`:
+
+```xml
+<rule ref="vendor/mike-bronner/phpcs-rules/rules.xml"/>
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the package layout, how a new
+sniff/standard plugs into `rules.xml`, and how to add its unit test.
+
 ## Standards
 
 Each standard is documented under [`docs/standards/`](docs/standards/). Standards
