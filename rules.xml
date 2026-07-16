@@ -12,4 +12,37 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!--
+        Methods: Type Hints (#70) — every method parameter and return value
+        must carry a native type hint. The enable* properties are pinned to the
+        package's PHP 8.1 floor so behaviour never floats on the PHP version
+        running the check. Traversable-specification and useless-annotation
+        codes are excluded: they police docblock hygiene, not missing native
+        hints (docblock/property coverage belongs to #45).
+    -->
+    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+        <properties>
+            <property name="enableObjectTypeHint" value="true"/>
+            <property name="enableMixedTypeHint" value="true"/>
+            <property name="enableUnionTypeHint" value="true"/>
+            <property name="enableIntersectionTypeHint" value="true"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+        </properties>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+        <properties>
+            <property name="enableObjectTypeHint" value="true"/>
+            <property name="enableStaticTypeHint" value="true"/>
+            <property name="enableMixedTypeHint" value="true"/>
+            <property name="enableUnionTypeHint" value="true"/>
+            <property name="enableIntersectionTypeHint" value="true"/>
+            <property name="enableNeverTypeHint" value="true"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+        </properties>
+    </rule>
 </ruleset>
