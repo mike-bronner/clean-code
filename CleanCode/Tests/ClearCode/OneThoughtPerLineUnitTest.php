@@ -27,6 +27,10 @@ class OneThoughtPerLineUnitTest extends AbstractSniffUnitTest
             30 => 1,
             31 => 1,
             34 => 1,
+            36 => 1,
+            37 => 1,
+            38 => 1,
+            42 => 1,
         ];
     }
 

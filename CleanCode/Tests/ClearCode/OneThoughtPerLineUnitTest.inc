@@ -32,3 +32,11 @@ $this->config->name = $value;
 
 $result = $service->repository
     ->find($id)->name;
+
+$dynamic = $this->{$prop}->name;
+$called = $obj->{$name}()->prop;
+$static = $this::{$prop}->name;
+
+$report = $builder
+    ->select('total')
+    ->where('active', true)->orderBy('name');

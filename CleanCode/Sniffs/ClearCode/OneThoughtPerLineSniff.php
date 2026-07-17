@@ -102,8 +102,8 @@ class OneThoughtPerLineSniff implements Sniff
     /**
      * Finds the access operator that precedes $stackPtr within the same
      * expression chain, walking left over the member segment and any call
-     * parentheses or index brackets. Returns null when $stackPtr is the
-     * first operator of its chain.
+     * parentheses, index brackets, or dynamic `{…}` name braces. Returns
+     * null when $stackPtr is the first operator of its chain.
      */
     private function previousOperatorInChain(File $phpcsFile, int $stackPtr): ?int
     {
@@ -120,6 +120,11 @@ class OneThoughtPerLineSniff implements Sniff
                 && isset($tokens[$ptr]['bracket_opener']) === true
             ) {
                 $ptr = $tokens[$ptr]['bracket_opener'];
+            } elseif (in_array($code, self::ACCESS_OPERATORS, true) === true) {
+                // Reached only after jumping a dynamic `{…}` segment
+                // (`->{$prop}` / `::{$prop}`), whose braces sit directly on
+                // the operator: that operator is the chain's predecessor.
+                return $ptr;
             } elseif (in_array($code, self::CHAIN_SEGMENT_TOKENS, true) === true) {
                 $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
@@ -140,20 +145,17 @@ class OneThoughtPerLineSniff implements Sniff
 
     /**
      * Continuation indent for a chain split by the fixer: the leading
-     * whitespace of the line holding the chain's first operator, plus one
-     * four-space level.
+     * whitespace of the line that starts the statement holding the chain,
+     * plus one four-space level. Basing the indent on the statement's root
+     * line (not the first operator's line) keeps continuation lines level
+     * when the chain is already partially split.
      */
     private function chainIndent(File $phpcsFile, int $stackPtr): string
     {
-        $first = $stackPtr;
-
-        while (($previous = $this->previousOperatorInChain($phpcsFile, $first)) !== null) {
-            $first = $previous;
-        }
-
         $tokens = $phpcsFile->getTokens();
-        $line = $tokens[$first]['line'];
-        $firstOnLine = $first;
+        $start = $phpcsFile->findStartOfStatement($stackPtr);
+        $line = $tokens[$start]['line'];
+        $firstOnLine = $start;
 
         while ($firstOnLine > 0 && $tokens[$firstOnLine - 1]['line'] === $line) {
             $firstOnLine--;
