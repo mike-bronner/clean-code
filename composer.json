@@ -24,6 +24,11 @@
             "MikeBronner\\CleanCode\\": "CleanCode/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "MikeBronner\\CleanCode\\Tests\\": ["CleanCode/Tests/", "tests/"]
+        }
+    },
     "config": {
         "allow-plugins": {
             "dealerdirect/phpcodesniffer-composer-installer": true
