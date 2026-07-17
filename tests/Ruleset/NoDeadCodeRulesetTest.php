@@ -10,7 +10,16 @@ use PHPUnit\Framework\TestCase;
  * Integration tests for the No Dead Code standard as wired into the master
  * rules.xml: third-party rules (Squiz commented-out code, Slevomat unused
  * parameter / unused imports) plus the custom UnusedPrivateElements sniff,
- * exercised through the phpcs/phpcbf CLI exactly as consumers run them.
+ * exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ *
+ * The runs scope to this standard's own sniffs via --sniffs (see SNIFFS): the
+ * fixtures are clean only of dead code, not of every other standard sharing
+ * the master ruleset (line length, one-thought-per-line, …), so scoping keeps
+ * the zero-violation assertions honest and means later additions to rules.xml
+ * cannot break this test — matching the TypeHints and Exceptions ruleset tests.
+ * Wiring is still proven: --sniffs only filters the loaded ruleset, so a sniff
+ * removed from rules.xml drops out of the report and its negative-case
+ * assertion fails.
  *
  * Fixtures live in tests/Ruleset/fixtures/ and use the .inc extension so the
  * PSR-12 self-lint (which scans .php only) ignores their intentional
@@ -18,6 +27,16 @@ use PHPUnit\Framework\TestCase;
  */
 class NoDeadCodeRulesetTest extends TestCase
 {
+    /**
+     * The sniffs the No Dead Code standard owns, as wired into rules.xml. The
+     * phpcs/phpcbf runs scope to these so that sibling standards sharing the
+     * master ruleset cannot trip the zero-violation fixtures.
+     */
+    private const SNIFFS = 'Squiz.PHP.CommentedOutCode,'
+        . 'SlevomatCodingStandard.Functions.UnusedParameter,'
+        . 'SlevomatCodingStandard.Namespaces.UnusedUses,'
+        . 'CleanCode.DeadCode.UnusedPrivateElements';
+
     public function testCleanFileProducesZeroViolations(): void
     {
         $report = $this->runPhpcs($this->fixture('clean.inc'));
@@ -66,9 +85,10 @@ class NoDeadCodeRulesetTest extends TestCase
 
         try {
             exec(sprintf(
-                '%s --standard=%s --extensions=inc %s',
+                '%s --standard=%s --sniffs=%s --extensions=inc %s',
                 escapeshellarg($this->binary('phpcbf')),
                 escapeshellarg($this->ruleset()),
+                escapeshellarg(self::SNIFFS),
                 escapeshellarg($scratch)
             ));
 
@@ -104,9 +124,10 @@ class NoDeadCodeRulesetTest extends TestCase
     private function runPhpcs(string $fixture): array
     {
         exec(sprintf(
-            '%s --standard=%s --extensions=inc --report=json -q %s',
+            '%s --standard=%s --sniffs=%s --extensions=inc --report=json -q %s',
             escapeshellarg($this->binary('phpcs')),
             escapeshellarg($this->ruleset()),
+            escapeshellarg(self::SNIFFS),
             escapeshellarg($fixture)
         ), $output);
 
