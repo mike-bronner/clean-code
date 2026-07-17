@@ -2,7 +2,12 @@
 
 /**
  * Integration test for the Slevomat TypeHints rules wired into the master
- * ruleset (rules.xml) for the "Type Hints and Return Types" standard (#45).
+ * ruleset (rules.xml). It runs the shipped ruleset, so it covers the combined
+ * TypeHints surface: PropertyTypeHint (owned by the "Type Hints and Return
+ * Types" standard, #45) plus ParameterTypeHint / ReturnTypeHint (owned by the
+ * "Methods: Type Hints" standard, #70). This test guards that the master
+ * ruleset wires all three and flags them at the expected lines, regardless of
+ * which standard each sniff belongs to.
  *
  * Fixtures live in Fixtures/TypeHints/: compliant.inc must produce zero
  * TypeHints violations, violations.inc must be flagged at the exact lines
