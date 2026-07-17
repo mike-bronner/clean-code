@@ -38,8 +38,12 @@ that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
+- [Clear Code: One Thought Per Line](docs/standards/clear-code-one-thought-per-line.md) — Tier 2, custom sniff `CleanCode.ClearCode.OneThoughtPerLine`: one access operator per chain per line, auto-fixable ([#7](https://github.com/mike-bronner/phpcs-rules/issues/7))
 - [Conditionals: Combine Where Possible](docs/standards/conditionals-combine-where-possible.md) — Tier 2, custom sniff: adjacent identical-branch detection ([#181](https://github.com/mike-bronner/phpcs-rules/issues/181))
 - [Conditionals: Mapping Arrays](docs/standards/conditionals-mapping-arrays.md) — Tier 2, custom sniff: same-variable if/elseif chain detection ([#163](https://github.com/mike-bronner/phpcs-rules/issues/163))
+- [Conditionals: One Condition Per Line](docs/standards/conditionals-one-condition-per-line.md) — Tier 2, custom sniff: auto-fixable condition-layout enforcement ([#17](https://github.com/mike-bronner/phpcs-rules/issues/17))
 - [Constructors: Primary + Named Constructors](docs/standards/constructors-primary-named-constructors.md) — Tier 2, custom sniffs: named-constructor delegation check ([#184](https://github.com/mike-bronner/phpcs-rules/issues/184)) + combined-constructor detection ([#193](https://github.com/mike-bronner/phpcs-rules/issues/193))
+- [Exceptions](docs/standards/exceptions.md) — Tier 2, **enforced** via Slevomat rules: `\Throwable`-only catches + non-capturing catch, both auto-fixable ([#63](https://github.com/mike-bronner/phpcs-rules/issues/63))
+- [Naming: Casing Conventions](docs/standards/naming-casing-conventions.md) — Tier 1, existing sniffs: camelCase variables/properties/methods, PascalCase classes ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
