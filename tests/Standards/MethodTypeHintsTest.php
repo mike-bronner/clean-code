@@ -24,10 +24,13 @@ use PHPUnit\Framework\TestCase;
  * Specification, UselessAnnotation) and the pinned enable* properties,
  * testing a config that never ships. Because the shipped ruleset also carries
  * PSR12 and other standards that flag the fixture's structure (multiple
- * classes, no namespace), the error assertion filters to the two TypeHints
- * sniffs #70 owns: the exclusions and property pins stay live while the map
- * pins exactly the parameter/return-hint behaviour. The line maps below refer
- * to Fixtures/MethodTypeHints.inc.
+ * classes, no namespace), the error assertion filters to Slevomat's
+ * SlevomatCodingStandard.TypeHints.* sources by prefix. That prefix also
+ * spans PropertyTypeHint (#45's sniff), but this fixture declares no
+ * properties, so in practice only the ParameterTypeHint / ReturnTypeHint
+ * sniffs #70 owns fire — the exclusions and property pins stay live while the
+ * map pins exactly the parameter/return-hint behaviour. The line maps below
+ * refer to Fixtures/MethodTypeHints.inc.
  */
 class MethodTypeHintsTest extends TestCase
 {
@@ -59,8 +62,9 @@ class MethodTypeHintsTest extends TestCase
             284 => 1,
             292 => 1,
             300 => 1,
-            318 => 1,
-            326 => 1,
+            319 => 1,
+            327 => 1,
+            343 => 1,
         ];
     }
 
@@ -69,6 +73,11 @@ class MethodTypeHintsTest extends TestCase
         $file = $this->processFixture();
 
         $this->assertSame($this->getErrorList(), $this->typeHintErrorLines($file));
+
+        // Forward guard: the TypeHints sniffs only ever addError, never
+        // addWarning, so this is 0 today. Kept so a future Slevomat release (or
+        // a severity change) that starts emitting a TypeHints *warning* — which
+        // the error map above would silently miss — trips a failure here.
         $this->assertSame(0, $this->typeHintWarningCount($file));
     }
 
@@ -105,9 +114,11 @@ class MethodTypeHintsTest extends TestCase
     }
 
     /**
-     * Collapse the file's errors to a line => count map, counting only the two
-     * TypeHints sniffs #70 owns and ignoring structural noise (PSR1/PSR12) that
-     * the shipped ruleset also reports on the multi-class fixture.
+     * Collapse the file's errors to a line => count map, counting every
+     * SlevomatCodingStandard.TypeHints.* source and ignoring structural noise
+     * (PSR1/PSR12) that the shipped ruleset also reports on the multi-class
+     * fixture. The prefix spans PropertyTypeHint too, but the fixture declares
+     * no properties, so only #70's ParameterTypeHint / ReturnTypeHint fire.
      *
      * @return array<int, int> line number => TypeHints error count
      */

@@ -304,12 +304,13 @@ class DocblockOnlyReturnComplexTypes
 }
 
 // Standalone null/true/false hints are pinned OFF to hold the PHP 8.1 floor.
-// A docblock `@param false`/`@return false` is widened to the native `bool`
-// (not the PHP 8.2 standalone `false`), while a docblock `@param null` cannot
-// be expressed natively on 8.1 and is left unhinted (no violation). Both pin
-// enableStandaloneNullTrueFalseTypeHints=false: flip it on and the false cases
-// fix to native `false` instead of `bool`, and the null case starts being
-// flagged — either divergence fails these locks.
+// A docblock `@param false`/`@param true`/`@return false` is widened to the
+// native `bool` (not the PHP 8.2 standalone `false`/`true`), while a docblock
+// `@param null`/`@return null` cannot be expressed natively on 8.1 and is left
+// unhinted (no violation). All pin enableStandaloneNullTrueFalseTypeHints=false:
+// flip it on and the false/true cases fix to native `false`/`true` instead of
+// `bool`, and the null cases start being flagged — either divergence fails
+// these locks.
 class DocblockOnlyStandaloneTypes
 {
     /**
@@ -334,5 +335,21 @@ class DocblockOnlyStandaloneTypes
     public function standaloneNullParameterAnnotationOnly($value): void
     {
         echo $value;
+    }
+
+    /**
+     * @param true $flag
+     */
+    public function standaloneTrueParameterAnnotationOnly(bool $flag): void
+    {
+        $this->standaloneTrueParameterAnnotationOnly($flag);
+    }
+
+    /**
+     * @return null
+     */
+    public function standaloneNullReturnAnnotationOnly()
+    {
+        return null;
     }
 }
