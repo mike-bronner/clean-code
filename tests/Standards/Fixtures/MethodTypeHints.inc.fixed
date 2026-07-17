@@ -234,3 +234,105 @@ class InheritDocReturnSkip extends MissingReturnHints
         return parent::returnsValueNoAnnotation($value);
     }
 }
+
+// Compliant: free functions are covered by the same rules — #70 owns
+// parameter/return hints for every callable, not just class methods. A fully
+// hinted free function produces no violation.
+function compliantFreeFunction(int $value): int
+{
+    return $value * 2;
+}
+
+// Violation: a free function with an unhinted parameter and no return type is
+// flagged on both counts, proving the sniffs are not method-only. Neither is
+// inferable, so both stay unfixed.
+function unhintedFreeFunction($value)
+{
+    return $value;
+}
+
+// Violations: docblock-only `object` hints promote to a native `object` hint,
+// exercising enableObjectTypeHint on both the parameter and return sniffs.
+class DocblockOnlyObjectTypes
+{
+    /**
+     * @param object $value
+     */
+    public function objectParameterAnnotationOnly(object $value): void
+    {
+        $this->objectParameterAnnotationOnly($value);
+    }
+
+    /**
+     * @return object
+     */
+    public function objectReturnAnnotationOnly(): object
+    {
+        return new \stdClass();
+    }
+}
+
+// Violations: docblock-only complex RETURN types promote to native hints,
+// exercising enableUnionTypeHint, enableIntersectionTypeHint, and
+// enableStaticTypeHint on the return sniff — the parameter side of union,
+// intersection, and mixed is covered above by DocblockOnlyComplexTypes.
+class DocblockOnlyReturnComplexTypes
+{
+    /**
+     * @return int|string
+     */
+    public function unionReturnAnnotationOnly(int $value): int|string
+    {
+        return $value > 0 ? $value : 'zero';
+    }
+
+    /**
+     * @return \Countable&\ArrayAccess
+     */
+    public function intersectionReturnAnnotationOnly(\ArrayObject $value): \Countable&\ArrayAccess
+    {
+        return $value;
+    }
+
+    /**
+     * @return static
+     */
+    public function staticReturnAnnotationOnly(): static
+    {
+        return $this;
+    }
+}
+
+// Standalone null/true/false hints are pinned OFF to hold the PHP 8.1 floor.
+// A docblock `@param false`/`@return false` is widened to the native `bool`
+// (not the PHP 8.2 standalone `false`), while a docblock `@param null` cannot
+// be expressed natively on 8.1 and is left unhinted (no violation). Both pin
+// enableStandaloneNullTrueFalseTypeHints=false: flip it on and the false cases
+// fix to native `false` instead of `bool`, and the null case starts being
+// flagged — either divergence fails these locks.
+class DocblockOnlyStandaloneTypes
+{
+    /**
+     * @param false $flag
+     */
+    public function standaloneFalseParameterAnnotationOnly(bool $flag): void
+    {
+        $this->standaloneFalseParameterAnnotationOnly($flag);
+    }
+
+    /**
+     * @return false
+     */
+    public function standaloneFalseReturnAnnotationOnly(int $value): bool
+    {
+        return $value < 0;
+    }
+
+    /**
+     * @param null $value
+     */
+    public function standaloneNullParameterAnnotationOnly($value): void
+    {
+        echo $value;
+    }
+}

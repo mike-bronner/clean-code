@@ -8,7 +8,7 @@ class VisibilityExample
 
     var $legacy;
 
-    function run()
+    function run(): mixed
     {
         return $this->legacy;
     }

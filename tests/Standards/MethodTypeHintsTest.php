@@ -17,13 +17,22 @@ use PHPUnit\Framework\TestCase;
  * Third-party rules referenced from rules.xml cannot use PHPCS's
  * AbstractSniffUnitTest harness (it only resolves sniffs belonging to the
  * standard under test), so this test runs the master ruleset programmatically
- * against a line-mapped fixture. The whole ruleset runs unrestricted — a
- * Config::$sniffs restriction would drop the ruleset's message-level
- * exclusions and test a config that never ships. The line maps below refer
+ * against a line-mapped fixture.
+ *
+ * The whole ruleset runs unrestricted — a Config::$sniffs restriction would
+ * drop the ruleset's message-level exclusions (MissingTraversableTypeHint-
+ * Specification, UselessAnnotation) and the pinned enable* properties,
+ * testing a config that never ships. Because the shipped ruleset also carries
+ * PSR12 and other standards that flag the fixture's structure (multiple
+ * classes, no namespace), the error assertion filters to the two TypeHints
+ * sniffs #70 owns: the exclusions and property pins stay live while the map
+ * pins exactly the parameter/return-hint behaviour. The line maps below refer
  * to Fixtures/MethodTypeHints.inc.
  */
 class MethodTypeHintsTest extends TestCase
 {
+    private const TYPE_HINT_PREFIX = 'SlevomatCodingStandard.TypeHints.';
+
     /**
      * @return array<int, int> line number => expected error count
      */
@@ -44,6 +53,14 @@ class MethodTypeHintsTest extends TestCase
             191 => 1,
             199 => 1,
             207 => 1,
+            249 => 2,
+            261 => 1,
+            269 => 1,
+            284 => 1,
+            292 => 1,
+            300 => 1,
+            318 => 1,
+            326 => 1,
         ];
     }
 
@@ -51,16 +68,8 @@ class MethodTypeHintsTest extends TestCase
     {
         $file = $this->processFixture();
 
-        $actual = [];
-
-        foreach ($file->getErrors() as $line => $columns) {
-            $actual[$line] = array_sum(array_map('count', $columns));
-        }
-
-        ksort($actual);
-
-        $this->assertSame($this->getErrorList(), $actual);
-        $this->assertSame(0, $file->getWarningCount());
+        $this->assertSame($this->getErrorList(), $this->typeHintErrorLines($file));
+        $this->assertSame(0, $this->typeHintWarningCount($file));
     }
 
     public function testFixableViolationsProduceTheExpectedFixedFile(): void
@@ -93,5 +102,50 @@ class MethodTypeHintsTest extends TestCase
         $file->process();
 
         return $file;
+    }
+
+    /**
+     * Collapse the file's errors to a line => count map, counting only the two
+     * TypeHints sniffs #70 owns and ignoring structural noise (PSR1/PSR12) that
+     * the shipped ruleset also reports on the multi-class fixture.
+     *
+     * @return array<int, int> line number => TypeHints error count
+     */
+    private function typeHintErrorLines(LocalFile $file): array
+    {
+        $lines = [];
+
+        foreach ($file->getErrors() as $line => $columns) {
+            foreach ($columns as $messages) {
+                foreach ($messages as $message) {
+                    if (! str_starts_with($message['source'], self::TYPE_HINT_PREFIX)) {
+                        continue;
+                    }
+
+                    $lines[$line] = ($lines[$line] ?? 0) + 1;
+                }
+            }
+        }
+
+        ksort($lines);
+
+        return $lines;
+    }
+
+    private function typeHintWarningCount(LocalFile $file): int
+    {
+        $count = 0;
+
+        foreach ($file->getWarnings() as $columns) {
+            foreach ($columns as $messages) {
+                foreach ($messages as $message) {
+                    if (str_starts_with($message['source'], self::TYPE_HINT_PREFIX)) {
+                        $count++;
+                    }
+                }
+            }
+        }
+
+        return $count;
     }
 }
