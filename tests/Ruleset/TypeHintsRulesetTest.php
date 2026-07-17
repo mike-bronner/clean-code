@@ -5,9 +5,17 @@
  * ruleset (rules.xml) for the "Type Hints and Return Types" standard (#45).
  *
  * Fixtures live in Fixtures/TypeHints/: compliant.inc must produce zero
- * violations, violations.inc must be flagged at the exact lines below, and
- * violations.inc.fixed is the expected phpcbf output — every violation the
- * sniff can infer a native hint for is resolved, the rest remain flagged.
+ * TypeHints violations, violations.inc must be flagged at the exact lines
+ * below, and violations.inc.fixed is the expected phpcbf output — every
+ * violation the sniff can infer a native hint for is resolved, the rest
+ * remain flagged.
+ *
+ * Only SlevomatCodingStandard.TypeHints.* sources are asserted on. The
+ * fixtures deliberately pack interface/abstract/class cases into a single
+ * namespace-less file, so PSR1's one-class-per-file / namespace rules (and
+ * any other standard wired into the shared master ruleset) also fire on
+ * them — those are out of scope here and are filtered out, so unrelated
+ * additions to rules.xml cannot break this test.
  */
 
 declare(strict_types=1);
@@ -43,8 +51,7 @@ class TypeHintsRulesetTest extends TestCase
     {
         $file = $this->processFixture('compliant.inc');
 
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
+        $this->assertSame([], $this->sourcesByLine($file));
     }
 
     public function testViolationsAreFlaggedAtTheExactLine(): void
@@ -137,7 +144,7 @@ class TypeHintsRulesetTest extends TestCase
     }
 
     /**
-     * @return array<int, array<int, string>> line number => sorted violation sources
+     * @return array<int, array<int, string>> line number => sorted TypeHints violation sources
      */
     private function sourcesByLine(LocalFile $file): array
     {
@@ -146,12 +153,17 @@ class TypeHintsRulesetTest extends TestCase
         foreach ($file->getErrors() as $line => $columns) {
             foreach ($columns as $errors) {
                 foreach ($errors as $error) {
-                    $sources[$line][] = $error['source'];
+                    if (self::isTypeHintsSource($error['source'])) {
+                        $sources[$line][] = $error['source'];
+                    }
                 }
             }
-
-            sort($sources[$line]);
         }
+
+        foreach ($sources as &$lineSources) {
+            sort($lineSources);
+        }
+        unset($lineSources);
 
         ksort($sources);
 
@@ -159,7 +171,7 @@ class TypeHintsRulesetTest extends TestCase
     }
 
     /**
-     * @return array<int, int> line numbers carrying at least one fixable violation
+     * @return array<int, int> line numbers carrying at least one fixable TypeHints violation
      */
     private function fixableLines(LocalFile $file): array
     {
@@ -168,7 +180,7 @@ class TypeHintsRulesetTest extends TestCase
         foreach ($file->getErrors() as $line => $columns) {
             foreach ($columns as $errors) {
                 foreach ($errors as $error) {
-                    if ($error['fixable']) {
+                    if ($error['fixable'] && self::isTypeHintsSource($error['source'])) {
                         $lines[] = $line;
                     }
                 }
@@ -178,5 +190,10 @@ class TypeHintsRulesetTest extends TestCase
         sort($lines);
 
         return array_values(array_unique($lines));
+    }
+
+    private static function isTypeHintsSource(string $source): bool
+    {
+        return str_starts_with($source, 'SlevomatCodingStandard.TypeHints.');
     }
 }

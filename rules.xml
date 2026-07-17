@@ -25,6 +25,17 @@
     <rule ref="./CleanCode/ruleset.xml"/>
 
     <!--
+        Code Style: Industry Standards (PSR1/2/12) — #49.
+        PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
+        PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
+        flag PSR12-correct code, e.g. multi-line function declarations).
+        Referenced BEFORE the custom clean-code rules below so that any
+        same-sniff configuration in a later rule overrides the industry
+        baseline — custom standards win where they conflict.
+    -->
+    <rule ref="PSR12"/>
+
+    <!--
         Type Hints and Return Types (#45): every method parameter, return
         value, and property carries a native type hint. Only the missing-hint
         codes are enforced; the annotation-centric codes (traversable
