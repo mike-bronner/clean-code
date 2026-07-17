@@ -151,3 +151,8 @@ $anonymous = new class {
     }
 
 };
+
+$stackedClosers = function () { return function (): int {
+    return 1;
+
+}; };
