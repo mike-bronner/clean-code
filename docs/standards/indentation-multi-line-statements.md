@@ -24,9 +24,14 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
   statement.
 - **A closing bracket on its own line** matches the indent of the line that
   opened the bracket.
-- **Scope bodies are out of scope**: lines inside closures, anonymous
-  classes, and match expressions are governed by scope-indent rules, not by
-  this sniff.
+- **Scope bodies are out of scope**: lines inside the bodies of closures,
+  anonymous classes, and match expressions are governed by scope-indent
+  rules, not by this sniff — but their headers (parameter lists, match
+  subjects) are continuation lines and are checked.
+- **Attributes are their own construct**: a `#[…]` attribute never merges
+  with the declaration it decorates into one statement.
+- **Heredoc and nowdoc bodies are raw content** — their indentation is data,
+  never checked or fixed.
 
 ### Why a custom sniff
 

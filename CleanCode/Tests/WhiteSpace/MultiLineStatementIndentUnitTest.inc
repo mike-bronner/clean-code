@@ -123,3 +123,71 @@ doSomething(
     $first,
     $second
   );
+
+// Positive: standalone heredoc.
+$sql = <<<SQL
+SELECT *
+SQL;
+
+// Positive: standalone nowdoc.
+$text = <<<'TXT'
+raw content
+TXT;
+
+// Negative: under-indented heredoc opener inside a multi-line call.
+run(
+<<<SQL
+SELECT *
+SQL,
+);
+
+// Positive: attribute on a multi-line function declaration.
+#[Route('/home')]
+function home(
+    int $first,
+) {
+    return $first;
+}
+
+// Negative: under-indented parameter after an attribute.
+#[Route('/away')]
+function away(
+$second,
+) {
+    return $second;
+}
+
+// Positive: comment on its own continuation line.
+doSomething(
+    // explains the flag
+    $flag,
+);
+
+// Negative: a comment must not exempt the following line.
+doSomething(
+    // a comment
+$wronglyIndented,
+);
+
+// Positive: multi-line match subject.
+$firstLabel = match (
+    $state
+) {
+    default => 'unknown',
+};
+
+// Negative: under-indented multi-line match subject.
+$secondLabel = match (
+$state
+) {
+    default => 'unknown',
+};
+
+// Negative: misindented nested multi-line array inside a multi-line call.
+processData(
+    $input,
+    [
+    'flag' => true,
+        'mode' => 'strict',
+],
+);

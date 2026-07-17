@@ -24,7 +24,12 @@ use PHP_CodeSniffer\Util\Tokens;
  *   opened the bracket.
  *
  * Bodies of closures, anonymous classes, and match expressions are scope
- * blocks governed by scope-indent rules, so their inner lines are skipped.
+ * blocks governed by scope-indent rules, so their inner lines are skipped;
+ * their headers (parameter lists, match subjects) are still checked.
+ *
+ * A PHP attribute (`#[…]`) is a construct of its own: the declaration it
+ * decorates starts a fresh statement. Heredoc and nowdoc bodies are raw
+ * content and are never checked.
  */
 class MultiLineStatementIndentSniff implements Sniff
 {
@@ -161,7 +166,18 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            if (isset($token['scope_opener']) === true && $code !== T_FN) {
+            $isRawString = $code === T_START_HEREDOC || $code === T_START_NOWDOC;
+
+            if ($isRawString === true && isset($token['scope_closer']) === true) {
+                $i = $token['scope_closer'];
+                continue;
+            }
+
+            if ($code === T_ATTRIBUTE && isset($token['attribute_closer']) === true) {
+                return $token['attribute_closer'];
+            }
+
+            if (isset($token['scope_opener']) === true && $token['scope_opener'] > $i && $code !== T_FN) {
                 return $token['scope_opener'];
             }
         }
@@ -191,7 +207,7 @@ class MultiLineStatementIndentSniff implements Sniff
             }
 
             $isLineFirst = $token['line'] > $line;
-            $line = $token['line'] + substr_count($token['content'], "\n");
+            $line = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
 
             if (isset(Tokens::$emptyTokens[$code]) === true || in_array($code, self::RAW_CONTENT, true) === true) {
                 continue;
@@ -234,7 +250,11 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            if (in_array($code, self::EXPRESSION_SCOPES, true) === true && isset($token['scope_closer']) === true) {
+            $isExpressionScopeOpener = $code === T_OPEN_CURLY_BRACKET
+                && isset($token['scope_condition'], $token['scope_closer']) === true
+                && in_array($tokens[$token['scope_condition']]['code'], self::EXPRESSION_SCOPES, true) === true;
+
+            if ($isExpressionScopeOpener === true) {
                 $i = $token['scope_closer'] - 1;
             }
         }
