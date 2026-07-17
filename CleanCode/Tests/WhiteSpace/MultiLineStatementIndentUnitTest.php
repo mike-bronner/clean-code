@@ -37,6 +37,9 @@ class MultiLineStatementIndentUnitTest extends AbstractSniffUnitTest
             181 => 1,
             190 => 1,
             192 => 1,
+            214 => 1,
+            222 => 1,
+            227 => 1,
         ];
     }
 

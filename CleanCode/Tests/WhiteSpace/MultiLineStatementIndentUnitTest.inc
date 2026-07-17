@@ -191,3 +191,40 @@ processData(
         'mode' => 'strict',
 ],
 );
+
+// Positive: opener alone on its line; boolean operands on following lines.
+if (
+    $first === 1
+    && $second === 2
+    || $third === 3
+) {
+    $matched = true;
+}
+
+// Positive: opener alone on its line; arithmetic operands on following lines.
+$total = calculate(
+    $first
+    + $second
+    - $third
+);
+
+// Negative: boolean operator lines double-indented below an opener alone on its line.
+if (
+    $first === 1
+        && $second === 2
+) {
+    $matched = true;
+}
+
+// Negative: arithmetic operator line double-indented below an opener alone on its line.
+$total = calculate(
+    $first
+        + $second
+);
+
+// Negative: under-indented nowdoc opener inside a multi-line call.
+run(
+<<<'TXT'
+raw content
+TXT,
+);

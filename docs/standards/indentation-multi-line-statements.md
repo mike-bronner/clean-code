@@ -17,11 +17,13 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
 
 - **Continuation lines inside parentheses or brackets** (call arguments,
   array items, condition expressions) sit exactly one level in from the line
-  containing the opener.
-- **Operator-led continuation lines** (`->`, `?->`, `.`, `?`, `:`, `&&`,
-  `||`, …) sit exactly one level in from the line where their expression
-  started, so nested chains indent relative to their receiver, not the
-  statement.
+  containing the opener — including lines led by a binary or ternary
+  operator (`.`, `?`, `:`, `&&`, `||`, `+`, …), which align with the first
+  operand regardless of whether that operand shares the opener's line.
+- **Chain-operator-led continuation lines** (`->`, `?->`, `::`) sit exactly
+  one level in from the line where their expression started, so chains hang
+  below their receiver, not the statement. Outside any bracket, every
+  operator-led line anchors to its expression's starting line the same way.
 - **A closing bracket on its own line** matches the indent of the line that
   opened the bracket.
 - **Scope bodies are out of scope**: lines inside the bodies of closures,

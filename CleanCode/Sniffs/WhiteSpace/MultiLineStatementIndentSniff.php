@@ -16,10 +16,14 @@ use PHP_CodeSniffer\Util\Tokens;
  * first must be indented exactly one level relative to the line that opened
  * its innermost enclosing construct:
  *
- * - a continuation line inside parentheses or brackets sits one level in
- *   from the line containing the opener;
- * - a continuation line that starts with an operator (`->`, `.`, `?`, `&&`,
- *   …) sits one level in from the line where its expression started;
+ * - a continuation line inside parentheses or brackets — including one led
+ *   by a binary or ternary operator (`.`, `?`, `&&`, …) — sits one level in
+ *   from the line containing the opener, aligned with the first operand;
+ * - a continuation line that starts with a chain operator (`->`, `?->`,
+ *   `::`) sits one level in from the line where its expression started, so
+ *   chains hang below their receiver;
+ * - outside any bracket, an operator-led line sits one level in from the
+ *   line where its expression started;
  * - a closing bracket on its own line matches the indent of the line that
  *   opened the bracket.
  *
@@ -40,6 +44,16 @@ class MultiLineStatementIndentSniff implements Sniff
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
+    ];
+
+    /**
+     * Dereference operators that begin a chained continuation line; a chain
+     * hangs one level below the line where its expression started.
+     */
+    private const CHAIN_OPERATORS = [
+        T_OBJECT_OPERATOR,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_DOUBLE_COLON,
     ];
 
     /**
@@ -285,10 +299,17 @@ class MultiLineStatementIndentSniff implements Sniff
             $error = 'Closing bracket of a multi-line statement not indented correctly;'
                 . ' expected %s spaces but found %s';
         } else {
-            if (isset($continuation[$token['code']]) === true) {
+            if (in_array($token['code'], self::CHAIN_OPERATORS, true) === true) {
+                // A chain hangs one level below the line where its
+                // expression started.
                 $anchor = $stack === [] ? $exprStart : $stack[count($stack) - 1]['exprStart'];
                 $anchor ??= $stack === [] ? null : $stack[count($stack) - 1]['opener'];
+            } elseif ($stack === [] && isset($continuation[$token['code']]) === true) {
+                $anchor = $exprStart;
             } else {
+                // Inside a bracket, every other line — operand or
+                // binary/ternary-operator-led — sits one level in from the
+                // opener's line, aligned with the first operand.
                 $anchor = $stack === [] ? null : $stack[count($stack) - 1]['opener'];
             }
 
