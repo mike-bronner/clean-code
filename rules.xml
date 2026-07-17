@@ -12,4 +12,10 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!-- Conditionals: Ternary Conditionals (#20) — prefer ternaries over
+         if/else statements that only assign one variable or return; nested
+         ternaries are flagged by CleanCode.Conditionals.DisallowNestedTernary
+         (included via the CleanCode ruleset above). -->
+    <rule ref="SlevomatCodingStandard.ControlStructures.RequireTernaryOperator"/>
 </ruleset>
