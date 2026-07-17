@@ -15,5 +15,8 @@
         <testsuite name="Rules">
             <directory>tests/Rules</directory>
         </testsuite>
+        <testsuite name="Ruleset">
+            <directory>tests/Ruleset</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

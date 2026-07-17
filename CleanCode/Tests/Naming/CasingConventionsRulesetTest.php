@@ -53,7 +53,7 @@ class CasingConventionsRulesetTest extends TestCase
 
         // Pin installed_paths explicitly (after ConfigDouble blanks the
         // static config data): the master ruleset references the Slevomat
-        // standard for the Exceptions rules.
+        // standard for the Exceptions and TypeHints rules.
         Config::setConfigData(
             'installed_paths',
             dirname(__DIR__, 3) . '/vendor/slevomat/coding-standard',

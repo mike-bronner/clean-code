@@ -59,7 +59,10 @@ class IndustryStandardsTest extends TestCase
             'inline HTML mixed with a class declaration' => ['mixed-html.inc', [2 => 1, 4 => 1], [1 => 1]],
             'more than one class per file' => ['multiple-classes.inc', [9 => 1], []],
             'class outside a namespace' => ['no-namespace.inc', [3 => 1], []],
-            'missing member visibility' => ['visibility.inc', [9 => 2, 11 => 1], [7 => 1]],
+            // 9 => 3 / 11 => 2 fold in the TypeHints property/return-hint errors
+            // the master ruleset now also flags (untyped `var $legacy` and the
+            // `run()` return) alongside the PSR12 missing-visibility errors.
+            'missing member visibility' => ['visibility.inc', [9 => 3, 11 => 2], [7 => 1]],
             'line exceeding the 120-character soft limit' => ['line-length.inc', [], [7 => 1]],
             'incorrect and tab indentation' => ['indentation.inc', [9 => 1, 10 => 1], []],
             'braces not on their required lines' => ['braces.inc', [5 => 1, 6 => 1], []],
