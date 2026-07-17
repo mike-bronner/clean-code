@@ -90,3 +90,13 @@ try {
 } finally {
     report($usedInFinally);
 }
+
+// Edge: captured into a closure via `use` and referenced there — not flagged.
+try {
+    doRiskyThing();
+} catch (\Throwable $usedByClosure) {
+    $describe = function () use ($usedByClosure): string {
+        return $usedByClosure->getMessage();
+    };
+    report($describe());
+}

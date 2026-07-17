@@ -52,7 +52,7 @@ try {
     report($caughtAfterException);
 }
 
-// Edge: instantiating (or extending) \Exception is outside this rule.
+// Edge: instantiating \Exception is outside this rule.
 $rethrown = new \Exception('wrapped');
 
 // Edge: nested try/catch — the inner general catch is flagged.
@@ -74,3 +74,11 @@ $handler = function (): void {
         report($caughtInClosure);
     }
 };
+
+// Edge: extending \Exception is outside this rule — defining is not catching.
+class WrappedException extends \Exception
+{
+}
+
+// Edge: `instanceof \Exception` is outside this rule.
+$isBaseException = $rethrown instanceof \Exception;
