@@ -12,4 +12,13 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
+         imports referenced only in docblocks (@param, @throws, ...) from
+         being treated as unused — those references are live, not dead code. -->
+    <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
+        <properties>
+            <property name="searchAnnotations" value="true"/>
+        </properties>
+    </rule>
 </ruleset>
