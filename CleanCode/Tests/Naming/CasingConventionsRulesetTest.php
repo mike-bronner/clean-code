@@ -7,6 +7,7 @@ namespace MikeBronner\CleanCode\Tests\Naming;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -44,21 +45,20 @@ class CasingConventionsRulesetTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
-        // blanks the static Config data (via ConfigDouble), which would
-        // otherwise silently deregister the Slevomat standard the master
-        // ruleset references, breaking the rules.xml parse here.
+        // ConfigDouble resets PHPCS's static Config state at construction,
+        // so settings latched by rulesets built in earlier tests cannot leak
+        // in here (or out of here into later tests). The explicit argv also
+        // stops Config from parsing PHPUnit's own CLI arguments.
+        $config = new ConfigDouble(['--standard=' . dirname(__DIR__, 3) . '/rules.xml']);
+
+        // Pin installed_paths explicitly (after ConfigDouble blanks the
+        // static config data): the master ruleset references the Slevomat
+        // standard for the Exceptions and TypeHints rules.
         Config::setConfigData(
             'installed_paths',
             dirname(__DIR__, 3) . '/vendor/slevomat/coding-standard',
             true
         );
-
-        // The argv must be non-empty: Config falls back to parsing the live
-        // $_SERVER['argv'] as PHPCS flags when given none, which would leak
-        // unrelated PHPUnit arguments (e.g. --filter) into the shared Config.
-        $config = new Config(['--standard=' . dirname(__DIR__, 3) . '/rules.xml']);
-        $config->cache = false;
 
         $file = new LocalFile(
             __DIR__ . '/CasingConventionsRulesetTest.inc',
