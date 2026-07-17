@@ -107,3 +107,22 @@ class MultipleBlanksAfterBrace
     {
     }
 }
+
+// Trailing comment immediately followed by two blank lines.
+
+$afterComment = 1;
+
+$nested = function () { return function (): int {
+    return 1;
+}; };
+
+enum PaddedEnum
+{
+    case One;
+}
+
+$anonymous = new class {
+    public function noop(): void
+    {
+    }
+};

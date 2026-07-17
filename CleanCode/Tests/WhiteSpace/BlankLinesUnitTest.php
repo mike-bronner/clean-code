@@ -9,16 +9,22 @@ use PHP_CodeSniffer\Tests\Standards\AbstractSniffUnitTest;
 /**
  * Unit test for the CleanCode.WhiteSpace.BlankLines sniff.
  *
- * The line maps below refer to BlankLinesUnitTest.inc; the expected
- * auto-fixed output lives in BlankLinesUnitTest.inc.fixed.
+ * The line maps below refer to the fixture named in $testFile; each
+ * fixture's expected auto-fixed output lives in its `.fixed` sibling.
+ * The numbered fixtures cover blank lines directly after the opening
+ * `<?php` tag, which must sit at the very start of a file.
  */
 class BlankLinesUnitTest extends AbstractSniffUnitTest
 {
     /**
      * @return array<int, int> line number => expected error count
      */
-    protected function getErrorList(): array
+    protected function getErrorList(string $testFile = ''): array
     {
+        if ($testFile === 'BlankLinesUnitTest.2.inc' || $testFile === 'BlankLinesUnitTest.3.inc') {
+            return [3 => 1];
+        }
+
         return [
             41 => 1,
             48 => 1,
@@ -37,13 +43,19 @@ class BlankLinesUnitTest extends AbstractSniffUnitTest
             112 => 1,
             117 => 1,
             122 => 1,
+            131 => 1,
+            135 => 1,
+            142 => 1,
+            144 => 1,
+            148 => 1,
+            152 => 1,
         ];
     }
 
     /**
      * @return array<int, int> line number => expected warning count
      */
-    protected function getWarningList(): array
+    protected function getWarningList(string $testFile = ''): array
     {
         return [];
     }
