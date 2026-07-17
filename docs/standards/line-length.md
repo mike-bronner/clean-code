@@ -23,5 +23,5 @@ this standard once configured, so no custom sniff is needed. The master
   121+ characters raises `Generic.Files.LineLength.MaxExceeded` (error).
 - **Reporting only** — where to break a long line is a judgement call, so the
   sniff has no auto-fixer.
-- **Tests** — `tests/Ruleset/LineLengthTest.php` pins the thresholds and
+- **Tests** — `tests/Rules/LineLengthRulesTest.php` pins the thresholds and
   boundary behaviour against the master ruleset.

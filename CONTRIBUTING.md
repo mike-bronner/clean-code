@@ -18,8 +18,8 @@ CleanCode/
 docs/standards/                            # one doc per clean-code standard
 tests/
 ├── bootstrap.php                          # wires CleanCode into PHPCS's test harness
-└── Ruleset/
-    └── <Name>Test.php + fixtures/         # master-ruleset (rules.xml) configuration tests
+└── Rules/
+    └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
 ```
 
 ## Adding a new sniff
@@ -45,9 +45,9 @@ tests/
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`.
    Custom CleanCode sniffs are already picked up via the
    `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the configured
-   thresholds/behaviour with a test at `tests/Ruleset/<Name>Test.php` that
+   thresholds/behaviour with a test at `tests/Rules/<Name>RulesTest.php` that
    runs `rules.xml` against fixtures via PHPCS's API — see
-   `tests/Ruleset/LineLengthTest.php` as the template.
+   `tests/Rules/LineLengthRulesTest.php` as the template.
 4. **Document the standard** under `docs/standards/` and link it from the
    README, following the existing docs there.
 
