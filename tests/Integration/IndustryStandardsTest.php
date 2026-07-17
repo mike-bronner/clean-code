@@ -115,6 +115,83 @@ class IndustryStandardsTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, array{string, array<int, array<int, string>>}>
+     *         fixture => [path, line => violation sources]
+     */
+    public static function customStandardFixtureProvider(): array
+    {
+        $root = dirname(__DIR__, 2);
+
+        return [
+            'one-thought-per-line chain style is PSR12-clean' => [
+                $root . '/CleanCode/Tests/ClearCode/OneThoughtPerLineUnitTest.inc.fixed',
+                [],
+            ],
+            'throwable-only catches are PSR12-clean' => [
+                $root . '/tests/Rules/Fixtures/ReferenceThrowableOnly.inc.fixed',
+                [
+                    1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+                    79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
+                ],
+            ],
+            'non-capturing catches are PSR12-clean' => [
+                $root . '/tests/Rules/Fixtures/RequireNonCapturingCatch.inc.fixed',
+                [
+                    1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * The clean-code standards take precedence over the industry baseline:
+     * code shaped by the custom rules' own fixers must not be flagged by
+     * the PSR12 reference in the master ruleset. The only accepted
+     * violations are structural fixture noise (procedural code sharing a
+     * file with a class), pinned exactly — so any new PSR12-vs-custom
+     * conflict fails here and gets carved out of the PSR12 reference in
+     * rules.xml via <exclude>.
+     *
+     * @dataProvider customStandardFixtureProvider
+     *
+     * @param array<int, array<int, string>> $expected line => violation sources
+     */
+    public function testCustomStandardShapedCodeStaysPsr12Clean(string $path, array $expected): void
+    {
+        $file = new LocalFile($path, self::$ruleset, self::$config);
+        $file->process();
+
+        $this->assertSame($expected, $this->violationSourceMap($file), 'Violations in ' . basename($path));
+    }
+
+    /**
+     * Flatten errors and warnings to line => sorted violation source codes.
+     *
+     * @return array<int, array<int, string>>
+     */
+    private function violationSourceMap(LocalFile $file): array
+    {
+        $map = [];
+
+        foreach ([$file->getErrors(), $file->getWarnings()] as $violations) {
+            foreach ($violations as $line => $columns) {
+                foreach ($columns as $errors) {
+                    foreach ($errors as $error) {
+                        $map[$line][] = $error['source'];
+                    }
+                }
+            }
+        }
+
+        ksort($map);
+        array_walk($map, static function (array &$sources): void {
+            sort($sources);
+        });
+
+        return $map;
+    }
+
     private function processFixture(string $fixture): LocalFile
     {
         $file = new LocalFile(self::fixturePath($fixture), self::$ruleset, self::$config);
