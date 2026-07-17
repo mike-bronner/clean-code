@@ -63,7 +63,10 @@ class IndustryStandardsTest extends TestCase
             // the master ruleset now also flags (untyped `var $legacy` and the
             // `run()` return) alongside the PSR12 missing-visibility errors.
             'missing member visibility' => ['visibility.inc', [9 => 3, 11 => 2], [7 => 1]],
-            'line exceeding the 120-character soft limit' => ['line-length.inc', [], [7 => 1]],
+            // The master ruleset's Line Length rule (#3) overrides PSR-12's
+            // soft limit: with absoluteLineLimit=120 a line past 120 chars is
+            // an error, not a warning. Fixture line 7 is 124 chars.
+            'line exceeding the 120-character hard limit' => ['line-length.inc', [7 => 1], []],
             'incorrect and tab indentation' => ['indentation.inc', [9 => 1, 10 => 1], []],
             'braces not on their required lines' => ['braces.inc', [5 => 1, 6 => 1], []],
             'malformed control structures' => ['control-structures.inc', [9 => 2, 11 => 1], []],
