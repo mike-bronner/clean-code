@@ -29,3 +29,20 @@ $alias = ($nickname ?: $fullName ?: 'anonymous');
 
 // The same grouped chain combined by a non-ternary operator.
 $count = ($primary ?: $fallback ?: 0) + $offset;
+
+// A ternary-shaped if/else with a comment in a branch is reported without
+// an auto-fix — rewriting would drop the comment.
+if ($isCached) {
+    // warm path
+    $source = 'cache';
+} else {
+    $source = 'database';
+}
+
+// A condition using a word operator (and/or/xor) is reported without an
+// auto-fix — inlining it into a ternary would change precedence.
+if ($isValid and $isFresh) {
+    $state = 'ok';
+} else {
+    $state = 'stale';
+}

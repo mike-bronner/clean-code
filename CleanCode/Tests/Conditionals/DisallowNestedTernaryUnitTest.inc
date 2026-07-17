@@ -83,3 +83,7 @@ $name = ($nickname ?: $fullName ?: 'anonymous');
 
 // Violation: the same grouped chain combined by a non-ternary operator.
 $count = ($primary ?: $fallback ?: 0) + $offset;
+
+// Compliant: a ternary inside an array element is bounded by the array,
+// even when the array literal sits in a ternary branch.
+$sizes = $isRaw ? [$width ?: $default] : [];

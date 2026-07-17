@@ -45,6 +45,8 @@ class TernaryConditionalsRulesetTest extends TestCase
             24 => [32 => [['source' => self::NESTED_TERNARY, 'fixable' => false]]],
             28 => [34 => [['source' => self::NESTED_TERNARY, 'fixable' => false]]],
             31 => [33 => [['source' => self::NESTED_TERNARY, 'fixable' => false]]],
+            35 => [1 => [['source' => self::TERNARY_NOT_USED, 'fixable' => false]]],
+            44 => [1 => [['source' => self::TERNARY_NOT_USED, 'fixable' => false]]],
         ];
 
         $this->assertSame($expected, $this->errorsByLineAndColumn($file));
