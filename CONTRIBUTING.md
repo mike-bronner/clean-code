@@ -16,7 +16,10 @@ CleanCode/
     └── <Category>/<Name>UnitTest.php      # expected error/warning line maps
     └── <Category>/<Name>UnitTest.inc      # PHP fixture the sniff runs against
 docs/standards/                            # one doc per clean-code standard
-tests/bootstrap.php                        # wires CleanCode into PHPCS's test harness
+tests/
+├── bootstrap.php                          # wires CleanCode into PHPCS's test harness
+└── Rules/
+    └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
 ```
 
 ## Adding a new sniff
@@ -41,7 +44,10 @@ tests/bootstrap.php                        # wires CleanCode into PHPCS's test h
    standard is enforced by an existing sniff instead of a custom one, e.g.
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`.
    Custom CleanCode sniffs are already picked up via the
-   `<rule ref="./CleanCode/ruleset.xml"/>` line.
+   `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the configured
+   thresholds/behaviour with a test at `tests/Rules/<Name>RulesTest.php` that
+   runs `rules.xml` against fixtures via PHPCS's API — see
+   `tests/Rules/LineLengthRulesTest.php` as the template.
 4. **Document the standard** under `docs/standards/` and link it from the
    README, following the existing docs there.
 
