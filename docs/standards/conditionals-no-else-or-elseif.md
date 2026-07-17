@@ -45,15 +45,19 @@ of bending the tests.
 ### Auto-fixing
 
 `phpcbf` rewrites an occurrence only when the rewrite provably preserves
-behavior — when the branch before the `else`/`elseif` ends in a terminating
-statement (`return`, `throw`, `continue`, `break`, `exit`):
+behavior and content — when the branch before the `else`/`elseif` ends in a
+terminating statement (`return`, `throw`, `continue`, `break`, `exit`) and
+the construct uses the canonical one-brace-per-line layout (`} else {` /
+`} elseif (…) {` with the closing brace first on its line):
 
 - `} else { … }` — the wrapper is removed and its body dedented one level.
 - `} elseif (…) {` / `} else if (…) {` — rewritten as a standalone `if`.
 
-Non-terminating sibling branches, braceless bodies, and alternative syntax
-are flagged but left for a manual refactor: rewriting those automatically
-could change runtime behavior.
+Everything else is flagged but left for a manual refactor, because rewriting
+it automatically could change runtime behavior or silently drop source
+content: non-terminating sibling branches, braceless bodies, alternative
+syntax, comments adjacent to the keyword (e.g. `} // phpcs:ignore` before an
+`else`), and compact single-line or inline-body layouts.
 
 ## What remains code review
 

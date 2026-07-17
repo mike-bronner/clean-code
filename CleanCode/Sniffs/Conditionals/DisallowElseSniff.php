@@ -14,10 +14,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * Restructure with early exits (guard clauses) instead. Auto-fix is applied
  * only where it provably preserves behavior: when the branch before the
  * `else`/`elseif` ends in a terminating statement (return, throw, continue,
- * break, exit), a plain `else` wrapper is removed and its body dedented, and
- * an `elseif` becomes a standalone `if`. Anything else (non-terminating
- * branches, braceless bodies, alternative syntax) is flagged but left for a
- * manual refactor.
+ * break, exit) and the construct uses the canonical one-brace-per-line
+ * layout, a plain `else` wrapper is removed and its body dedented, and an
+ * `elseif` becomes a standalone `if`. Anything else (non-terminating
+ * branches, braceless bodies, alternative syntax, comments adjacent to the
+ * keyword, compact single-line layouts) is flagged but left for a manual
+ * refactor.
  */
 class DisallowElseSniff implements Sniff
 {
@@ -114,8 +116,11 @@ class DisallowElseSniff implements Sniff
 
     /**
      * An `elseif` (or `else if`) is safely rewritten as a standalone `if`
-     * only when the preceding branch always terminates and the construct
-     * uses curly braces (alternative syntax would need its own `endif`).
+     * only when the preceding branch always terminates, the construct uses
+     * curly braces (alternative syntax would need its own `endif`), the
+     * layout is canonical, and — for the space-separated `else if` form —
+     * no comment sits between `else` and `if` (the rewrite deletes that
+     * range).
      */
     private function isFixableElseIf(File $phpcsFile, int $stackPtr): bool
     {
@@ -125,12 +130,26 @@ class DisallowElseSniff implements Sniff
             return false;
         }
 
+        if ($this->hasCanonicalLayout($phpcsFile, $stackPtr) === false) {
+            return false;
+        }
+
+        if ($tokens[$stackPtr]['code'] === T_ELSE) {
+            $if = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
+
+            if ($if === false || $this->containsOnlyWhitespace($phpcsFile, ($stackPtr + 1), $if) === false) {
+                return false;
+            }
+        }
+
         return $this->previousBranchTerminates($phpcsFile, $stackPtr);
     }
 
     /**
      * A plain `else` wrapper is safely removed only when it has a curly-brace
-     * body and the preceding branch always terminates.
+     * body, the layout is canonical, its closing brace sits alone on its own
+     * line (removing the brace of an inline body would splice the following
+     * line onto the statement), and the preceding branch always terminates.
      */
     private function isFixableElse(File $phpcsFile, int $stackPtr): bool
     {
@@ -138,7 +157,66 @@ class DisallowElseSniff implements Sniff
             return false;
         }
 
+        if ($this->hasCanonicalLayout($phpcsFile, $stackPtr) === false) {
+            return false;
+        }
+
+        if ($this->closesOnOwnLine($phpcsFile, $stackPtr) === false) {
+            return false;
+        }
+
         return $this->previousBranchTerminates($phpcsFile, $stackPtr);
+    }
+
+    /**
+     * The fixers assume the canonical `} else {` / `} elseif (…) {` layout:
+     * the previous branch's closing brace is the first non-whitespace token
+     * on its line, and the keyword follows it on the same line with nothing
+     * but whitespace in between. Anything else — a comment before the
+     * keyword (which the rewrite would silently delete), a compact
+     * single-line construct (which it would splice or mis-indent), an
+     * `else` on its own line — is flagged but not auto-fixed.
+     */
+    private function hasCanonicalLayout(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previousCloser = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+
+        if ($previousCloser === false || $tokens[$previousCloser]['line'] !== $tokens[$stackPtr]['line']) {
+            return false;
+        }
+
+        if ($this->containsOnlyWhitespace($phpcsFile, ($previousCloser + 1), $stackPtr) === false) {
+            return false;
+        }
+
+        return $phpcsFile->findFirstOnLine(T_WHITESPACE, $previousCloser, true) === $previousCloser;
+    }
+
+    /**
+     * Whether the scope closer of the construct at $stackPtr is the first
+     * non-whitespace token on its own line — true for a canonical multi-line
+     * body, false for an inline `{ … }` body.
+     */
+    private function closesOnOwnLine(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $scopeCloser = $tokens[$stackPtr]['scope_closer'];
+
+        return $phpcsFile->findFirstOnLine(T_WHITESPACE, $scopeCloser, true) === $scopeCloser;
+    }
+
+    private function containsOnlyWhitespace(File $phpcsFile, int $start, int $end): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($ptr = $start; $ptr < $end; $ptr++) {
+            if ($tokens[$ptr]['code'] !== T_WHITESPACE) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function hasCurlyScope(File $phpcsFile, int $stackPtr): bool
