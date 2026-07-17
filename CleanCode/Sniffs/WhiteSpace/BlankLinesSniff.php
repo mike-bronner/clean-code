@@ -47,11 +47,12 @@ class BlankLinesSniff implements Sniff
 
     /**
      * A line is blank when every token on it is plain whitespace. Multi-line
-     * tokens (heredocs, multi-line strings) mark every line they span as
-     * non-blank, so their interior never gets touched. A trailing newline
-     * terminates a token's last line without putting content on the next one
-     * (e.g. the open tag `<?php\n` spans only its own line), so it never
-     * claims the following line.
+     * tokens (heredocs/nowdocs, multi-line strings, inline HTML) mark every
+     * line they span as non-blank, so their interior never gets touched —
+     * blank runs inside template/HTML regions are therefore out of scope. A
+     * trailing newline terminates a token's last line without putting content
+     * on the next one (e.g. the open tag `<?php\n` spans only its own line),
+     * so it never claims the following line.
      *
      * @return array<int, true> line number => true, ascending
      */
@@ -169,8 +170,11 @@ class BlankLinesSniff implements Sniff
     }
 
     /**
-     * Flags runs of two or more consecutive blank lines anywhere in the file
-     * that were not already consumed by a brace violation.
+     * Flags runs of two or more consecutive blank lines within the file's PHP
+     * code regions that were not already consumed by a brace violation. Blank
+     * runs inside inline-HTML/template regions and multi-line tokens
+     * (heredocs/nowdocs, multi-line strings) are never treated as blank, so
+     * they are out of scope.
      *
      * @param array<int, true> $blankLines
      * @param array<int, int> $firstTokenOnLine
