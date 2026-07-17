@@ -91,10 +91,10 @@ class DisallowNestedTernarySniff implements Sniff
      * real boundaries (statement delimiters, commas, call/declaration
      * parentheses, array brackets), unwrapping parentheses that only group —
      * contains another ternary operator. A parenthesized ternary inside
-     * another ternary expression is flagged wherever it appears; in an
-     * unparenthesized chain only the second and subsequent operators are
-     * flagged, so every nesting is reported exactly once, at the nested
-     * operator.
+     * another ternary expression is flagged wherever it appears; in a chain
+     * only the second and subsequent operators are flagged — with or without
+     * redundant grouping parentheses around the chain — so every nesting is
+     * reported exactly once, at the nested operator.
      *
      * @param int $stackPtr
      *
@@ -102,13 +102,8 @@ class DisallowNestedTernarySniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        $unwrappedGrouping = false;
-        $earlierTernary = $this->segmentHasSiblingTernary($phpcsFile, $stackPtr, -1, $unwrappedGrouping);
-        $laterTernary = $this->segmentHasSiblingTernary($phpcsFile, $stackPtr, 1, $unwrappedGrouping);
-
-        $isNested = $unwrappedGrouping === true
-            ? ($earlierTernary === true || $laterTernary === true)
-            : $earlierTernary === true;
+        $isNested = $this->segmentHasNestingTernary($phpcsFile, $stackPtr, -1) === true
+            || $this->segmentHasNestingTernary($phpcsFile, $stackPtr, 1) === true;
 
         if ($isNested === false) {
             return;
@@ -124,19 +119,24 @@ class DisallowNestedTernarySniff implements Sniff
 
     /**
      * Scans from the ternary operator at $stackPtr toward one end of its
-     * expression segment, looking for another ternary operator at the same
-     * expression level. Matched parenthesis/bracket pairs are jumped over;
-     * grouping-only parentheses are unwrapped (recorded in
-     * $unwrappedGrouping); call-like parentheses, array brackets, and
-     * statement delimiters end the scan.
+     * expression segment, looking for a ternary operator that nests the one
+     * at $stackPtr. Matched parenthesis/bracket pairs are jumped over;
+     * grouping-only parentheses are unwrapped; call-like parentheses, array
+     * brackets, and statement delimiters end the scan.
+     *
+     * A backward hit always nests: an earlier operator in the same segment
+     * makes this one a chain tail, and one found past a grouping parenthesis
+     * is the outer ternary the grouping sits in. A forward hit nests only
+     * when this scan itself crossed a grouping parenthesis first — the
+     * grouping is then an operand of the later ternary. A forward sibling at
+     * the same level (the head of a chain) is not nesting; the nesting is
+     * reported at the later operator by its own backward scan, whether or not
+     * redundant grouping parentheses wrap the chain.
      */
-    private function segmentHasSiblingTernary(
-        File $phpcsFile,
-        int $stackPtr,
-        int $direction,
-        bool &$unwrappedGrouping
-    ): bool {
+    private function segmentHasNestingTernary(File $phpcsFile, int $stackPtr, int $direction): bool
+    {
         $tokens = $phpcsFile->getTokens();
+        $unwrappedGrouping = false;
         $i = $stackPtr + $direction;
 
         while ($i >= 0 && $i < $phpcsFile->numTokens) {
@@ -192,7 +192,7 @@ class DisallowNestedTernarySniff implements Sniff
             }
 
             if ($code === T_INLINE_THEN) {
-                return true;
+                return $direction < 0 || $unwrappedGrouping === true;
             }
 
             $i += $direction;

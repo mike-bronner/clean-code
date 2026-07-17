@@ -75,3 +75,11 @@ $fee = match ($plan) {
 
 // Violation: ternary nested inside an arrow-function body.
 $resolver = fn ($x) => $x > 0 ? ($x > 10 ? 'big' : 'small') : 'none';
+
+// Violation: redundant grouping parentheses around a chained short ternary
+// still produce exactly one error, at the genuinely nested second operator —
+// the chain head is not flagged.
+$name = ($nickname ?: $fullName ?: 'anonymous');
+
+// Violation: the same grouped chain combined by a non-ternary operator.
+$count = ($primary ?: $fallback ?: 0) + $offset;
