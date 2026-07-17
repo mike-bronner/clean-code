@@ -7,31 +7,36 @@ namespace MikeBronner\CleanCode\Tests\Constructors;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests the Constructors: Property Promotion standard (issue #47), enforced
- * by Slevomat's RequireConstructorPropertyPromotion sniff as wired into the
- * master rules.xml.
+ * Integration test for the Constructors: Property Promotion standard (#47),
+ * enforced by Slevomat's RequireConstructorPropertyPromotion sniff wired into
+ * the master rules.xml.
  *
- * The line maps below refer to RequireConstructorPropertyPromotionTest.inc;
- * the expected auto-fix result lives in the .inc.fixed file beside it.
+ * Isolation follows the repo convention (see CasingConventionsRulesetTest and
+ * TypeHintsRulesetTest): ConfigDouble resets PHPCS's static config state —
+ * which the sibling *UnitTest suites blank — and installed_paths is pinned so
+ * the Slevomat standard resolves. Reporting assertions filter to this sniff's
+ * own source, and the fixer assertion restricts the ruleset to this sniff
+ * (keeping the ruleset's own configuration), so other auto-fixing rules wired
+ * into the shared master ruleset cannot break this test.
+ *
+ * The line map and fixed output refer to
+ * RequireConstructorPropertyPromotionTest.inc / .inc.fixed.
  */
 class RequireConstructorPropertyPromotionTest extends TestCase
 {
     private const SNIFF = 'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion';
 
+    private const SNIFF_CLASS = 'RequireConstructorPropertyPromotionSniff';
+
     private const FIXTURE = __DIR__ . '/RequireConstructorPropertyPromotionTest.inc';
 
     public function testViolationsAreReportedOnTheExpectedLines(): void
     {
-        $file = $this->processFixture(self::FIXTURE);
-
-        $lineCounts = [];
-
-        foreach ($file->getErrors() as $line => $columns) {
-            $lineCounts[$line] = array_sum(array_map('count', $columns));
-        }
+        $file = $this->processFixture(self::FIXTURE, false);
 
         $this->assertSame(
             [
@@ -39,13 +44,13 @@ class RequireConstructorPropertyPromotionTest extends TestCase
                 28 => 1,
                 39 => 1,
             ],
-            $lineCounts,
+            $this->promotionCountsByLine($file),
         );
     }
 
     public function testFixerPromotesPropertiesToConstructorParameters(): void
     {
-        $file = $this->processFixture(self::FIXTURE);
+        $file = $this->processFixture(self::FIXTURE, true);
         $file->fixer->fixFile();
 
         $this->assertStringEqualsFile(self::FIXTURE . '.fixed', $file->fixer->getContents());
@@ -53,21 +58,65 @@ class RequireConstructorPropertyPromotionTest extends TestCase
 
     public function testFixedFixturePassesTheSniffWithZeroViolations(): void
     {
-        $file = $this->processFixture(self::FIXTURE . '.fixed');
+        $file = $this->processFixture(self::FIXTURE . '.fixed', false);
 
-        $this->assertSame(0, $file->getErrorCount() + $file->getWarningCount());
+        $this->assertSame([], $this->promotionCountsByLine($file));
     }
 
-    private function processFixture(string $path): LocalFile
+    /**
+     * Build the master ruleset with PHPCS's static config state reset. When
+     * $restrictToSniff is true the ruleset is narrowed to this sniff alone —
+     * keeping its master-ruleset configuration — so other auto-fixing rules
+     * cannot alter the fixed output.
+     */
+    private function processFixture(string $path, bool $restrictToSniff): LocalFile
     {
-        $config = new Config();
-        $config->cache = false;
-        $config->standards = [dirname(__DIR__, 3) . '/rules.xml'];
-        $config->sniffs = [self::SNIFF];
+        $root = dirname(__DIR__, 3);
 
-        $file = new LocalFile($path, new Ruleset($config), $config);
+        $config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
+        Config::setConfigData(
+            'installed_paths',
+            $root . '/vendor/slevomat/coding-standard',
+            true,
+        );
+
+        $ruleset = new Ruleset($config);
+
+        if ($restrictToSniff) {
+            foreach (array_keys($ruleset->sniffs) as $sniffClass) {
+                if (strpos($sniffClass, self::SNIFF_CLASS) === false) {
+                    unset($ruleset->sniffs[$sniffClass]);
+                }
+            }
+
+            $ruleset->populateTokenListeners();
+        }
+
+        $file = new LocalFile($path, $ruleset, $config);
         $file->process();
 
         return $file;
+    }
+
+    /**
+     * @return array<int, int> line number => count of property-promotion violations
+     */
+    private function promotionCountsByLine(LocalFile $file): array
+    {
+        $counts = [];
+
+        foreach ($file->getErrors() as $line => $columns) {
+            foreach ($columns as $errors) {
+                foreach ($errors as $error) {
+                    if (strpos($error['source'], self::SNIFF . '.') === 0) {
+                        $counts[$line] = ($counts[$line] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+
+        ksort($counts);
+
+        return $counts;
     }
 }
