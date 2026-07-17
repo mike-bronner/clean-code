@@ -7,6 +7,17 @@
     <arg name="extensions" value="php"/>
 
     <!--
+        Pin sniff behaviour to the package's PHP floor (composer.json requires
+        ^8.1) so version-gated Slevomat options (union/intersection hints,
+        standalone null/true/false, …) resolve the same on every runtime.
+        This value wins over a consumer ruleset's own <config> tag (nested
+        rulesets are processed last, so theirs is clobbered); the only
+        override that sticks is PHPCS's double-hyphen "runtime-set" CLI
+        option: phpcs [..]runtime-set php_version 80200.
+    -->
+    <config name="php_version" value="80100"/>
+
+    <!--
         Wire individual standards in below as they land. Custom sniffs live in
         the CleanCode standard; Slevomat rules are referenced individually,
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
@@ -23,6 +34,20 @@
         baseline — custom standards win where they conflict.
     -->
     <rule ref="PSR12"/>
+
+    <!--
+        Type Hints and Return Types (#45): every property carries a native type
+        hint. Parameter and return hints for all callables are owned by the
+        Methods: Type Hints rule (#70) below — per the #70 scope decision, #45
+        keeps only PropertyTypeHint (plus its docblock-hygiene excludes). Only
+        the missing-hint code is enforced; the annotation-centric codes
+        (traversable @var specifications, useless-annotation cleanup) police
+        doc blocks, which the standard does not mandate.
+    -->
+    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    </rule>
 
     <!-- Exceptions (#63): always reference \Throwable when catching, and use
          non-capturing catch when the caught variable is unused. -->
@@ -69,6 +94,7 @@
     <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
         <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
         <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint"/>
         <properties>
             <property name="enableObjectTypeHint" value="true"/>
             <property name="enableStaticTypeHint" value="true"/>

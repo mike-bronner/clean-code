@@ -48,3 +48,4 @@ developer discipline rather than a PHPCS rule.
 - [Methods: Type Hints](docs/standards/methods-type-hints.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` + `TypeHints.ReturnTypeHint`, configured in `rules.xml` ([#70](https://github.com/mike-bronner/phpcs-rules/issues/70))
 - [Naming: Casing Conventions](docs/standards/naming-casing-conventions.md) — Tier 1, existing sniffs: camelCase variables/properties/methods, PascalCase classes ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
+- [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
