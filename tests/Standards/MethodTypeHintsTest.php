@@ -24,17 +24,28 @@ use PHPUnit\Framework\TestCase;
  * Specification, UselessAnnotation) and the pinned enable* properties,
  * testing a config that never ships. Because the shipped ruleset also carries
  * PSR12 and other standards that flag the fixture's structure (multiple
- * classes, no namespace), the error assertion filters to Slevomat's
- * SlevomatCodingStandard.TypeHints.* sources by prefix. That prefix also
- * spans PropertyTypeHint (#45's sniff), but this fixture declares no
- * properties, so in practice only the ParameterTypeHint / ReturnTypeHint
- * sniffs #70 owns fire — the exclusions and property pins stay live while the
- * map pins exactly the parameter/return-hint behaviour. The line maps below
- * refer to Fixtures/MethodTypeHints.inc.
+ * classes, no namespace), the error assertion filters to the two sniffs #70
+ * owns — ParameterTypeHint and ReturnTypeHint — by an explicit allowlist
+ * (OWNED_SNIFFS). #45's PropertyTypeHint shares the TypeHints.* namespace but
+ * is deliberately excluded, so a future fixture that declares a raw property
+ * can't leak a #45 error into #70's map. The exclusions and property pins stay
+ * live while the map pins exactly the parameter/return-hint behaviour. The line
+ * maps below refer to Fixtures/MethodTypeHints.inc.
  */
 class MethodTypeHintsTest extends TestCase
 {
-    private const TYPE_HINT_PREFIX = 'SlevomatCodingStandard.TypeHints.';
+    /**
+     * The two sniffs #70 owns. Matched as an explicit allowlist rather than a
+     * `SlevomatCodingStandard.TypeHints.` prefix so #45's PropertyTypeHint —
+     * live in the shipped rules.xml and sharing that namespace — can never
+     * merge into #70's counts if a future fixture grows a raw property.
+     *
+     * @var list<string>
+     */
+    private const OWNED_SNIFFS = [
+        'SlevomatCodingStandard.TypeHints.ParameterTypeHint.',
+        'SlevomatCodingStandard.TypeHints.ReturnTypeHint.',
+    ];
 
     /**
      * @return array<int, int> line number => expected error count
@@ -65,6 +76,8 @@ class MethodTypeHintsTest extends TestCase
             319 => 1,
             327 => 1,
             343 => 1,
+            359 => 1,
+            374 => 1,
         ];
     }
 
@@ -114,11 +127,10 @@ class MethodTypeHintsTest extends TestCase
     }
 
     /**
-     * Collapse the file's errors to a line => count map, counting every
-     * SlevomatCodingStandard.TypeHints.* source and ignoring structural noise
-     * (PSR1/PSR12) that the shipped ruleset also reports on the multi-class
-     * fixture. The prefix spans PropertyTypeHint too, but the fixture declares
-     * no properties, so only #70's ParameterTypeHint / ReturnTypeHint fire.
+     * Collapse the file's errors to a line => count map, counting only the two
+     * sniffs #70 owns (ParameterTypeHint / ReturnTypeHint) and ignoring both
+     * structural noise (PSR1/PSR12) and #45's PropertyTypeHint that the shipped
+     * ruleset also reports on the multi-class fixture.
      *
      * @return array<int, int> line number => TypeHints error count
      */
@@ -129,7 +141,7 @@ class MethodTypeHintsTest extends TestCase
         foreach ($file->getErrors() as $line => $columns) {
             foreach ($columns as $messages) {
                 foreach ($messages as $message) {
-                    if (! str_starts_with($message['source'], self::TYPE_HINT_PREFIX)) {
+                    if (! $this->isOwnedSniff($message['source'])) {
                         continue;
                     }
 
@@ -150,7 +162,7 @@ class MethodTypeHintsTest extends TestCase
         foreach ($file->getWarnings() as $columns) {
             foreach ($columns as $messages) {
                 foreach ($messages as $message) {
-                    if (str_starts_with($message['source'], self::TYPE_HINT_PREFIX)) {
+                    if ($this->isOwnedSniff($message['source'])) {
                         $count++;
                     }
                 }
@@ -158,5 +170,21 @@ class MethodTypeHintsTest extends TestCase
         }
 
         return $count;
+    }
+
+    /**
+     * True when the message source belongs to one of the two sniffs #70 owns.
+     * An explicit allowlist, not a `TypeHints.` prefix — #45's PropertyTypeHint
+     * shares that namespace and must not be counted here.
+     */
+    private function isOwnedSniff(string $source): bool
+    {
+        foreach (self::OWNED_SNIFFS as $prefix) {
+            if (str_starts_with($source, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

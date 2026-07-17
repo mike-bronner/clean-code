@@ -352,4 +352,27 @@ class DocblockOnlyStandaloneTypes
     {
         return null;
     }
+
+    /**
+     * @return true
+     */
+    public function standaloneTrueReturnAnnotationOnly(int $value)
+    {
+        return $value > 0;
+    }
+}
+
+// Violation: a docblock-only nullable `@param Foo|null` with no native hint is
+// promoted to a native nullable hint — the promotion counterpart to the
+// compliant native `?string` at the top (FullyHintedMethods::find), giving
+// nullable the same two-sided coverage every other edge case carries.
+class DocblockOnlyNullableType
+{
+    /**
+     * @param \DateTimeImmutable|null $value
+     */
+    public function nullableParameterAnnotationOnly($value): void
+    {
+        echo $value?->format('c');
+    }
 }
