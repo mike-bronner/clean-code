@@ -163,3 +163,74 @@ class ClosureViolations
         $missingVoid();
     }
 }
+
+// Violations: docblock-only complex types must be promoted to native hints.
+// These exercise the enable* properties pinned in rules.xml — with a flag
+// disabled, the annotation is not promotable and the behaviour changes.
+class DocblockOnlyComplexTypes
+{
+    /**
+     * @param int|string $value
+     */
+    public function unionAnnotationOnly($value): void
+    {
+        $this->unionAnnotationOnly($value);
+    }
+
+    /**
+     * @param \Countable&\ArrayAccess $subject
+     */
+    public function intersectionAnnotationOnly($subject): void
+    {
+        $subject[] = count($subject);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    public function mixedParameterAnnotationOnly($value): void
+    {
+        $this->mixedParameterAnnotationOnly($value);
+    }
+
+    /**
+     * @return mixed
+     */
+    public function mixedReturnAnnotationOnly(int $value)
+    {
+        return $value;
+    }
+
+    /**
+     * @return never
+     */
+    public function neverAnnotationOnly()
+    {
+        throw new \RuntimeException('never returns');
+    }
+}
+
+// Compliant: methods carrying @inheritDoc are skipped — the signature is the
+// parent's. One class isolates the parameter-sniff skip, the other the
+// return-sniff skip.
+class InheritDocParameterSkip extends MissingParameterHints
+{
+    /**
+     * @inheritDoc
+     */
+    public function noHintNoAnnotation($value): void
+    {
+        parent::noHintNoAnnotation($value);
+    }
+}
+
+class InheritDocReturnSkip extends MissingReturnHints
+{
+    /**
+     * @inheritDoc
+     */
+    public function returnsValueNoAnnotation(int $value)
+    {
+        return parent::returnsValueNoAnnotation($value);
+    }
+}

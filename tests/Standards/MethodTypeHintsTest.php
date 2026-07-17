@@ -39,6 +39,11 @@ class MethodTypeHintsTest extends TestCase
             139 => 1,
             148 => 1,
             159 => 1,
+            175 => 1,
+            183 => 1,
+            191 => 1,
+            199 => 1,
+            207 => 1,
         ];
     }
 
