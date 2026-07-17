@@ -49,3 +49,18 @@ class Wallet
     {
     }
 }
+
+interface Repository
+{
+    public function all();
+}
+
+class Locator
+{
+    /**
+     * @param int|null $id
+     */
+    public function locate($id): void
+    {
+    }
+}

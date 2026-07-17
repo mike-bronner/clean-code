@@ -61,6 +61,8 @@ class TypeHintsRulesetTest extends TestCase
                 35 => [self::RETURN_MISSING_NATIVE],
                 40 => [self::PARAMETER_MISSING_ANY],
                 48 => [self::PARAMETER_MISSING_ANY],
+                55 => [self::RETURN_MISSING_ANY],
+                63 => [self::PARAMETER_MISSING_NATIVE],
             ],
             $this->sourcesByLine($file)
         );
@@ -72,7 +74,7 @@ class TypeHintsRulesetTest extends TestCase
         $file = $this->processFixture('violations.inc');
 
         $this->assertSame(
-            [10, 20, 35],
+            [10, 20, 35, 63],
             $this->fixableLines($file),
             'Exactly the annotated (inferrable) violations must be fixable.'
         );
@@ -100,6 +102,7 @@ class TypeHintsRulesetTest extends TestCase
                 25 => [self::RETURN_MISSING_ANY],
                 40 => [self::PARAMETER_MISSING_ANY],
                 48 => [self::PARAMETER_MISSING_ANY],
+                55 => [self::RETURN_MISSING_ANY],
             ],
             $this->sourcesByLine($file)
         );

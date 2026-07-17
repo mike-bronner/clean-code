@@ -16,6 +16,8 @@ class Circle extends Shape implements Formats
 
     protected int|string $key = 0;
 
+    private array $entries = [];
+
     public function __construct(private readonly float $radius, protected bool $filled = false)
     {
     }
@@ -43,5 +45,18 @@ class Circle extends Shape implements Formats
     public function find(?int $id): ?self
     {
         return $id === null ? null : $this;
+    }
+
+    public function merge(array $items, iterable $extra): array
+    {
+        return [...$this->entries, ...$items, ...$extra];
+    }
+
+    /**
+     * @return never
+     */
+    public function halt(): void
+    {
+        throw new RuntimeException('halt');
     }
 }
