@@ -48,7 +48,10 @@ class BlankLinesSniff implements Sniff
     /**
      * A line is blank when every token on it is plain whitespace. Multi-line
      * tokens (heredocs, multi-line strings) mark every line they span as
-     * non-blank, so their interior never gets touched.
+     * non-blank, so their interior never gets touched. A trailing newline
+     * terminates a token's last line without putting content on the next one
+     * (e.g. the open tag `<?php\n` spans only its own line), so it never
+     * claims the following line.
      *
      * @return array<int, true> line number => true, ascending
      */
@@ -64,6 +67,10 @@ class BlankLinesSniff implements Sniff
             }
 
             $spannedLines = substr_count($token['content'], "\n");
+
+            if ($spannedLines > 0 && str_ends_with($token['content'], "\n") === true) {
+                $spannedLines--;
+            }
 
             for ($line = $token['line']; $line <= ($token['line'] + $spannedLines); $line++) {
                 $nonBlankLines[$line] = true;
@@ -123,7 +130,11 @@ class BlankLinesSniff implements Sniff
             $openerLine = $tokens[$tokens[$pointer]['scope_opener']]['line'];
             $closerLine = $tokens[$tokens[$pointer]['scope_closer']]['line'];
 
-            if (($openerLine + 1) < $closerLine && isset($blankLines[$openerLine + 1]) === true) {
+            if (
+                ($openerLine + 1) < $closerLine
+                && isset($blankLines[$openerLine + 1]) === true
+                && isset($handledLines[$openerLine + 1]) === false
+            ) {
                 $run = $this->collectRun($blankLines, $openerLine + 1, +1, $closerLine - 1);
                 $handledLines += $run;
                 $this->addBlankLinesError(
