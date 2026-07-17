@@ -10,9 +10,13 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 1 (existing sniff)
 
-Enforced by `Generic.ControlStructures.InlineControlStructure`, wired into the
-master ruleset (`rules.xml`) as-is — no custom sniff needed
-([#9](https://github.com/mike-bronner/phpcs-rules/issues/9)).
+Enforced by `Generic.ControlStructures.InlineControlStructure` — no custom
+sniff needed ([#9](https://github.com/mike-bronner/phpcs-rules/issues/9)). The
+`PSR12` standard in the master ruleset (`rules.xml`) already bundles this sniff,
+so it is active as part of the industry baseline. `rules.xml` also references it
+by name as intentional belt-and-suspenders (per CONTRIBUTING step 3, standards
+name the third-party sniff they depend on), keeping the standard enforced even
+if the PSR12 baseline is ever narrowed.
 
 - **Detection** — any control structure without a braced body is flagged at
   the offending line, including inline `else`/`elseif` branches, nested
