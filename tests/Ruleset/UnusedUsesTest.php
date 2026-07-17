@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration test for the SlevomatCodingStandard.Namespaces.UnusedUses rule
  * as configured in the master rules.xml (Use Statements: No Unused Entries,
- * issue #68). Fixtures live in the fixtures/ directory beside this file.
+ * issue #68). Fixtures live in Fixtures/UnusedUses/ beside this file.
  */
 class UnusedUsesTest extends TestCase
 {
@@ -27,7 +27,7 @@ class UnusedUsesTest extends TestCase
 
     public function testCompliantFileProducesNoViolations(): void
     {
-        $file = $this->processFixture('UnusedUsesCompliant.inc');
+        $file = $this->processFixture('compliant.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());
@@ -35,7 +35,7 @@ class UnusedUsesTest extends TestCase
 
     public function testEachUnusedUseIsFlaggedIndividuallyAtItsOwnLine(): void
     {
-        $file = $this->processFixture('UnusedUsesViolations.inc');
+        $file = $this->processFixture('violations.inc');
         $errors = $file->getErrors();
 
         $this->assertSame([7, 10], array_keys($errors));
@@ -51,7 +51,7 @@ class UnusedUsesTest extends TestCase
 
     public function testUseReferencedOnlyInDocblockIsNotUnused(): void
     {
-        $file = $this->processFixture('UnusedUsesDocblockOnly.inc');
+        $file = $this->processFixture('docblock-only.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());
@@ -59,11 +59,11 @@ class UnusedUsesTest extends TestCase
 
     public function testAutoFixRemovesOnlyTheUnusedUseStatements(): void
     {
-        $file = $this->processFixture('UnusedUsesViolations.inc');
+        $file = $this->processFixture('violations.inc');
         $file->fixer->fixFile();
 
         $this->assertStringEqualsFile(
-            __DIR__ . '/fixtures/UnusedUsesViolations.inc.fixed',
+            __DIR__ . '/Fixtures/UnusedUses/violations.inc.fixed',
             $file->fixer->getContents()
         );
     }
@@ -81,7 +81,7 @@ class UnusedUsesTest extends TestCase
         $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
         $ruleset->populateTokenListeners();
 
-        $file = new LocalFile(__DIR__ . '/fixtures/' . $fixture, $ruleset, $config);
+        $file = new LocalFile(__DIR__ . '/Fixtures/UnusedUses/' . $fixture, $ruleset, $config);
         $file->process();
 
         return $file;
