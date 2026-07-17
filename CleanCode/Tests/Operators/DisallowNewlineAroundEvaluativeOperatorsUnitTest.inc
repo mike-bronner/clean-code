@@ -1,0 +1,134 @@
+<?php
+
+// Compliant: operator and both operands on one line.
+$result = $a == $b;
+$result = $a === $b;
+$result = $a != $b;
+$result = $a <> $b;
+$result = $a !== $b;
+$result = $a < $b;
+$result = $a > $b;
+$result = $a <= $b;
+$result = $a >= $b;
+$result = $a <=> $b;
+$result = $value instanceof DateTime;
+
+// Compliant: multiline structures with each operator on one line.
+$items = [
+    $a === $b,
+    $c < $d,
+];
+process(
+    $a !== $b,
+    $c >= $d,
+);
+$result = $a === $b
+    ? 'equal'
+    : 'different';
+
+// Violation: newline before the operator.
+$result = $a
+    == $b;
+$result = $a
+    === $b;
+$result = $a
+    != $b;
+$result = $a
+    <> $b;
+$result = $a
+    !== $b;
+$result = $a
+    < $b;
+$result = $a
+    > $b;
+$result = $a
+    <= $b;
+$result = $a
+    >= $b;
+$result = $a
+    <=> $b;
+$result = $value
+    instanceof DateTime;
+
+// Violation: newline after the operator.
+$result = $a ==
+    $b;
+$result = $a ===
+    $b;
+$result = $a !=
+    $b;
+$result = $a <>
+    $b;
+$result = $a !==
+    $b;
+$result = $a <
+    $b;
+$result = $a >
+    $b;
+$result = $a <=
+    $b;
+$result = $a >=
+    $b;
+$result = $a <=>
+    $b;
+$result = $value instanceof
+    DateTime;
+
+// Violation: newlines on both sides of the operator.
+$result = $a
+    ==
+    $b;
+$result = $a
+    ===
+    $b;
+$result = $a
+    !=
+    $b;
+$result = $a
+    <>
+    $b;
+$result = $a
+    !==
+    $b;
+$result = $a
+    <
+    $b;
+$result = $a
+    >
+    $b;
+$result = $a
+    <=
+    $b;
+$result = $a
+    >=
+    $b;
+$result = $a
+    <=>
+    $b;
+$result = $value
+    instanceof
+    DateTime;
+
+// Violation: instanceof with a fully qualified class name on the next line.
+if ($exception instanceof
+    \RuntimeException) {
+    handle($exception);
+}
+
+// Violation: evaluative operators nested inside multiline structures.
+$items = [
+    $a
+    === $b,
+];
+process(
+    $a <
+    $b,
+);
+
+// Violation: evaluative operator split inside a ternary condition.
+$result = $a
+    === $b ? 'equal' : 'different';
+
+// Violation with a comment in the gap: reported but not auto-fixable.
+$result = $a // why are we comparing here?
+    === $b;
