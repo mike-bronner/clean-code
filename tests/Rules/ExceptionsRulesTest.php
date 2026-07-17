@@ -13,8 +13,14 @@ use PHPUnit\Framework\TestCase;
  * Evaluates the Slevomat rules wired into the master rules.xml for the
  * Exceptions standard: catches must reference \Throwable rather than the
  * general \Exception, and a caught variable that is never used must be
- * dropped (non-capturing catch). Each rule runs against its fixture through
- * the master ruleset, exactly as consumers run it.
+ * dropped (non-capturing catch).
+ *
+ * Coverage comes in two parts. A wiring test parses the master rules.xml
+ * through PHPCS's real ruleset path and asserts both rules are registered,
+ * so dropping or misspelling a <rule ref> breaks the build. The behaviour
+ * tests then pin each sniff in isolation (via $config->sniffs) against its
+ * fixture, keeping the line maps and auto-fix output independent of other
+ * rules that land in the master ruleset later.
  *
  * The line maps below refer to the fixtures in Fixtures/.
  */
@@ -23,6 +29,14 @@ class ExceptionsRulesTest extends TestCase
     private const REFERENCE_THROWABLE_ONLY = 'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly';
 
     private const REQUIRE_NON_CAPTURING_CATCH = 'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch';
+
+    public function testMasterRulesetRegistersBothExceptionRules(): void
+    {
+        $ruleset = new Ruleset($this->masterRulesetConfig());
+
+        $this->assertArrayHasKey(self::REFERENCE_THROWABLE_ONLY, $ruleset->sniffCodes);
+        $this->assertArrayHasKey(self::REQUIRE_NON_CAPTURING_CATCH, $ruleset->sniffCodes);
+    }
 
     public function testReferenceThrowableOnlyFlagsGeneralExceptionCatches(): void
     {
@@ -74,6 +88,17 @@ class ExceptionsRulesTest extends TestCase
 
     private function processFixture(string $sniffCode, string $fixture): LocalFile
     {
+        $config = $this->masterRulesetConfig();
+        $config->sniffs = [$sniffCode];
+
+        $file = new LocalFile(__DIR__ . '/Fixtures/' . $fixture, new Ruleset($config), $config);
+        $file->process();
+
+        return $file;
+    }
+
+    private function masterRulesetConfig(): Config
+    {
         // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
         // blanks the static Config data (via ConfigDouble), which would
         // otherwise silently deregister the Slevomat standard here.
@@ -83,15 +108,13 @@ class ExceptionsRulesTest extends TestCase
             true
         );
 
-        $config = new Config();
+        // The argv must be non-empty: Config falls back to parsing the live
+        // $_SERVER['argv'] as PHPCS flags when given none, which would leak
+        // unrelated PHPUnit arguments (e.g. --filter) into the shared Config.
+        $config = new Config(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
         $config->cache = false;
-        $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
-        $config->sniffs = [$sniffCode];
 
-        $file = new LocalFile(__DIR__ . '/Fixtures/' . $fixture, new Ruleset($config), $config);
-        $file->process();
-
-        return $file;
+        return $config;
     }
 
     /**

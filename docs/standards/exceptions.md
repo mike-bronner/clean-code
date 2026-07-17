@@ -24,10 +24,11 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (Slevomat rules)
 
 Two existing Slevomat sniffs satisfy the enforceable slices of this standard
-exactly, so both are wired into `rules.xml` — no custom sniff needed. Each is
-evaluated against its fixture in `tests/Rules/Fixtures/` by
-`tests/Rules/ExceptionsRulesTest.php`, run through the master ruleset the way
-consumers run it.
+exactly, so both are wired into `rules.xml` — no custom sniff needed.
+`tests/Rules/ExceptionsRulesTest.php` guards this in two parts: a wiring test
+parses the master `rules.xml` through PHPCS's real ruleset path and asserts
+both rules are registered there, and per-sniff behaviour tests evaluate each
+rule in isolation against its fixture in `tests/Rules/Fixtures/`.
 
 - **`SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly`** — flags any
   reference to the general `\Exception` (fully qualified, imported, or inside
