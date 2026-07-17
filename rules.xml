@@ -12,4 +12,9 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
 </ruleset>
