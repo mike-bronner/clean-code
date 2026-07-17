@@ -7,6 +7,7 @@ namespace MikeBronner\CleanCode\Tests\Naming;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -44,8 +45,20 @@ class CasingConventionsRulesetTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $config = new Config();
-        $config->standards = [dirname(__DIR__, 3) . '/rules.xml'];
+        // ConfigDouble resets PHPCS's static Config state at construction,
+        // so settings latched by rulesets built in earlier tests cannot leak
+        // in here (or out of here into later tests). The explicit argv also
+        // stops Config from parsing PHPUnit's own CLI arguments.
+        $config = new ConfigDouble(['--standard=' . dirname(__DIR__, 3) . '/rules.xml']);
+
+        // Pin installed_paths explicitly (after ConfigDouble blanks the
+        // static config data): the master ruleset references the Slevomat
+        // standard for the Exceptions rules.
+        Config::setConfigData(
+            'installed_paths',
+            dirname(__DIR__, 3) . '/vendor/slevomat/coding-standard',
+            true
+        );
 
         $file = new LocalFile(
             __DIR__ . '/CasingConventionsRulesetTest.inc',

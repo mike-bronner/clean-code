@@ -16,6 +16,7 @@ namespace MikeBronner\CleanCode\Tests\Integration;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
 
 class IndustryStandardsTest extends TestCase
@@ -26,7 +27,22 @@ class IndustryStandardsTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        self::$config = new Config(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
+        // ConfigDouble resets PHPCS's static Config state at construction.
+        // Building any earlier Ruleset in the same process latches settings
+        // like PSR12's tab-width into the static overridden-defaults list,
+        // which a plain Config would then silently skip — changing how tab
+        // indentation is tokenized and flagged here.
+        self::$config = new ConfigDouble(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
+
+        // Pin installed_paths explicitly (after ConfigDouble blanks the
+        // static config data): the master ruleset references the Slevomat
+        // standard for the Exceptions rules.
+        Config::setConfigData(
+            'installed_paths',
+            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            true
+        );
+
         self::$ruleset = new Ruleset(self::$config);
     }
 
