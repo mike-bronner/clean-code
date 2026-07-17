@@ -31,9 +31,11 @@ single-statement bodies produce no false positives.
 
 ## Why not an existing sniff
 
-The candidate rules were evaluated against the full unit-test fixture
-(`CleanCode/Tests/WhiteSpace/BlankLinesUnitTest.inc`, 17 violations); the
-best available combination catches only 8 of the 17:
+The candidate rules were evaluated against the full unit-test suite
+(`CleanCode/Tests/WhiteSpace/BlankLinesUnitTest.inc`, 24 violations, plus the
+open-tag fixtures `BlankLinesUnitTest.2.inc` / `.3.inc`, one violation each);
+the best available combination catches only 13 of the 24 in the main fixture
+(Squiz 2, Slevomat 11) and neither open-tag violation:
 
 - **`Squiz.WhiteSpace.SuperfluousWhitespace`** — its `EmptyLines` check only
   fires *inside* function/closure bodies (guarded by
