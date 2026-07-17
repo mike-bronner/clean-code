@@ -1,0 +1,85 @@
+<?php
+
+// Compliant: guard clauses and early returns produce no violations.
+function guardClauses(int $value): string
+{
+    if ($value < 0) {
+        return 'negative';
+    }
+
+    if ($value === 0) {
+        return 'zero';
+    }
+
+    return 'positive';
+}
+
+// Violation: else after a terminating branch (auto-fixable).
+function elseAfterReturn(bool $flag): int
+{
+    if ($flag) {
+        return 1;
+    }
+    return 2;
+}
+
+// Violations: elseif and else in one chain are flagged separately (auto-fixable).
+function chainedElseIf(int $value): string
+{
+    if ($value === 1) {
+        return 'one';
+    }
+    if ($value === 2) {
+        return 'two';
+    }
+    return 'many';
+}
+
+// Violation: "else if" is flagged like elseif (auto-fixable).
+function elseIfWithSpace(bool $flag): int
+{
+    if ($flag) {
+        return 1;
+    }
+    if (!$flag) {
+        return 2;
+    }
+
+    return 3;
+}
+
+// Violation: first branch does not exit early — flagged, too complex to auto-fix safely.
+function elseWithoutEarlyExit(bool $flag): int
+{
+    $result = 0;
+
+    if ($flag) {
+        $result = 1;
+    } else {
+        $result = 2;
+    }
+
+    return $result;
+}
+
+// Violations: nested conditionals each produce their own distinct violation.
+function nestedElse(bool $outer, bool $inner): int
+{
+    if ($outer) {
+        if ($inner) {
+            return 1;
+        }
+        return 2;
+    }
+    return 3;
+}
+
+// Violation: alternative syntax else — flagged, not auto-fixable.
+function alternativeSyntax(bool $flag): int
+{
+    if ($flag) :
+        return 1;
+    else :
+        return 2;
+    endif;
+}
