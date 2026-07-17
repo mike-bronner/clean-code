@@ -13,6 +13,10 @@
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
 
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
     <!--
         Naming: Casing conventions (#22) — camelCase variables, properties,
         and methods; PascalCase classes, interfaces, traits, and enums.
