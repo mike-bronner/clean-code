@@ -24,6 +24,8 @@ class DisallowNestedTernaryUnitTest extends AbstractSniffUnitTest
             49 => 1,
             52 => 1,
             56 => 1,
+            72 => 1,
+            77 => 1,
         ];
     }
 

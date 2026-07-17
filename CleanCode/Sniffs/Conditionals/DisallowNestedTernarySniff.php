@@ -18,12 +18,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * positions) and short-ternary chains ($a ?: $b ?: $c) are flagged, at the
  * inner (nested) operator.
  *
- * Only direct nesting is flagged: a ternary inside a call argument or an
- * array element is bounded by that construct and stays independently
- * readable, even when the call or array itself sits in another ternary's
- * branch. No auto-fixer is provided — unfolding a nested ternary requires
- * inventing a variable or method name, which is a semantic decision. See
- * docs/standards/conditionals-ternary-conditionals.md.
+ * Only direct nesting is flagged: a ternary inside a call argument, an
+ * array element, a match arm, or an arrow-function body is bounded by that
+ * construct and stays independently readable, even when the construct itself
+ * sits in another ternary's branch. No auto-fixer is provided — unfolding a
+ * nested ternary requires inventing a variable or method name, which is a
+ * semantic decision. See docs/standards/conditionals-ternary-conditionals.md.
  */
 class DisallowNestedTernarySniff implements Sniff
 {
@@ -41,6 +41,8 @@ class DisallowNestedTernarySniff implements Sniff
         T_COLON,
         T_COMMA,
         T_DOUBLE_ARROW,
+        T_FN_ARROW,
+        T_MATCH_ARROW,
         T_OPEN_CURLY_BRACKET,
         T_OPEN_SHORT_ARRAY,
         T_OPEN_SQUARE_BRACKET,

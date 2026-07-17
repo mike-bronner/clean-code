@@ -55,3 +55,23 @@ $name = $nickname ?: $fullName ?: 'anonymous';
 $tier = $isPremium
     ? ($isAnnual ? 'premium-annual' : 'premium-monthly')
     : 'basic';
+
+// Compliant: sibling ternaries across a match arm — the arm's condition and
+// value are separate segments split by the arrow.
+$rate = match (true) {
+    $flag ? 1 : 2 => $other ? 3 : 4,
+    default => 5,
+};
+
+// Compliant: a ternary inside an arrow-function body is bounded by the
+// arrow, even when the arrow function sits in another ternary's branch.
+$callback = $isLazy ? (fn ($x) => $x ? 1 : 2) : null;
+
+// Violation: ternary nested inside a match arm's value.
+$fee = match ($plan) {
+    'pro' => $isAnnual ? ($hasCoupon ? 90 : 100) : 120,
+    default => 0,
+};
+
+// Violation: ternary nested inside an arrow-function body.
+$resolver = fn ($x) => $x > 0 ? ($x > 10 ? 'big' : 'small') : 'none';

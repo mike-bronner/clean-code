@@ -48,11 +48,13 @@ stay unflagged and are asserted as such in the ruleset test fixtures:
   [Conditionals: Mapping Arrays](conditionals-mapping-arrays.md) for chains).
 
 `CleanCode.Conditionals.DisallowNestedTernary` flags *direct* nesting only: a
-ternary inside a call argument or an array element is bounded by that
-construct and reads on its own, even when the call or array sits in another
-ternary's branch — so `$isRaw ? trim($input ?: 'n/a') : 'none'` passes.
-Sibling ternaries (separate arguments, separate array elements, or grouped
-operands of a non-ternary operator) are not nesting.
+ternary inside a call argument, an array element, a `match` arm, or an
+arrow-function body is bounded by that construct and reads on its own, even
+when the construct sits in another ternary's branch — so
+`$isRaw ? trim($input ?: 'n/a') : 'none'` passes.
+Sibling ternaries (separate arguments, separate array elements, separate
+sides of a `match` arm's arrow, or grouped operands of a non-ternary
+operator) are not nesting.
 
 ## What remains code review
 
