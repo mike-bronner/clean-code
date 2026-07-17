@@ -82,4 +82,14 @@
             <property name="absoluteLineLimit" value="120"/>
         </properties>
     </rule>
+
+    <!--
+        Conditionals: No Inline If-Statements (#9) —
+        docs/standards/conditionals-no-inline-if-statements.md. PSR12 (above)
+        already bundles this sniff; the explicit ref is intentional
+        belt-and-suspenders per CONTRIBUTING step 3 (third-party rules a
+        standard depends on are wired in explicitly), so the standard stays
+        enforced even if the PSR12 baseline is ever narrowed.
+    -->
+    <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 </ruleset>
