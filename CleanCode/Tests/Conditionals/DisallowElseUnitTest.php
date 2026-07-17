@@ -36,6 +36,10 @@ class DisallowElseUnitTest extends AbstractSniffUnitTest
             149 => 1,
             157 => 1,
             166 => 1,
+            179 => 1,
+            190 => 1,
+            205 => 1,
+            217 => 1,
         ];
     }
 

@@ -57,7 +57,8 @@ Everything else is flagged but left for a manual refactor, because rewriting
 it automatically could change runtime behavior or silently drop source
 content: non-terminating sibling branches, braceless bodies, alternative
 syntax, comments adjacent to the keyword (e.g. `} // phpcs:ignore` before an
-`else`), and compact single-line or inline-body layouts.
+`else`) or trailing the `else` body's closing brace, and compact single-line
+or inline-body layouts.
 
 ## What remains code review
 

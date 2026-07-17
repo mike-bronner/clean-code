@@ -166,3 +166,52 @@ function bracelessElseIf(bool $flag): int
 
     return 3;
 }
+
+// Violation: comment trailing the else's closing brace — flagged, not
+// auto-fixed (the fixer would de-indent the comment and detach it from the
+// construct it annotates).
+function commentAfterElseCloser(bool $flag): int
+{
+    if ($flag) {
+        return 1;
+    } else {
+        return 2;
+    } // @phpstan-ignore-line
+}
+
+// Violation: braceless single-token elseif — flagged, not auto-fixed (no
+// curly scope).
+function bracelessElseIfKeyword(int $value): int
+{
+    if ($value === 1)
+        return 1;
+    elseif ($value === 2)
+        return 2;
+
+    return 3;
+}
+
+// Violation: previous branch ends in a nested block, not a terminating
+// statement — flagged, never auto-fixable (no fixer pass can make the
+// inner if terminate the branch).
+function nestedBlockBeforeElse(bool $outer, bool $inner): int
+{
+    if ($outer) {
+        if ($inner) {
+            doSomething();
+        }
+    } else {
+        return 3;
+    }
+
+    return 0;
+}
+
+// Violation: else after a throwing branch (auto-fixable).
+function elseAfterThrow(bool $flag): int
+{
+    if ($flag) {
+        throw new RuntimeException('boom');
+    }
+    return 2;
+}

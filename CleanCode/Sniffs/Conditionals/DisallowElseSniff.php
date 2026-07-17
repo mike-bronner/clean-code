@@ -18,8 +18,8 @@ use PHP_CodeSniffer\Util\Tokens;
  * layout, a plain `else` wrapper is removed and its body dedented, and an
  * `elseif` becomes a standalone `if`. Anything else (non-terminating
  * branches, braceless bodies, alternative syntax, comments adjacent to the
- * keyword, compact single-line layouts) is flagged but left for a manual
- * refactor.
+ * keyword or trailing the closing brace, compact single-line layouts) is
+ * flagged but left for a manual refactor.
  */
 class DisallowElseSniff implements Sniff
 {
@@ -149,7 +149,9 @@ class DisallowElseSniff implements Sniff
      * A plain `else` wrapper is safely removed only when it has a curly-brace
      * body, the layout is canonical, its closing brace sits alone on its own
      * line (removing the brace of an inline body would splice the following
-     * line onto the statement), and the preceding branch always terminates.
+     * line onto the statement; a comment trailing the brace would be detached
+     * from the construct it annotates), and the preceding branch always
+     * terminates.
      */
     private function isFixableElse(File $phpcsFile, int $stackPtr): bool
     {
@@ -194,16 +196,25 @@ class DisallowElseSniff implements Sniff
     }
 
     /**
-     * Whether the scope closer of the construct at $stackPtr is the first
-     * non-whitespace token on its own line — true for a canonical multi-line
-     * body, false for an inline `{ … }` body.
+     * Whether the scope closer of the construct at $stackPtr sits alone on
+     * its own line: it is the first non-whitespace token on the line and
+     * nothing but whitespace follows it. False for an inline `{ … }` body
+     * and for a trailing comment (`} // note`), which the fixer would
+     * de-indent and detach from the construct it annotates.
      */
     private function closesOnOwnLine(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $scopeCloser = $tokens[$stackPtr]['scope_closer'];
 
-        return $phpcsFile->findFirstOnLine(T_WHITESPACE, $scopeCloser, true) === $scopeCloser;
+        if ($phpcsFile->findFirstOnLine(T_WHITESPACE, $scopeCloser, true) !== $scopeCloser) {
+            return false;
+        }
+
+        $nextAfterCloser = $phpcsFile->findNext(T_WHITESPACE, ($scopeCloser + 1), null, true);
+
+        return $nextAfterCloser === false
+            || $tokens[$nextAfterCloser]['line'] !== $tokens[$scopeCloser]['line'];
     }
 
     private function containsOnlyWhitespace(File $phpcsFile, int $start, int $end): bool
