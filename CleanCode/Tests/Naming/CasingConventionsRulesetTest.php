@@ -44,8 +44,21 @@ class CasingConventionsRulesetTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $config = new Config();
-        $config->standards = [dirname(__DIR__, 3) . '/rules.xml'];
+        // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
+        // blanks the static Config data (via ConfigDouble), which would
+        // otherwise silently deregister the Slevomat standard the master
+        // ruleset references, breaking the rules.xml parse here.
+        Config::setConfigData(
+            'installed_paths',
+            dirname(__DIR__, 3) . '/vendor/slevomat/coding-standard',
+            true
+        );
+
+        // The argv must be non-empty: Config falls back to parsing the live
+        // $_SERVER['argv'] as PHPCS flags when given none, which would leak
+        // unrelated PHPUnit arguments (e.g. --filter) into the shared Config.
+        $config = new Config(['--standard=' . dirname(__DIR__, 3) . '/rules.xml']);
+        $config->cache = false;
 
         $file = new LocalFile(
             __DIR__ . '/CasingConventionsRulesetTest.inc',
