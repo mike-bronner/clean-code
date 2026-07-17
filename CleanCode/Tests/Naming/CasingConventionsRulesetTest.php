@@ -44,6 +44,16 @@ class CasingConventionsRulesetTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
+        // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
+        // blanks the static Config data (via ConfigDouble) before this class
+        // runs, which would silently deregister the Slevomat standard the
+        // master ruleset references.
+        Config::setConfigData(
+            'installed_paths',
+            dirname(__DIR__, 3) . '/vendor/slevomat/coding-standard',
+            true
+        );
+
         $config = new Config();
         $config->standards = [dirname(__DIR__, 3) . '/rules.xml'];
 
