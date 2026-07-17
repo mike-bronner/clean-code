@@ -50,6 +50,7 @@ class BlankLinesUnitTest extends AbstractSniffUnitTest
             148 => 1,
             152 => 1,
             157 => 1,
+            165 => 1,
         ];
     }
 

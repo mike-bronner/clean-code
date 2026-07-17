@@ -130,3 +130,43 @@ $anonymous = new class {
 $stackedClosers = function () { return function (): int {
     return 1;
 }; };
+
+// Multi-line blank run directly before a closing brace: exercises the
+// collectRun(-1) direction over a 2+ line run, reported once.
+function multipleBlanksBeforeClose(): int
+{
+    return 1;
+}
+
+// Control-structure braces are out of scope: a blank line right after
+// an if opener (not an OO/function scope opener) must NOT be flagged.
+function controlStructureScope(): int
+{
+    if (true) {
+
+        return 1;
+    }
+
+    return 2;
+}
+
+// Heredoc interiors are never treated as blank: two blank lines inside a
+// heredoc must NOT be flagged or altered by the fixer.
+function heredocBody(): string
+{
+    return <<<EOT
+        line one
+
+
+        line four
+        EOT;
+}
+
+// Inline-HTML / template regions are out of scope: blank lines inside an
+// HTML block between PHP tags must NOT be flagged.
+$beforeHtml = 1;
+?>
+
+
+<?php
+$afterHtml = 2;
