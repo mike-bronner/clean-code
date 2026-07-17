@@ -23,12 +23,22 @@ class LineLengthRulesTest extends TestCase
 
     private const ERROR_SOURCE = 'Generic.Files.LineLength.MaxExceeded';
 
-    public function testCompliantFileProducesNoViolations(): void
+    public function testCompliantFileRaisesNoLineLengthViolations(): void
     {
         $file = $this->processFixture('LineLengthCompliant.inc');
 
-        self::assertSame(0, $file->getErrorCount());
-        self::assertSame(0, $file->getWarningCount());
+        // Scope to line-length sources only: the fixture runs through the
+        // whole master ruleset, so unrelated PSR rules it happens to trip
+        // (e.g. PSR1 side effects) must not mask what this test asserts —
+        // that no line <=100 chars is flagged for length. Mirrors the
+        // sibling ExceptionsRulesTest/CasingConventionsRulesetTest convention.
+        $sources = array_merge(
+            ...array_values($this->sourcesByLine($file->getWarnings())),
+            ...array_values($this->sourcesByLine($file->getErrors())),
+        );
+
+        self::assertNotContains(self::WARNING_SOURCE, $sources, 'Compliant fixture must raise no line-length warning.');
+        self::assertNotContains(self::ERROR_SOURCE, $sources, 'Compliant fixture must raise no line-length error.');
     }
 
     public function testLineOfExactlyOneHundredCharactersIsNotFlagged(): void
