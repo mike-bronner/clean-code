@@ -12,5 +12,8 @@
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>
+        <testsuite name="Rules">
+            <directory>tests/Rules</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

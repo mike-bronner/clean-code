@@ -18,6 +18,28 @@
         PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
         PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
         flag PSR12-correct code, e.g. multi-line function declarations).
+        Referenced BEFORE the custom clean-code rules below so that any
+        same-sniff configuration in a later rule overrides the industry
+        baseline — custom standards win where they conflict.
     -->
     <rule ref="PSR12"/>
+
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
+    <!--
+        Naming: Casing conventions (#22) — camelCase variables, properties,
+        and methods; PascalCase classes, interfaces, traits, and enums.
+        SQL/URL/env casing lives in strings and is out of linter scope.
+    -->
+    <rule ref="Squiz.NamingConventions.ValidVariableName">
+        <!--
+            Squiz requires private properties to carry a leading underscore;
+            the clean-code standard wants plain camelCase for all properties.
+        -->
+        <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
+    </rule>
+    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
+    <rule ref="Squiz.Classes.ValidClassName"/>
 </ruleset>
