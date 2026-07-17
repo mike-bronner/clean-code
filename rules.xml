@@ -12,4 +12,7 @@
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!-- Conditionals: No Inline If-Statements — docs/standards/conditionals-no-inline-if-statements.md -->
+    <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 </ruleset>
