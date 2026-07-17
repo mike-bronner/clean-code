@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\Tests\Standards;
+namespace MikeBronner\CleanCode\Tests\Standards;
 
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
