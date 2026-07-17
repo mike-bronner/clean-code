@@ -9,6 +9,12 @@
         <testsuite name="CleanCode">
             <directory>CleanCode/Tests</directory>
         </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <testsuite name="Rules">
+            <directory>tests/Rules</directory>
+        </testsuite>
         <testsuite name="Standards">
             <directory>tests/Standards</directory>
         </testsuite>

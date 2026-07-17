@@ -14,12 +14,46 @@
     <rule ref="./CleanCode/ruleset.xml"/>
 
     <!--
-        Methods: Type Hints (#70) — every method parameter and return value
-        must carry a native type hint. The enable* properties are pinned to the
-        package's PHP 8.1 floor so behaviour never floats on the PHP version
-        running the check. Traversable-specification and useless-annotation
-        codes are excluded: they police docblock hygiene, not missing native
-        hints (docblock/property coverage belongs to #45).
+        Code Style: Industry Standards (PSR1/2/12) — #49.
+        PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
+        PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
+        flag PSR12-correct code, e.g. multi-line function declarations).
+        Referenced BEFORE the custom clean-code rules below so that any
+        same-sniff configuration in a later rule overrides the industry
+        baseline — custom standards win where they conflict.
+    -->
+    <rule ref="PSR12"/>
+
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
+    <!--
+        Naming: Casing conventions (#22) — camelCase variables, properties,
+        and methods; PascalCase classes, interfaces, traits, and enums.
+        SQL/URL/env casing lives in strings and is out of linter scope.
+    -->
+    <rule ref="Squiz.NamingConventions.ValidVariableName">
+        <!--
+            Squiz requires private properties to carry a leading underscore;
+            the clean-code standard wants plain camelCase for all properties.
+        -->
+        <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
+    </rule>
+    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
+    <rule ref="Squiz.Classes.ValidClassName"/>
+
+    <!--
+        Methods: Type Hints (#70) — every function-like declaration must carry
+        native parameter and return type hints. The Slevomat sniffs register on
+        every T_FUNCTION, so class methods AND free functions are both covered;
+        per the #70 scope decision this rule owns parameter/return hints for all
+        callables. The enable* properties are pinned to the package's PHP 8.1
+        floor so behaviour never floats on the PHP version running the check.
+        Traversable-specification and useless-annotation codes are excluded:
+        they police docblock hygiene, not missing native hints. Property type
+        hints and docblock coverage belong to the general Type Hints standard
+        (#45), which keeps PropertyTypeHint and docblock hygiene.
     -->
     <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
         <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
