@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\Tests\Ruleset;
+namespace MikeBronner\CleanCode\Tests\Ruleset;
 
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;

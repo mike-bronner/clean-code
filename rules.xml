@@ -7,11 +7,91 @@
     <arg name="extensions" value="php"/>
 
     <!--
+        Pin sniff behaviour to the package's PHP floor (composer.json requires
+        ^8.1) so version-gated Slevomat options (union/intersection hints,
+        standalone null/true/false, …) resolve the same on every runtime.
+        This value wins over a consumer ruleset's own <config> tag (nested
+        rulesets are processed last, so theirs is clobbered); the only
+        override that sticks is PHPCS's double-hyphen "runtime-set" CLI
+        option: phpcs [..]runtime-set php_version 80200.
+    -->
+    <config name="php_version" value="80100"/>
+
+    <!--
         Wire individual standards in below as they land. Custom sniffs live in
         the CleanCode standard; Slevomat rules are referenced individually,
         e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!--
+        Code Style: Industry Standards (PSR1/2/12) — #49.
+        PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
+        PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
+        flag PSR12-correct code, e.g. multi-line function declarations).
+        Referenced BEFORE the custom clean-code rules below so that any
+        same-sniff configuration in a later rule overrides the industry
+        baseline — custom standards win where they conflict.
+    -->
+    <rule ref="PSR12"/>
+
+    <!--
+        Type Hints and Return Types (#45): every method parameter, return
+        value, and property carries a native type hint. Only the missing-hint
+        codes are enforced; the annotation-centric codes (traversable
+        @param/@var specifications, useless-annotation cleanup, less-specific
+        native hints) police doc blocks, which the standard does not mandate.
+    -->
+    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    </rule>
+
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
+    <!--
+        Naming: Casing conventions (#22) — camelCase variables, properties,
+        and methods; PascalCase classes, interfaces, traits, and enums.
+        SQL/URL/env casing lives in strings and is out of linter scope.
+    -->
+    <rule ref="Squiz.NamingConventions.ValidVariableName">
+        <!--
+            Squiz requires private properties to carry a leading underscore;
+            the clean-code standard wants plain camelCase for all properties.
+        -->
+        <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
+    </rule>
+    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
+    <rule ref="Squiz.Classes.ValidClassName"/>
+
+    <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="100"/>
+            <property name="absoluteLineLimit" value="120"/>
+        </properties>
+    </rule>
+
+    <!--
+        Conditionals: No Inline If-Statements (#9) —
+        docs/standards/conditionals-no-inline-if-statements.md. PSR12 (above)
+        already bundles this sniff; the explicit ref is intentional
+        belt-and-suspenders per CONTRIBUTING step 3 (third-party rules a
+        standard depends on are wired in explicitly), so the standard stays
+        enforced even if the PSR12 baseline is ever narrowed.
+    -->
+    <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from

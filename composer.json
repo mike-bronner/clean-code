@@ -26,7 +26,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "MikeBronner\\Tests\\": "tests/"
+            "MikeBronner\\CleanCode\\Tests\\": ["CleanCode/Tests/", "tests/"]
         }
     },
     "config": {
