@@ -39,13 +39,13 @@ class TernaryConditionalsRulesetTest extends TestCase
         $file = $this->process(__DIR__ . '/TernaryConditionalsRulesetTest.violations.inc');
 
         $expected = [
-            4 => [['source' => self::TERNARY_NOT_USED, 'fixable' => true]],
-            13 => [['source' => self::TERNARY_NOT_USED, 'fixable' => true]],
-            21 => [['source' => self::NESTED_TERNARY, 'fixable' => false]],
-            24 => [['source' => self::NESTED_TERNARY, 'fixable' => false]],
+            4 => [1 => [['source' => self::TERNARY_NOT_USED, 'fixable' => true]]],
+            13 => [5 => [['source' => self::TERNARY_NOT_USED, 'fixable' => true]]],
+            21 => [34 => [['source' => self::NESTED_TERNARY, 'fixable' => false]]],
+            24 => [32 => [['source' => self::NESTED_TERNARY, 'fixable' => false]]],
         ];
 
-        $this->assertSame($expected, $this->errorsByLine($file));
+        $this->assertSame($expected, $this->errorsByLineAndColumn($file));
         $this->assertSame([], $file->getWarnings());
     }
 
@@ -73,16 +73,16 @@ class TernaryConditionalsRulesetTest extends TestCase
     }
 
     /**
-     * @return array<int, array<array{source: string, fixable: bool}>>
+     * @return array<int, array<int, array<array{source: string, fixable: bool}>>>
      */
-    private function errorsByLine(LocalFile $file): array
+    private function errorsByLineAndColumn(LocalFile $file): array
     {
         $errorsByLine = [];
 
         foreach ($file->getErrors() as $line => $columns) {
-            foreach ($columns as $violations) {
+            foreach ($columns as $column => $violations) {
                 foreach ($violations as $violation) {
-                    $errorsByLine[$line][] = [
+                    $errorsByLine[$line][$column][] = [
                         'source' => $violation['source'],
                         'fixable' => $violation['fixable'],
                     ];
@@ -91,6 +91,10 @@ class TernaryConditionalsRulesetTest extends TestCase
         }
 
         ksort($errorsByLine);
+
+        foreach ($errorsByLine as &$columns) {
+            ksort($columns);
+        }
 
         return $errorsByLine;
     }
