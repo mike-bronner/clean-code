@@ -95,4 +95,13 @@
         enforced even if the PSR12 baseline is ever narrowed.
     -->
     <rule ref="Generic.ControlStructures.InlineControlStructure"/>
+
+    <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
+         imports referenced only in docblocks (@param, @throws, ...) from
+         being treated as unused — those references are live, not dead code. -->
+    <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
+        <properties>
+            <property name="searchAnnotations" value="true"/>
+        </properties>
+    </rule>
 </ruleset>
