@@ -24,6 +24,9 @@
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
 
+    <!-- Constructors: Property Promotion (#47) -->
+    <rule ref="SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion"/>
+
     <!--
         Code Style: Industry Standards (PSR1/2/12) — #49.
         PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements

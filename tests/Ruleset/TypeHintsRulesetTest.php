@@ -89,7 +89,7 @@ class TypeHintsRulesetTest extends TestCase
 
     public function testFixerResolvesEveryInferrableHint(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixtureWithTypeHintsFixerOnly('violations.inc');
         $file->fixer->fixFile();
 
         $this->assertStringEqualsFile(
@@ -137,6 +137,45 @@ class TypeHintsRulesetTest extends TestCase
             __DIR__ . '/Fixtures/TypeHints/' . $fixture,
             self::$ruleset,
             self::$config
+        );
+        $file->process();
+
+        return $file;
+    }
+
+    /**
+     * Like processFixture, but on a ruleset narrowed to the TypeHints sniffs
+     * (keeping their master-ruleset configuration, e.g. the UselessAnnotation
+     * excludes). The whole-file fixer output is asserted verbatim, so any other
+     * auto-fixing rule wired into the shared master ruleset would otherwise
+     * alter it — restricting to the sniffs under test keeps this test immune to
+     * unrelated additions, matching the reporting assertions above.
+     */
+    private function processFixtureWithTypeHintsFixerOnly(string $fixture): LocalFile
+    {
+        $root = dirname(__DIR__, 2);
+
+        $config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
+        Config::setConfigData(
+            'installed_paths',
+            $root . '/vendor/slevomat/coding-standard',
+            true
+        );
+
+        $ruleset = new Ruleset($config);
+
+        foreach (array_keys($ruleset->sniffs) as $sniffClass) {
+            if (strpos($sniffClass, 'Sniffs\\TypeHints\\') === false) {
+                unset($ruleset->sniffs[$sniffClass]);
+            }
+        }
+
+        $ruleset->populateTokenListeners();
+
+        $file = new LocalFile(
+            __DIR__ . '/Fixtures/TypeHints/' . $fixture,
+            $ruleset,
+            $config
         );
         $file->process();
 
