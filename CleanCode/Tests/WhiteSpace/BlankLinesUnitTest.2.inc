@@ -1,0 +1,4 @@
+<?php
+
+
+$afterOpenTag = 1;

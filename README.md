@@ -38,6 +38,7 @@ that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
+- [Blank Lines](docs/standards/blank-lines.md) — Tier 1, custom sniff: `CleanCode.WhiteSpace.BlankLines`, auto-fixable ([#43](https://github.com/mike-bronner/phpcs-rules/issues/43))
 - [Clear Code: One Thought Per Line](docs/standards/clear-code-one-thought-per-line.md) — Tier 2, custom sniff `CleanCode.ClearCode.OneThoughtPerLine`: one access operator per chain per line, auto-fixable ([#7](https://github.com/mike-bronner/phpcs-rules/issues/7))
 - [Code Style: Industry Standards (PSR1/2/12)](docs/standards/code-style-industry-standards-psr1-2-12.md) — Tier 1, bundled standard: PHPCS `PSR12` (includes PSR1; supersedes PSR2) wired into `rules.xml` ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49))
 - [Conditionals: Combine Where Possible](docs/standards/conditionals-combine-where-possible.md) — Tier 2, custom sniff: adjacent identical-branch detection ([#181](https://github.com/mike-bronner/phpcs-rules/issues/181))
