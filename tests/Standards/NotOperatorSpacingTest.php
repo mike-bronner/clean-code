@@ -48,8 +48,8 @@ class NotOperatorSpacingTest extends TestCase
             [
                 7 => [self::SNIFF_CODE . '.NoSpaceAfter'],
                 11 => [self::SNIFF_CODE . '.SpaceBefore'],
-                15 => [self::SNIFF_CODE . '.TooMuchSpaceAfter'],
-                19 => [self::SNIFF_CODE . '.SpaceBefore'],
+                13 => [self::SNIFF_CODE . '.TooMuchSpaceAfter'],
+                17 => [self::SNIFF_CODE . '.SpaceBefore'],
             ],
             $this->sourcesByLine($file->getErrors())
         );

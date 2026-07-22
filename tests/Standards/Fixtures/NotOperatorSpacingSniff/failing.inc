@@ -8,12 +8,10 @@ if (!$test) {
     echo 'no space after';
 }
 
-if ( ! $test) {
-    echo 'space before after open paren';
-}
+$flags = [ ! $test];
 
 if (!  $test) {
     echo 'too much space after';
 }
 
-$values = [ ! $test];
+$value = $data[ ! $test];

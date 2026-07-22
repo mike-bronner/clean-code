@@ -15,3 +15,15 @@ if (
 ) {
     $ok = true;
 }
+
+if ( ! $ready) {
+    $stop = true;
+}
+
+if (
+    $a ===
+    $b
+    || $ready
+) {
+    $done = true;
+}

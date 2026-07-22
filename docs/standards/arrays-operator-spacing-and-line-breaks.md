@@ -47,14 +47,20 @@ Enforces one space each side of the `.` concatenation operator
 
 ### Not-operator spacing — `CleanCode.Operators.NotOperatorSpacing`
 
-Custom sniff. Requires exactly one space **after** `!`, and no space between an
-opening `(` / `[` and the `!` that opens the enclosed expression:
+Custom sniff. Requires exactly one space **after** `!`, and — for array
+brackets — no space between an opening `[` and the `!` that opens the enclosed
+expression:
 
 - `if (! $test)` — compliant.
 - `if (!$test)` — flagged (`NoSpaceAfter`).
-- `if ( ! $test)` — flagged (`SpaceBefore`).
+- `[! $test]` — compliant.
+- `[ ! $test]` — flagged (`SpaceBefore`).
 
-A `!` that follows a binary operator (`$a = ! $b`, `return ! $c`, `$a && ! $b`)
+Padding after an opening **parenthesis** — `if ( ! $test)`, `foo( ! $test)` —
+is left to PSR-12 (`ControlStructures.ControlStructureSpacing` /
+`Methods.FunctionCallSignature`, already in the ruleset), which flags exactly
+those cases; policing them here as well would report the same space twice. A
+`!` that follows a binary operator (`$a = ! $b`, `return ! $c`, `$a && ! $b`)
 keeps the space that belongs to the preceding operator, so it is left alone.
 Auto-fixable.
 
@@ -78,10 +84,13 @@ $message = $greeting .
 **Reporting only** — where the operator lands on the rewritten line (re-indent,
 merge, or split) is a layout judgement, so this rule has no auto-fixer.
 
-Operators inside an `if`/`elseif`/`while`/`for` condition are left to
-`CleanCode.Conditionals.OneConditionPerLine`, which owns condition layout and
-can auto-fix it; this sniff defers there so a dangling operator in a wrapped
-condition is reported once, not twice.
+An operator inside an `if`/`elseif`/`while`/`for` condition is left to
+`CleanCode.Conditionals.OneConditionPerLine` **only where that sniff actually
+enforces it** — a top-level boolean operator, or any operator inside a single
+condition (which it collapses onto one line). A dangling non-boolean operator
+inside a *multi*-condition (one that already carries a top-level boolean) is
+enforced by neither of those, so this sniff still reports it. The result: every
+dangling operator is flagged exactly once, whatever the condition context.
 
 ### Tests
 

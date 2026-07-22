@@ -49,9 +49,14 @@ class OperatorRulesIntegrationTest extends TestCase
 
     /**
      * The fixture holds one instance of each operator concern; every line below
-     * carries exactly one diagnostic from exactly one sniff. A regression that
-     * re-stacks PSR12 on Squiz (line 5/6) or re-doubles OperatorLineBreak on
-     * OneConditionPerLine (line 13) adds a second source and fails here.
+     * carries exactly one diagnostic from exactly one sniff. Regressions this
+     * pins by adding a second (or dropping the only) source:
+     *   - re-stacking PSR12 on Squiz spacing (line 5/6),
+     *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (13),
+     *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
+     *     double-reports "if ( ! " (line 19), and
+     *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
+     *     operator inside a multi-condition slips through unreported (line 24).
      */
     public function testEveryOperatorViolationIsReportedExactlyOnce(): void
     {
@@ -73,6 +78,11 @@ class OperatorRulesIntegrationTest extends TestCase
                 9 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
                 // dangling "||" inside the if — OneConditionPerLine only
                 13 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
+                // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
+                19 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
+                // dangling "===" inside a multi-condition — OperatorLineBreak
+                // owns it (OneConditionPerLine polices only the boolean "||")
+                24 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
             ],
             $this->violationSourceMap($file)
         );

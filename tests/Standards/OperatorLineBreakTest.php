@@ -73,6 +73,25 @@ class OperatorLineBreakTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    /**
+     * A non-boolean operator (comparison, assignment, concatenation) dangling
+     * inside a *multi*-condition control structure is owned by neither this
+     * sniff's old blanket deferral nor OneConditionPerLine (which polices only
+     * boolean-operator placement there), so it must be reported here. Covers
+     * the top-level case (=== / . beside a top-level ||/&&) and the nested case
+     * (=== inside an inner grouping parenthesis).
+     */
+    public function testDanglingNonBooleanOperatorInMultiConditionIsReported(): void
+    {
+        $file = $this->processFixture('reported-conditional.inc');
+
+        $this->assertSame([9, 19, 29], array_keys($this->sourcesByLine($file->getErrors())));
+
+        foreach ($this->sourcesByLine($file->getErrors()) as $sources) {
+            $this->assertSame([self::SNIFF_CODE . '.OperatorAtLineEnd'], $sources);
+        }
+    }
+
     public function testViolationsAreNotAutoFixable(): void
     {
         $file = $this->processFixture('failing.inc');

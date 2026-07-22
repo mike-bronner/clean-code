@@ -11,30 +11,35 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * Enforces the not-operator spacing clean-code standard: the logical-not
  * operator (`!`) is followed by exactly one space, and — because it opens a
  * (sub-)expression — carries no space between it and a preceding opening
- * parenthesis or square bracket.
+ * square bracket.
  *
- * `if (! $test)` is compliant; `if (!$test)` (no space after) and
- * `if ( ! $test)` (space between the `(` and the `!`) are both flagged.
+ * `if (! $test)` is compliant; `if (!$test)` (no space after) is flagged
+ * (`NoSpaceAfter`); `[ ! $test]` (space between the `[` and the `!`) is flagged
+ * (`SpaceBefore`).
  *
- * The space *before* the operator is only policed when the `!` directly opens
- * a parenthesised or bracketed expression. A `!` that follows a binary
- * operator (e.g. `$a = ! $b`, `return ! $c`, `$a && ! $b`) keeps the space
- * that legitimately belongs to that preceding operator, so it is left alone.
+ * The space *before* the operator is only policed for array brackets. Padding
+ * after an opening *parenthesis* — `if ( ! $test)`, `foo( ! $test)` — is owned
+ * by PSR-12 (ControlStructureSpacing / FunctionCallSignature, already in the
+ * master ruleset), which flags exactly those cases; policing them here too
+ * would report the same space twice. A `!` that follows a binary operator
+ * (e.g. `$a = ! $b`, `return ! $c`, `$a && ! $b`) keeps the space that
+ * legitimately belongs to that preceding operator, so it is left alone.
  *
  * All violations are auto-fixable: a missing space after `!` is added, extra
  * space after `!` is collapsed to one, and the stray space before an opening-
- * delimiter `!` is removed.
+ * bracket `!` is removed.
  */
 class NotOperatorSpacingSniff implements Sniff
 {
     /**
      * Opening delimiters after which a `!` must sit flush (no intervening
-     * space), because the `!` opens the enclosed expression.
+     * space), because the `!` opens the enclosed expression. Parentheses are
+     * deliberately excluded — PSR-12 already owns `( ! ` padding; see the class
+     * docblock.
      *
      * @var array<int|string, true>
      */
     private const OPENING_DELIMITERS = [
-        T_OPEN_PARENTHESIS => true,
         T_OPEN_SQUARE_BRACKET => true,
         T_OPEN_SHORT_ARRAY => true,
     ];
@@ -57,7 +62,8 @@ class NotOperatorSpacingSniff implements Sniff
     }
 
     /**
-     * Flags a space between an opening `(` / `[` and the `!` it precedes.
+     * Flags a space between an opening array bracket `[` and the `!` it
+     * precedes. Parenthesis padding is PSR-12's; see the class docblock.
      */
     private function checkSpaceBefore(File $phpcsFile, int $stackPtr): void
     {
