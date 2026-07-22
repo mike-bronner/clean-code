@@ -11,8 +11,10 @@ namespace MikeBronner\CleanCode\Tests\Standards;
  *
  * This sniff is detection-only — converting an inline string to a HereDoc is a
  * structural edit the standard leaves to the developer — so there are no
- * autofix fixtures. compliant.inc proves a real HereDoc is accepted and that
- * comparisons/generics (`a < b`, `List<int>`) are not mistaken for markup;
+ * autofix fixtures. compliant.inc proves a real HereDoc is accepted, including
+ * one with deeply nested markup, and that comparisons/generics (`a < b`,
+ * `List<int>`), shell redirection (`<input.txt >out`) and a C include
+ * (`<time.h>`) are not mistaken for an `<input>`/`<time>` element;
  * violations.inc flags markup in both single- and double-quoted strings.
  */
 class RequireHeredocForMarkupTest extends StringsSniffTestCase
@@ -39,6 +41,21 @@ class RequireHeredocForMarkupTest extends StringsSniffTestCase
                 6 => 1,
             ],
             $this->errorCountsByLine($file)
+        );
+    }
+
+    public function testViolationsAreFlaggedAtTheExpectedColumns(): void
+    {
+        $file = $this->processFixture('violations.inc');
+
+        self::assertSame(
+            [
+                3 => [11],
+                4 => [15],
+                5 => [16],
+                6 => [10],
+            ],
+            $this->errorColumnsByLine($file)
         );
     }
 

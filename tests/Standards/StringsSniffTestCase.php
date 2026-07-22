@@ -111,6 +111,32 @@ abstract class StringsSniffTestCase extends TestCase
         return $counts;
     }
 
+    /**
+     * The 1-based column each violation is reported at, keyed by line — so a
+     * test can assert not just the line but the exact column the AC requires.
+     * A line with several violations lists each column in ascending order.
+     *
+     * @return array<int, array<int, int>> line number => list of columns
+     */
+    protected function errorColumnsByLine(LocalFile $file): array
+    {
+        $columns = [];
+
+        foreach ($file->getErrors() as $line => $errorsByColumn) {
+            foreach ($errorsByColumn as $column => $errors) {
+                foreach ($errors as $_) {
+                    $columns[$line][] = $column;
+                }
+            }
+
+            sort($columns[$line]);
+        }
+
+        ksort($columns);
+
+        return $columns;
+    }
+
     protected function packageRoot(): string
     {
         return dirname(__DIR__, 2);

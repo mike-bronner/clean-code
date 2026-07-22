@@ -13,10 +13,13 @@ namespace MikeBronner\CleanCode\Support;
  * whether a string literal actually contains HTML, so that logic lives here
  * once rather than being duplicated (and drifting) across sniffs.
  *
- * Detection is deliberately conservative: it matches an open/close tag whose
- * name is a known HTML element (`<div`, `</span>`, `<br/>`). Keying off a
- * curated element list — instead of "any `<letter`" — keeps string content
- * such as `'a < b'`, `'List<int>'`, or `'x<y'` from being mistaken for markup.
+ * Detection is deliberately conservative on two axes. It matches an open/close
+ * tag whose name is a known HTML element (`<div>`, `</span>`, `<br/>`) — keying
+ * off a curated element list, instead of "any `<letter`", keeps `'a < b'`,
+ * `'List<int>'`, or `'x<y'` from being mistaken for markup. And the element
+ * name must be followed by tag-like structure — whitespace, `/`, or `>` — and
+ * an eventual closing `>`, so shell redirection (`<input.txt >out`) or a C
+ * include (`<time.h>`) never masquerades as an `<input>`/`<time>` element.
  */
 final class Markup
 {
@@ -60,12 +63,25 @@ final class Markup
     }
 
     /**
+     * Case-insensitive pattern capturing a single opening or self-closing tag
+     * of a known element as its whole `<tag …>` span. Closing tags are
+     * excluded because they carry no attributes — callers use this to scope an
+     * attribute rewrite to real tag spans, leaving prose between tags untouched.
+     */
+    public static function tagSpanPattern(): string
+    {
+        return '#<(?:' . implode('|', self::HTML_TAGS) . ')(?=[\s/>])[^<>]*>#i';
+    }
+
+    /**
      * Case-insensitive pattern matching an opening or closing tag for any of
-     * the known element names, bounded by `\b` so `<var` never matches inside
-     * `<variable` and `<b` never matches `<body`'s longer siblings.
+     * the known element names. The `(?=[\s/>])` lookahead requires the name to
+     * be followed by tag structure (whitespace, `/`, or `>`) rather than a bare
+     * word boundary — so `<input.txt` (a shell path) does not match `<input>` —
+     * and the trailing `[^<>]*>` requires the tag to actually close.
      */
     private static function elementPattern(): string
     {
-        return '#</?(?:' . implode('|', self::HTML_TAGS) . ')\b#i';
+        return '#</?(?:' . implode('|', self::HTML_TAGS) . ')(?=[\s/>])[^<>]*>#i';
     }
 }

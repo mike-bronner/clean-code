@@ -19,16 +19,19 @@ use PHP_CodeSniffer\Util\Tokens;
  * that mixes in a function call, constant, or arithmetic (`$x . foo()`,
  * `__DIR__ . '/x'`) cannot become one interpolated string and is left alone.
  *
- * Fixable — the direct, two-operand case: one string literal plus one plain
- * `$variable` (`'Hello ' . $name` → `"Hello {$name}"`). The fixer merges them
- * into a single double-quoted interpolated string, brace-wrapping the variable
- * so it never runs into adjacent literal text.
+ * Fixable — the direct, two-operand case: one plain string literal plus one
+ * plain `$variable` (`'Hello ' . $name` → `"Hello {$name}"`). The fixer merges
+ * them into a single double-quoted interpolated string, brace-wrapping the
+ * variable so it never runs into adjacent literal text, and escaping a literal
+ * that ends in a bare `$` so `"Total $" . $x` cannot fuse into the deprecated
+ * `${...}` dollar-curly syntax.
  *
  * Detection-only — everything else that is still interpolatable but not a
- * mechanical rewrite: multi-expression chains (`'a' . $b . 'c'`) and complex
- * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), which the
- * standard wants written with `{...}` but whose safe rewrite is a judgement
- * call left to the developer.
+ * mechanical rewrite: multi-expression chains (`'a' . $b . 'c'`), complex
+ * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), and any operand
+ * that is itself an already-interpolated double-quoted string (`"Hi {$a}" .
+ * $b`) — which the standard wants written with `{...}` but whose safe rewrite
+ * is a judgement call left to the developer.
  */
 class RequireStringInterpolationSniff implements Sniff
 {
@@ -40,6 +43,17 @@ class RequireStringInterpolationSniff implements Sniff
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
+    ];
+
+    /**
+     * Operand token codes that count as a string literal. A double-quoted
+     * string that already interpolates (`"Hi {$a}"`) is a literal too — it can
+     * live inside an interpolated result — so a chain built from one is flagged
+     * for consistency, though only the plain single-token literal is auto-fixed.
+     */
+    private const STRING_LITERALS = [
+        T_CONSTANT_ENCAPSED_STRING,
+        T_DOUBLE_QUOTED_STRING,
     ];
 
     /**
@@ -80,7 +94,7 @@ class RequireStringInterpolationSniff implements Sniff
             return;
         }
 
-        $literals = $this->countKind($tokens, $operands, T_CONSTANT_ENCAPSED_STRING);
+        $literals = $this->countStringLiterals($tokens, $operands);
         $variables = count($operands) - $literals;
 
         if ($literals === 0 || $variables === 0) {
@@ -170,7 +184,7 @@ class RequireStringInterpolationSniff implements Sniff
         foreach ($operands as $operand) {
             $code = $tokens[$operand['start']]['code'];
 
-            if ($code !== T_CONSTANT_ENCAPSED_STRING && $code !== T_VARIABLE) {
+            if (in_array($code, self::STRING_LITERALS, true) === false && $code !== T_VARIABLE) {
                 return true;
             }
         }
@@ -179,16 +193,19 @@ class RequireStringInterpolationSniff implements Sniff
     }
 
     /**
+     * How many operands are string literals (plain or already-interpolated
+     * double-quoted). The remaining operands are variables, so callers derive
+     * the variable count as `count($operands) - this`.
+     *
      * @param array<int, array{start: int, end: int}> $operands
      * @param array<int, array<string, mixed>> $tokens
-     * @param int|string $code
      */
-    private function countKind(array $tokens, array $operands, $code): int
+    private function countStringLiterals(array $tokens, array $operands): int
     {
         $count = 0;
 
         foreach ($operands as $operand) {
-            if ($tokens[$operand['start']]['code'] === $code) {
+            if (in_array($tokens[$operand['start']]['code'], self::STRING_LITERALS, true) === true) {
                 $count++;
             }
         }
@@ -266,7 +283,7 @@ class RequireStringInterpolationSniff implements Sniff
         $inner = substr($content, 1, -1);
 
         if ($delimiter === '"') {
-            return $inner;
+            return $this->escapeTrailingDollar($inner);
         }
 
         if (strpos($inner, '\\') !== false) {
@@ -274,6 +291,29 @@ class RequireStringInterpolationSniff implements Sniff
         }
 
         return str_replace(['\\', '"', '$'], ['\\\\', '\\"', '\\$'], $inner);
+    }
+
+    /**
+     * Escapes a trailing bare `$` in already double-quoted inner text. When the
+     * literal is the left operand its content abuts the injected `{$var}`; an
+     * unescaped trailing `$` would then read as `${...}` (deprecated dollar-curly
+     * variable-variable syntax) and change runtime behaviour. A `$` already
+     * escaped (`\$`, an odd run of preceding backslashes) is left untouched.
+     */
+    private function escapeTrailingDollar(string $inner): string
+    {
+        if (substr($inner, -1) !== '$') {
+            return $inner;
+        }
+
+        $beforeDollar = substr($inner, 0, -1);
+        $backslashes = strlen($beforeDollar) - strlen(rtrim($beforeDollar, '\\'));
+
+        if ($backslashes % 2 === 1) {
+            return $inner;
+        }
+
+        return $beforeDollar . '\\$';
     }
 
     /**
