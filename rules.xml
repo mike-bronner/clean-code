@@ -104,4 +104,34 @@
             <property name="searchAnnotations" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        Arrays: Operator spacing & line breaks (#35) —
+        docs/standards/arrays-operator-spacing-and-line-breaks.md.
+
+        Binary-operator and concatenation spacing (exactly 1 space each side)
+        are enforced by configuring two bundled Squiz sniffs; the not-operator
+        spacing and the operator line-break placement are custom CleanCode
+        sniffs (CleanCode.Operators.*), picked up automatically via the
+        ./CleanCode/ruleset.xml ref above.
+
+        ignoreNewlines="true" is required on both spacing sniffs: without it
+        they would flag operators that lead a wrapped continuation line (the
+        very layout the line-break standard mandates). Newline placement is
+        owned by CleanCode.Operators.OperatorLineBreak instead.
+    -->
+    <rule ref="Squiz.WhiteSpace.OperatorSpacing">
+        <properties>
+            <property name="ignoreNewlines" value="true"/>
+            <!-- Enforce a space before assignment too; the standard wants 1
+                 space each side, not alignment padding. -->
+            <property name="ignoreSpacingBeforeAssignments" value="false"/>
+        </properties>
+    </rule>
+    <rule ref="Squiz.Strings.ConcatenationSpacing">
+        <properties>
+            <property name="spacing" value="1"/>
+            <property name="ignoreNewlines" value="true"/>
+        </properties>
+    </rule>
 </ruleset>
