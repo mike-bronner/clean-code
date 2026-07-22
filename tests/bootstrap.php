@@ -22,7 +22,7 @@ $GLOBALS['PHP_CODESNIFFER_FIXABLE_CODES'] = [];
 $GLOBALS['PHP_CODESNIFFER_SNIFF_CASE_FILES'] = [];
 
 $standardDir = dirname(__DIR__) . '/CleanCode';
-$testsDir = $standardDir . '/Tests/';
+$testsDir = "{$standardDir}/Tests/";
 
 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($testsDir));
 

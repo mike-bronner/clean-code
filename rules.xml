@@ -24,6 +24,14 @@
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
 
+    <!--
+        Strings: Interpolation, quoting, HereDocs (#25) — enforced by the
+        custom CleanCode.Strings.* sniffs (RequireStringInterpolation,
+        HtmlAttributeQuotes, RequireHeredocForMarkup, EscapeNestedQuotes),
+        auto-included via the CleanCode standard referenced above. Listed here
+        for traceability; no separate ref is needed.
+    -->
+
     <!-- Constructors: Property Promotion (#47) -->
     <rule ref="SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion"/>
 
