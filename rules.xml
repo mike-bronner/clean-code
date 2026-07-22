@@ -35,8 +35,18 @@
         Referenced BEFORE the custom clean-code rules below so that any
         same-sniff configuration in a later rule overrides the industry
         baseline — custom standards win where they conflict.
+
+        PSR12.Operators.OperatorSpacing is excluded: it enforces "at least 1
+        space" around operators, which the stricter "exactly 1 space"
+        Squiz.WhiteSpace.OperatorSpacing / Squiz.Strings.ConcatenationSpacing
+        sniffs configured for #35 supersede. They are *different* sniffs, so
+        the "same-sniff configuration wins" mechanism above cannot dedupe them
+        — left in, both fire and every operator-spacing violation is reported
+        twice. The exclude keeps exactly one diagnostic per violation.
     -->
-    <rule ref="PSR12"/>
+    <rule ref="PSR12">
+        <exclude name="PSR12.Operators.OperatorSpacing"/>
+    </rule>
 
     <!--
         Type Hints and Return Types (#45): every method parameter, return

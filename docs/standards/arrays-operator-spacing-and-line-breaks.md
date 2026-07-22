@@ -62,20 +62,26 @@ Auto-fixable.
 
 Custom sniff. Flags an assignment, comparison, logical, or concatenation
 operator left dangling at the end of a wrapped line — the operator must lead
-the continuation line instead:
+the continuation line instead (arithmetic operators such as `+`/`-` are out of
+scope):
 
 ```php
 // compliant
-$total = $subtotal
-    + $tax;
+$message = $greeting
+    . $name;
 
 // flagged (OperatorAtLineEnd)
-$total = $subtotal +
-    $tax;
+$message = $greeting .
+    $name;
 ```
 
 **Reporting only** — where the operator lands on the rewritten line (re-indent,
 merge, or split) is a layout judgement, so this rule has no auto-fixer.
+
+Operators inside an `if`/`elseif`/`while`/`for` condition are left to
+`CleanCode.Conditionals.OneConditionPerLine`, which owns condition layout and
+can auto-fix it; this sniff defers there so a dangling operator in a wrapped
+condition is reported once, not twice.
 
 ### Tests
 

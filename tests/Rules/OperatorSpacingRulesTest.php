@@ -21,8 +21,9 @@ use PHPUnit\Framework\TestCase;
  * behaviour and autofix assertions are unaffected by sibling standards.
  *
  * Fixtures live in Fixtures/OperatorSpacing/; the probe lines in
- * violations.inc are line 5 (arithmetic), 6 (comparison), 7 (concatenation)
- * and 8 (extra-padded arithmetic).
+ * violations.inc are line 5 (arithmetic), 6 (comparison), 7 (concatenation),
+ * 8 (extra-padded arithmetic) and 9 (extra-padded assignment — exercises
+ * ignoreSpacingBeforeAssignments="false"). wrapped.inc probes ignoreNewlines.
  */
 class OperatorSpacingRulesTest extends TestCase
 {
@@ -64,13 +65,43 @@ class OperatorSpacingRulesTest extends TestCase
     {
         $byLine = $this->sourcesByLine($this->processFixture('violations.inc')->getErrors());
 
-        $this->assertSame([5, 6, 7, 8], array_keys($byLine));
+        $this->assertSame([5, 6, 7, 8, 9], array_keys($byLine));
 
-        foreach ([5, 6, 8] as $line) {
+        foreach ([5, 6, 8, 9] as $line) {
             foreach ($byLine[$line] as $source) {
                 $this->assertStringStartsWith(self::OPERATOR_SPACING, $source);
             }
         }
+    }
+
+    /**
+     * ignoreSpacingBeforeAssignments="false" makes the sniff police the space
+     * before "=" too, so alignment padding (`$e  = 1;`, line 9) is flagged.
+     * With the property at Squiz's default that line is silent — this pins the
+     * one property #35 adds to the sniff.
+     */
+    public function testExtraSpaceBeforeAssignmentIsFlagged(): void
+    {
+        $byLine = $this->sourcesByLine($this->processFixture('violations.inc')->getErrors());
+
+        $this->assertSame(
+            [self::OPERATOR_SPACING . '.SpacingBefore'],
+            $byLine[9] ?? []
+        );
+    }
+
+    /**
+     * ignoreNewlines="true" keeps both spacing sniffs silent on an operator
+     * that leads a wrapped continuation line — the very layout the line-break
+     * standard mandates. Without it they would flag the operator-led lines
+     * ("Expected 1 space before …; newline found").
+     */
+    public function testSpacingSniffsStaySilentOnOperatorLedContinuationLines(): void
+    {
+        $file = $this->processFixture('wrapped.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
     }
 
     public function testConcatenationSpacingIsEnforcedToOneSpace(): void

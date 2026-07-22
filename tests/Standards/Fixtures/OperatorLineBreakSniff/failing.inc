@@ -19,9 +19,5 @@ $result =
 $flag = $count ===
     $limit;
 
-if (
-    $count === 0 ||
-    $count === 1
-) {
-    return true;
-}
+$note = $a . // explains the wrap
+    $b;

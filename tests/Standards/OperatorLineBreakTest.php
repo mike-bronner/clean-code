@@ -46,13 +46,31 @@ class OperatorLineBreakTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        // Assignment (=), comparison (===), logical (&&, ||) and concatenation
-        // (.) operators left dangling at the end of a wrapped line.
-        $this->assertSame([5, 8, 12, 16, 19, 23], array_keys($this->sourcesByLine($file->getErrors())));
+        // Logical (&&, line 5), concatenation (., lines 8/12/22), assignment
+        // (=, line 16) and comparison (===, line 19) operators left dangling
+        // at the end of a wrapped line. Line 22 dangles behind a trailing
+        // comment — flagged because the sniff skips comments when locating the
+        // next code token.
+        $this->assertSame([5, 8, 12, 16, 19, 22], array_keys($this->sourcesByLine($file->getErrors())));
 
         foreach ($this->sourcesByLine($file->getErrors()) as $sources) {
             $this->assertSame([self::SNIFF_CODE . '.OperatorAtLineEnd'], $sources);
         }
+    }
+
+    /**
+     * Operators dangling inside an if/elseif/while/for condition are owned by
+     * CleanCode.Conditionals.OneConditionPerLine (which can auto-fix them), so
+     * this sniff defers — otherwise the same wrap is reported twice. Both the
+     * logical `||` and the comparison `===` in the fixture would flag without
+     * the deferral.
+     */
+    public function testDanglingOperatorsInsideConditionsAreDeferred(): void
+    {
+        $file = $this->processFixture('deferred-conditional.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
     }
 
     public function testViolationsAreNotAutoFixable(): void
