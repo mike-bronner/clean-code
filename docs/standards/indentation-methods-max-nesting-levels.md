@@ -24,17 +24,25 @@ single error code:
 
 One level is added per control structure — `if`/`elseif`/`else`, loops
 (`for`/`foreach`/`while`/`do`), `switch`/`match`, `try`/`catch`/`finally`, and
-closures. Two structural details keep the count faithful to how a reader sees
-indentation:
+anonymous functions (closures and arrow functions). Three structural details
+keep the count faithful to how a reader sees indentation:
 
 - **`case`/`default` do not add a level** — they belong to the enclosing
   `switch`, so an `if` inside a `case` is level 2, not level 3.
 - **`elseif`/`else`/`catch`/`finally` sit at the same level** as the
   `if`/`try` they continue, rather than nesting beneath it — an `if … else`
   chain is one level, and statements inside `else` or `catch` are counted at
-  the correct depth.
+  the correct depth. Two-word **`else if`** (a bare `else` followed by a fresh
+  `if`) is treated as a continuation of the same chain, exactly like one-word
+  `elseif` — it is not reported a second time.
+- **Nested named functions are excluded** — a nested *named* function
+  declaration (`function helper() { … }` inside a method) is not counted: it
+  defines a new named symbol rather than an inline block, and cannot legally
+  recur inside a method body.
 
-A closure inside a method still counts as a nesting level. The rule applies
+An anonymous function inside a method still counts as a nesting level — both a
+closure (`function () { … }`) and an arrow function (`fn () => …`); an
+over-nested arrow function is reported at the `fn` itself. The rule applies
 only inside a function/method body; top-level script code is out of scope.
 
 ## Why not an existing sniff
