@@ -56,8 +56,12 @@ matched this standard's test suite, so it is enforced by the custom
     continuation line is compliant.
   - **Unary and reference forms** — a sign (`-5`, `+5`), reference (`&$ref`), and
     bitwise NOT (`~$bits`) carry no left-hand operand, so they are not
-    manipulation operators. `+`, `-`, and `&` are only treated as manipulation
-    operators when a real operand ends the previous line.
+    manipulation operators. `+` and `-` count as operators only when a real
+    operand ends the previous line — including a magic constant (`__LINE__`), an
+    interpolated string, or a heredoc/nowdoc body, not just literals and
+    variables. A `&` is told apart from bitwise-AND by PHP_CodeSniffer's own
+    reference detection, so a by-reference parameter, return, assignment,
+    `foreach`, or array element is exempt regardless of what precedes it.
 - **Auto-fixable — Yes.** The fixer moves the trailing operator down to lead the
   continuation line, indented one level past the statement's first line, with a
   single space before its right-hand operand — the whitespace-only rewrite that
@@ -66,9 +70,10 @@ matched this standard's test suite, so it is enforced by the custom
   violation is reported but left for the developer.
 
 Ruleset-integration tests covering compliant inline and multi-line code,
-per-line/column violation reporting for every operator category, the auto-fix
-output, fixed-output idempotency, and the non-fixable comment guard live at
-`tests/Ruleset/ManipulationOperatorPlacementTest.php`.
+per-line/column violation reporting for every operator category, operand-boundary
+disambiguation (magic constants, interpolated strings, heredoc/nowdoc bodies, and
+reference `&`), the auto-fix output, fixed-output idempotency, and the non-fixable
+comment guard live at `tests/Ruleset/ManipulationOperatorPlacementTest.php`.
 
 ## What remains code review
 

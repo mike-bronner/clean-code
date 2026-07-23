@@ -99,6 +99,36 @@ class ManipulationOperatorPlacementTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    public function testOperandBoundaryTrailingOperatorsAreFlaggedAtTheirExactLineAndColumn(): void
+    {
+        $file = $this->processFixture('operand-boundaries.inc');
+
+        // A `+`/`-` trailing a magic constant, an interpolated string, or a
+        // heredoc/nowdoc body is a binary operator, not a unary sign — each of
+        // those left operands must be recognised so the trailing operator is
+        // flagged rather than silently exempted.
+        $this->assertSame(
+            [
+                ['line' => 9, 'column' => 19, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 12, 'column' => 26, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 17, 'column' => 9, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 22, 'column' => 9, 'source' => self::VIOLATION_SOURCE],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    public function testOperandBoundaryViolationsAutoFixToLeadTheContinuationLine(): void
+    {
+        $file = $this->processFixture('operand-boundaries.inc');
+        $file->fixer->fixFile();
+
+        $this->assertStringEqualsFile(
+            __DIR__ . '/Fixtures/ManipulationOperatorPlacement/operand-boundaries.inc.fixed',
+            $file->fixer->getContents()
+        );
+    }
+
     public function testCommentBetweenOperandsIsReportedButNotAutoFixable(): void
     {
         $file = $this->processFixture('comment.inc');

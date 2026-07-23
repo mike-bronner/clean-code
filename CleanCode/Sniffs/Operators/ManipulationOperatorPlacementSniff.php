@@ -29,9 +29,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * Manipulation operators covered: string concatenation (`.`); the math
  * operators `+ - * / % **`; the logical operators `&& ||`; and the bitwise
  * operators `& | ^ << >>`. Unary bitwise NOT (`~`) has no binary/continuation
- * form and is not subject to the rule. The unary/reference forms of `+`, `-`,
- * and `&` (sign, `&$ref`) are likewise ignored — the operator is only flagged
- * when a real left-hand operand ends the previous line.
+ * form and is not subject to the rule. Two tokens double as non-binary forms
+ * that are never manipulation operators and so are exempt regardless of layout:
+ * a unary sign (`-5`, `+5`), recognised because no real left-hand operand ends
+ * the previous line; and a reference `&` (`&$ref`, a by-reference parameter,
+ * return, assignment, `foreach`, or array element), recognised by PHP_CodeSniffer's
+ * own reference detection rather than by what token happens to precede it.
  *
  * The auto-fixer moves the trailing operator down to lead the continuation
  * line, indented one level past the statement's first line, with a single
@@ -66,22 +69,25 @@ class ManipulationOperatorPlacementSniff implements Sniff
     ];
 
     /**
-     * Operators whose token can also be unary (sign) or a reference marker,
-     * so they are only treated as manipulation operators when a real operand
-     * ends the previous line.
+     * Operators whose token can also be a unary sign (`+5`, `-5`), so they are
+     * only treated as manipulation operators when a real operand ends the
+     * previous line. `&` is *not* here: its reference form is told apart by
+     * {@see File::isReference()}, not by the preceding token.
      *
      * @var array<int|string>
      */
     private const UNARY_CAPABLE = [
         T_PLUS,
         T_MINUS,
-        T_BITWISE_AND,
     ];
 
     /**
-     * Tokens that can terminate a left-hand operand. Used to tell a binary
-     * `+`/`-`/`&` (preceded by a value) from its unary/reference form
-     * (preceded by punctuation, a keyword, or another operator).
+     * Tokens that terminate a left-hand operand: literals, identifiers that
+     * resolve to a value, string terminators, and closing brackets. Used to
+     * tell a binary `+`/`-` (preceded by a value) from its unary sign form
+     * (preceded by punctuation, a keyword, or another operator). The magic
+     * constants (`__LINE__`, `__FILE__`, …) are covered separately via
+     * {@see Tokens::$magicConstants} so the set stays complete as PHP adds more.
      *
      * @var array<int|string>
      */
@@ -90,6 +96,9 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_LNUMBER,
         T_DNUMBER,
         T_CONSTANT_ENCAPSED_STRING,
+        T_DOUBLE_QUOTED_STRING,
+        T_END_HEREDOC,
+        T_END_NOWDOC,
         T_STRING,
         T_TRUE,
         T_FALSE,
@@ -136,11 +145,19 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return;
         }
 
-        // Sign (`-5`) and reference (`&$ref`) uses of the ambiguous tokens are
-        // not manipulation operators: they carry no left-hand operand.
+        // A reference `&` (by-ref parameter, return, assignment, foreach, array
+        // element, or by-ref call argument) is not a bitwise-AND manipulation
+        // operator, whatever token precedes it. PHP_CodeSniffer resolves the
+        // reference-vs-bitwise question directly, so defer to it.
+        if ($tokens[$stackPtr]['code'] === T_BITWISE_AND && $phpcsFile->isReference($stackPtr) === true) {
+            return;
+        }
+
+        // A unary sign (`-5`, `+5`) carries no left-hand operand, so `+`/`-` are
+        // manipulation operators only when a real operand ends the previous line.
         if (
             in_array($tokens[$stackPtr]['code'], self::UNARY_CAPABLE, true) === true
-            && in_array($tokens[$previous]['code'], self::OPERAND_END_TOKENS, true) === false
+            && $this->endsLeftOperand($tokens[$previous]['code']) === false
         ) {
             return;
         }
@@ -166,6 +183,20 @@ class ManipulationOperatorPlacementSniff implements Sniff
         }
 
         $this->moveOperatorToNextLine($phpcsFile, $stackPtr);
+    }
+
+    /**
+     * Whether the given preceding token can terminate a left-hand operand —
+     * true for value literals, closing brackets, and the magic constants, which
+     * makes a following `+`/`-` a binary manipulation operator rather than a
+     * unary sign.
+     *
+     * @param int|string $code
+     */
+    private function endsLeftOperand($code): bool
+    {
+        return in_array($code, self::OPERAND_END_TOKENS, true) === true
+            || isset(Tokens::$magicConstants[$code]) === true;
     }
 
     /**
