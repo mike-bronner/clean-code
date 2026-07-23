@@ -92,6 +92,9 @@ class PassiveOperatorSpacingTest extends TestCase
                 // flagged and fixed rather than guarded.
                 22 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Negation'],
                 23 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Identity'],
+                // Short-echo template context: a sign directly after the
+                // short-echo open tag is unary negation, flagged like any other.
+                32 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Negation'],
             ],
             $this->sourcesByLine($file)
         );

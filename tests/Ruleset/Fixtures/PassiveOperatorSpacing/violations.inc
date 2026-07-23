@@ -25,3 +25,8 @@ function passiveOperators(int $a, object $obj, array $arr, string $dir): void
     $binaryMinus = $a - $a;
     $binaryAfterPostfix = $a++ + $a;
 }
+
+// Short-echo template context: `<?=` immediately precedes the sign, so `-` is
+// unary negation and must sit flush against its operand.
+?>
+<?= - $total ?>

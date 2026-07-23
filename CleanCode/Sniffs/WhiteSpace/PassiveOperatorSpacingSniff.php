@@ -150,6 +150,7 @@ class PassiveOperatorSpacingSniff implements Sniff
                     T_OPEN_SQUARE_BRACKET => T_OPEN_SQUARE_BRACKET,
                     T_SEMICOLON => T_SEMICOLON,
                     T_OPEN_TAG => T_OPEN_TAG,
+                    T_OPEN_TAG_WITH_ECHO => T_OPEN_TAG_WITH_ECHO,
                 ];
         }
 
