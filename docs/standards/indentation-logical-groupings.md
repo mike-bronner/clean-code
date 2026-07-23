@@ -39,7 +39,11 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   sub-grouping (that layout is #17's concern), a single-line group, and a
   function or language-construct call argument list (its contents count as a
   single condition, never a grouping) are never touched, so there are no false
-  positives.
+  positives. Constructs that are not condition operands are likewise treated as
+  opaque: a comment line inside a grouping is never measured as a condition, and
+  an arrow function (`fn () => …`) used as a boolean operand is a single
+  condition — its body carries no bracket delimiter but is still skipped whole,
+  so a boolean inside it is never mistaken for a top-level grouping.
 - **Auto-fixer** — `phpcbf` reindents each offending condition line to the
   correct nesting level; the resulting file passes the sniff with zero
   violations.

@@ -24,7 +24,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * "Conditionals: One Condition Per Line" standard (#17), not this one. Only the
  * lines directly inside a multi-line grouping are checked here, so a
  * function-call argument list or a single-line group never triggers a
- * violation.
+ * violation. Constructs that are not condition operands are treated as opaque
+ * — a comment line inside a grouping and an arrow-function body used as a
+ * boolean operand are never measured as conditions, so neither is a false
+ * positive.
  *
  * All violations are auto-fixable — phpcbf reindents each offending condition
  * line to the correct nesting level.
@@ -169,9 +172,10 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
-     * If the token opens a nested paren/bracket/brace, returns its matching
-     * closer so the caller can jump past the nested region; otherwise returns
-     * the pointer unchanged.
+     * If the token opens a nested paren/bracket/brace — or is an arrow function
+     * whose body has no bracket delimiter — returns its matching closer (or
+     * scope closer) so the caller can jump past the nested region; otherwise
+     * returns the pointer unchanged.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
@@ -185,6 +189,14 @@ class LogicalGroupingsSniff implements Sniff
 
         if (in_array($tokens[$i]['code'], $bracketed, true) === true && isset($tokens[$i]['bracket_closer'])) {
             return $tokens[$i]['bracket_closer'];
+        }
+
+        if ($tokens[$i]['code'] === T_FN && isset($tokens[$i]['scope_closer']) === true) {
+            // An arrow function's body (everything after `=>`) has no bracket
+            // delimiter, so a boolean operator inside it would otherwise be
+            // read as belonging to the enclosing grouping. The whole `fn` is a
+            // single operand — skip past its body to its scope closer.
+            return $tokens[$i]['scope_closer'];
         }
 
         return $i;
@@ -250,7 +262,10 @@ class LogicalGroupingsSniff implements Sniff
         $depth = 0;
 
         for ($i = ($groupOpen + 1); $i < $groupClose; $i++) {
-            if ($tokens[$i]['code'] === T_WHITESPACE) {
+            if (isset(Tokens::$emptyTokens[$tokens[$i]['code']]) === true) {
+                // Whitespace and comment lines are not conditions: a comment
+                // sitting inside a grouping must never be measured or reindented
+                // as though it were a grouped condition.
                 continue;
             }
 
@@ -260,7 +275,7 @@ class LogicalGroupingsSniff implements Sniff
                 $depth--;
             }
 
-            $previous = $phpcsFile->findPrevious(T_WHITESPACE, ($i - 1), null, true);
+            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($i - 1), null, true);
             $isLineStart = $previous === false || $tokens[$previous]['line'] !== $tokens[$i]['line'];
 
             if ($isLineStart === true && $depth === 0 && $isCloser === false) {

@@ -97,4 +97,39 @@ class Compliant
             $this->grant();
         }
     }
+
+    public function arrowOperandIgnored(): void
+    {
+        // An arrow function used as a boolean operand is a single condition,
+        // not a parenthesized grouping: its body carries a boolean but has no
+        // bracket delimiter, so the wrapped body lines below (at the enclosing
+        // level, not one deeper) must not be flagged as a misindented group.
+        if (
+            $this->isAdmin
+            || (
+            fn (): bool => $this->isActive
+            && $this->hasLicense
+            )()
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function commentInGroupIgnored(): void
+    {
+        // A comment line inside a grouping is not a condition. The real
+        // conditions below sit at the correct one-deeper level; the
+        // deliberately misindented comment must not be flagged as the group's
+        // first condition, nor shift which condition is measured against it.
+        if (
+            $this->isAdmin
+            || (
+            // deliberately misindented comment — not a condition
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

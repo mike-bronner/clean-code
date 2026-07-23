@@ -64,4 +64,37 @@ class AutofixBefore
             $this->grant();
         }
     }
+
+    public function arrowOperandUntouched(): void
+    {
+        // phpcbf must leave an arrow-function body alone: it is a single
+        // operand, not a group, so its wrapped body lines appear identically
+        // in the fixed output — reindenting them would corrupt valid code.
+        if (
+            $this->isAdmin
+            || (
+            fn (): bool => $this->isActive
+            && $this->hasLicense
+            )()
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function commentInGroupUntouched(): void
+    {
+        // phpcbf must leave a comment line inside a grouping alone: it is not a
+        // condition, so the deliberately misindented comment appears
+        // identically in the fixed output.
+        if (
+            $this->isAdmin
+            || (
+            // deliberately misindented comment — not a condition
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }
