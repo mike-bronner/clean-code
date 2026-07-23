@@ -16,3 +16,10 @@ raw two';
 
 $esc = 'it\'s a\\b
 next';
+
+$escapes = "tab\there\\slash
+TEXTUAL context
+and \$notvar";
+
+$literal = 'keep \n and \t
+literally';

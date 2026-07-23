@@ -26,3 +26,14 @@ $esc = <<<'TEXT'
 it's a\b
 next
 TEXT;
+
+$escapes = <<<TEXT
+tab\there\\slash
+TEXTUAL context
+and \$notvar
+TEXT;
+
+$literal = <<<'TEXT'
+keep \n and \t
+literally
+TEXT;

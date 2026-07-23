@@ -46,6 +46,9 @@ class MultilineStringsTest extends TestCase
 
         // Double-quoted, interpolated, escaped-quote, single-quoted, and
         // escaped single-quote strings — each reported once, on its first line.
+        // The last two exercise the fixer's generic escape passthrough:
+        // $escapes (\t, \\, \$ in a double-quoted string → HEREDOC body) and
+        // $literal (literal \n, \t in a single-quoted string → NOWDOC body).
         $this->assertSame(
             [
                 ['line' => 5, 'column' => 7, 'source' => self::SNIFF_CODE . '.QuotedString'],
@@ -53,6 +56,8 @@ class MultilineStringsTest extends TestCase
                 ['line' => 11, 'column' => 10, 'source' => self::SNIFF_CODE . '.QuotedString'],
                 ['line' => 14, 'column' => 7, 'source' => self::SNIFF_CODE . '.QuotedString'],
                 ['line' => 17, 'column' => 8, 'source' => self::SNIFF_CODE . '.QuotedString'],
+                ['line' => 20, 'column' => 12, 'source' => self::SNIFF_CODE . '.QuotedString'],
+                ['line' => 24, 'column' => 12, 'source' => self::SNIFF_CODE . '.QuotedString'],
             ],
             $this->violations($file)
         );
@@ -122,6 +127,41 @@ class MultilineStringsTest extends TestCase
                 }
             }
         }
+    }
+
+    /**
+     * When a body line would collide with the closing marker, the fix is
+     * withheld (buildDocString returns null): the violation is still reported,
+     * but as a plain — non-fixable — error, because emitting the HEREDOC would
+     * place the marker inside the body and close the doc early. The fixer must
+     * leave such a file byte-for-byte unchanged.
+     */
+    public function testMarkerCollisionStringIsReportedNonFixableAndUntouched(): void
+    {
+        $file = $this->processFixture('marker-collision.inc');
+
+        $this->assertSame(
+            [['line' => 7, 'column' => 8, 'source' => self::SNIFF_CODE . '.QuotedString']],
+            $this->violations($file)
+        );
+
+        foreach ($file->getErrors() as $columns) {
+            foreach ($columns as $messages) {
+                foreach ($messages as $message) {
+                    $this->assertFalse(
+                        $message['fixable'],
+                        'a body line colliding with the closing marker must not be auto-fixable'
+                    );
+                }
+            }
+        }
+
+        $file->fixer->fixFile();
+
+        $this->assertStringEqualsFile(
+            __DIR__ . self::FIXTURE_DIR . 'marker-collision.inc',
+            $file->fixer->getContents()
+        );
     }
 
     /**

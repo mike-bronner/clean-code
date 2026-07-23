@@ -272,7 +272,7 @@ class MultilineStringsSniff implements Sniff
         }
 
         foreach (preg_split('/\r\n|\n|\r/', $body) as $line) {
-            if (strpos(ltrim($line), self::MARKER) === 0) {
+            if ($this->collidesWithMarker($line)) {
                 return null;
             }
         }
@@ -280,6 +280,29 @@ class MultilineStringsSniff implements Sniff
         $eol = $phpcsFile->eolChar;
 
         return $opener . $eol . $body . $eol . self::MARKER;
+    }
+
+    /**
+     * True when a HEREDOC/NOWDOC body line would be read by PHP as the closing
+     * marker, forcing the fix to be withheld. PHP recognises the closer as an
+     * optionally-indented run of the marker that is *not* followed by another
+     * label character — so a body line like `TEXTUAL` is safe (the trailing
+     * `UAL` makes it a different identifier), while `TEXT`, `TEXT;`, or an
+     * indented `  TEXT` all close the doc prematurely.
+     */
+    private function collidesWithMarker(string $line): bool
+    {
+        $trimmed = ltrim($line);
+
+        if (strpos($trimmed, self::MARKER) !== 0) {
+            return false;
+        }
+
+        $after = $trimmed[strlen(self::MARKER)] ?? '';
+
+        // A following label char (letter, digit, underscore) means PHP reads
+        // the line as a longer identifier, not the closing marker.
+        return $after === '' || preg_match('/[A-Za-z0-9_]/', $after) !== 1;
     }
 
     /**
