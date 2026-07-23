@@ -58,8 +58,19 @@ does not match this standard:
   not treat `case` or an `if…else` chain the way this standard does).
 
 Its thresholds are configurable, but no configuration produces per-line reports
-over the required token set, so bending it would mean weakening the tests. A
-custom sniff enforces the rule exactly instead.
+over the required token set, so bending it would mean weakening the tests.
+
+**`SlevomatCodingStandard.Complexity.Cognitive`** was also evaluated and does not
+match. It scores a whole-function *cognitive complexity* metric — a single number
+that accumulates across all branching, and-boolean sequences, and recursion — and
+warns when that number crosses a configurable ceiling. It cannot express a hard
+"no deeper than 2 levels" limit: a flat method with many sequential branches can
+exceed the metric while a method nested three levels deep with little else can
+stay under it. It also reports once per function rather than locating each excess
+structure at its own line. So it neither enforces this standard's rule nor
+produces the per-line diagnostics the tests require.
+
+A custom sniff enforces the rule exactly instead.
 
 ## Not auto-fixable
 
