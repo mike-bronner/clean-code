@@ -11,4 +11,11 @@ function guarded(int $a): void
     // the spacing is deliberately left untouched — no violation, no fix.
     $doubleNegation = - -$a;
     $doublePlus = + +$a;
+
+    // Error control before a bare `+`/`-` sign: stripping the space would leave
+    // `@-$a`, which the wired-in PSR12.Operators.OperatorSpacing re-reads as a
+    // binary operator and re-spaces — so it too is ceded to PSR12 and left
+    // untouched (no violation, no fix) to avoid a phpcbf oscillation.
+    $suppressedNegation = @ - $a;
+    $suppressedIdentity = @ + $a;
 }

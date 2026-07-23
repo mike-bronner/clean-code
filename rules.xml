@@ -115,6 +115,16 @@
         cover the rest. Squiz.WhiteSpace.OperatorSpacing was evaluated and
         does NOT apply: it deliberately skips unary +/-, so it flags none of
         these operators.
+
+        Interaction with the pre-wired PSR12 (above): PSR12.Operators.OperatorSpacing
+        governs *binary* +/- and requires a space around them. Wherever a
+        passive +/- (or an @ before a bare sign) sits next to something PSR12
+        reads as a binary operator, the custom sniff must NOT strip a space
+        PSR12 will re-add, or phpcbf oscillates and fails to converge. The
+        sniff therefore cedes to PSR12 the two contexts where they would
+        disagree — a bare +/- sign immediately after `@`, and a sign
+        immediately after an open tag (`<?= -$x ?>`) — leaving those out of
+        this standard's scope. See docs/standards/operators-passive.md.
     -->
     <rule ref="Generic.WhiteSpace.IncrementDecrementSpacing"/>
     <rule ref="Squiz.WhiteSpace.ObjectOperatorSpacing">

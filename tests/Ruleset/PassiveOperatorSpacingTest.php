@@ -92,9 +92,6 @@ class PassiveOperatorSpacingTest extends TestCase
                 // flagged and fixed rather than guarded.
                 22 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Negation'],
                 23 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Identity'],
-                // Short-echo template context: a sign directly after the
-                // short-echo open tag is unary negation, flagged like any other.
-                32 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Negation'],
             ],
             $this->sourcesByLine($file)
         );
@@ -113,11 +110,15 @@ class PassiveOperatorSpacingTest extends TestCase
         $this->assertArrayNotHasKey(26, $errors);
     }
 
-    public function testSignActingOnAnotherSignIsLeftUntouched(): void
+    public function testGuardedOperandsAreLeftUntouched(): void
     {
-        // `- -$a` / `+ +$a`: closing the gap would fuse the pair into a
-        // decrement/increment and change meaning, so the sniff withholds both
-        // the report and the fix rather than corrupt the code.
+        // Two families of guarded operand are left entirely untouched — no
+        // report, no fix: `- -$a` / `+ +$a`, where closing the gap would fuse
+        // the pair into a decrement/increment and change meaning; and `@ - $a`
+        // / `@ + $a`, where stripping the space would leave `@-$a`, which the
+        // wired-in PSR12.Operators.OperatorSpacing re-reads as a binary operator
+        // and re-spaces (a phpcbf oscillation). Both are ceded rather than
+        // corrupt the code or fight another fixer.
         $file = $this->processFixture('guarded.inc');
 
         $this->assertSame([], $file->getErrors());
@@ -157,19 +158,23 @@ class PassiveOperatorSpacingTest extends TestCase
      * End-to-end guard the isolated harness above cannot give: it runs only
      * this standard's four sniffs, so a fixer that collides with another
      * master-ruleset rule never surfaces. Here the real phpcbf drives the whole
-     * rules.xml over a file that mixes a binary `+`/`-` after a postfix
-     * `++`/`--` (which PSR12's OperatorSpacing requires a space around) with
-     * spaced passive operators. The unary/binary split must leave the binary
-     * operator untouched so the two fixers do not oscillate: phpcbf has to
-     * converge (never exit 2) and land exactly on the expected output.
+     * rules.xml over fixtures that exercise every context where a passive
+     * operator sits next to a `+`/`-` the wired-in PSR12.Operators.OperatorSpacing
+     * also has an opinion on — the collision class that oscillated in review
+     * rounds 1 and 3 (binary `+`/`-` after a postfix `++`/`--`, `@` before a
+     * bare sign, and a sign immediately after an open tag). Each fixture must
+     * make phpcbf converge (never exit 2) and land exactly on its `.fixed`
+     * counterpart.
+     *
+     * @dataProvider fullRulesetConvergenceFixtures
      */
-    public function testFullRulesetConvergesUnderRealPhpcbf(): void
+    public function testFullRulesetConvergesUnderRealPhpcbf(string $fixture): void
     {
         $root = dirname(__DIR__, 2);
         $fixtureDir = __DIR__ . '/Fixtures/PassiveOperatorSpacing';
         $working = tempnam(sys_get_temp_dir(), 'pos');
         $incFile = $working . '.inc';
-        copy($fixtureDir . '/convergence.inc', $incFile);
+        copy($fixtureDir . '/' . $fixture, $incFile);
 
         try {
             $command = escapeshellarg($root . '/vendor/bin/phpcbf')
@@ -180,13 +185,28 @@ class PassiveOperatorSpacingTest extends TestCase
 
             // phpcbf exit codes: 0 = already clean, 1 = fixed and converged,
             // 2 = FAILED TO FIX (fixers oscillated and could not converge).
-            $this->assertNotSame(2, $exitCode, "phpcbf failed to converge:\n" . implode("\n", $output));
+            $this->assertNotSame(
+                2,
+                $exitCode,
+                "phpcbf failed to converge on {$fixture}:\n" . implode("\n", $output)
+            );
 
-            $this->assertStringEqualsFile($fixtureDir . '/convergence.inc.fixed', file_get_contents($incFile));
+            $this->assertStringEqualsFile($fixtureDir . '/' . $fixture . '.fixed', file_get_contents($incFile));
         } finally {
             @unlink($working);
             @unlink($incFile);
         }
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function fullRulesetConvergenceFixtures(): array
+    {
+        return [
+            'binary-after-postfix, in-scope unary, @-before-sign' => ['convergence.inc'],
+            'open-tag / short-echo template signs' => ['convergence-template.inc'],
+        ];
     }
 
     /**

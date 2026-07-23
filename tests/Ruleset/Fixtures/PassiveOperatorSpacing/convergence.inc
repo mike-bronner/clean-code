@@ -4,12 +4,31 @@ declare(strict_types=1);
 
 namespace App\Fixtures;
 
-function convergence(int $a, int $b): int
+/**
+ * Full-ruleset convergence fixture. Every line is a context where this
+ * standard's sniffs interact with the wired-in PSR12.Operators.OperatorSpacing;
+ * phpcbf --standard=rules.xml must converge (never exit 2) and land exactly on
+ * convergence.inc.fixed. Guards the whole passive-operator/PSR12 collision
+ * class that bounced this PR through review rounds 1 and 3.
+ */
+function convergence(int $a, int $b, string $x): string
 {
+    // Binary +/- after a postfix ++/-- stays spaced — PSR12 owns it (round 1).
     $incremented = $a++ + $b;
     $decremented = $a-- - $b;
+
+    // In-scope unary identity/negation — fixed flush against the operand.
     $identity = + $a;
     $negation = - $b;
 
-    return $incremented + $decremented + $identity + $negation;
+    // Error control before a bare +/- sign is ceded to PSR12 (guarded, no
+    // oscillation); before a decrement or a call it is still fixed to flush.
+    $guardedSign = @ - $a;
+    $fixedDecrement = @ --$b;
+    $fixedCall = @ trim($x);
+
+    $sum = $incremented + $decremented + $identity + $negation;
+    $suppressed = $guardedSign + $fixedDecrement;
+
+    return $x . $sum . $suppressed . $fixedCall;
 }

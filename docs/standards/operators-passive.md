@@ -46,6 +46,26 @@ fix is withheld only when closing the gap would fuse the sign into a
 and `+ +$a` → `++$a` are left untouched. A cross-direction pair does not fuse
 (`- ++$a` → `-++$a`, `+ --$a` → `+--$a`), so those are still flagged and fixed.
 
+### Ceded to PSR12 — out of scope
+
+The master ruleset also wires in `PSR12.Operators.OperatorSpacing`, which
+governs **binary** `+`/`-` and *requires* a space around them. In two contexts
+the two rules would disagree — this sniff would strip a space PSR12 immediately
+re-adds, so `phpcbf` could never converge. To avoid that oscillation, this
+standard **cedes both contexts to PSR12** and does not enforce flush spacing
+there:
+
+- **A bare `+`/`-` sign immediately after `@`** (`@ -$a`). Removing the space
+  yields `@-$a`, whose `-` PSR12 reads as binary and re-spaces. (`@` before any
+  other operand — `@ func()`, `@ --$a` — is still enforced.)
+- **A `+`/`-` sign immediately after an open tag** — `<?= -$x ?>`, or a bare
+  sign at the very start of a `<?php` block. PSR12 reads a sign right after an
+  open tag as binary and forces a space around it, so template-context signs are
+  governed by PSR12.
+
+Enforcing flush signs in these contexts would require taming or replacing
+PSR12's `OperatorSpacing` — a separate, larger piece of work, out of scope here.
+
 ### Existing sniffs — the rest
 
 - **Increment / decrement** — `Generic.WhiteSpace.IncrementDecrementSpacing`,
