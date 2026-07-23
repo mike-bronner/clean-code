@@ -104,4 +104,30 @@
             <property name="searchAnnotations" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        Operators: Passive (#64) — a passive operator sits flush against the
+        operand it acts on, no space between. Enforced by a combination of
+        rules: the custom CleanCode.WhiteSpace.PassiveOperatorSpacing sniff
+        (picked up via ./CleanCode/ruleset.xml above) covers identity (+),
+        negation (-), error control (@), and execution (backticks) — the
+        operators no existing sniff handles — while the three sniffs below
+        cover the rest. Squiz.WhiteSpace.OperatorSpacing was evaluated and
+        does NOT apply: it deliberately skips unary +/-, so it flags none of
+        these operators.
+    -->
+    <rule ref="Generic.WhiteSpace.IncrementDecrementSpacing"/>
+    <rule ref="Squiz.WhiteSpace.ObjectOperatorSpacing">
+        <properties>
+            <!--
+                Only inline spacing (`$obj -> prop`) is a passive-operator
+                violation. A newline before `->` is a multi-line fluent chain,
+                which the Clear Code: One Thought Per Line standard (#7)
+                mandates — ignoreNewlines keeps the two standards from
+                contradicting each other.
+            -->
+            <property name="ignoreNewlines" value="true"/>
+        </properties>
+    </rule>
+    <rule ref="Squiz.Arrays.ArrayBracketSpacing"/>
 </ruleset>
