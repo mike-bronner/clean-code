@@ -62,10 +62,15 @@ class MultilineStringsTest extends TestCase
     {
         $file = $this->processFixture('concatenation.inc');
 
+        // Lines 14 and 16 are the two chains of a single ternary statement:
+        // both must report. Keying the dedup on findStartOfStatement() (which
+        // does not treat ?/: as boundaries) would drop the second chain.
         $this->assertSame(
             [
                 ['line' => 3, 'column' => 8, 'source' => self::SNIFF_CODE . '.Concatenation'],
                 ['line' => 7, 'column' => 12, 'source' => self::SNIFF_CODE . '.Concatenation'],
+                ['line' => 14, 'column' => 7, 'source' => self::SNIFF_CODE . '.Concatenation'],
+                ['line' => 16, 'column' => 7, 'source' => self::SNIFF_CODE . '.Concatenation'],
             ],
             $this->violations($file)
         );

@@ -159,27 +159,37 @@ class MultilineStringsSniff implements Sniff
     private function processConcatenation(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $start = $phpcsFile->findStartOfStatement($stackPtr);
 
-        // A chain holds several '.' operators; only the first one in the
-        // statement reports, so the chain yields a single violation.
-        if ($phpcsFile->findNext(T_STRING_CONCAT, $start) !== $stackPtr) {
-            return;
-        }
-
-        // The operand to the left of the first '.' must be a string literal.
-        $left = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), $start, true);
+        // The operand immediately to the left of this '.' must be a string
+        // literal for the chain to be a split string; bail cheaply otherwise.
+        // (Checked before any statement walk so a '.' between non-string
+        // operands costs O(1), not a backward scan — keeping the sniff linear
+        // over long generated concatenations.)
+        $left = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if ($left === false || $this->isStringLiteral($tokens, $left) === false) {
             return;
         }
 
-        // Walk back to the chain's leftmost string fragment — where the
-        // violation is reported.
+        // Walk back to the leftmost string fragment of this operand — where the
+        // violation is reported when this '.' opens the chain.
         $firstString = $left;
 
         while ($this->isStringLiteral($tokens, ($firstString - 1))) {
             $firstString--;
+        }
+
+        // Dedup per concat sub-expression, not per statement. A chain holds
+        // several '.' operators but must report once, on its first '.'. This is
+        // the first '.' exactly when nothing to the left of its leftmost string
+        // fragment is another '.'. Keying on findStartOfStatement() instead
+        // would collapse two independent chains joined by a non-boundary
+        // operator (ternary '?'/':' , '&&', '===', arithmetic, …) into one
+        // scope and silently drop every chain after the first.
+        $beforeChain = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($firstString - 1), null, true);
+
+        if ($beforeChain !== false && $tokens[$beforeChain]['code'] === T_STRING_CONCAT) {
+            return;
         }
 
         $spansLines = ($tokens[$stackPtr]['line'] !== $tokens[$left]['line']);
