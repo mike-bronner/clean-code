@@ -73,4 +73,47 @@ class Violations
             $this->grant();
         }
     }
+
+    public function elseifUnindentedGroup(): void
+    {
+        if ($this->isGuest) {
+            $this->deny();
+        } elseif (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function whileUnindentedGroup(): void
+    {
+        while (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function forUnindentedGroup(): void
+    {
+        for (
+            $i = 0;
+            $i < $this->max
+            || (
+            $this->isActive
+            && $this->hasLicense
+            );
+            $i++
+        ) {
+            $this->grant();
+        }
+    }
 }

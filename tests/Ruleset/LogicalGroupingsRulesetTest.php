@@ -46,7 +46,10 @@ class LogicalGroupingsRulesetTest extends TestCase
         // deep all flag its first condition as GroupNotIndented; every later
         // condition off the group's level flags as MisalignedGroupedCondition.
         // The nested case (lines 68-69) proves the inner group is measured
-        // against its own parent — one level deeper again.
+        // against its own parent — one level deeper again. The elseif/while/for
+        // cases (lines 84-112) prove the sniff fires on every control structure
+        // it registers, not only `if` — drop any one from register() and its
+        // pair here goes unreported.
         $this->assertSame(
             [
                 ['line' => 14, 'column' => 13, 'source' => self::SNIFF_CODE . '.GroupNotIndented'],
@@ -58,6 +61,12 @@ class LogicalGroupingsRulesetTest extends TestCase
                 ['line' => 54, 'column' => 19, 'source' => self::SNIFF_CODE . '.MisalignedGroupedCondition'],
                 ['line' => 68, 'column' => 17, 'source' => self::SNIFF_CODE . '.GroupNotIndented'],
                 ['line' => 69, 'column' => 17, 'source' => self::SNIFF_CODE . '.MisalignedGroupedCondition'],
+                ['line' => 84, 'column' => 13, 'source' => self::SNIFF_CODE . '.GroupNotIndented'],
+                ['line' => 85, 'column' => 13, 'source' => self::SNIFF_CODE . '.MisalignedGroupedCondition'],
+                ['line' => 97, 'column' => 13, 'source' => self::SNIFF_CODE . '.GroupNotIndented'],
+                ['line' => 98, 'column' => 13, 'source' => self::SNIFF_CODE . '.MisalignedGroupedCondition'],
+                ['line' => 111, 'column' => 13, 'source' => self::SNIFF_CODE . '.GroupNotIndented'],
+                ['line' => 112, 'column' => 13, 'source' => self::SNIFF_CODE . '.MisalignedGroupedCondition'],
             ],
             $this->violations($file)
         );
