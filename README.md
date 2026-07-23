@@ -38,6 +38,7 @@ that a token-based sniff cannot verify (Tier 3) are enforced by code review and
 developer discipline rather than a PHPCS rule.
 
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
+- [Arrays: Operator Spacing & Line Breaks](docs/standards/arrays-operator-spacing-and-line-breaks.md) — Tier 1, configured `Squiz.WhiteSpace.OperatorSpacing` + `Squiz.Strings.ConcatenationSpacing` (exactly one space each side, auto-fixable) plus custom sniffs `CleanCode.Operators.NotOperatorSpacing` (auto-fixable) and `CleanCode.Operators.OperatorLineBreak` (reporting only) ([#35](https://github.com/mike-bronner/phpcs-rules/issues/35))
 - [Blank Lines](docs/standards/blank-lines.md) — Tier 1, custom sniff: `CleanCode.WhiteSpace.BlankLines`, auto-fixable ([#43](https://github.com/mike-bronner/phpcs-rules/issues/43))
 - [Classes: No Statics](docs/standards/classes-no-statics.md) — Tier 2, custom sniff `CleanCode.Classes.DisallowStaticMembers`: flags static method/property declarations in any class/interface/trait/enum, detection-only ([#19](https://github.com/mike-bronner/phpcs-rules/issues/19))
 - [Clear Code: One Thought Per Line](docs/standards/clear-code-one-thought-per-line.md) — Tier 2, custom sniff `CleanCode.ClearCode.OneThoughtPerLine`: one access operator per chain per line, auto-fixable ([#7](https://github.com/mike-bronner/phpcs-rules/issues/7))
