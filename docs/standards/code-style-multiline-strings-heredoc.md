@@ -21,7 +21,7 @@ it is:
 ```php
 $sql = DB::statement(<<<SQL
     SELECT "Hello, world!"
-SQL);
+    SQL);
 ```
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
