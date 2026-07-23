@@ -20,18 +20,21 @@ use PHP_CodeSniffer\Util\Tokens;
  * flags each statement that is not one of the two allowed forms:
  *
  * - a **property assignment** — a statement that begins with `$this->…` and has
- *   a plain `=` assignment operator at its top level (`$this->foo = …;`). The
- *   right-hand side is not inspected, so defaulting with `??` or a ternary
- *   (`$this->foo = $foo ?? 0;`) stays compliant.
+ *   a plain `=` assignment operator at its top level whose target is a direct
+ *   property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
+ *   `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
+ *   with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
  * - a **`parent::__construct(...)` call** — delegating to the parent
  *   constructor is assignment, not logic.
  *
  * Everything else is flagged at the statement's first token:
  * control structures (`if`/`for`/`foreach`/`while`/`do`/`switch`/`try`),
- * `throw`, method and function calls, increments, and assignments whose target
- * is not a property (a local variable is intermediate computation, not object
- * state). Statements nested inside a flagged control structure are not examined
- * separately — the enclosing statement is reported once.
+ * `throw`, method and function calls, increments, assignments whose target is
+ * not a property (a local variable is intermediate computation, not object
+ * state), and assignments whose target contains a call
+ * (`$this->make()->x = …`, `$this->items[$this->key()] = …`) — the call runs
+ * on every instantiation. Statements nested inside a flagged control structure
+ * are not examined separately — the enclosing statement is reported once.
  *
  * Detection only: moving logic out of a constructor is a refactor — the code
  * has to land somewhere deliberate (a named constructor, a factory, or a
@@ -94,6 +97,16 @@ class NoLogicSniff implements Sniff
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
         if ($name === null || strtolower($name) !== '__construct') {
+            return;
+        }
+
+        // A constructor is a method of an object-oriented container. A free
+        // function named __construct is legal PHP but not a constructor, so its
+        // innermost enclosing scope must be a class/trait/enum/interface —
+        // mirrors the guard convention in the sibling DisallowStaticMembersSniff.
+        $conditions = $tokens[$stackPtr]['conditions'];
+
+        if ($conditions === [] || in_array(end($conditions), Tokens::$ooScopeTokens, true) === false) {
             return;
         }
 
@@ -172,8 +185,8 @@ class NoLogicSniff implements Sniff
 
     /**
      * A statement is a property assignment when it begins with `$this`, accesses
-     * a property via `->`, and carries a plain `=` operator at bracket depth 0.
-     * The right-hand side is intentionally not inspected.
+     * a property via `->`, and carries a plain `=` operator at bracket depth 0
+     * whose target is a direct property chain on `$this`.
      */
     private function isPropertyAssignment(File $phpcsFile, int $start, int $end): bool
     {
@@ -189,21 +202,33 @@ class NoLogicSniff implements Sniff
             return false;
         }
 
-        return $this->hasTopLevelAssignment($phpcsFile, $start, $end);
+        return $this->hasPlainAssignmentTarget($phpcsFile, $start, $end);
     }
 
     /**
-     * Whether a plain `=` assignment operator sits at bracket depth 0 between
-     * $start and $end — i.e. it is the statement's own assignment, not one
-     * buried inside a call argument, array, or nested expression.
+     * Whether the statement carries a plain `=` operator at bracket depth 0
+     * whose target — everything to its left — is a direct property chain on
+     * `$this` with no call.
+     *
+     * The scan runs left-to-right and stops at that first depth-0 `=`, so the
+     * right-hand side is never inspected (a call or `??`/ternary default there
+     * stays compliant). A call parenthesis in the target, however, executes
+     * logic on every instantiation (`$this->make()->x = …`,
+     * `$this->items[$this->key()] = …`) and is rejected; array-subscript writes
+     * to this object's own properties (`$this->arr[] = …`, `$this->cfg['k'] = …`)
+     * carry no parenthesis and stay compliant.
      */
-    private function hasTopLevelAssignment(File $phpcsFile, int $start, int $end): bool
+    private function hasPlainAssignmentTarget(File $phpcsFile, int $start, int $end): bool
     {
         $tokens = $phpcsFile->getTokens();
         $depth = 0;
 
         for ($ptr = $start; $ptr <= $end; $ptr++) {
             $code = $tokens[$ptr]['code'];
+
+            if ($code === T_OPEN_PARENTHESIS) {
+                return false;
+            }
 
             if (in_array($code, self::BRACKET_OPENERS, true)) {
                 $depth++;

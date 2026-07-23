@@ -36,6 +36,17 @@ class NoLogicTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    public function testGlobalFunctionNamedConstructIsNotInspected(): void
+    {
+        $file = $this->processFixture('global-construct.inc');
+
+        // A free `function __construct()` is not a class constructor; the
+        // OO-scope guard must skip it entirely, so its logic-bearing body
+        // produces no violations.
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
     public function testEveryNonAssignmentStatementIsFlaggedAtItsOwnLine(): void
     {
         $file = $this->processFixture('violations.inc');
@@ -47,17 +58,21 @@ class NoLogicTest extends TestCase
 
         $this->assertSame(
             [
-                ['line' => 13, 'column' => 9, 'source' => $source], // if
-                ['line' => 16, 'column' => 9, 'source' => $source], // foreach
-                ['line' => 19, 'column' => 9, 'source' => $source], // while
-                ['line' => 22, 'column' => 9, 'source' => $source], // do … while
-                ['line' => 25, 'column' => 9, 'source' => $source], // switch
-                ['line' => 29, 'column' => 9, 'source' => $source], // try … catch
-                ['line' => 34, 'column' => 9, 'source' => $source], // method call
-                ['line' => 35, 'column' => 9, 'source' => $source], // function call
-                ['line' => 36, 'column' => 9, 'source' => $source], // local-variable assignment
-                ['line' => 37, 'column' => 9, 'source' => $source], // increment
-                ['line' => 38, 'column' => 9, 'source' => $source], // throw
+                ['line' => 13, 'column' => 9, 'source' => $source], // if … elseif … else
+                ['line' => 20, 'column' => 9, 'source' => $source], // for
+                ['line' => 23, 'column' => 9, 'source' => $source], // foreach
+                ['line' => 26, 'column' => 9, 'source' => $source], // while
+                ['line' => 29, 'column' => 9, 'source' => $source], // do … while
+                ['line' => 32, 'column' => 9, 'source' => $source], // switch
+                ['line' => 36, 'column' => 9, 'source' => $source], // try … catch … finally
+                ['line' => 43, 'column' => 9, 'source' => $source], // method call
+                ['line' => 44, 'column' => 9, 'source' => $source], // function call
+                ['line' => 45, 'column' => 9, 'source' => $source], // local-variable assignment
+                ['line' => 46, 'column' => 9, 'source' => $source], // increment
+                ['line' => 47, 'column' => 9, 'source' => $source], // call in assignment target
+                ['line' => 48, 'column' => 9, 'source' => $source], // call in subscript index
+                ['line' => 49, 'column' => 9, 'source' => $source], // chained call then subscript
+                ['line' => 50, 'column' => 9, 'source' => $source], // throw
             ],
             $this->violations($file)
         );
@@ -69,14 +84,22 @@ class NoLogicTest extends TestCase
 
         $lines = array_column($this->violations($file), 'line');
 
-        // The `do … while` opens on line 22 and its condition tail closes on
-        // line 24; the `try … catch` opens on line 29 with the `catch` clause on
-        // line 31. Each construct is reported once at its opening keyword — the
-        // continuation clauses (lines 24 and 31) carry no separate violation.
-        $this->assertSame([22], array_values(array_filter($lines, static fn (int $l): bool => $l === 22)));
-        $this->assertNotContains(24, $lines);
+        // `if … elseif … else` opens on line 13; the `elseif` (15) and `else`
+        // (17) clauses carry no separate violation.
+        $this->assertSame([13], array_values(array_filter($lines, static fn (int $l): bool => $l === 13)));
+        $this->assertNotContains(15, $lines);
+        $this->assertNotContains(17, $lines);
+
+        // `do … while` opens on line 29; its `while (...)` condition tail (31)
+        // carries no separate violation.
         $this->assertSame([29], array_values(array_filter($lines, static fn (int $l): bool => $l === 29)));
         $this->assertNotContains(31, $lines);
+
+        // `try … catch … finally` opens on line 36; the `catch` (38) and
+        // `finally` (40) clauses carry no separate violation.
+        $this->assertSame([36], array_values(array_filter($lines, static fn (int $l): bool => $l === 36)));
+        $this->assertNotContains(38, $lines);
+        $this->assertNotContains(40, $lines);
     }
 
     public function testViolationsAreNotAutoFixable(): void

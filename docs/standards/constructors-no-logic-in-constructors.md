@@ -30,9 +30,10 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   allowed forms, reporting at the statement's first token as
   `CleanCode.Constructors.NoLogic.LogicFound`. Allowed:
   - a **property assignment** — a statement beginning with `$this->…` and
-    carrying a plain `=` operator at its top level (`$this->foo = …;`). The
-    right-hand side is not inspected, so defaulting with `??` or a ternary
-    (`$this->foo = $foo ?? 0;`) stays compliant.
+    carrying a plain `=` operator at its top level whose target is a direct
+    property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
+    `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
+    with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
   - a **`parent::__construct(...)` call** — delegating to the parent constructor
     is assignment, not logic.
 - **Flagged** — everything else in the body:
@@ -45,6 +46,12 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   - **Non-property assignments** — a local-variable assignment (`$x = …;`) is
     intermediate computation, not object state, and an increment (`$this->n++;`)
     computes rather than assigns.
+  - **Assignments whose target contains a call** — a call in the assignment
+    *target* (`$this->getConfig()->value = …;`, `$this->items[$this->key()] = …;`,
+    `$this->loadDefaults()['k'] = …;`) runs logic on every instantiation, so it
+    is flagged even though the statement ends in an assignment. Only the target
+    is inspected — a call on the *right-hand side* (`$this->foo = compute();`)
+    stays outside the sniff's scope, as noted above.
 - **Compliant edge cases** — an **empty constructor**, a constructor with only
   **promoted-property parameters** (no body), a constructor **mixing promoted
   parameters with body assignments**, a constructor **calling only
@@ -56,10 +63,28 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   target cannot be inferred from tokens. The sniff surfaces the violation and
   leaves the refactor to the developer.
 
-Ruleset-integration tests covering compliant code, per-line violation reporting
-for every non-assignment statement kind, once-per-construct reporting across
-`do … while` and `try … catch` chains, and the non-fixable (detection-only)
-guarantee live at `tests/Ruleset/NoLogicTest.php`.
+### Known boundaries
+
+A few intentional edges, decided rather than accidental:
+
+- **A free `function __construct()`** (a function at namespace scope, not a
+  class method) is **not** a constructor and is never inspected — the sniff
+  guards on the declaration living inside an object-oriented container.
+- **List-destructuring straight into properties** (`[$this->a, $this->b] = $pair;`)
+  is **flagged**: the statement begins with `[`, not `$this->`, so it does not
+  match the property-assignment form. Uncommon in constructors and treated as
+  logic by design.
+- **Explicit-ancestor delegation** (`ParentClass::__construct(...)`, naming the
+  class instead of using the `parent` keyword) is **flagged**; only the
+  `parent::__construct(...)` form is recognised as delegation.
+
+Ruleset-integration tests covering compliant code (including array-subscript
+property writes and a skipped free `__construct` function), per-line violation
+reporting for every non-assignment statement kind (control structures including
+`for`, calls, increments, non-property and call-in-target assignments, `throw`),
+once-per-construct reporting across the `if … elseif … else`, `do … while`, and
+`try … catch … finally` chains, and the non-fixable (detection-only) guarantee
+live at `tests/Ruleset/NoLogicTest.php`.
 
 ## What remains code review
 

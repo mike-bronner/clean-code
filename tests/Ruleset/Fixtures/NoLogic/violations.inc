@@ -12,6 +12,13 @@ class LogicInConstructor
         $this->a = $a;
         if ($a > 0) {
             $this->a = 0;
+        } elseif ($a < 0) {
+            $this->a = 1;
+        } else {
+            $this->a = 2;
+        }
+        for ($i = 0; $i < 10; $i++) {
+            $this->total = $i;
         }
         foreach ($items as $item) {
             $this->total = $item;
@@ -30,11 +37,16 @@ class LogicInConstructor
             $this->a = $a;
         } catch (\Throwable $e) {
             $this->a = 0;
+        } finally {
+            $this->a = 1;
         }
         $this->configure();
         doSomething($a);
         $local = $a + 1;
         $this->total++;
+        $this->getConfig()->value = 5;
+        $this->items[$this->key()] = $a;
+        $this->loadDefaults()['key'] = 1;
         throw new \RuntimeException('unreachable but tokenized');
     }
 

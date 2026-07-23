@@ -63,3 +63,15 @@ class DefaultedAssignmentRightHandSides
         $this->c = $c['nested'] ?? [];
     }
 }
+
+class SubscriptPropertyWrites
+{
+    private array $arr;
+    private array $cfg;
+
+    public function __construct(int $a, string $b)
+    {
+        $this->arr[] = $a;
+        $this->cfg['key'] = $b;
+    }
+}
