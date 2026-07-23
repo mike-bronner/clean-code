@@ -163,6 +163,33 @@ class MethodNestingLevelTest extends TestCase
     }
 
     /**
+     * A registered opener carries a second, independent role: `process()` fires
+     * on it so the opener itself is reported at its own line when it is the
+     * deepest (self-reported) construct — not only when a *different* nested
+     * token exceeds the limit. `for`/`switch`/`do` each sit at level 3 here with
+     * bodies of plain statements only, so the opener is the sole report. Deleting
+     * T_FOR / T_SWITCH / T_DO from register() drops the corresponding report,
+     * so the suite catches the regression instead of staying green.
+     */
+    public function testForSwitchAndDoAreSelfReportedAtTheirOwnLine(): void
+    {
+        $errorsByLine = $this->errorsByLine($this->processFixture('self-reported-triggers.inc'));
+
+        $this->assertSame([16, 30, 45], array_keys($errorsByLine));
+
+        foreach ($errorsByLine as $line => $errors) {
+            $this->assertCount(1, $errors, "expected exactly one violation on line {$line}");
+            $this->assertSame(self::SNIFF_CODE . '.MaxExceeded', $errors[0]['source']);
+            $this->assertFalse($errors[0]['fixable'], 'nesting violations are not auto-fixable');
+        }
+
+        $this->assertSame(
+            [16 => 3, 30 => 3, 45 => 3],
+            $this->levelsByLine($errorsByLine)
+        );
+    }
+
+    /**
      * AC #3 requires the violation at the correct line *and column*. The excess
      * control structure in boundary-fail.inc (`while` on line 13, indented 16
      * spaces) is reported at column 17 — the token's own column, not the line
