@@ -135,6 +135,7 @@ class LogicalGroupingsSniff implements Sniff
             T_STATIC,
             T_SELF,
             T_PARENT,
+            T_ANON_CLASS,
         ];
 
         return in_array($tokens[$previous]['code'], $callPreceders, true);

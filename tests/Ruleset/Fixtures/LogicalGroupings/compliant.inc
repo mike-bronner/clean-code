@@ -80,4 +80,21 @@ class Compliant
             $this->grant();
         }
     }
+
+    public function anonClassCtorArgumentIgnored(): void
+    {
+        // A `new class(...)` constructor argument list is a call, not a
+        // condition grouping. Even when it wraps across lines and carries a
+        // boolean, the args are out of scope — no false positives — so the
+        // "  " arg indent below must not be flagged as a misindented group.
+        if (
+            $this->isAdmin
+            || new class(
+              $this->isActive && $this->hasLicense
+            ) {
+            }
+        ) {
+            $this->grant();
+        }
+    }
 }
