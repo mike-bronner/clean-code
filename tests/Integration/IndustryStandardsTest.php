@@ -52,24 +52,36 @@ class IndustryStandardsTest extends TestCase
      */
     public static function fixtureProvider(): array
     {
+        // The negative fixtures below each declare a bare test class with no
+        // properties, so the master ruleset now also flags Properties: Are
+        // Required (#55) — CleanCode.Classes.RequireProperties — at the class
+        // line, folded into the error counts here. The compliant fixtures
+        // carry a property (e.g. compliant-abstract's `$prefix`) and stay
+        // clean.
         return [
             'compliant class produces zero violations' => ['compliant.inc', [], []],
             'compliant abstract class produces zero violations' => ['compliant-abstract.inc', [], []],
             'side effects mixed with declarations' => ['side-effects.inc', [], [1 => 1]],
-            'inline HTML mixed with a class declaration' => ['mixed-html.inc', [2 => 1, 4 => 1], [1 => 1]],
-            'more than one class per file' => ['multiple-classes.inc', [9 => 1], []],
-            'class outside a namespace' => ['no-namespace.inc', [3 => 1], []],
+            // Line 4 folds in RequireProperties (#55) alongside the header-position error.
+            'inline HTML mixed with a class declaration' => ['mixed-html.inc', [2 => 1, 4 => 2], [1 => 1]],
+            // Both classes (lines 5 and 9) are property-less; line 9 also trips MultipleClasses.
+            'more than one class per file' => ['multiple-classes.inc', [5 => 1, 9 => 2], []],
+            // Line 3 folds in RequireProperties (#55) alongside the missing-namespace error.
+            'class outside a namespace' => ['no-namespace.inc', [3 => 2], []],
             // 9 => 3 / 11 => 2 fold in the TypeHints property/return-hint errors
             // the master ruleset now also flags (untyped `var $legacy` and the
-            // `run()` return) alongside the PSR12 missing-visibility errors.
+            // `run()` return) alongside the PSR12 missing-visibility errors. The
+            // class declares `var $legacy`, a property, so RequireProperties (#55)
+            // does not fire here.
             'missing member visibility' => ['visibility.inc', [9 => 3, 11 => 2], [7 => 1]],
             // The master ruleset's Line Length rule (#3) overrides PSR-12's
             // soft limit: with absoluteLineLimit=120 a line past 120 chars is
-            // an error, not a warning. Fixture line 7 is 124 chars.
-            'line exceeding the 120-character hard limit' => ['line-length.inc', [7 => 1], []],
-            'incorrect and tab indentation' => ['indentation.inc', [9 => 1, 10 => 1], []],
-            'braces not on their required lines' => ['braces.inc', [5 => 1, 6 => 1], []],
-            'malformed control structures' => ['control-structures.inc', [9 => 2, 11 => 1], []],
+            // an error, not a warning. Fixture line 7 is 124 chars. Line 5 folds
+            // in RequireProperties (#55) for the property-less class.
+            'line exceeding the 120-character hard limit' => ['line-length.inc', [5 => 1, 7 => 1], []],
+            'incorrect and tab indentation' => ['indentation.inc', [5 => 1, 9 => 1, 10 => 1], []],
+            'braces not on their required lines' => ['braces.inc', [5 => 2, 6 => 1], []],
+            'malformed control structures' => ['control-structures.inc', [5 => 1, 9 => 2, 11 => 1], []],
         ];
     }
 
@@ -138,7 +150,11 @@ class IndustryStandardsTest extends TestCase
                 $root . '/tests/Rules/Fixtures/ReferenceThrowableOnly.inc.fixed',
                 [
                     1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
-                    79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
+                    // The bare `WrappedException` class also trips RequireProperties (#55).
+                    79 => [
+                        'CleanCode.Classes.RequireProperties.MissingProperty',
+                        'PSR1.Classes.ClassDeclaration.MissingNamespace',
+                    ],
                 ],
             ],
             'non-capturing catches are PSR12-clean' => [
