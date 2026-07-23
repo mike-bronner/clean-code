@@ -32,24 +32,23 @@ use PHP_CodeSniffer\Util\Tokens;
 class PassiveOperatorSpacingSniff implements Sniff
 {
     /**
-     * Tokens that, immediately before a `+`/`-`, mark it as a binary operator
-     * (an operand it is acting on precedes it). Anything else preceding a
-     * `+`/`-` — an operator, keyword, open bracket, comma, or the start of a
-     * statement — makes it a unary sign.
+     * Tokens that, immediately before a `+`/`-`, mark it as a *unary* sign —
+     * there is no value to its left for it to operate on binary-style. This is
+     * an exclusion set (operators, comparisons, boolean/assignment operators,
+     * casts, statement-introducing keywords, open brackets, commas, and
+     * statement boundaries): when the previous token is one of these the sign
+     * is unary; otherwise a value precedes it and the `+`/`-` is binary.
      *
-     * @var array<int, int>
+     * Keying off "not an operand" rather than enumerating every operand-ending
+     * token is what the reference Squiz.WhiteSpace.OperatorSpacing sniff does,
+     * and it fails safe — an unlisted value-producing token (`$a++`, a heredoc
+     * close, …) defaults to binary and is left untouched, never mis-fixed.
+     *
+     * Built lazily because it draws on PHPCS's runtime Tokens arrays.
+     *
+     * @var array<int|string, int|string>|null
      */
-    private const OPERAND_END_TOKENS = [
-        T_VARIABLE,
-        T_LNUMBER,
-        T_DNUMBER,
-        T_STRING,
-        T_CONSTANT_ENCAPSED_STRING,
-        T_CLOSE_PARENTHESIS,
-        T_CLOSE_SQUARE_BRACKET,
-        T_CLOSE_CURLY_BRACKET,
-        T_CLOSE_SHORT_ARRAY,
-    ];
+    private ?array $nonOperandTokens = null;
 
     /**
      * @return array<int|string>
@@ -77,7 +76,7 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         if ($code === T_ASPERAND) {
-            $this->reportSpaceAfter($phpcsFile, $stackPtr, 'ErrorControl', '@', false);
+            $this->reportSpaceAfter($phpcsFile, $stackPtr, 'ErrorControl', '@', []);
 
             return;
         }
@@ -87,14 +86,23 @@ class PassiveOperatorSpacingSniff implements Sniff
             return;
         }
 
-        [$errorCode, $symbol] = $code === T_PLUS ? ['Identity', '+'] : ['Negation', '-'];
+        // The guard suppresses a fix only when closing the gap would fuse the
+        // sign into a same-direction increment/decrement (`- -$a` → `--$a`,
+        // `+ +$a` → `++$a`) and change meaning. A cross-direction pair
+        // (`- ++$a` → `-++$a`, `+ --$a` → `+--$a`) does not fuse and is fixed.
+        [$errorCode, $symbol, $guardTokens] = $code === T_PLUS
+            ? ['Identity', '+', [T_PLUS, T_INC]]
+            : ['Negation', '-', [T_MINUS, T_DEC]];
 
-        $this->reportSpaceAfter($phpcsFile, $stackPtr, $errorCode, $symbol, true);
+        $this->reportSpaceAfter($phpcsFile, $stackPtr, $errorCode, $symbol, $guardTokens);
     }
 
     /**
-     * A `+`/`-` is a unary sign unless the previous non-empty token produces a
-     * value for it to operate on (a binary operator).
+     * A `+`/`-` is a unary sign unless a value precedes it (making it binary).
+     * The sign is unary at the start of a statement, or when the previous
+     * non-empty token is a non-operand token (an operator, keyword, open
+     * bracket, comma, …); anything else — a variable, literal, closing
+     * bracket, `$a++`, a heredoc close — is a value and makes the sign binary.
      */
     private function isUnarySign(File $phpcsFile, int $stackPtr): bool
     {
@@ -104,21 +112,66 @@ class PassiveOperatorSpacingSniff implements Sniff
             return true;
         }
 
-        return in_array($phpcsFile->getTokens()[$previous]['code'], self::OPERAND_END_TOKENS, true) === false;
+        return isset($this->nonOperandTokens()[$phpcsFile->getTokens()[$previous]['code']]) === true;
+    }
+
+    /**
+     * The set of tokens that, immediately before a `+`/`-`, mark it as unary.
+     * Mirrors the reference Squiz.WhiteSpace.OperatorSpacing sniff's operand
+     * detection so the two agree on what counts as a binary operand.
+     *
+     * @return array<int|string, int|string>
+     */
+    private function nonOperandTokens(): array
+    {
+        if ($this->nonOperandTokens === null) {
+            $this->nonOperandTokens = Tokens::$operators
+                + Tokens::$comparisonTokens
+                + Tokens::$booleanOperators
+                + Tokens::$assignmentTokens
+                + Tokens::$castTokens
+                + [
+                    T_RETURN => T_RETURN,
+                    T_ECHO => T_ECHO,
+                    T_PRINT => T_PRINT,
+                    T_EXIT => T_EXIT,
+                    T_YIELD => T_YIELD,
+                    T_FN_ARROW => T_FN_ARROW,
+                    T_MATCH_ARROW => T_MATCH_ARROW,
+                    T_CASE => T_CASE,
+                    T_COLON => T_COLON,
+                    T_COMMA => T_COMMA,
+                    T_INLINE_ELSE => T_INLINE_ELSE,
+                    T_INLINE_THEN => T_INLINE_THEN,
+                    T_STRING_CONCAT => T_STRING_CONCAT,
+                    T_OPEN_CURLY_BRACKET => T_OPEN_CURLY_BRACKET,
+                    T_OPEN_PARENTHESIS => T_OPEN_PARENTHESIS,
+                    T_OPEN_SHORT_ARRAY => T_OPEN_SHORT_ARRAY,
+                    T_OPEN_SQUARE_BRACKET => T_OPEN_SQUARE_BRACKET,
+                    T_SEMICOLON => T_SEMICOLON,
+                    T_OPEN_TAG => T_OPEN_TAG,
+                ];
+        }
+
+        return $this->nonOperandTokens;
     }
 
     /**
      * Flags — and removes — same-line whitespace between a prefix operator and
-     * its operand. When $guardSignMerge is set, a fix is withheld if the
-     * operand begins with another sign (`- -$a`, `+ +$a`), since closing the
-     * gap would fuse the pair into a decrement/increment and change meaning.
+     * its operand. $guardTokens lists the operand-leading tokens for which a
+     * fix (and report) is withheld because closing the gap would fuse the pair
+     * into a same-direction decrement/increment and change meaning: `[T_MINUS,
+     * T_DEC]` for `-` (`- -$a` → `--$a`), `[T_PLUS, T_INC]` for `+`. Empty for
+     * operators that never fuse (`@`).
+     *
+     * @param array<int, int> $guardTokens
      */
     private function reportSpaceAfter(
         File $phpcsFile,
         int $stackPtr,
         string $errorCode,
         string $symbol,
-        bool $guardSignMerge
+        array $guardTokens
     ): void {
         $tokens = $phpcsFile->getTokens();
         $next = ($stackPtr + 1);
@@ -139,8 +192,8 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         if (
-            $guardSignMerge === true
-            && in_array($tokens[$operand]['code'], [T_PLUS, T_MINUS, T_INC, T_DEC], true) === true
+            $guardTokens !== []
+            && in_array($tokens[$operand]['code'], $guardTokens, true) === true
         ) {
             return;
         }

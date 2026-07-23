@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Fixtures;
 
-function passiveOperators(int $a, object $obj, array $arr): void
+function passiveOperators(int $a, object $obj, array $arr, string $dir): void
 {
     $identity = + $a;
     $negation = - $a;
@@ -14,10 +14,14 @@ function passiveOperators(int $a, object $obj, array $arr): void
     $preDecrement = -- $a;
     $suppressed = @ file_get_contents('x');
     $executed = ` ls `;
+    $interpolated = ` ls $dir `;
     $element = $arr [0];
     $chainedElement = $arr [0] [1];
     $property = $obj -> name;
     $chainedProperty = $obj -> name -> length;
+    $signOnIncrement = - ++$a;
+    $signOnDecrement = + --$a;
     $binaryPlus = $a + $a;
     $binaryMinus = $a - $a;
+    $binaryAfterPostfix = $a++ + $a;
 }

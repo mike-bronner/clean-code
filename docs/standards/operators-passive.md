@@ -39,10 +39,12 @@ removing the offending space:
 - **Execution** — backticks, reported as `…PassiveOperatorSpacing.Execution`
   (trims horizontal whitespace directly inside the backticks).
 
-A `+`/`-` is only treated as a passive sign when it is **unary** — i.e. the
-preceding token is not an operand. `- -$a` / `+ +$a` (a sign acting on another
-sign) is left untouched, since closing the gap would fuse the pair into a
-decrement/increment and change the meaning.
+A `+`/`-` is only treated as a passive sign when it is **unary** — i.e. no
+value precedes it (`$a++ + $b` is binary arithmetic and is left untouched). The
+fix is withheld only when closing the gap would fuse the sign into a
+**same-direction** increment/decrement and change the meaning: `- -$a` → `--$a`
+and `+ +$a` → `++$a` are left untouched. A cross-direction pair does not fuse
+(`- ++$a` → `-++$a`, `+ --$a` → `+--$a`), so those are still flagged and fixed.
 
 ### Existing sniffs — the rest
 

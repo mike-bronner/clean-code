@@ -14,7 +14,11 @@ use PHPUnit\Framework\TestCase;
  * the master rules.xml. The standard is enforced by four sniffs together — the
  * custom CleanCode.WhiteSpace.PassiveOperatorSpacing (identity, negation, error
  * control, execution) plus three existing sniffs for increment/decrement, the
- * object operator, and array access — so the test isolates and drives that set.
+ * object operator, and array access — so most tests isolate and drive that set
+ * to assert this standard's behaviour without unrelated master-ruleset noise
+ * colouring the results. testFullRulesetConvergesUnderRealPhpcbf() complements
+ * them by driving the *whole* rules.xml through the real phpcbf, catching
+ * cross-standard fixer collisions the isolated harness cannot see.
  * Fixtures live in Fixtures/PassiveOperatorSpacing/ beside this file.
  */
 class PassiveOperatorSpacingTest extends TestCase
@@ -62,21 +66,32 @@ class PassiveOperatorSpacingTest extends TestCase
                 14 => ['Generic.WhiteSpace.IncrementDecrementSpacing.SpaceAfterDecrement'],
                 15 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.ErrorControl'],
                 16 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Execution'],
-                17 => ['Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket'],
-                18 => [
-                    'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
-                    'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
+                // Interpolated backtick: leading and trailing whitespace inside
+                // the backticks are trimmed separately, so both edges report.
+                17 => [
+                    'CleanCode.WhiteSpace.PassiveOperatorSpacing.Execution',
+                    'CleanCode.WhiteSpace.PassiveOperatorSpacing.Execution',
                 ],
+                18 => ['Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket'],
                 19 => [
-                    'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
-                    'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
+                    'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
+                    'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
                 ],
                 20 => [
                     'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
+                    'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
+                ],
+                21 => [
+                    'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
                     'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
                     'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
                     'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
                 ],
+                // Cross-direction signs on an increment/decrement (`- ++$a`,
+                // `+ --$a`): closing the gap does not fuse them, so they are
+                // flagged and fixed rather than guarded.
+                22 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Negation'],
+                23 => ['CleanCode.WhiteSpace.PassiveOperatorSpacing.Identity'],
             ],
             $this->sourcesByLine($file)
         );
@@ -86,10 +101,13 @@ class PassiveOperatorSpacingTest extends TestCase
     {
         $errors = $this->processFixture('violations.inc')->getErrors();
 
-        // Lines 21 (`$a + $a`) and 22 (`$a - $a`) are binary arithmetic, out of
+        // Lines 24 (`$a + $a`) and 25 (`$a - $a`) are binary arithmetic, out of
         // scope: only unary identity/negation signs are passive operators.
-        $this->assertArrayNotHasKey(21, $errors);
-        $this->assertArrayNotHasKey(22, $errors);
+        // Line 26 (`$a++ + $a`) is the regression guard — the binary `+` after
+        // a postfix `++` must not be misread as a unary sign and stripped.
+        $this->assertArrayNotHasKey(24, $errors);
+        $this->assertArrayNotHasKey(25, $errors);
+        $this->assertArrayNotHasKey(26, $errors);
     }
 
     public function testSignActingOnAnotherSignIsLeftUntouched(): void
@@ -130,6 +148,42 @@ class PassiveOperatorSpacingTest extends TestCase
             __DIR__ . '/Fixtures/PassiveOperatorSpacing/violations.inc.fixed',
             $file->fixer->getContents()
         );
+    }
+
+    /**
+     * End-to-end guard the isolated harness above cannot give: it runs only
+     * this standard's four sniffs, so a fixer that collides with another
+     * master-ruleset rule never surfaces. Here the real phpcbf drives the whole
+     * rules.xml over a file that mixes a binary `+`/`-` after a postfix
+     * `++`/`--` (which PSR12's OperatorSpacing requires a space around) with
+     * spaced passive operators. The unary/binary split must leave the binary
+     * operator untouched so the two fixers do not oscillate: phpcbf has to
+     * converge (never exit 2) and land exactly on the expected output.
+     */
+    public function testFullRulesetConvergesUnderRealPhpcbf(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fixtureDir = __DIR__ . '/Fixtures/PassiveOperatorSpacing';
+        $working = tempnam(sys_get_temp_dir(), 'pos');
+        $incFile = $working . '.inc';
+        copy($fixtureDir . '/convergence.inc', $incFile);
+
+        try {
+            $command = escapeshellarg($root . '/vendor/bin/phpcbf')
+                . ' --standard=' . escapeshellarg($root . '/rules.xml')
+                . ' --extensions=inc --no-cache '
+                . escapeshellarg($incFile);
+            exec($command . ' 2>&1', $output, $exitCode);
+
+            // phpcbf exit codes: 0 = already clean, 1 = fixed and converged,
+            // 2 = FAILED TO FIX (fixers oscillated and could not converge).
+            $this->assertNotSame(2, $exitCode, "phpcbf failed to converge:\n" . implode("\n", $output));
+
+            $this->assertStringEqualsFile($fixtureDir . '/convergence.inc.fixed', file_get_contents($incFile));
+        } finally {
+            @unlink($working);
+            @unlink($incFile);
+        }
     }
 
     /**
