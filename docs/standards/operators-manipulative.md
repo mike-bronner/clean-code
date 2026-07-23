@@ -62,12 +62,22 @@ matched this standard's test suite, so it is enforced by the custom
     variables. A `&` is told apart from bitwise-AND by PHP_CodeSniffer's own
     reference detection, so a by-reference parameter, return, assignment,
     `foreach`, or array element is exempt regardless of what precedes it.
+  - **Catch-clause type unions** — a `|` (or `&`) separating exception types in a
+    `catch (TypeA | TypeB $e)` clause is a type-union separator, not a bitwise
+    operator, so it is never flagged even across a line break. PHP_CodeSniffer
+    retokenises union/intersection types to `T_TYPE_UNION`/`T_TYPE_INTERSECTION`
+    in parameter, return, and property positions but leaves the catch-clause
+    separator as `T_BITWISE_OR`/`T_BITWISE_AND`, so it is exempted by its
+    enclosing `catch` parenthesis.
 - **Auto-fixable — Yes.** The fixer moves the trailing operator down to lead the
-  continuation line, indented one level past the statement's first line, with a
-  single space before its right-hand operand — the whitespace-only rewrite that
-  preserves behaviour and indentation. The one exception is a comment sitting
-  between the two operands: moving the operator would reorder the comment, so that
-  violation is reported but left for the developer.
+  continuation line, indented one level past the statement's *root* line (escaping
+  any enclosing parentheses, brackets, or array literal so a wrapped operator
+  inside an `if (...)` condition, call-argument list, or array lands level with
+  its operand rather than one level deeper), with a single space before its
+  right-hand operand — the whitespace-only rewrite that preserves behaviour and
+  indentation. The one exception is a comment sitting between the two operands:
+  moving the operator would reorder the comment, so that violation is reported but
+  left for the developer.
 
 Ruleset-integration tests covering compliant inline and multi-line code,
 per-line/column violation reporting for every operator category, operand-boundary

@@ -129,6 +129,55 @@ class ManipulationOperatorPlacementTest extends TestCase
         );
     }
 
+    public function testOperandBoundaryFixedFixturePassesTheSniffWithZeroViolations(): void
+    {
+        $file = $this->processFixture('operand-boundaries.inc.fixed');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    public function testBracketWrappedTrailingOperatorsAreFlaggedAtTheirExactLineAndColumn(): void
+    {
+        $file = $this->processFixture('brackets.inc');
+
+        // A trailing operator wrapped in an `if (...)` condition, a call-argument
+        // list, or an array literal is flagged exactly as a top-level one is —
+        // the enclosing bracket changes only the fixer's indent, not detection.
+        $this->assertSame(
+            [
+                ['line' => 10, 'column' => 15, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 17, 'column' => 12, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 22, 'column' => 11, 'source' => self::VIOLATION_SOURCE],
+                ['line' => 32, 'column' => 15, 'source' => self::VIOLATION_SOURCE],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    public function testBracketWrappedViolationsAutoFixToTheStatementRootIndent(): void
+    {
+        $file = $this->processFixture('brackets.inc');
+        $file->fixer->fixFile();
+
+        // The fixer anchors the continuation indent on the statement's root line,
+        // not the enclosing bracket, so a wrapped operator lands one level past
+        // the statement (four spaces for a top-level `if`/call/array, eight for a
+        // call nested inside a function body) — never one level deeper.
+        $this->assertStringEqualsFile(
+            __DIR__ . '/Fixtures/ManipulationOperatorPlacement/brackets.inc.fixed',
+            $file->fixer->getContents()
+        );
+    }
+
+    public function testBracketFixedFixturePassesTheSniffWithZeroViolations(): void
+    {
+        $file = $this->processFixture('brackets.inc.fixed');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
     public function testCommentBetweenOperandsIsReportedButNotAutoFixable(): void
     {
         $file = $this->processFixture('comment.inc');

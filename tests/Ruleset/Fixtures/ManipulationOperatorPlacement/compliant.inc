@@ -36,6 +36,41 @@ $spread = $first
     +
     $second;
 
+// The remaining math operators wrap the same way.
+$scaled = $total
+    / $count
+    % $limit
+    ** $power;
+
+// A wrapped operator inside a control-structure condition, a call-argument
+// list, or an array literal is compliant when it leads its continuation line.
+if (
+    $isActive
+    && $isVerified
+) {
+    //
+}
+
+$between = clamp(
+    $low
+    + $high
+);
+
+$list = [
+    $base
+    - $discount,
+];
+
+// A `|` separating exception types in a multi-line catch clause is a type
+// union, not a bitwise manipulation operator, so it is never flagged even when
+// it trails — the reformatting the fixer would otherwise apply is suppressed.
+try {
+    //
+} catch (RuntimeException |
+    LogicException $error) {
+    //
+}
+
 // Unary sign and reference forms are not manipulation operators.
 $negative = -5;
 $positive = +5;
