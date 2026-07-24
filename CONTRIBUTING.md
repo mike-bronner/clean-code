@@ -13,13 +13,20 @@ CleanCode/
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/
-    └── <Category>/<Name>UnitTest.php      # expected error/warning line maps
+    └── <Category>/<Name>UnitTest.php      # legacy AbstractSniffUnitTest suites
     └── <Category>/<Name>UnitTest.inc      # PHP fixture the sniff runs against
 docs/standards/                            # one doc per clean-code standard
 tests/
 ├── bootstrap.php                          # wires CleanCode into PHPCS's test harness
-└── Rules/
-    └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
+├── Rules/
+│   └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
+└── Standards/
+    ├── <Name>Test.php                     # sniff tests — the current convention
+    └── Fixtures/<Name>Sniff/              # one folder per sniff class
+        ├── passing.inc                    # compliant code — zero violations
+        ├── failing.inc                    # violating code — one line map per case
+        ├── autofix-before.inc             # fixer input   (fixable sniffs only)
+        └── autofix-after.inc              # expected output
 ```
 
 ## Adding a new sniff
@@ -31,15 +38,21 @@ tests/
    `CleanCode/Sniffs/Debug/DisallowDebugFunctionsSniff.php` as the template.
    Sniffs in the standard's `Sniffs/` directory are included automatically —
    no per-sniff registration in `CleanCode/ruleset.xml` is needed.
-2. **Add its unit test** at `CleanCode/Tests/<Category>/<Name>UnitTest.php`
-   (namespace `MikeBronner\CleanCode\Tests\<Category>`), extending
-   `PHP_CodeSniffer\Tests\Standards\AbstractSniffUnitTest`, plus a
-   `<Name>UnitTest.inc` fixture beside it containing positive, negative, and
-   edge cases. `getErrorList()` / `getWarningList()` return
-   `line => expected count` maps for the fixture. If the sniff is fixable, add
-   a `<Name>UnitTest.inc.fixed` file with the expected post-fix source.
-   Test classes are auto-discovered by `tests/bootstrap.php` — nothing to
-   register.
+2. **Add its test** at `tests/Standards/<Name>Test.php` (namespace
+   `MikeBronner\CleanCode\Tests\Standards`), a plain PHPUnit `TestCase` that
+   loads `rules.xml`, narrows `$ruleset->sniffs` to the sniff under test, and
+   runs it over fixtures via `LocalFile` — see
+   `tests/Standards/NotOperatorSpacingTest.php` as the template. Fixtures go in
+   `tests/Standards/Fixtures/<Name>Sniff/`, with compliant and violating code
+   in **separate** files (`passing.inc`, `failing.inc`) and, for a fixable
+   sniff, **separate** `autofix-before.inc` / `autofix-after.inc` files. Cover
+   positive, negative, boundary, and edge cases.
+
+   Do **not** use `AbstractSniffUnitTest` for new sniffs: it hardcodes its
+   fixture paths (`CleanCode/Tests/<Category>/<Name>UnitTest.inc`) and forces
+   the autofix expectation to `<input>.fixed`, so it cannot express the layout
+   above. The suites under `CleanCode/Tests/` predate this convention and are
+   still wired up by `tests/bootstrap.php`; leave them be.
 3. **Wire Slevomat (or other third-party) rules into `rules.xml`** when a
    standard is enforced by an existing sniff instead of a custom one, e.g.
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`.
