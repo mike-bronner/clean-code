@@ -56,10 +56,12 @@ via the CleanCode standard
     `function &func_get_args()`), instantiations (`new func_get_args()`), and
     constants (`FUNC_NUM_ARGS`). A leading separator alone
     (`\func_get_args()`) still qualifies the global namespace and *is* flagged.
-  - **`namespace\func_get_args()` inside a namespace** — the relative qualifier
-    resolves against the current namespace with no fallback to the global one,
-    so it names a different function. In a file that declares no namespace the
-    same spelling resolves globally and *is* flagged.
+  - **`namespace\func_get_args()` inside a named namespace** — the relative
+    qualifier resolves against the current namespace with no fallback to the
+    global one, so it names a different function. Where the current namespace
+    *is* the global one the same spelling resolves to PHP's function and *is*
+    flagged: in a file that declares no namespace, and inside a braced
+    `namespace { … }` block whatever named blocks surround it.
   - **Names bound by a `use function` import to another symbol** — a qualified
     import (`use function Acme\Support\func_get_args;`, including group use and
     aliases) makes the unqualified call resolve to the import, not to PHP's
@@ -75,9 +77,9 @@ via the CleanCode standard
 Ruleset-integration tests covering compliant code, per-line/column violation
 reporting for all three functions, the exemption boundary around closures and
 arrow functions, name resolution through `use function` imports, the
-`namespace\` qualifier in both namespaced and global files, the reported
-message, and the non-fixable (detection-only) guarantee live at
-`tests/Ruleset/DeclaredParametersTest.php`.
+`namespace\` qualifier in namespaced files, global files, and braced namespace
+blocks, the reported message, and the non-fixable (detection-only) guarantee
+live at `tests/Ruleset/DeclaredParametersTest.php`.
 
 ## What remains code review
 

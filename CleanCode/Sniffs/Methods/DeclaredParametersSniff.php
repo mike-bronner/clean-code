@@ -38,11 +38,13 @@ use PHP_CodeSniffer\Util\Tokens;
  *   declarations (`function func_get_args()`, including return-by-reference
  *   `function &func_get_args()`), instantiations (`new func_get_args()`), and
  *   names bound by a `use function` import to another namespace.
- * - **`namespace\func_get_args()` inside a namespace** — the relative
+ * - **`namespace\func_get_args()` inside a named namespace** — the relative
  *   qualifier resolves against the current namespace with no fallback to the
- *   global one, so it is not PHP's function. In a file that declares no
- *   namespace it resolves globally and *is* flagged, as is a bare leading
- *   separator (`\func_get_args()`), which qualifies the global namespace.
+ *   global one, so it is not PHP's function. Where the current namespace *is*
+ *   the global one — a file that declares no namespace, or a braced
+ *   `namespace { … }` block whatever precedes it — it resolves to PHP's
+ *   function and *is* flagged, as is a bare leading separator
+ *   (`\func_get_args()`), which qualifies the global namespace.
  *
  * Detection only: replacing a dynamic read with a declared parameter changes
  * the method's signature, and every call site has to change with it, so a
@@ -208,9 +210,10 @@ class DeclaredParametersSniff implements Sniff
             return false;
         }
 
-        // `namespace\func_get_args()` resolves against the file's *current*
+        // `namespace\func_get_args()` resolves against the *current*
         // namespace with no fallback to the global one, so it is PHP's
-        // function only when the file declares no namespace. (PHPCS splits
+        // function only where that current namespace is itself the global
+        // one — an undeclared namespace or a braced block. (PHPCS splits
         // PHP 8's T_NAME_RELATIVE back into T_NAMESPACE + T_NS_SEPARATOR +
         // T_STRING, so the qualifier is the `namespace` keyword itself.)
         if ($tokens[$qualifierPtr]['code'] === T_NAMESPACE) {
@@ -223,23 +226,33 @@ class DeclaredParametersSniff implements Sniff
     }
 
     /**
-     * Reports whether $stackPtr sits in a file that declares a named
-     * namespace, in which an unqualified or `namespace\`-relative name no
-     * longer resolves to PHP's global function by that route.
+     * Reports whether $stackPtr sits inside a named namespace, in which an
+     * unqualified or `namespace\`-relative name no longer resolves to PHP's
+     * global function by that route.
      */
     private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
+
+        // A braced `namespace … { … }` block owns every token inside it, so
+        // the enclosing declaration is in the call's own conditions. That
+        // answer is authoritative: it stays right where an earlier, sibling
+        // block would mislead a backwards scan — a call in `namespace { … }`
+        // is in the global namespace however many named blocks precede it.
+        foreach ($tokens[$stackPtr]['conditions'] as $scopePtr => $code) {
+            if ($code === T_NAMESPACE) {
+                return $this->isNamedNamespaceDeclaration($phpcsFile, $scopePtr);
+            }
+        }
+
+        // The unbraced `namespace Acme;` form opens no scope, so the nearest
+        // declaration above the call governs instead. A file may not mix the
+        // two forms, so this runs only for unbraced files — where the global
+        // namespace has no declaration of its own to find.
         $namespacePtr = $phpcsFile->findPrevious(T_NAMESPACE, ($stackPtr - 1));
 
         while ($namespacePtr !== false) {
-            $afterPtr = $phpcsFile
-                ->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
-
-            // `namespace Acme;` / `namespace Acme { … }` — a declaration. A
-            // `namespace\name` qualifier is followed by a separator instead,
-            // so it is skipped and the search continues backwards.
-            if ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_STRING) {
+            if ($this->isNamedNamespaceDeclaration($phpcsFile, $namespacePtr) === true) {
                 return true;
             }
 
@@ -247,6 +260,23 @@ class DeclaredParametersSniff implements Sniff
         }
 
         return false;
+    }
+
+    /**
+     * Reports whether the `namespace` keyword at $namespacePtr declares a
+     * *named* namespace (`namespace Acme;` or `namespace Acme { … }`).
+     *
+     * The unnamed global block (`namespace { … }`) is followed by a brace and
+     * a `namespace\name` qualifier by a separator, so neither is a named
+     * declaration.
+     */
+    private function isNamedNamespaceDeclaration(File $phpcsFile, int $namespacePtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $afterPtr = $phpcsFile
+            ->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
+
+        return $afterPtr !== false && $tokens[$afterPtr]['code'] === T_STRING;
     }
 
     /**

@@ -114,7 +114,7 @@ class DeclaredParametersTest extends TestCase
      * on the compliant fixture) but is PHP's own function in a file that
      * declares no namespace.
      */
-    public function testRelativeCallIsFlaggedOnlyWithoutANamespaceDeclaration(): void
+    public function testRelativeCallIsFlaggedWhenNoNamespaceIsDeclared(): void
     {
         $file = $this->processFixture('global-namespace.inc');
 
@@ -122,6 +122,28 @@ class DeclaredParametersTest extends TestCase
             [
                 ['line' => 14, 'column' => 26, 'source' => self::VIOLATION],
                 ['line' => 19, 'column' => 26, 'source' => self::VIOLATION],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    /**
+     * With braced namespace blocks, `namespace\` resolves against the block the
+     * call sits *in* — not whichever declaration precedes it in the file. A
+     * call inside `namespace { … }` is in the global namespace and is flagged
+     * however many named blocks surround it.
+     */
+    public function testBracedBlockGovernsTheRelativeQualifier(): void
+    {
+        $file = $this->processFixture('braced-namespaces.inc');
+
+        $this->assertSame(
+            [
+                // `namespace\` inside the unnamed global block — PHP's own
+                // function, despite the named block declared above it.
+                ['line' => 28, 'column' => 30, 'source' => self::VIOLATION],
+                // An unqualified call in the same block, for contrast.
+                ['line' => 33, 'column' => 20, 'source' => self::VIOLATION],
             ],
             $this->violations($file)
         );
@@ -183,6 +205,7 @@ class DeclaredParametersTest extends TestCase
             'imports.inc',
             'imports-aliased.inc',
             'global-namespace.inc',
+            'braced-namespaces.inc',
         ];
 
         foreach ($fixtures as $fixture) {
