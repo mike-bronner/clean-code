@@ -43,7 +43,11 @@ tests/
    exact line/column/source tuples, not just counts.
 
    Fixtures go in `tests/Ruleset/Fixtures/<Name>Sniff/` — a folder named for
-   the sniff class, holding **separate** files per case:
+   the sniff class. This naming covers the fixture directories of **custom
+   CleanCode sniffs**; the directories that pin a configured *third-party* rule
+   (`TypeHints/`, `RequireConstructorPropertyPromotion/`, `UnusedUses/`) are
+   named for the rule they configure, since no first-party sniff class exists to
+   name them after. Each directory holds **separate** files per case:
 
    - `compliant.inc` — code the sniff must leave alone (zero violations).
    - one or more violation fixtures — passing and failing code never share a

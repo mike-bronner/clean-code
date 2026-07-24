@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration test for the custom CleanCode.Classes.DisallowStaticMembers
  * sniff as wired into the master rules.xml (Classes: No Statics, issue #19).
- * Fixtures live in Fixtures/DisallowStaticMembers/ beside this file.
+ * Fixtures live in Fixtures/DisallowStaticMembersSniff/ beside this file.
  *
  * The sniff is detection-only, so there is no auto-fix assertion — instead the
  * tests prove every reported violation is non-fixable.
@@ -120,7 +120,7 @@ class DisallowStaticMembersTest extends TestCase
         $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
         $ruleset->populateTokenListeners();
 
-        $file = new LocalFile(__DIR__ . '/Fixtures/DisallowStaticMembers/' . $fixture, $ruleset, $config);
+        $file = new LocalFile(__DIR__ . '/Fixtures/DisallowStaticMembersSniff/' . $fixture, $ruleset, $config);
         $file->process();
 
         return $file;

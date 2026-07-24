@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration test for the custom CleanCode.Strings.MultilineStrings sniff as
  * wired into the master rules.xml (Code Style: Multiline Strings (HEREDOC),
- * issue #53). Fixtures live in Fixtures/MultilineStrings/ beside this file.
+ * issue #53). Fixtures live in Fixtures/MultilineStringsSniff/ beside this file.
  *
  * Two shapes are covered: a quoted string literal spanning multiple lines
  * (QuotedString, auto-fixed to HEREDOC/NOWDOC) and a multi-line concatenation
@@ -23,7 +23,7 @@ class MultilineStringsTest extends TestCase
 {
     private const SNIFF_CODE = 'CleanCode.Strings.MultilineStrings';
 
-    private const FIXTURE_DIR = '/Fixtures/MultilineStrings/';
+    private const FIXTURE_DIR = '/Fixtures/MultilineStringsSniff/';
 
     public function testRuleIsRegisteredInMasterRuleset(): void
     {
