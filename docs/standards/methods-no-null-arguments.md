@@ -36,7 +36,8 @@ wired into the master `rules.xml` via the CleanCode standard
   parameter that declares a default is flagged at the `null` token as
   `CleanCode.Methods.NoNullArguments.PositionalNull`. Function calls, `$this->`
   (and `$this?->`) method calls, `self::`/`static::`/`ClassName::` static calls,
-  and `new ClassName(...)`/`new self(...)` constructor calls are all covered.
+  `new ClassName(...)`/`new self(...)` constructor calls, and
+  `#[Attribute(...)]` instantiations are all covered.
 - **Not flagged:**
   - **Named arguments** (`send(subject: null)`) — the compliant form.
   - **`null` into a required parameter** (`send($body, null)` where the second
@@ -47,7 +48,7 @@ wired into the master `rules.xml` via the CleanCode standard
     represents a skipped parameter.
   - **`null` outside a call-argument position** — assignments, returns,
     comparisons, array values, and parameter defaults in a declaration.
-- **Auto-fixable — Yes, with one documented exception.** The flagged argument is
+- **Auto-fixable — Yes, with two documented exceptions.** The flagged argument is
   rewritten to its named form (`send('body', null)` →
   `send('body', subject: null)`). Because PHP rejects a positional argument that
   follows a named one, every positional argument *after* the flagged one is
@@ -57,7 +58,9 @@ wired into the master `rules.xml` via the CleanCode standard
   (`f(null, ...$rest)`) or lands in a variadic parameter (`f(null, 'extra')`
   against `f(?string $first = null, ...$rest)`) — the violation is still
   reported but marked **not fixable**, and the message says so. Rewriting it
-  would produce code that does not parse.
+  would produce code that does not parse. The second exception is a call whose
+  target is chosen at runtime — see *Late-bound calls are reported, not
+  rewritten* below.
 
 ### Resolution stops at the file boundary
 
@@ -65,15 +68,48 @@ Deciding whether the target parameter is *optional* — and knowing the name to
 put in the fix — requires the callee's declaration, and PHPCS analyses one file
 at a time with no cross-file symbol table. The sniff therefore resolves only
 what the file itself proves: functions, methods, and classes declared in the
-same file. A call it cannot resolve — `$mailer->send('body', null)` on a typed
-object, `Vendor\Thing::make(null)`, an inherited method, a qualified name — is
-**left alone rather than guessed at**.
+same file. A call it cannot resolve — `Vendor\Thing::make(null)`, an inherited
+method, a qualified name — is **left alone rather than guessed at**.
+
+The sniff also tracks no variable-to-class bindings, so `$mailer->send('body',
+null)` is skipped even when `Mailer` is declared right there in the same file:
+the only object reference whose class the sniff knows is `$this`. That is a
+separate limitation from the file boundary, and it is the reason a call on any
+other variable goes unjudged.
 
 This is deliberate under-reporting. Passing `null` into a *required* nullable
 parameter is perfectly legitimate (`json_decode($json, null, 512)`), so a sniff
 that flagged every positional `null` would cry wolf on correct code, and its
 "fix" would have no parameter name to use. A linter that is silent where it
 cannot know beats one that must be suppressed.
+
+### Late-bound calls are reported, not rewritten
+
+Finding the declaration is not the same as knowing it runs. `$this->m()`,
+`static::m()` and `new static(...)` dispatch against the **runtime** class, and
+a subclass may override the method and rename the parameter — renaming one in
+an override is entirely valid PHP, since signature compatibility covers types
+and defaults but never names. That subclass normally lives in a file the sniff
+never sees, so writing the enclosing class's parameter name into the call would
+turn working code into an `Unknown named parameter` fatal.
+
+So those calls are **reported but not auto-fixed** — the violation is real
+either way — unless the file proves dispatch cannot be diverted:
+
+| Call site | Fixed when |
+| --- | --- |
+| `self::`, `ClassName::`, `new ClassName()`, `new self()`, a function, an attribute | always — the target is named outright |
+| `$this->m()` | the class is `final`, or `m()` is `final` or `private` |
+| `static::m()` | the class is `final`, or `m()` is `final` |
+| `new static()` | the class is `final`, or the constructor is `final` |
+| anything inside an `enum` or an anonymous class | always — neither can be extended |
+| anything inside a `trait` | never |
+
+A `private` method helps `$this->` because PHP resolves it in the scope that
+declares it, but not `static::`, which binds to the subclass before it checks
+visibility. A trait proves nothing at all: its methods are copied into every
+using class, which may declare its own version of any of them — `private` and
+`final` included.
 
 Sniff tests covering compliant code, per-line violation reporting for every
 call form, the multiple-null and nested-expression edge cases, the
