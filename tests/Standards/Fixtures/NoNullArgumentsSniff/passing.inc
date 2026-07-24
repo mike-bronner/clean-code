@@ -4,6 +4,18 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff;
 
+/**
+ * Declared before the namespace-level functions below so a name lookup that
+ * forgot interfaces are class-like scopes would reach this method first. An
+ * interface method is not a namespace-level function and must never be matched
+ * as one — demandTarget() is the function that call resolves to, and its
+ * parameter is required.
+ */
+interface Recipient
+{
+    public function demandTarget(?string $to = null): void;
+}
+
 class Mailer
 {
     public function send(string $body, ?string $subject = null, ?array $cc = null): void
@@ -16,7 +28,7 @@ class Mailer
     }
 }
 
-class Notifier
+final class Notifier
 {
     public function __construct(private ?Mailer $mailer = null)
     {
@@ -85,6 +97,25 @@ class Notifier
         // different class that merely shares the method name, so the sniff
         // does not borrow this class's signature to judge it.
         $other->relay('body', null);
+
+        // PHP variable names are case-sensitive, so $This is an ordinary
+        // variable holding who-knows-what — not the $this this class knows.
+        $This = $other;
+        $This->relay('body', null);
+    }
+
+    public function callDynamically(callable $callback): void
+    {
+        // The callee is not a name the file can look up.
+        $callback('body', null);
+        ($this->coalesce(...))('body', null);
+    }
+
+    public function inherit(): void
+    {
+        // Declared by a parent class in another file, so its parameters are
+        // not knowable here.
+        $this->inherited('body', null);
     }
 
     public function demand(?string $value): void
@@ -103,6 +134,25 @@ class Notifier
     {
         return null;
     }
+}
+
+class Forwarder extends Mailer
+{
+    public function run(): void
+    {
+        // `parent::` is deliberately not resolved: the parent is normally
+        // declared in another file, and the sniff makes no exception when it
+        // happens to be local.
+        parent::send('body', null);
+    }
+}
+
+// An attribute whose class the file does not declare stays unresolved, and so
+// does a second attribute in a group.
+#[Unknown('/users', null)]
+#[Unknown('/x', null), AlsoUnknown('/y', null)]
+class Controller
+{
 }
 
 function dispatch(string $to, ?int $retries = null): void
@@ -124,3 +174,8 @@ $mailer = new Mailer();
 $mailer->send('body', null);
 Unknown::make(null);
 \dispatch('a', null);
+Vendor\Thing::make(null);
+
+// A qualified name refers outside this file even when its short name matches a
+// class the file declares — Vendor\Mailer is not this namespace's Mailer.
+Vendor\Mailer::make(null);

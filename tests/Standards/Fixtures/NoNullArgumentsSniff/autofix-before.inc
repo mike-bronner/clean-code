@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff;
 
-class Notifier
+final class Notifier
 {
     public function __construct(?string $channel = null, ?int $retries = null)
     {
@@ -36,6 +36,22 @@ class Notifier
     public function rest(): array
     {
         return [];
+    }
+}
+
+/**
+ * Left alone: a subclass may override relay() and rename $flag, so this file
+ * cannot prove which parameter name the call would need.
+ */
+class Extendable
+{
+    public function relay(string $body, ?bool $flag = null): void
+    {
+    }
+
+    public function run(): void
+    {
+        $this->relay('body', null);
     }
 }
 

@@ -4,6 +4,34 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff;
 
+class Route
+{
+    public function __construct(string $path, ?string $name = null)
+    {
+    }
+}
+
+class Middleware
+{
+    public function __construct(string $alias, ?int $priority = null)
+    {
+    }
+}
+
+// An attribute instantiates its class, so its arguments are the constructor's
+// — and the class is named outright, so the fix is safe.
+#[Route('/users', null)]
+class UsersController
+{
+}
+
+// The same holds for each attribute in a group, including the ones that follow
+// a comma rather than the opening `#[`.
+#[Route('/admin', null), Middleware('auth', null)]
+class AdminController
+{
+}
+
 class Mailer
 {
     public function send(string $body, ?string $subject = null, ?array $cc = null): void
@@ -16,7 +44,12 @@ class Mailer
     }
 }
 
-class Notifier
+/**
+ * `final`, so no subclass can intercept a call dispatched at runtime: every
+ * call below reaches the declaration written here and the fixer can name its
+ * parameter.
+ */
+final class Notifier
 {
     public function __construct(?Mailer $mailer = null, ?string $channel = null)
     {
@@ -39,6 +72,9 @@ class Notifier
         // Static call on a class declared in this file.
         Mailer::make(null);
         self::helper(null);
+
+        // Late static binding, contained by the final class.
+        static::helper(null);
 
         // Constructor calls.
         new Notifier(null);
@@ -75,6 +111,146 @@ class Notifier
     public function rest(): array
     {
         return [];
+    }
+}
+
+/**
+ * Not final. A subclass — which normally lives in a file this sniff never sees
+ * — may override any overridable method and rename its parameters, so a call
+ * dispatched against the runtime class is reported but left unfixed. Only the
+ * declarations dispatch cannot bypass stay fixable.
+ */
+class Extendable
+{
+    public function __construct(?string $tag = null)
+    {
+    }
+
+    public function run(): void
+    {
+        // Reported, not fixable: an override may rename $flag.
+        $this->relay('body', null);
+
+        // Reported, not fixable: `static::` resolves against the runtime class.
+        static::helper(null);
+
+        // Reported, not fixable: `new static()` constructs the runtime class.
+        new static(null);
+
+        // Fixable: a private method is resolved in the scope that declares it,
+        // so `$this->` reaches this one whatever a subclass declares.
+        $this->conceal(null);
+
+        // Reported, not fixable: `static::` binds to the subclass first and
+        // only then checks visibility, so `private` does not protect it.
+        static::hidden(null);
+
+        // Fixable: a final method cannot be overridden at all.
+        $this->seal(null);
+        static::sealed(null);
+    }
+
+    public function relay(string $body, ?bool $flag = null): void
+    {
+    }
+
+    public static function helper(?int $level = null): void
+    {
+    }
+
+    private function conceal(?string $secret = null): void
+    {
+    }
+
+    private static function hidden(?string $secret = null): void
+    {
+    }
+
+    final public function seal(?string $lid = null): void
+    {
+    }
+
+    final public static function sealed(?string $lid = null): void
+    {
+    }
+}
+
+/**
+ * Not final, but the constructor is, so `new static()` cannot reach another
+ * one.
+ */
+class SealedConstructor
+{
+    final public function __construct(?string $tag = null)
+    {
+    }
+
+    public static function make(): static
+    {
+        return new static(null);
+    }
+}
+
+/**
+ * A trait's methods are copied into every using class, which may declare its
+ * own version of any of them — `private` and `final` included. Nothing written
+ * in a trait proves which body runs, so none of these are fixable.
+ */
+trait Copied
+{
+    public function run(): void
+    {
+        $this->target(null);
+        $this->concealed(null);
+        $this->sealed(null);
+    }
+
+    public function target(?string $mode = null): void
+    {
+    }
+
+    private function concealed(?string $mode = null): void
+    {
+    }
+
+    final public function sealed(?string $mode = null): void
+    {
+    }
+}
+
+/**
+ * An enum cannot be extended, so `$this->` reaches the method written here.
+ */
+enum Mode
+{
+    case Fast;
+
+    public function run(): void
+    {
+        $this->target(null);
+    }
+
+    public function target(?string $mode = null): void
+    {
+    }
+}
+
+class Factory
+{
+    public function build(): object
+    {
+        // An anonymous class has no name, so nothing can extend it — the call
+        // below is fixable even though the enclosing Factory is not final.
+        return new class () {
+            public function run(): void
+            {
+                $this->adjust(null);
+            }
+
+            public function adjust(?string $knob = null): void
+            {
+            }
+        };
     }
 }
 

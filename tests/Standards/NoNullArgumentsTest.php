@@ -12,8 +12,8 @@ use PHPUnit\Framework\TestCase;
 /**
  * Tests the custom CleanCode.Methods.NoNullArguments sniff (Methods: No Null
  * Arguments, #71). Fixtures live in Fixtures/NoNullArgumentsSniff/ beside this
- * file: separate passing and failing files, and separate
- * autofix-before/autofix-after files.
+ * file: separate passing and failing files, separate autofix-before/after
+ * files, and namespaces.inc for resolution across namespace blocks.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -48,47 +48,124 @@ class NoNullArgumentsTest extends TestCase
 
         $this->assertSame(
             [
-                // $this-> method call
-                36 => [self::VIOLATION],
-                37 => [self::VIOLATION],
-                // ClassName:: and self:: static calls
-                40 => [self::VIOLATION],
-                41 => [self::VIOLATION],
-                // new ClassName() and new self() constructor calls
-                44 => [self::VIOLATION],
-                45 => [self::VIOLATION],
+                // Attribute arguments are constructor arguments — including
+                // the second attribute of a group.
+                23 => [self::VIOLATION],
+                30 => [self::VIOLATION, self::VIOLATION],
+                // $this-> method call, plain and nullsafe.
+                69 => [self::VIOLATION],
+                70 => [self::VIOLATION],
+                // ClassName::, self:: and static:: static calls.
+                73 => [self::VIOLATION],
+                74 => [self::VIOLATION],
+                77 => [self::VIOLATION],
+                // new ClassName() and new self() constructor calls.
+                80 => [self::VIOLATION],
+                81 => [self::VIOLATION],
                 // two null arguments in one call — one violation each
-                48 => [self::VIOLATION, self::VIOLATION],
+                84 => [self::VIOLATION, self::VIOLATION],
                 // null before a further positional argument
-                52 => [self::VIOLATION],
-                // null before an argument that cannot be named — reported,
-                // but not fixable
-                57 => [self::VIOLATION],
-                60 => [self::VIOLATION],
-                64 => [self::VIOLATION],
+                88 => [self::VIOLATION],
+                // null before an argument that cannot be named
+                93 => [self::VIOLATION],
+                96 => [self::VIOLATION],
+                100 => [self::VIOLATION],
+                // Calls dispatched against the runtime class.
+                132 => [self::VIOLATION],
+                135 => [self::VIOLATION],
+                138 => [self::VIOLATION],
+                // ...and the declarations dispatch cannot divert.
+                142 => [self::VIOLATION],
+                146 => [self::VIOLATION],
+                149 => [self::VIOLATION],
+                150 => [self::VIOLATION],
+                190 => [self::VIOLATION],
+                // Trait methods, which the using class may replace.
+                203 => [self::VIOLATION],
+                204 => [self::VIOLATION],
+                205 => [self::VIOLATION],
+                // Enum and anonymous class — neither can be extended.
+                230 => [self::VIOLATION],
+                247 => [self::VIOLATION],
                 // standalone function call
-                86 => [self::VIOLATION],
+                262 => [self::VIOLATION],
             ],
             $this->sourcesByLine($file->getErrors())
         );
     }
 
-    public function testViolationsAreFixableExceptWhereALaterArgumentCannotBeNamed(): void
+    /**
+     * The fixer writes the resolved declaration's parameter name into the
+     * source, so it may only run when this file proves that declaration is the
+     * one the call reaches. Every violation is reported either way.
+     */
+    public function testEachViolationIsFixableOnlyWhereTheRewriteIsProvablySafe(): void
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(13, $file->getErrorCount());
+        $this->assertSame(
+            [
+                // An attribute names the class it instantiates outright.
+                23 => [true],
+                30 => [true, true],
+                // $this-> inside a final class: no subclass can exist to
+                // divert the dispatch.
+                69 => [true],
+                70 => [true],
+                // Early-bound: ClassName::, self::, new ClassName, new self —
+                // and static:: contained by the same final class.
+                73 => [true],
+                74 => [true],
+                77 => [true],
+                80 => [true],
+                81 => [true],
+                84 => [true, true],
+                88 => [true],
+                // Unfixable for an unrelated reason: a later argument in the
+                // call cannot be named.
+                93 => [false],
+                96 => [false],
+                100 => [false],
+                // Late-bound in an extendable class — $this->, static:: and
+                // new static(). An override may rename the parameter, so the
+                // violation is reported unfixed.
+                132 => [false],
+                135 => [false],
+                138 => [false],
+                // A private method is resolved in the scope that declares it,
+                // so `$this->` reaches this one...
+                142 => [true],
+                // ...but `static::` binds to the subclass before it checks
+                // visibility, so `private` does not protect it there.
+                146 => [false],
+                // A final method — and a final constructor behind
+                // `new static()` — cannot be overridden at all.
+                149 => [true],
+                150 => [true],
+                190 => [true],
+                // A trait's methods are copied into the using class, which may
+                // replace any of them: public, private and final alike.
+                203 => [false],
+                204 => [false],
+                205 => [false],
+                // An enum cannot be extended and an anonymous class has no
+                // name to extend, so neither can be subclassed.
+                230 => [true],
+                247 => [true],
+                // A namespace-level function is early-bound.
+                262 => [true],
+            ],
+            $this->fixableByLine($file->getErrors())
+        );
 
-        // Lines 57, 60 and 64 are reported but cannot be rewritten — a later
-        // argument in each is a spread or lands in a variadic parameter, so
-        // they are excluded from the fixable count.
-        $this->assertSame(10, $file->getFixableCount());
+        $this->assertSame(30, $file->getErrorCount());
+        $this->assertSame(20, $file->getFixableCount());
     }
 
     /**
-     * @testWith [57]
-     *           [60]
-     *           [64]
+     * @testWith [93]
+     *           [96]
+     *           [100]
      */
     public function testTheUnfixableViolationExplainsWhy(int $line): void
     {
@@ -96,15 +173,54 @@ class NoNullArgumentsTest extends TestCase
 
         $this->assertFalse($message['fixable']);
         $this->assertStringContainsString('cannot be fixed automatically', $message['message']);
+        $this->assertStringContainsString('cannot be named', $message['message']);
+    }
+
+    /**
+     * @testWith [132]
+     *           [135]
+     *           [138]
+     *           [146]
+     *           [203]
+     *           [204]
+     *           [205]
+     */
+    public function testTheLateBoundViolationExplainsWhy(int $line): void
+    {
+        $message = $this->firstErrorOnLine($this->processFixture('failing.inc'), $line);
+
+        $this->assertFalse($message['fixable']);
+        $this->assertStringContainsString('cannot be fixed automatically', $message['message']);
+        $this->assertStringContainsString('dispatched against the runtime class', $message['message']);
     }
 
     public function testViolationMessageNamesTheParameterToUse(): void
     {
-        $message = $this->firstErrorOnLine($this->processFixture('failing.inc'), 86);
+        $message = $this->firstErrorOnLine($this->processFixture('failing.inc'), 262);
 
         $this->assertTrue($message['fixable']);
         $this->assertStringContainsString('$retries', $message['message']);
         $this->assertStringContainsString('retries: null', $message['message']);
+    }
+
+    /**
+     * A short name is unique only within its namespace block, so a declaration
+     * in another block belongs to a different symbol and must not be borrowed.
+     * Only the two calls in the first block resolve to an optional parameter;
+     * the identical-looking calls in the second reach declarations whose
+     * parameter is required.
+     */
+    public function testResolutionStopsAtTheNamespaceBoundary(): void
+    {
+        $file = $this->processFixture('namespaces.inc');
+
+        $this->assertSame(
+            [
+                27 => [self::VIOLATION],
+                28 => [self::VIOLATION],
+            ],
+            $this->sourcesByLine($file->getErrors())
+        );
     }
 
     public function testAutoFixProducesTheExpectedOutput(): void
@@ -120,14 +236,21 @@ class NoNullArgumentsTest extends TestCase
 
     /**
      * Re-running the sniff over its own output must surface nothing new: every
-     * violation the fixer touched is gone, and the only report left is the one
-     * it deliberately declined to fix (the trailing-spread call on line 30).
+     * violation the fixer touched is gone, and the only reports left are the
+     * two it deliberately declined to fix — the trailing-spread call on line
+     * 30 and the late-bound call on line 54.
      */
     public function testTheFixedOutputIsCompliantExceptWhereTheFixerDeclined(): void
     {
         $file = $this->processFixture('autofix-after.inc');
 
-        $this->assertSame([30 => [self::VIOLATION]], $this->sourcesByLine($file->getErrors()));
+        $this->assertSame(
+            [
+                30 => [self::VIOLATION],
+                54 => [self::VIOLATION],
+            ],
+            $this->sourcesByLine($file->getErrors())
+        );
         $this->assertSame(0, $file->getFixableCount());
     }
 
@@ -192,18 +315,41 @@ class NoNullArgumentsTest extends TestCase
      */
     private function sourcesByLine(array $messages): array
     {
-        $sources = [];
+        return $this->collapseByLine($messages, 'source');
+    }
+
+    /**
+     * Collapses the same structure to a map of line number => list of the
+     * violations' fixable flags.
+     *
+     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+     *
+     * @return array<int, array<int, bool>>
+     */
+    private function fixableByLine(array $messages): array
+    {
+        return $this->collapseByLine($messages, 'fixable');
+    }
+
+    /**
+     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+     *
+     * @return array<int, array<int, mixed>>
+     */
+    private function collapseByLine(array $messages, string $key): array
+    {
+        $collapsed = [];
 
         foreach ($messages as $line => $columns) {
             foreach ($columns as $violations) {
                 foreach ($violations as $violation) {
-                    $sources[$line][] = $violation['source'];
+                    $collapsed[$line][] = $violation[$key];
                 }
             }
         }
 
-        ksort($sources);
+        ksort($collapsed);
 
-        return $sources;
+        return $collapsed;
     }
 }
