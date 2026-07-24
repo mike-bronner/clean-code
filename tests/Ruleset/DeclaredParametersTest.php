@@ -82,6 +82,9 @@ class DeclaredParametersTest extends TestCase
                 ['line' => 28, 'column' => 32, 'source' => self::VIOLATION],
                 // Plain function named __get().
                 ['line' => 44, 'column' => 12, 'source' => self::VIOLATION],
+                // Function named __set() declared inside a method: magic
+                // methods belong to an OO container, not a function body.
+                ['line' => 56, 'column' => 20, 'source' => self::VIOLATION],
             ],
             $this->violations($file)
         );

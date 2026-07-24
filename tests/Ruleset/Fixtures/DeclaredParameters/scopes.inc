@@ -43,3 +43,17 @@ function __get(): array
 {
     return func_get_args();
 }
+
+class Container
+{
+    public function register(): void
+    {
+        // Magic methods belong to an OO container, not to another function's
+        // body: a function declared inside a method is a plain function, so
+        // being named like a magic method earns it no exemption.
+        function __set(): array
+        {
+            return func_get_args();
+        }
+    }
+}
