@@ -39,9 +39,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * `static::m()` and `new static(...)` are dispatched against the *runtime*
  * class, so a subclass — which usually lives in a file this sniff never sees —
  * may override the method and rename the very parameter the fix would write.
- * That rewrite turns working code into an `Unknown named parameter` fatal, so
- * those calls are reported but **not auto-fixed** unless the file proves
- * dispatch cannot be diverted (see {@see self::isDispatchProvable()}).
+ * `self::m()` and `new self(...)` inside a *trait* are divertible the same way:
+ * `self` names the using class, which may declare its own version of the
+ * method. That rewrite turns working code into an `Unknown named parameter`
+ * fatal, so those calls are reported but **not auto-fixed** unless the file
+ * proves dispatch cannot be diverted (see {@see self::isDispatchProvable()}).
  */
 class NoNullArgumentsSniff implements Sniff
 {
@@ -58,8 +60,9 @@ class NoNullArgumentsSniff implements Sniff
 
     /**
      * The resolved declaration is the one that runs: the call site names it
-     * outright (`self::`, `ClassName::`, `new ClassName`, a function, an
-     * attribute), so no runtime dispatch can reach a different body.
+     * outright (`self::` outside a trait, `ClassName::`, `TraitName::`,
+     * `new ClassName`, a function, an attribute), so no runtime dispatch can
+     * reach a different body.
      */
     private const BIND_EARLY = 'early';
 
@@ -68,6 +71,16 @@ class NoNullArgumentsSniff implements Sniff
      * method is still resolved in the scope that declares it.
      */
     private const BIND_THIS = 'this';
+
+    /**
+     * A `self::` call or `new self(...)` written inside a trait. `self` does
+     * not name the trait: the trait is flattened into each using class and
+     * `self` names *that* class, whose own declaration of the method — if it
+     * has one — takes precedence over the trait's. So the declaration found
+     * here is only a fallback, and no modifier written in a trait changes
+     * that (see {@see self::isDispatchProvable()}).
+     */
+    private const BIND_TRAIT_SELF = 'trait-self';
 
     /**
      * A `static::` call or `new static(...)`. Late static binding resolves the
@@ -480,11 +493,21 @@ class NoNullArgumentsSniff implements Sniff
                 return null;
             }
 
-            // `self` names the declaring class outright; `static` defers to
-            // the runtime class, which may be a subclass this file never sees.
+            // `static` defers to the runtime class, which may be a subclass
+            // this file never sees.
+            if ($code === T_STATIC) {
+                return ['class' => $class, 'binding' => self::BIND_STATIC];
+            }
+
+            // `self` names the class it is written in outright — except in a
+            // trait, which is flattened into each using class: there `self`
+            // names that class, and the method found here is only the body
+            // that runs when the using class declares none of its own.
+            $isTrait = $tokens[$class]['code'] === T_TRAIT;
+
             return [
                 'class' => $class,
-                'binding' => $code === T_STATIC ? self::BIND_STATIC : self::BIND_EARLY,
+                'binding' => $isTrait ? self::BIND_TRAIT_SELF : self::BIND_EARLY,
             ];
         }
 
@@ -522,6 +545,10 @@ class NoNullArgumentsSniff implements Sniff
      * subclass is usually in another file, so the sniff can only fix the call
      * when the file shows dispatch cannot be diverted at all.
      *
+     * A `self::` call inside a trait is divertible for a different reason —
+     * `self` names the using class, which may declare the method itself — and
+     * lands on the same answer through the trait guard below.
+     *
      * @param array{function: int, binding: string} $callee
      */
     private function isDispatchProvable(File $phpcsFile, array $callee, int $opener): bool
@@ -551,8 +578,9 @@ class NoNullArgumentsSniff implements Sniff
         // only a class carries the modifiers that could rule that out. A
         // trait's methods are copied into every using class, which may declare
         // its own version of any of them — `private` and `final` included — so
-        // a trait proves nothing about which body runs. An interface declares
-        // no body to dispatch to at all. Both fail closed.
+        // a trait proves nothing about which body runs, whether the call was
+        // written `$this->`, `static::` or `self::`. An interface declares no
+        // body to dispatch to at all. Both fail closed.
         if ($code !== T_CLASS) {
             return false;
         }

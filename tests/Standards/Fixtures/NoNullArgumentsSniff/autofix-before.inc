@@ -55,6 +55,28 @@ class Extendable
     }
 }
 
+/**
+ * Left alone: `self` names the class the trait is flattened into, not the
+ * trait, and that class may declare its own relay() with a different parameter
+ * name — so writing $flag into these calls would fatal at runtime.
+ */
+trait Copied
+{
+    public function __construct(?string $tag = null)
+    {
+    }
+
+    public function relay(string $body, ?bool $flag = null): void
+    {
+    }
+
+    public function run(): void
+    {
+        self::relay('body', null);
+        new self(null);
+    }
+}
+
 function dispatch(string $to, ?int $retries = null): void
 {
 }

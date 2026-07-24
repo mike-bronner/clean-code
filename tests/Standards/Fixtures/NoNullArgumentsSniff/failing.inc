@@ -148,6 +148,12 @@ class Extendable
         // Fixable: a final method cannot be overridden at all.
         $this->seal(null);
         static::sealed(null);
+
+        // Fixable even though the class is extendable: `self` is not
+        // late-bound, so it names this class and reaches these declarations
+        // whatever a subclass overrides.
+        self::relay('body', null);
+        new self(null);
     }
 
     public function relay(string $body, ?bool $flag = null): void
@@ -198,11 +204,23 @@ class SealedConstructor
  */
 trait Copied
 {
+    public function __construct(?string $tag = null)
+    {
+    }
+
     public function run(): void
     {
         $this->target(null);
         $this->concealed(null);
         $this->sealed(null);
+
+        // `self` does not name the trait. The trait is flattened into the
+        // using class and `self` names *that* class, whose own declaration of
+        // a method wins over the copied one — so `self::` proves no more here
+        // than the `$this->` calls above, and `new self()` no more than
+        // `new static()`.
+        self::target(null);
+        new self(null);
     }
 
     public function target(?string $mode = null): void
@@ -215,6 +233,28 @@ trait Copied
 
     final public function sealed(?string $mode = null): void
     {
+    }
+}
+
+/**
+ * An anonymous class written *inside* a trait is a class scope of its own:
+ * `self` there names the anonymous class, which nothing can extend, so the
+ * call stays fixable even though a trait encloses it.
+ */
+trait Builds
+{
+    public function build(): object
+    {
+        return new class () {
+            public function run(): void
+            {
+                self::adjust(null);
+            }
+
+            public function adjust(?string $knob = null): void
+            {
+            }
+        };
     }
 }
 
