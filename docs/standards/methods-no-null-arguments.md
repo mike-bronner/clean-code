@@ -98,18 +98,28 @@ either way — unless the file proves dispatch cannot be diverted:
 
 | Call site | Fixed when |
 | --- | --- |
-| `self::`, `ClassName::`, `new ClassName()`, `new self()`, a function, an attribute | always — the target is named outright |
+| `ClassName::`, `TraitName::`, `new ClassName()`, a function, an attribute | always — an explicitly named target is not dispatched |
+| `self::m()`, `new self()` | always **outside** a trait; **never inside** one |
 | `$this->m()` | the class is `final`, or `m()` is `final` or `private` |
 | `static::m()` | the class is `final`, or `m()` is `final` |
 | `new static()` | the class is `final`, or the constructor is `final` |
 | anything inside an `enum` or an anonymous class | always — neither can be extended |
-| anything inside a `trait` | never |
+| `$this->`, `static::`, `self::` or `new self()` inside a `trait` | never |
 
 A `private` method helps `$this->` because PHP resolves it in the scope that
 declares it, but not `static::`, which binds to the subclass before it checks
 visibility. A trait proves nothing at all: its methods are copied into every
 using class, which may declare its own version of any of them — `private` and
 `final` included.
+
+That last point is why the two trait rows override the rows above them, `self::`
+included. **Inside a trait, `self` does not name the trait** — the trait is
+flattened into each using class, and `self` names *that* class, whose own
+declaration of a method takes precedence over the copied one. So `self::m(null)`
+written in a trait may well run a body in another file entirely, exactly like
+`$this->m(null)` does. Naming the trait explicitly (`TraitName::m()`) is
+different, and stays fixable: an explicit trait name does not dispatch to the
+using class's override.
 
 Sniff tests covering compliant code, per-line violation reporting for every
 call form, the multiple-null and nested-expression edge cases, the
