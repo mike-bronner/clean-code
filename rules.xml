@@ -116,6 +116,17 @@
     </rule>
 
     <!--
+        Classes: Introspection / Type Casting (#73) —
+        docs/standards/classes-introspection-type-casting.md.
+
+        No PHPCS or Slevomat sniff flags type introspection used to decide a
+        branch, so this is the custom CleanCode.Classes.DisallowTypeIntrospection
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above. Detection-only — replacing a type check with polymorphism is a
+        refactor, not a mechanical rewrite.
+    -->
+
+    <!--
         Arrays: Operator spacing & line breaks (#35) —
         docs/standards/arrays-operator-spacing-and-line-breaks.md.
 
