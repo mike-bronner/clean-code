@@ -32,7 +32,9 @@ class DeclaredParametersTest extends TestCase
 
     /**
      * Declared parameters, variadics, magic methods, same-named members, a
-     * namespaced lookalike, and a same-named function declaration all pass.
+     * namespaced lookalike, a `namespace\`-relative call, a return-by-reference
+     * declaration, an instantiation, and a same-named function declaration all
+     * pass.
      */
     public function testCompliantFileProducesNoViolations(): void
     {
@@ -58,6 +60,68 @@ class DeclaredParametersTest extends TestCase
                 ['line' => 22, 'column' => 17, 'source' => self::VIOLATION],
                 // PHP function names are case-insensitive.
                 ['line' => 27, 'column' => 16, 'source' => self::VIOLATION],
+                // A call at file scope belongs to no declaration, so no
+                // magic-method exemption can apply to it.
+                ['line' => 33, 'column' => 9, 'source' => self::VIOLATION],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    /**
+     * An unqualified call resolves through the file's `use function` imports
+     * before PHP's own function, so a qualified import — plain, grouped, or
+     * aliased — names a different symbol. An unqualified import still names
+     * PHP's function, and a leading separator bypasses imports entirely.
+     */
+    public function testUseFunctionImportsResolveBeforeTheGlobalFunction(): void
+    {
+        $file = $this->processFixture('imports.inc');
+
+        $this->assertSame(
+            [
+                // `use function func_get_arg;` imports PHP's own function, and
+                // the same-named class alias does not change that.
+                ['line' => 35, 'column' => 16, 'source' => self::VIOLATION],
+                // `\func_get_args()` ignores the group import above it.
+                ['line' => 42, 'column' => 17, 'source' => self::VIOLATION],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    /**
+     * An alias binds its *local* name: renaming another global function onto
+     * one of these names is a different symbol and is exempt, while a
+     * self-alias renames nothing and still names PHP's own function.
+     */
+    public function testAliasedImportBindsTheLocalNameNotTheBuiltin(): void
+    {
+        $file = $this->processFixture('imports-aliased.inc');
+
+        $this->assertSame(
+            [
+                // The self-alias still names PHP's own function.
+                ['line' => 32, 'column' => 16, 'source' => self::VIOLATION],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    /**
+     * `namespace\` resolves against the *current* namespace with no fallback
+     * to the global one — so it is exempt inside a named namespace (asserted
+     * on the compliant fixture) but is PHP's own function in a file that
+     * declares no namespace.
+     */
+    public function testRelativeCallIsFlaggedOnlyWithoutANamespaceDeclaration(): void
+    {
+        $file = $this->processFixture('global-namespace.inc');
+
+        $this->assertSame(
+            [
+                ['line' => 14, 'column' => 26, 'source' => self::VIOLATION],
+                ['line' => 19, 'column' => 26, 'source' => self::VIOLATION],
             ],
             $this->violations($file)
         );
@@ -113,7 +177,15 @@ class DeclaredParametersTest extends TestCase
 
     public function testViolationsAreNotAutoFixable(): void
     {
-        foreach (['violations.inc', 'scopes.inc'] as $fixture) {
+        $fixtures = [
+            'violations.inc',
+            'scopes.inc',
+            'imports.inc',
+            'imports-aliased.inc',
+            'global-namespace.inc',
+        ];
+
+        foreach ($fixtures as $fixture) {
             $file = $this->processFixture($fixture);
 
             foreach ($file->getErrors() as $columns) {

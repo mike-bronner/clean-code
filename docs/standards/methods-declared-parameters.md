@@ -52,9 +52,20 @@ via the CleanCode standard
   - **Same-named symbols** — namespaced functions (`Acme\func_get_args()`),
     object and static member calls (`$collector->func_num_args()`,
     `Collector::func_num_args()`), function declarations
-    (`function func_get_args()`), and constants (`FUNC_NUM_ARGS`). A leading
-    separator alone (`\func_get_args()`) still qualifies the global namespace
-    and *is* flagged.
+    (`function func_get_args()`, including return-by-reference
+    `function &func_get_args()`), instantiations (`new func_get_args()`), and
+    constants (`FUNC_NUM_ARGS`). A leading separator alone
+    (`\func_get_args()`) still qualifies the global namespace and *is* flagged.
+  - **`namespace\func_get_args()` inside a namespace** — the relative qualifier
+    resolves against the current namespace with no fallback to the global one,
+    so it names a different function. In a file that declares no namespace the
+    same spelling resolves globally and *is* flagged.
+  - **Names bound by a `use function` import to another symbol** — a qualified
+    import (`use function Acme\Support\func_get_args;`, including group use and
+    aliases) makes the unqualified call resolve to the import, not to PHP's
+    function. An import that still names PHP's own function — unqualified under
+    the same name (`use function func_get_args;`) or a self-alias — *is*
+    flagged, and a *class* import never affects function resolution at all.
 - **Auto-fixable — No (detection only).** Replacing a dynamic read with a
   declared parameter changes the method's signature, and every call site has to
   change with it. A token-based fixer cannot make those call-site changes
@@ -63,8 +74,10 @@ via the CleanCode standard
 
 Ruleset-integration tests covering compliant code, per-line/column violation
 reporting for all three functions, the exemption boundary around closures and
-arrow functions, the reported message, and the non-fixable (detection-only)
-guarantee live at `tests/Ruleset/DeclaredParametersTest.php`.
+arrow functions, name resolution through `use function` imports, the
+`namespace\` qualifier in both namespaced and global files, the reported
+message, and the non-fixable (detection-only) guarantee live at
+`tests/Ruleset/DeclaredParametersTest.php`.
 
 ## What remains code review
 

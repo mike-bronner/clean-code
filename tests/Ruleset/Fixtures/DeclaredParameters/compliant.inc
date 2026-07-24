@@ -8,6 +8,9 @@ class Reporter
 {
     private int $seed;
 
+    /** @var array<int, mixed> */
+    private array $buffer = [];
+
     public function __construct()
     {
         // Magic method — the standard's stated exception.
@@ -44,6 +47,26 @@ class Reporter
     {
         // A different function that merely shares the name.
         return \Acme\Support\func_get_args();
+    }
+
+    public function relative(): array
+    {
+        // `namespace\` resolves against Acme\Compliant with no fallback to the
+        // global namespace, so this is not PHP's function either.
+        return namespace\func_get_args();
+    }
+
+    // A return-by-reference declaration: the `&` sits between the keyword and
+    // the name, but this is still a declaration and not a call.
+    public function &func_num_args(): array
+    {
+        return $this->buffer;
+    }
+
+    public function instantiate(): object
+    {
+        // Instantiating a same-named class is not a call to PHP's function.
+        return new func_get_arg();
     }
 
     public function __call(string $name, array $arguments): array

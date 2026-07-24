@@ -27,3 +27,7 @@ class Router
         return FUNC_GET_ARGS();
     }
 }
+
+// A call at file scope sits in no function at all: there is no declaration to
+// carry the magic-method exemption, so it is still a dynamic argument read.
+$args = func_get_args();

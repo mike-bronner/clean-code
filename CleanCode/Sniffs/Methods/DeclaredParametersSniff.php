@@ -32,10 +32,17 @@ use PHP_CodeSniffer\Util\Tokens;
  *   legitimately reach for the dynamic argument list. The exemption belongs to
  *   the magic method itself: a closure or arrow function *inside* one declares
  *   its own parameter list and does not inherit it.
- * - **Namespaced lookalikes** (`Acme\func_get_args()`), method calls
- *   (`$collector->func_num_args()`, `Collector::func_num_args()`), and function
- *   declarations (`function func_get_args()`) — different symbols that merely
- *   share a name.
+ * - **Same-named symbols** — different symbols that merely share a name:
+ *   namespaced functions (`Acme\func_get_args()`), method calls
+ *   (`$collector->func_num_args()`, `Collector::func_num_args()`), function
+ *   declarations (`function func_get_args()`, including return-by-reference
+ *   `function &func_get_args()`), instantiations (`new func_get_args()`), and
+ *   names bound by a `use function` import to another namespace.
+ * - **`namespace\func_get_args()` inside a namespace** — the relative
+ *   qualifier resolves against the current namespace with no fallback to the
+ *   global one, so it is not PHP's function. In a file that declares no
+ *   namespace it resolves globally and *is* flagged, as is a bare leading
+ *   separator (`\func_get_args()`), which qualifies the global namespace.
  *
  * Detection only: replacing a dynamic read with a declared parameter changes
  * the method's signature, and every call site has to change with it, so a
@@ -79,14 +86,15 @@ class DeclaredParametersSniff implements Sniff
 
     /**
      * Tokens that, sitting directly before the name, mean this is not a call to
-     * PHP's own function: an object or static member access, or a declaration
-     * of a same-named function in a namespace.
+     * PHP's own function: an object or static member access, a declaration of a
+     * same-named function, or an instantiation of a same-named class.
      */
     private const NOT_A_CALL_BEFORE = [
         T_DOUBLE_COLON,
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_FUNCTION,
+        T_NEW,
     ];
 
     /**
@@ -151,16 +159,220 @@ class DeclaredParametersSniff implements Sniff
         $prevCode = ($prevPtr === false ? null : $tokens[$prevPtr]['code']);
 
         if ($prevCode === T_NS_SEPARATOR) {
-            // A bare leading separator qualifies the *global* namespace, so
-            // `\func_get_args()` is still PHP's function; a name before it
-            // (`Acme\func_get_args()`) makes it somebody else's.
-            $qualifierPtr = $phpcsFile
-                ->findPrevious(Tokens::$emptyTokens, ($prevPtr - 1), null, true);
-
-            return $qualifierPtr === false || $tokens[$qualifierPtr]['code'] !== T_STRING;
+            return $this->isGlobalQualifiedName($phpcsFile, $prevPtr, $stackPtr);
         }
 
-        return in_array($prevCode, self::NOT_A_CALL_BEFORE, true) === false;
+        // A return-by-reference declaration (`function &func_get_args()`) puts
+        // a `&` between the keyword and the name, so T_FUNCTION is not the
+        // immediately preceding token. Only a declaration is excused here: in
+        // an expression (`$mask & func_get_args()`) the call is still a call.
+        if ($prevCode === T_BITWISE_AND) {
+            $beforeAmpersandPtr = $phpcsFile
+                ->findPrevious(Tokens::$emptyTokens, ($prevPtr - 1), null, true);
+
+            if (
+                $beforeAmpersandPtr !== false
+                && $tokens[$beforeAmpersandPtr]['code'] === T_FUNCTION
+            ) {
+                return false;
+            }
+        }
+
+        if (in_array($prevCode, self::NOT_A_CALL_BEFORE, true) === true) {
+            return false;
+        }
+
+        // An unqualified name resolves through the file's `use function`
+        // imports before falling back to PHP's own function.
+        $imported = $this->getImportedFunctionNames($phpcsFile);
+
+        return isset($imported[strtolower($tokens[$stackPtr]['content'])]) === false;
+    }
+
+    /**
+     * Reports whether the qualified name whose last separator sits at
+     * $separatorPtr resolves to PHP's own function in the global namespace.
+     */
+    private function isGlobalQualifiedName(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $qualifierPtr = $phpcsFile
+            ->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
+
+        if ($qualifierPtr === false) {
+            return true;
+        }
+
+        // `Acme\func_get_args()` — somebody else's function.
+        if ($tokens[$qualifierPtr]['code'] === T_STRING) {
+            return false;
+        }
+
+        // `namespace\func_get_args()` resolves against the file's *current*
+        // namespace with no fallback to the global one, so it is PHP's
+        // function only when the file declares no namespace. (PHPCS splits
+        // PHP 8's T_NAME_RELATIVE back into T_NAMESPACE + T_NS_SEPARATOR +
+        // T_STRING, so the qualifier is the `namespace` keyword itself.)
+        if ($tokens[$qualifierPtr]['code'] === T_NAMESPACE) {
+            return $this->isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
+        }
+
+        // A bare leading separator qualifies the global namespace itself, so
+        // `\func_get_args()` is still PHP's function.
+        return true;
+    }
+
+    /**
+     * Reports whether $stackPtr sits in a file that declares a named
+     * namespace, in which an unqualified or `namespace\`-relative name no
+     * longer resolves to PHP's global function by that route.
+     */
+    private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $namespacePtr = $phpcsFile->findPrevious(T_NAMESPACE, ($stackPtr - 1));
+
+        while ($namespacePtr !== false) {
+            $afterPtr = $phpcsFile
+                ->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
+
+            // `namespace Acme;` / `namespace Acme { … }` — a declaration. A
+            // `namespace\name` qualifier is followed by a separator instead,
+            // so it is skipped and the search continues backwards.
+            if ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_STRING) {
+                return true;
+            }
+
+            $namespacePtr = $phpcsFile->findPrevious(T_NAMESPACE, ($namespacePtr - 1));
+        }
+
+        return false;
+    }
+
+    /**
+     * The local names bound by a `use function` import to a symbol outside the
+     * global namespace, lowercased and used as keys (PHP function names are
+     * case-insensitive).
+     *
+     * An unqualified import under the same name (`use function func_get_args;`)
+     * binds PHP's own function and so is deliberately not collected — calls
+     * through it are still dynamic argument reads. An alias that renames a
+     * different function onto one of these names (`use function tally as
+     * func_num_args;`) does bind a different symbol, and is collected.
+     *
+     * Imports are read file-wide rather than per namespace block. The only
+     * file that misreads is one declaring several braced namespaces with
+     * conflicting function imports, where the cost is a missed report rather
+     * than a false one — the safer direction for a linter nobody keeps
+     * switched on once it cries wolf.
+     *
+     * @return array<string, true>
+     */
+    private function getImportedFunctionNames(File $phpcsFile): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $names = [];
+        $usePtr = $phpcsFile->findNext(T_USE, 0);
+
+        while ($usePtr !== false) {
+            // PHPCS tokenizes the `function` of `use function` as a plain
+            // T_STRING, which also tells an import apart from a closure's
+            // `use (` and a trait's `use SomeTrait;`.
+            $keywordPtr = $phpcsFile
+                ->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
+
+            if (
+                $keywordPtr !== false
+                && $tokens[$keywordPtr]['code'] === T_STRING
+                && strtolower($tokens[$keywordPtr]['content']) === 'function'
+            ) {
+                $this->collectImportedNames($phpcsFile, $keywordPtr, $names);
+            }
+
+            $usePtr = $phpcsFile->findNext(T_USE, ($usePtr + 1));
+        }
+
+        return $names;
+    }
+
+    /**
+     * Collects the local names bound by the `use function` statement whose
+     * keyword sits at $keywordPtr, covering comma-separated lists, group use
+     * (`use function Acme\{one, two};`) and aliases (`… as name`).
+     *
+     * @param array<string, true> $names
+     *
+     * @return void
+     */
+    private function collectImportedNames(File $phpcsFile, int $keywordPtr, array &$names): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $endPtr = $phpcsFile->findNext(T_SEMICOLON, ($keywordPtr + 1));
+
+        if ($endPtr === false) {
+            return;
+        }
+
+        $groupPrefix = [];
+        $segments = [];
+        $alias = null;
+        $afterAs = false;
+
+        for ($ptr = ($keywordPtr + 1); $ptr <= $endPtr; $ptr++) {
+            $code = $tokens[$ptr]['code'];
+
+            if ($code === T_STRING) {
+                if ($afterAs === true) {
+                    $alias = $tokens[$ptr]['content'];
+                } else {
+                    $segments[] = $tokens[$ptr]['content'];
+                }
+
+                continue;
+            }
+
+            if ($code === T_AS) {
+                $afterAs = true;
+
+                continue;
+            }
+
+            if ($code === T_OPEN_USE_GROUP) {
+                $groupPrefix = $segments;
+                $segments = [];
+
+                continue;
+            }
+
+            if (in_array($code, [T_COMMA, T_CLOSE_USE_GROUP, T_SEMICOLON], true) === false) {
+                continue;
+            }
+
+            // An entry ends here. It binds PHP's own function only when the
+            // target is unqualified — a single segment, so the global
+            // namespace — *and* is bound under that same name. Anything else
+            // (a namespaced target, or an alias renaming one function onto
+            // another's name) binds a different symbol.
+            if ($segments !== []) {
+                $targetName = (string) end($segments);
+                $localName = $alias ?? $targetName;
+
+                if (
+                    (count($groupPrefix) + count($segments)) > 1
+                    || strtolower($localName) !== strtolower($targetName)
+                ) {
+                    $names[strtolower($localName)] = true;
+                }
+            }
+
+            $segments = [];
+            $alias = null;
+            $afterAs = false;
+
+            if ($code === T_CLOSE_USE_GROUP) {
+                $groupPrefix = [];
+            }
+        }
     }
 
     /**
