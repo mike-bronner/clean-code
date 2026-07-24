@@ -59,6 +59,12 @@ The standard is therefore enforced by the custom
   - **Assertions** — `assert($value instanceof Throwable)`.
   - **Predicates** — `return $value instanceof Throwable;`. The method reports
     a type; its caller decides what to do with the answer.
+  - **Callback predicates** — `if (array_filter($rows, fn ($r) => $r instanceof
+    Failure))`. A closure or arrow function bounds the search, so a check inside
+    one is a predicate deciding that callback's *return value*, even when the
+    callback is an argument inside an enclosing condition. A branch written
+    *inside* the callback body is still flagged — the boundary limits which
+    branches a check is measured against, it does not exempt the callback.
   - **Branch *bodies*** — a `get_class()` inside an `if` block, a `case` body,
     or a `match` arm's result, rather than in the condition that selected it.
   - **Same-named methods and functions** — `$this->gettype($value)`,

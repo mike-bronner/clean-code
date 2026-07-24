@@ -157,4 +157,133 @@ final class Reporter
 
         return 'other';
     }
+
+    /**
+     * An arrow function passed into an `if` condition is a predicate: the
+     * check decides what the callback returns, `array_filter` decides the
+     * branch.
+     */
+    public function arrowFnInsideAnIfCondition(array $values): string
+    {
+        if (array_filter($values, fn (object $value): bool => $value instanceof \Throwable)) {
+            return 'some';
+        }
+
+        return 'none';
+    }
+
+    /**
+     * The braced closure form of the same predicate.
+     */
+    public function closureInsideAnIfCondition(array $values): string
+    {
+        if (array_filter($values, function (object $value): bool {
+            return $value instanceof \Throwable;
+        })) {
+            return 'some';
+        }
+
+        return 'none';
+    }
+
+    /**
+     * A callback inside a `while` condition.
+     */
+    public function closureInsideAWhileCondition(array $values): string
+    {
+        while (array_filter($values, fn (object $value): bool => is_a($value, \Throwable::class))) {
+            array_pop($values);
+        }
+
+        return 'drained';
+    }
+
+    /**
+     * A callback inside a `switch` subject.
+     */
+    public function closureInsideASwitchSubject(array $values): string
+    {
+        switch (count(array_filter($values, fn (object $value): bool => $value instanceof \Throwable))) {
+            case 0:
+                return 'none';
+        }
+
+        return 'some';
+    }
+
+    /**
+     * A callback inside a `match` subject.
+     */
+    public function closureInsideAMatchSubject(array $values): string
+    {
+        return match (count(array_map(fn (object $value): string => get_class($value), $values))) {
+            0 => 'none',
+            default => 'some',
+        };
+    }
+
+    /**
+     * A callback inside a ternary's condition — the `?` belongs to the caller,
+     * not to the arrow function.
+     */
+    public function closureInsideATernaryCondition(array $values): string
+    {
+        return array_filter($values, fn (object $value): bool => $value instanceof \Throwable)
+            ? 'some'
+            : 'none';
+    }
+
+    /**
+     * A callback inside a `match` arm's condition.
+     */
+    public function closureInsideAMatchArmCondition(array $values): string
+    {
+        return match (true) {
+            array_filter($values, fn (object $value): bool => $value instanceof \Throwable) !== [] => 'some',
+            default => 'none',
+        };
+    }
+
+    /**
+     * A callback inside a `switch` case label. The arrow function carries no
+     * return type on purpose: a `: bool` would end the backward walk at its
+     * own colon, hiding whether the callback boundary is what stopped it.
+     */
+    public function closureInsideASwitchCaseLabel(array $values): string
+    {
+        switch (1) {
+            case count(array_filter($values, fn ($value) => gettype($value) === 'object')):
+                return 'one';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * The same, with `instanceof` rather than an introspection function.
+     */
+    public function closureInsideASwitchCaseLabelWithInstanceof(array $values): string
+    {
+        switch (1) {
+            case count(array_filter($values, fn ($value) => $value instanceof \Throwable)):
+                return 'one';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * A callback assigned to a variable, then used in a condition: the same
+     * predicate, merely defined outside the condition's parentheses.
+     */
+    public function closureByVariable(array $values): string
+    {
+        $isError = fn (object $value): bool => $value instanceof \Throwable;
+
+        if (array_filter($values, $isError)) {
+            return 'some';
+        }
+
+        return 'none';
+    }
 }

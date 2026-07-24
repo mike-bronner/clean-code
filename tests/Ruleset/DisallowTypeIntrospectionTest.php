@@ -47,7 +47,13 @@ class DisallowTypeIntrospectionTest extends TestCase
         // if (11), elseif (13), ternary (22), match arms (28, and both
         // conditions of the multi-condition arm on 29), case label (37),
         // while (48), nested inside an if condition (59), and a ternary whose
-        // condition wraps the check in a call (68).
+        // condition wraps the check in a call (68). Then the four branches
+        // that sit *inside* a callback — an if in a closure (83), a ternary in
+        // an arrow function (93), a match arm (100) and a case label (110) —
+        // which a callback bounding the search must still report, and a plain
+        // branch after every one of those callbacks has closed (125), plus a
+        // callback that closes earlier within the very same if (138) and
+        // ternary (150) condition — none of which a boundary may swallow.
         $this->assertSame(
             [
                 ['line' => 11, 'column' => 20, 'source' => $code],
@@ -60,6 +66,13 @@ class DisallowTypeIntrospectionTest extends TestCase
                 ['line' => 48, 'column' => 23, 'source' => $code],
                 ['line' => 59, 'column' => 29, 'source' => $code],
                 ['line' => 68, 'column' => 35, 'source' => $code],
+                ['line' => 83, 'column' => 24, 'source' => $code],
+                ['line' => 93, 'column' => 53, 'source' => $code],
+                ['line' => 100, 'column' => 24, 'source' => $code],
+                ['line' => 110, 'column' => 29, 'source' => $code],
+                ['line' => 125, 'column' => 20, 'source' => $code],
+                ['line' => 138, 'column' => 78, 'source' => $code],
+                ['line' => 150, 'column' => 81, 'source' => $code],
             ],
             $this->violations($file)
         );

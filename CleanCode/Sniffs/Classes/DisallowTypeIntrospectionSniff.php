@@ -30,6 +30,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * exception message, a log line, an assertion, or a `return $x instanceof Y;`
  * predicate reports a type, it does not choose behaviour based on one.
  *
+ * A closure or arrow function bounds the search. Introspection inside a
+ * callback decides that callback's *return value*, so it is a predicate — even
+ * when the callback is itself an argument inside some enclosing branch's
+ * condition, as in `if (array_filter($rows, fn ($r) => $r instanceof Failure))`.
+ * Every branch a check is measured against must therefore live inside the same
+ * callback the check does.
+ *
  * Detection only: replacing a type check with polymorphism means moving
  * behaviour onto the object (or narrowing a signature) and updating call
  * sites, so no token-based auto-fix can be applied.
@@ -199,14 +206,19 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     /**
      * True when the introspection at $stackPtr decides which branch runs.
+     *
+     * The innermost callback enclosing the token is resolved once and passed to
+     * each check, which confines it to that callback's own body.
      */
     private function decidesABranch(File $phpcsFile, int $stackPtr): bool
     {
-        if ($this->isInsideAConditionParenthesis($phpcsFile, $stackPtr)) {
+        $callback = $this->enclosingCallback($phpcsFile, $stackPtr);
+
+        if ($this->isInsideAConditionParenthesis($phpcsFile, $stackPtr, $callback)) {
             return true;
         }
 
-        if ($this->isATernaryCondition($phpcsFile, $stackPtr)) {
+        if ($this->isATernaryCondition($phpcsFile, $stackPtr, $callback)) {
             return true;
         }
 
@@ -219,22 +231,75 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $innermost = end($conditions);
 
         if ($innermost === T_MATCH) {
-            return $this->isAMatchArmCondition($phpcsFile, $stackPtr, (int) array_key_last($conditions));
+            $matchPtr = (int) array_key_last($conditions);
+
+            return $this->isAMatchArmCondition($phpcsFile, $stackPtr, $matchPtr, $callback);
         }
 
-        return $innermost === T_SWITCH && $this->isASwitchCaseCondition($phpcsFile, $stackPtr);
+        return $innermost === T_SWITCH
+            && $this->isASwitchCaseCondition($phpcsFile, $stackPtr, $callback);
+    }
+
+    /**
+     * Returns the pointer of the innermost closure or arrow function whose body
+     * contains $stackPtr, or null when the token sits in no callback.
+     *
+     * Scanning backwards, the first such callback found is the innermost, since
+     * any callback enclosing the token starts before it and the nearest opener
+     * is the most deeply nested. A callback whose scope PHPCS could not resolve
+     * is skipped rather than assumed to enclose the token: that only happens on
+     * source PHPCS already reports a parse error for, and treating it as a
+     * boundary would silence the sniff for the whole remainder of the file.
+     */
+    private function enclosingCallback(File $phpcsFile, int $stackPtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($i = ($stackPtr - 1); $i >= 0; $i--) {
+            if (in_array($tokens[$i]['code'], [T_CLOSURE, T_FN], true) === false) {
+                continue;
+            }
+
+            $opener = $tokens[$i]['scope_opener'] ?? null;
+            $closer = $tokens[$i]['scope_closer'] ?? null;
+
+            if (
+                $opener !== null
+                && $closer !== null
+                && $opener < $stackPtr
+                && $stackPtr < $closer
+            ) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**
      * True when the token sits inside the parentheses of an `if`, `elseif`,
      * `while`, `switch`, or `match` — i.e. inside the branch condition itself,
      * at any nesting depth.
+     *
+     * A condition opening *before* the enclosing callback belongs to the code
+     * that receives the callback, not to the callback's body: the token decides
+     * what the callback returns, and the caller decides the branch.
      */
-    private function isInsideAConditionParenthesis(File $phpcsFile, int $stackPtr): bool
-    {
+    private function isInsideAConditionParenthesis(
+        File $phpcsFile,
+        int $stackPtr,
+        ?int $callback
+    ): bool {
         $tokens = $phpcsFile->getTokens();
 
         foreach (array_keys($tokens[$stackPtr]['nested_parenthesis'] ?? []) as $opener) {
+            if (
+                $callback !== null
+                && $opener < $callback
+            ) {
+                continue;
+            }
+
             $owner = $tokens[$opener]['parenthesis_owner'] ?? null;
 
             if ($owner !== null && in_array($tokens[$owner]['code'], self::CONDITION_OWNERS, true)) {
@@ -253,12 +318,17 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * has stepped out to the enclosing expression and simply keeps walking
      * outward: `f(get_class($x)) ? a : b` is a ternary condition, whereas
      * `f(get_class($x), $y ? a : b)` terminates at the argument comma.
+     *
+     * An enclosing callback caps that outward walk at its own end, so a `?`
+     * belonging to the caller — `array_filter($i, fn ($x) => $x instanceof Y) ? a : b`
+     * — is never mistaken for the arrow function's own ternary.
      */
-    private function isATernaryCondition(File $phpcsFile, int $stackPtr): bool
+    private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?int $callback): bool
     {
         $tokens = $phpcsFile->getTokens();
+        $limit = $callback === null ? $phpcsFile->numTokens : $tokens[$callback]['scope_closer'];
 
-        for ($i = ($stackPtr + 1); $i < $phpcsFile->numTokens; $i++) {
+        for ($i = ($stackPtr + 1); $i < $limit; $i++) {
             $code = $tokens[$i]['code'];
 
             if ($code === T_INLINE_THEN) {
@@ -284,13 +354,27 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * means a new arm's condition list has started (and commas *within* one
      * arm's condition list keep the flag set, so multi-condition arms are
      * covered). Reaching `{` with no `=>` behind is the first arm.
+     *
+     * A callback opening inside the `match` holds the token in its own body, so
+     * the arm boundaries around it are the caller's, not the token's.
      */
-    private function isAMatchArmCondition(File $phpcsFile, int $stackPtr, int $matchPtr): bool
-    {
+    private function isAMatchArmCondition(
+        File $phpcsFile,
+        int $stackPtr,
+        int $matchPtr,
+        ?int $callback
+    ): bool {
         $tokens = $phpcsFile->getTokens();
         $scopeOpener = $tokens[$matchPtr]['scope_opener'] ?? null;
 
         if ($scopeOpener === null) {
+            return false;
+        }
+
+        if (
+            $callback !== null
+            && $callback > $scopeOpener
+        ) {
             return false;
         }
 
@@ -317,12 +401,16 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * True when the token sits in a `switch` case *label* rather than a case
      * body — walking back reaches `case` before the label's `:` or any
      * statement boundary.
+     *
+     * An enclosing callback floors that walk: a `case` further back than the
+     * callback's own opener labels the caller's branch, not the token's.
      */
-    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr): bool
+    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr, ?int $callback): bool
     {
         $tokens = $phpcsFile->getTokens();
+        $floor = $callback ?? 0;
 
-        for ($i = ($stackPtr - 1); $i > 0; $i--) {
+        for ($i = ($stackPtr - 1); $i > $floor; $i--) {
             $code = $tokens[$i]['code'];
 
             if ($code === T_CASE) {

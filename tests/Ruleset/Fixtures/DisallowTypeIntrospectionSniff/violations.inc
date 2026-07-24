@@ -72,4 +72,83 @@ final class Formatter
     {
         return $flag;
     }
+
+    /**
+     * A callback bounds the search, but it does not exempt one: a branch
+     * *inside* the closure is still a branch the check decides.
+     */
+    public function branchInsideAClosure(): callable
+    {
+        return function (object $value): string {
+            if ($value instanceof \Throwable) {
+                return 'error';
+            }
+
+            return 'value';
+        };
+    }
+
+    public function ternaryInsideAnArrowFunction(): callable
+    {
+        return fn (object $value): string => $value instanceof \Throwable ? 'error' : 'value';
+    }
+
+    public function matchArmInsideAClosure(): callable
+    {
+        return function (object $value): string {
+            return match (true) {
+                $value instanceof \Throwable => 'error',
+                default => 'value',
+            };
+        };
+    }
+
+    public function switchCaseInsideAClosure(): callable
+    {
+        return function (object $value): string {
+            switch (true) {
+                case $value instanceof \Throwable:
+                    return 'error';
+            }
+
+            return 'value';
+        };
+    }
+
+    /**
+     * A callback that has already closed bounds nothing. This branch sits
+     * after every closure above and in none of them, so it is reported like
+     * any other.
+     */
+    public function branchAfterAClosureHasClosed(object $value): string
+    {
+        if ($value instanceof \Throwable) {
+            return 'error';
+        }
+
+        return 'value';
+    }
+
+    /**
+     * A callback earlier in the *same* condition closes before the check, so
+     * it does not contain it: the check still decides this `if`.
+     */
+    public function branchBesideAClosedCallbackInTheSameCondition(object $value): string
+    {
+        if ($this->wrap((bool) array_map(fn ($item) => $item, [])) && $value instanceof \Throwable) {
+            return 'error';
+        }
+
+        return 'value';
+    }
+
+    /**
+     * The same shape in a ternary condition.
+     */
+    public function ternaryBesideAClosedCallback(object $value): string
+    {
+        return $this->wrap((bool) array_map(fn ($item) => $item, [])) && $value instanceof \Throwable
+            ? 'error'
+            : 'value';
+    }
 }
