@@ -18,9 +18,12 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 No existing PHPCS or Slevomat sniff matches this standard. PHPCS's configurable
 [`Generic.PHP.ForbiddenFunctions`](https://github.com/PHPCSStandards/PHP_CodeSniffer/blob/master/src/Standards/Generic/Sniffs/PHP/ForbiddenFunctionsSniff.php)
 comes closest — it can forbid `func_get_args()`, `func_get_arg()`, and
-`func_num_args()` by name — but it has no notion of the enclosing method, so it
-cannot honour the standard's stated exception: run against this standard's
-compliant fixture it reports four false positives, one for every magic method.
+`func_num_args()` by name — but it matches on the name alone, with no notion of
+the enclosing method or of what the name resolves to: run against this
+standard's compliant fixture it reports six false positives — four dynamic
+argument reads inside magic methods, the exception it cannot see, plus two
+same-named symbols it mistakes for calls, a `namespace\`-relative qualifier and
+a return-by-reference declaration.
 Slevomat ships no sniff covering dynamic argument lists at all. Rather than
 weaken the tests to fit, the standard is enforced by the custom
 `CleanCode.Methods.DeclaredParameters` sniff, wired into the master `rules.xml`
