@@ -151,4 +151,42 @@ final class Formatter
             ? 'error'
             : 'value';
     }
+
+    /**
+     * The branch-inside-a-callback cases above pair each construct with one
+     * callback form; these complete the grid with the other form.
+     *
+     * `if`/`elseif`/`while` and `switch`/`case` cannot be paired with an arrow
+     * function at all: `fn () =>` takes a single *expression*, and every one of
+     * those constructs is a statement, so PHP rejects the source outright
+     * (`syntax error, unexpected token "if"`). `match` and the ternary are
+     * expressions, which is why only they appear in arrow-function form here.
+     */
+    public function ternaryInsideAClosure(): callable
+    {
+        return function (object $value): string {
+            return $value instanceof \Throwable ? 'error' : 'value';
+        };
+    }
+
+    public function matchArmInsideAnArrowFunction(): callable
+    {
+        return fn (object $value): string => match (true) {
+            $value instanceof \Throwable => 'error',
+            default => 'value',
+        };
+    }
+
+    /**
+     * A `match` *subject* inside an arrow function. This is the only way an
+     * arrow function can hold a branch condition inside parentheses, so it
+     * stands in for the `if`/`while` pairings PHP's grammar rules out.
+     */
+    public function matchSubjectInsideAnArrowFunction(): callable
+    {
+        return fn (object $value): string => match ($value instanceof \Throwable) {
+            true => 'error',
+            default => 'value',
+        };
+    }
 }

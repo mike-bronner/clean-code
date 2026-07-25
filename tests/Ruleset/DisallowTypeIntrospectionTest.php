@@ -47,13 +47,20 @@ class DisallowTypeIntrospectionTest extends TestCase
         // if (11), elseif (13), ternary (22), match arms (28, and both
         // conditions of the multi-condition arm on 29), case label (37),
         // while (48), nested inside an if condition (59), and a ternary whose
-        // condition wraps the check in a call (68). Then the four branches
-        // that sit *inside* a callback — an if in a closure (83), a ternary in
-        // an arrow function (93), a match arm (100) and a case label (110) —
-        // which a callback bounding the search must still report, and a plain
-        // branch after every one of those callbacks has closed (125), plus a
-        // callback that closes earlier within the very same if (138) and
-        // ternary (150) condition — none of which a boundary may swallow.
+        // condition wraps the check in a call (68). Then the branches that sit
+        // *inside* a callback, which a callback bounding the search must still
+        // report — pairing each branching construct with both callback forms:
+        // if+closure (83), ternary+arrow fn (93) and ternary+closure (168),
+        // match arm+closure (100) and match arm+arrow fn (175), match
+        // subject+arrow fn (187), and case label+closure (110). The four
+        // absent pairings are not omissions: `if`/`elseif`/`while` and
+        // `switch`/`case` are statements, and an arrow function's body is a
+        // single expression, so PHP rejects that source at parse time — a
+        // match subject (187) is the only condition parenthesis an arrow
+        // function can hold. Finally a plain branch after every one of those
+        // callbacks has closed (125), plus a callback that closes earlier
+        // within the very same if (138) and ternary (150) condition — none of
+        // which a boundary may swallow.
         $this->assertSame(
             [
                 ['line' => 11, 'column' => 20, 'source' => $code],
@@ -73,6 +80,9 @@ class DisallowTypeIntrospectionTest extends TestCase
                 ['line' => 125, 'column' => 20, 'source' => $code],
                 ['line' => 138, 'column' => 78, 'source' => $code],
                 ['line' => 150, 'column' => 81, 'source' => $code],
+                ['line' => 168, 'column' => 27, 'source' => $code],
+                ['line' => 175, 'column' => 20, 'source' => $code],
+                ['line' => 187, 'column' => 60, 'source' => $code],
             ],
             $this->violations($file)
         );

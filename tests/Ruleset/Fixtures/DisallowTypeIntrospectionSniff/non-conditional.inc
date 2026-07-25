@@ -189,7 +189,7 @@ final class Reporter
     /**
      * A callback inside a `while` condition.
      */
-    public function closureInsideAWhileCondition(array $values): string
+    public function arrowFnInsideAWhileCondition(array $values): string
     {
         while (array_filter($values, fn (object $value): bool => is_a($value, \Throwable::class))) {
             array_pop($values);
@@ -201,7 +201,7 @@ final class Reporter
     /**
      * A callback inside a `switch` subject.
      */
-    public function closureInsideASwitchSubject(array $values): string
+    public function arrowFnInsideASwitchSubject(array $values): string
     {
         switch (count(array_filter($values, fn (object $value): bool => $value instanceof \Throwable))) {
             case 0:
@@ -214,7 +214,7 @@ final class Reporter
     /**
      * A callback inside a `match` subject.
      */
-    public function closureInsideAMatchSubject(array $values): string
+    public function arrowFnInsideAMatchSubject(array $values): string
     {
         return match (count(array_map(fn (object $value): string => get_class($value), $values))) {
             0 => 'none',
@@ -226,7 +226,7 @@ final class Reporter
      * A callback inside a ternary's condition — the `?` belongs to the caller,
      * not to the arrow function.
      */
-    public function closureInsideATernaryCondition(array $values): string
+    public function arrowFnInsideATernaryCondition(array $values): string
     {
         return array_filter($values, fn (object $value): bool => $value instanceof \Throwable)
             ? 'some'
@@ -236,7 +236,7 @@ final class Reporter
     /**
      * A callback inside a `match` arm's condition.
      */
-    public function closureInsideAMatchArmCondition(array $values): string
+    public function arrowFnInsideAMatchArmCondition(array $values): string
     {
         return match (true) {
             array_filter($values, fn (object $value): bool => $value instanceof \Throwable) !== [] => 'some',
@@ -249,7 +249,7 @@ final class Reporter
      * return type on purpose: a `: bool` would end the backward walk at its
      * own colon, hiding whether the callback boundary is what stopped it.
      */
-    public function closureInsideASwitchCaseLabel(array $values): string
+    public function arrowFnInsideASwitchCaseLabel(array $values): string
     {
         switch (1) {
             case count(array_filter($values, fn ($value) => gettype($value) === 'object')):
@@ -262,7 +262,7 @@ final class Reporter
     /**
      * The same, with `instanceof` rather than an introspection function.
      */
-    public function closureInsideASwitchCaseLabelWithInstanceof(array $values): string
+    public function arrowFnInsideASwitchCaseLabelWithInstanceof(array $values): string
     {
         switch (1) {
             case count(array_filter($values, fn ($value) => $value instanceof \Throwable)):
@@ -276,7 +276,7 @@ final class Reporter
      * A callback assigned to a variable, then used in a condition: the same
      * predicate, merely defined outside the condition's parentheses.
      */
-    public function closureByVariable(array $values): string
+    public function arrowFnByVariable(array $values): string
     {
         $isError = fn (object $value): bool => $value instanceof \Throwable;
 
