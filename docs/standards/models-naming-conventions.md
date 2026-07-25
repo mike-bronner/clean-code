@@ -56,7 +56,7 @@ class is ordinary code, and holding it to the `find` prefix would be noise.
 
 | Code | Flags |
 | --- | --- |
-| `BooleanPropertyPrefix` | A `bool`-typed property whose name is not a yes/no question (`$published`). |
+| `BooleanPropertyPrefix` | A `bool`-typed property whose name is not a yes/no question (`$published`), declared in the class body or promoted from a constructor parameter. |
 | `BooleanMethodPrefix` | A `bool`-returning method whose name is not a yes/no question (`expired()`). |
 | `FindMethodPrefix` | A method returning a single model instance without the `find` prefix (`fetchUser(): User`). |
 | `FindModelName` | A `find` method that does not name the model it returns (`findByName(): User`). |
@@ -71,11 +71,20 @@ not.
 
 A return type is read as **a collection** when its short name is `Collection`,
 `LazyCollection`, or `Enumerable`; as **a model** when it is `self`, `static`,
-`$this`, or `parent`, or when it resolves — through the file's `use` statements
-(plain and group form), through an already-qualified name, or through the
-enclosing namespace — into a namespace carrying a `Models` segment. Nullable
-types are read as the type they wrap (`?User` and `User|null` both describe a
-`User`).
+`$this`, or `parent`, or when it resolves into a namespace carrying a `Models`
+segment. Nullable types are read as the type they wrap (`?User` and `User|null`
+both describe a `User`).
+
+Resolution follows PHP's own rules, in this order:
+
+1. a **fully qualified** name (leading `\`) stands as written and consults
+   neither the imports nor the enclosing namespace — `\DateTime` is the global
+   class even in a file that aliases a model onto that name;
+2. otherwise the name's **first segment** is resolved through the file's `use`
+   statements (plain and group form), which covers both a short name (`User`)
+   and a qualified one (`Domain\Models\Account` under `use App\Domain;`);
+3. anything still unresolved is prefixed with the **enclosing namespace**,
+   PHP's fallback for an unimported name.
 
 ### Behavior notes (asserted by the test suite)
 
@@ -96,6 +105,13 @@ types are read as the type they wrap (`?User` and `User|null` both describe a
   `Illuminate\Database\Eloquent\Casts\Attribute`, outside any `Models`
   namespace. Eloquent's own `getAttribute()` is not read as a legacy accessor
   either — there is no attribute name between `get` and `Attribute`.
+- **Promoted constructor properties are checked like any other property.** The
+  ruleset also references
+  `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion` (#47), so
+  running the fixer rewrites class-body properties into promoted ones; a check
+  blind to that shape would let `composer fix` erase its own findings.
+  A plain parameter carries no visibility modifier, declares no property, and is
+  left alone.
 - **Magic methods and Eloquent override points are exempt**: anything named
   `__*`, plus `newCollection`, `newModelInstance`, `newFromBuilder`,
   `newInstance`, `newPivot`, `newRelatedInstance`, `replicate`, `fresh`, and
@@ -113,4 +129,13 @@ types are read as the type they wrap (`?User` and `User|null` both describe a
   models extend a local `BaseModel` outside a `Models` namespace goes
   unrecognised; putting models under `App\Models` (or extending an Eloquent
   base directly) is what the rule keys on.
+- **Booleans exposed through the endorsed `Attribute` syntax are not
+  prefix-checked.** `active(): Attribute` returns an `Attribute`, not a `bool`,
+  and the idiomatic closure inside it (`get: fn () => …`) is usually untyped —
+  there is no declared `bool` to key the yes/no rule on.
+- **The base-class signal applies to the enclosing class only, never to a return
+  type.** A class *extending* `Model` is recognised as a model, but a method
+  returning one (`fetchThing(): Thing`, where `Thing extends Model` elsewhere)
+  is not: PHPCS reads one file at a time and cannot follow `Thing` to its
+  declaration. A return type is judged by its namespace alone.
 - **Traits and enums are not inspected**, only classes.
