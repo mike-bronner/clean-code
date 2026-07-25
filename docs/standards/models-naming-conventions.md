@@ -85,9 +85,9 @@ not.
 
 A return type is read as **a collection** when it resolves to a class whose
 short name is `Collection`, `LazyCollection`, or `Enumerable`; as **a model**
-when it is `self`, `static`, `$this`, or `parent`, or when it resolves into a
-namespace carrying a `Models` segment. Nullable types are read as the type they
-wrap (`?User` and `User|null` both describe a `User`).
+when it is `self`, `static`, or `parent`, or when it resolves into a namespace
+carrying a `Models` segment. Nullable types are read as the type they wrap
+(`?User` and `User|null` both describe a `User`).
 
 ### Resolution
 
@@ -109,6 +109,21 @@ Resolution follows PHP's own rules, in this order:
 3. anything still unresolved is prefixed with the **enclosing namespace**,
    PHP's fallback for an unimported name.
 
+Resolution is **case-insensitive**, because PHP resolves class names,
+namespaces and `use` aliases that way: `ApiToken` reaches
+`use App\Models\APIToken;`, and `extends eloquentmodel` reaches the alias
+`EloquentModel`. Matching on source casing would miss the import and silently
+fall through to namespace-qualification, which both hides violations (a model
+reached through a mis-cased base goes dark entirely) and invents them (a
+mis-cased alias becomes a name under `App\Models`, so a value object is read as
+a model).
+
+**Judging is the mirror image, and stays case-sensitive.** The yes/no prefixes,
+the `find`/`get` prefixes, and the model name a `find` method must contain are
+all spellings a developer chose: `ispublished` does not satisfy `is`, and
+`findApiToken(): APIToken` is asked to spell the model as `APIToken`. The rule
+is *identify by folding case, judge without*.
+
 `use function` and `use const` import from PHP's separate function and constant
 tables, never a type, so they are skipped and can never redirect a return type.
 That holds for each shape the marker takes: on one item of a mixed group
@@ -123,9 +138,9 @@ That holds for each shape the marker takes: on one item of a mixed group
   yes/no prefix family that `has` belongs to and leaves the tense of
   `hasExpired()` vs. `hasExpire()` to code review.
 - **The `find` + model-name check only fires when the model is knowable.**
-  `self`, `static`, `$this`, and `parent` name no model, so those methods need
-  the prefix and nothing more. The model name may appear anywhere after `find`
-  — `findOldestUser(): User` passes.
+  `self`, `static`, and `parent` name no model, so those methods need the prefix
+  and nothing more. The model name may appear anywhere after `find` —
+  `findOldestUser(): User` passes.
 - **A collection return type names no model**, so `GetMethodPrefix` checks the
   prefix only.
 - **Relationship methods are untouched.** `comments(): HasMany` returns a
@@ -135,6 +150,11 @@ That holds for each shape the marker takes: on one item of a mixed group
   `Illuminate\Database\Eloquent\Casts\Attribute`, outside any `Models`
   namespace. Eloquent's own `getAttribute()` is not read as a legacy accessor
   either — there is no attribute name between `get` and `Attribute`.
+- **The legacy accessor is matched case-insensitively.** Eloquent finds an
+  accessor with `method_exists($this, 'get' . Str::studly($key) . 'Attribute')`,
+  and `method_exists()` folds case, so `getFooattribute()` is a *live* accessor
+  for `foo` and is flagged as one. Nothing else in the ruleset would catch it:
+  it is valid PSR-1 camelCase.
 - **Promoted constructor properties are checked like any other property.** The
   ruleset also references
   `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion` (#47), so
@@ -145,7 +165,10 @@ That holds for each shape the marker takes: on one item of a mixed group
 - **Magic methods and Eloquent override points are exempt**: anything named
   `__*`, plus `newCollection`, `newModelInstance`, `newFromBuilder`,
   `newInstance`, `newPivot`, `newRelatedInstance`, `replicate`, `fresh`, and
-  `refresh` — renaming those would break the override.
+  `refresh` — renaming those would break the override. The exemption is matched
+  case-insensitively, because PHP dispatches methods that way: `newcollection()`
+  really does override `newCollection()`, and telling its author to rename it
+  would break the override while reverting Eloquent to its default collection.
 
 ## Deliberate blind spots
 
