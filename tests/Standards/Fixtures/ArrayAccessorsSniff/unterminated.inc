@@ -17,3 +17,11 @@ $dynamic = $order->{
 // walk would find the pattern's `]` and take $collected for a destructuring
 // target, dropping the read on a statement PHP rejects anyway.
 [$collected['first'] . foo(] = $source;
+
+
+// A chain can be truncated at the operator itself, with no member following it
+// at all. Nothing then distinguishes a property from a method call, exactly as
+// with line 10's unresolvable brace pair, so it is reported on the same
+// principle rather than dropped. Deliberately the last line in the file: any
+// token after the operator would be taken for the member.
+$truncated = $order->

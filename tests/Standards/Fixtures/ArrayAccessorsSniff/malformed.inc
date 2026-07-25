@@ -10,3 +10,10 @@ declare(strict_types=1);
 // Reporting on ambiguity is the safe direction for a linter.
 $first = doSomething($payload['key']) = $default;
 $second = doSomething($payload['key']);
+
+// The same parse error one construct up, where the parentheses do have an
+// owner. `list(...)` is the only owning construct that closes a destructuring
+// pattern, so an `if`'s `)` must be rejected on the owner's type rather than on
+// merely having one -- accepting any owned parenthesis would read the `=` as
+// assigning to the condition and drop the read.
+if ($payload['key']) = $default;

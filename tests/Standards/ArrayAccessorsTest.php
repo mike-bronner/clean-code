@@ -14,10 +14,13 @@ use PHPUnit\Framework\TestCase;
  * Accessors, #33). Fixtures live in Fixtures/ArrayAccessorsSniff/ beside this
  * file: compliant data_get() usage in passing.inc, the constructs the standard
  * deliberately leaves alone in boundaries.inc, and the flagged reads in
- * failing.inc. Two fixtures cover input PHP itself would reject, which the
- * sniff must report rather than drop: unterminated.inc for a bracket that
- * never closes, malformed.inc for a statement that parses to nonsense. The
- * rule is detection-only, so there are no autofix fixtures.
+ * failing.inc. Three fixtures cover input PHP itself would reject, which the
+ * sniff must handle rather than fall over on: unterminated.inc for a bracket,
+ * brace, or operator that never completes, trailing-variable.inc for a file
+ * ending mid-statement on a bare variable, and malformed.inc for a statement
+ * that parses to nonsense. tokenizer-limits.inc records a PHP_CodeSniffer
+ * defect the sniff cannot see past. The rule is detection-only, so there are no
+ * autofix fixtures.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -56,6 +59,12 @@ class ArrayAccessorsTest extends TestCase
      * pattern targets. A `data_get()` rewrite of any of them either loses the
      * assignment or drops the reference, so flagging one leaves the developer
      * with no compliant form of the statement.
+     *
+     * The `++` and `&` targets appear twice, plainly and behind a `$` sigil.
+     * Both operators precede the chain, so they are only visible from the
+     * chain's root — and a variable-variable roots at the sigil, not at the name
+     * it dereferences. Rooting at the name hides both operators and flags two
+     * writes as reads.
      *
      * One of those targets is deliberately a scope's last statement. Deciding
      * a `foreach` or destructuring target means looking past the chain for the
@@ -117,8 +126,10 @@ class ArrayAccessorsTest extends TestCase
                 117 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 118 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 125 => [self::SNIFF_CODE . '.DirectArrayAccess'],
-                146 => [self::SNIFF_CODE . '.DirectArrayAccess'],
-                149 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                143 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                159 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                174 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                177 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -163,6 +174,12 @@ class ArrayAccessorsTest extends TestCase
      * PHP_CodeSniffer tokenizes files mid-edit, where an accessor's bracket or
      * dynamic-member brace may never close. The sniff must survive the missing
      * `bracket_closer` and still report the read rather than let it through.
+     *
+     * Line 27 truncates a chain at the operator itself, leaving no member at
+     * all. That is the same ambiguity as line 10's unclosed brace one step
+     * earlier -- neither resolves to a property or a method call -- so the two
+     * must agree, and reporting is the safe direction for a linter. Dropping it
+     * would make the sniff quieter on the more truncated of the two.
      */
     public function testAnUnterminatedChainIsReportedWithoutFallingOver(): void
     {
@@ -173,6 +190,7 @@ class ArrayAccessorsTest extends TestCase
                 9 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 10 => [self::SNIFF_CODE . '.DirectPropertyAccess'],
                 19 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                27 => [self::SNIFF_CODE . '.DirectPropertyAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -298,7 +316,7 @@ class ArrayAccessorsTest extends TestCase
      * - 109/112/118, a closure and a static closure whose bodies carry `return
      *   ...;` — the `;` that bounded the search before.
      * - 125, an anonymous class with a whole method body in the offset.
-     * - 146/149, the dynamic-member column, whose offset sits in a brace.
+     * - 174/177, the dynamic-member column, whose offset sits in a brace.
      *
      * Counts are asserted alongside columns so the write half stays pinned:
      * flagging `$target`/`$order` too would report twice and fail here.
@@ -316,8 +334,8 @@ class ArrayAccessorsTest extends TestCase
             117 => 55,
             118 => 59,
             125 => 32,
-            146 => 62,
-            149 => 73,
+            174 => 62,
+            177 => 73,
         ];
 
         foreach ($columnsByLine as $line => $column) {
@@ -379,6 +397,14 @@ class ArrayAccessorsTest extends TestCase
      * parentheses close a destructuring pattern, so the trailing `=` says
      * nothing about the argument. It reports exactly as its well-formed
      * counterpart on line 12 does.
+     *
+     * The two lines differ in what makes the parentheses ineligible, which is
+     * why both are here. Line 11's belong to an ordinary call and have no
+     * owning construct at all; line 19's `if ($payload['key']) = $default`
+     * *has* an owner, just not `list()`. Testing the owner's type rather than
+     * its presence is the only thing keeping line 19's read reported — accept
+     * any owned parenthesis and the `=` is read as assigning to the condition,
+     * silently dropping it.
      */
     public function testAMalformedAssignmentStillReportsItsRead(): void
     {
@@ -388,9 +414,64 @@ class ArrayAccessorsTest extends TestCase
             [
                 11 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 12 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                19 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
+    }
+
+    /**
+     * An existence check exempts what sits inside its own parentheses, not the
+     * condition around them. `if (isset($payload['present']) && $payload['live']
+     * === 'x')` (failing.inc:143) is the pairing that pins the scope: the
+     * `isset()` argument is silent while the read beside it reports, which is
+     * the read/exempt twin of testReadsBesideWritesAreStillFlagged.
+     *
+     * boundaries.inc covers the exempt half alone, so nothing there fails if the
+     * check widens from "inside the isset parentheses" to "anywhere in the
+     * enclosing condition". Here, widening it drops line 143 entirely.
+     */
+    public function testAReadBesideAnExistenceCheckIsStillFlagged(): void
+    {
+        $errors = $this->processFixture('failing.inc')->getErrors();
+
+        $this->assertCount(1, $errors[143]);
+        $this->assertSame(43, array_key_first($errors[143]));
+    }
+
+    /**
+     * A variable-variable roots the chain at its `$` sigil, not at the name the
+     * sigil dereferences: PHP 7's uniform variable syntax reads
+     * `$$name['key']` (failing.inc:159) as `($$name)['key']`.
+     *
+     * The message is asserted, not just the position, because the subject is
+     * the whole point. `$name` holds the *name* of the array, so advising
+     * `data_get($name, ...)` would send the developer to search a string, which
+     * always returns the fallback — advice that cannot be applied is worse than
+     * none. Column 16 is the sigil; the variable begins at 17.
+     */
+    public function testAVariableVariableChainIsReportedAtItsSigil(): void
+    {
+        $errors = $this->processFixture('failing.inc')->getErrors();
+
+        $this->assertCount(1, $errors[159]);
+        $this->assertSame(16, array_key_first($errors[159]));
+        $this->assertStringContainsString('data_get($$name, ...)', $errors[159][16][0]['message']);
+    }
+
+    /**
+     * A file can end on a bare variable with no accessor after it to classify,
+     * and the sniff must pass over it. The guard doing so is not decorative:
+     * `readAccessCode()` takes an int, so without it the missing accessor
+     * arrives as `false` and the sniff dies with a TypeError — this test errors
+     * rather than fails if the guard is removed.
+     */
+    public function testAFileEndingOnABareVariableIsNotReported(): void
+    {
+        $file = $this->processFixture('trailing-variable.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
     }
 
     /**
@@ -401,7 +482,7 @@ class ArrayAccessorsTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(37, $file->getErrorCount());
+        $this->assertSame(39, $file->getErrorCount());
         $this->assertSame(0, $file->getFixableCount());
     }
 

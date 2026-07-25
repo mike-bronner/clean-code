@@ -132,6 +132,34 @@ class ArrayAccessorsFailing
     }
 
     /**
+     * A read stays reportable beside an existence check. `isset()` exempts what
+     * sits inside its own parentheses, not the rest of the condition around
+     * them: only $payload['present'] asks whether an element exists, while
+     * $payload['live'] reads one and is the missing-element case the standard
+     * is about.
+     */
+    public function readsBesideAnExistenceCheck(array $payload): bool
+    {
+        if (isset($payload['present']) && $payload['live'] === 'x') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * The chain root takes in the `$` sigils in front of the variable: PHP 7's
+     * uniform variable syntax reads this as `($$name)['key']`, so the read is
+     * reported at the sigil and names $$name -- what data_get() has to be
+     * handed. Naming $name instead would advise searching the *name* of the
+     * array rather than the array, which no fallback can rescue.
+     */
+    public function readsThroughAVariableVariable(string $name): string
+    {
+        return $$name['key'];
+    }
+
+    /**
      * The dynamic-member half of the same table: an offset built inside
      * `$order->{...}` with a brace or a statement of its own. These are last in
      * the class and followed by no further statement on purpose -- see

@@ -18,7 +18,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * A violation is reported once per accessor chain, at the variable the chain is
  * rooted in: `$payload['address']['city']` and `$order->customer->name` are one
  * diagnostic each, not one per link, because a single `data_get()` call
- * replaces the whole chain.
+ * replaces the whole chain. Any `$` sigils in front of the variable are part of
+ * that root — PHP 7's uniform variable syntax reads `$$name['key']` as
+ * `($$name)['key']`, so the chain is rooted in the variable-variable `$$name`
+ * and `data_get($$name, ...)` is what replaces it.
  *
  * Only *read* access is flagged. These constructs are deliberately left alone:
  *
@@ -179,10 +182,14 @@ class ArrayAccessorsSniff implements Sniff
             return;
         }
 
-        if ($this->isChainMember($phpcsFile, $stackPtr) === true) {
+        $rootPtr = $this->chainRoot($phpcsFile, $stackPtr);
+
+        if ($this->isChainMember($phpcsFile, $rootPtr) === true) {
             return;
         }
 
+        // The accessor follows the variable, not the chain root: the `$` sigils
+        // of a variable-variable precede the name they dereference.
         $accessorPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
         if ($accessorPtr === false) {
@@ -195,22 +202,73 @@ class ArrayAccessorsSniff implements Sniff
             return;
         }
 
-        if ($this->isWriteTarget($phpcsFile, $stackPtr) === true) {
+        if ($this->isWriteTarget($phpcsFile, $rootPtr, $stackPtr) === true) {
             return;
         }
 
-        if ($this->isInsideExistenceCheck($phpcsFile, $stackPtr) === true) {
+        if ($this->isInsideExistenceCheck($phpcsFile, $rootPtr) === true) {
             return;
         }
 
-        $variable = $tokens[$stackPtr]['content'];
+        $variable = $this->chainRootName($phpcsFile, $rootPtr, $stackPtr);
 
         $phpcsFile->addError(
             self::MESSAGES[$errorCode],
-            $stackPtr,
+            $rootPtr,
             $errorCode,
             [$variable, $variable]
         );
+    }
+
+    /**
+     * Returns the token the accessor chain is rooted in: the variable itself,
+     * unless `$` sigils precede it. PHP 7's uniform variable syntax reads
+     * `$$name['key']` left to right as `($$name)['key']`, so the chain is rooted
+     * in the variable-variable rather than in the name it dereferences.
+     *
+     * Stopping at the name instead would break the diagnostic in both
+     * directions. It would name the wrong subject — `$name` holds the *name* of
+     * the array, so `data_get($name, 'key')` searches a string and always
+     * returns the fallback, advice the developer cannot apply. And it would hide
+     * the tokens that precede the sigil from isWriteTarget(), reporting
+     * `++$$name['key']` and `$ref = &$$name['key']` as reads when both are
+     * writes.
+     */
+    private function chainRoot(File $phpcsFile, int $stackPtr): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $rootPtr = $stackPtr;
+
+        while (true) {
+            $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($rootPtr - 1), null, true);
+
+            if ($previousPtr === false || $tokens[$previousPtr]['code'] !== T_DOLLAR) {
+                return $rootPtr;
+            }
+
+            $rootPtr = $previousPtr;
+        }
+    }
+
+    /**
+     * The chain root's source text, which is what the message tells the
+     * developer to pass to `data_get()`: the variable, behind whatever `$`
+     * sigils root it. The tokens are concatenated rather than the span measured,
+     * because whitespace is legal between a sigil and what it dereferences
+     * (`$ $name`).
+     */
+    private function chainRootName(File $phpcsFile, int $rootPtr, int $stackPtr): string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $name = '';
+
+        for ($ptr = $rootPtr; $ptr <= $stackPtr; $ptr++) {
+            if (isset(Tokens::$emptyTokens[$tokens[$ptr]['code']]) === false) {
+                $name .= $tokens[$ptr]['content'];
+            }
+        }
+
+        return $name;
     }
 
     /**
@@ -219,11 +277,14 @@ class ArrayAccessorsSniff implements Sniff
      * diagnostic for the whole chain, so the link is skipped to avoid a second
      * one. A static property (`self::$registry`) is *not* a link — nothing
      * precedes it that could be reported instead — so it roots its own chain.
+     *
+     * Asked of the chain root rather than the variable, so the sigils of a
+     * variable-variable do not stand between the two and hide the operator.
      */
-    private function isChainMember(File $phpcsFile, int $stackPtr): bool
+    private function isChainMember(File $phpcsFile, int $rootPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($rootPtr - 1), null, true);
 
         if ($previousPtr === false) {
             return false;
@@ -253,8 +314,13 @@ class ArrayAccessorsSniff implements Sniff
 
         $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($accessorPtr + 1), null, true);
 
+        // A file being edited can end on the operator itself, leaving no member
+        // to tell a property from a method call. Nothing distinguishes the two,
+        // so the access is reported on the same principle as the unresolvable
+        // brace pair below: a linter reports on ambiguity rather than assuming
+        // the ambiguous case harmless.
         if ($memberPtr === false) {
-            return null;
+            return 'DirectPropertyAccess';
         }
 
         $memberEndPtr = $memberPtr;
@@ -299,11 +365,16 @@ class ArrayAccessorsSniff implements Sniff
      * alike: `$target[$key['idx']]` names one write and one read. They are
      * therefore decided together by enclosureVerdict(), whose innermost
      * enclosing construct wins.
+     *
+     * The window opens at the chain root and the chain is walked from the
+     * variable: `$` sigils sit between the two, so an operator before them is
+     * only visible from the root, while the accessors that follow are only
+     * reachable from the variable.
      */
-    private function isWriteTarget(File $phpcsFile, int $stackPtr): bool
+    private function isWriteTarget(File $phpcsFile, int $rootPtr, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($rootPtr - 1), null, true);
 
         if ($previousPtr !== false) {
             // Pre-increment/decrement: `++$array['key']`.
@@ -346,7 +417,7 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        return $this->enclosureVerdict($phpcsFile, $stackPtr) === self::VERDICT_TARGET;
+        return $this->enclosureVerdict($phpcsFile, $rootPtr) === self::VERDICT_TARGET;
     }
 
     /**
@@ -375,12 +446,12 @@ class ArrayAccessorsSniff implements Sniff
      * inside one and the brace ending it is not the end of the enclosing
      * expression.
      */
-    private function enclosureVerdict(File $phpcsFile, int $stackPtr): ?string
+    private function enclosureVerdict(File $phpcsFile, int $rootPtr): ?string
     {
-        $searchPtr = $stackPtr;
+        $searchPtr = $rootPtr;
 
-        while (($closerPtr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $searchPtr)) !== false) {
-            $verdict = $this->classifyEnclosure($phpcsFile, $stackPtr, $closerPtr);
+        while (($closerPtr = $this->findEnclosingCloser($phpcsFile, $searchPtr)) !== false) {
+            $verdict = $this->classifyEnclosure($phpcsFile, $rootPtr, $closerPtr);
 
             if ($verdict !== null) {
                 return $verdict;
@@ -396,7 +467,7 @@ class ArrayAccessorsSniff implements Sniff
      * Classifies a single enclosing construct by its closer, or null when it
      * decides nothing and the walk should step over it.
      */
-    private function classifyEnclosure(File $phpcsFile, int $stackPtr, int $closerPtr): ?string
+    private function classifyEnclosure(File $phpcsFile, int $rootPtr, int $closerPtr): ?string
     {
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$closerPtr]['code'];
@@ -418,7 +489,7 @@ class ArrayAccessorsSniff implements Sniff
                 : null;
         }
 
-        if ($this->isForeachTargetClause($phpcsFile, $stackPtr, $closerPtr) === true) {
+        if ($this->isForeachTargetClause($phpcsFile, $rootPtr, $closerPtr) === true) {
             return self::VERDICT_TARGET;
         }
 
@@ -440,7 +511,7 @@ class ArrayAccessorsSniff implements Sniff
      * Only the clause after `as` is a target; the subject before it
      * (`foreach ($payload['rows'] as $row)`) is a read and stays reportable.
      */
-    private function isForeachTargetClause(File $phpcsFile, int $stackPtr, int $closerPtr): bool
+    private function isForeachTargetClause(File $phpcsFile, int $rootPtr, int $closerPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
@@ -452,7 +523,7 @@ class ArrayAccessorsSniff implements Sniff
         $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
         $asPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
 
-        return $asPtr !== false && $asPtr < $stackPtr;
+        return $asPtr !== false && $asPtr < $rootPtr;
     }
 
     /**
@@ -549,7 +620,7 @@ class ArrayAccessorsSniff implements Sniff
      *
      * @return int|false
      */
-    private function findEnclosingCloser(File $phpcsFile, int $stackPtr, int $searchPtr)
+    private function findEnclosingCloser(File $phpcsFile, int $searchPtr)
     {
         $tokens = $phpcsFile->getTokens();
         $ptr = $searchPtr;
@@ -639,11 +710,11 @@ class ArrayAccessorsSniff implements Sniff
      * Whether the access sits inside an existence check, which already answers
      * the missing-element question `data_get()`'s fallback is for.
      */
-    private function isInsideExistenceCheck(File $phpcsFile, int $stackPtr): bool
+    private function isInsideExistenceCheck(File $phpcsFile, int $rootPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
-        foreach (array_keys($tokens[$stackPtr]['nested_parenthesis'] ?? []) as $openerPtr) {
+        foreach (array_keys($tokens[$rootPtr]['nested_parenthesis'] ?? []) as $openerPtr) {
             $ownerPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
 
             if ($ownerPtr === false) {

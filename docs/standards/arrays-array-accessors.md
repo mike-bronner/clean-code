@@ -36,7 +36,10 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   `data_get()` call, so it earns a single diagnostic:
   `$payload['address']['city']`, `$order->address->city`, and the mixed
   `$payload['items'][0]->name` are each reported once, at their root variable,
-  not once per link.
+  not once per link. Any `$` sigils in front of that variable belong to the
+  root: PHP 7's uniform variable syntax reads `$$name['key']` as
+  `($$name)['key']`, so the diagnostic names `$$name` — the thing `data_get()`
+  has to be handed — rather than `$name`, which holds only its name.
 - **Not flagged** — these constructs are outside the standard and are
   deliberately left untouched:
   - **Write-side access** (`$array['key'] = $value`, `$array['key'] .= $more`,
@@ -81,8 +84,9 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     type-agnostic lookup applies.
   - **Method calls** (`$object->method()`, `$object?->method()`) — an
     invocation of the object's own API, which `data_get()` does not resolve.
-- **Known blind spots** — three cases the token stream cannot express, accepted
-  rather than approximated:
+- **Known blind spots** — four cases accepted rather than approximated: three
+  the token stream cannot express, and one defect upstream in PHP_CodeSniffer's
+  own tokenizer:
   - Accessors inside interpolated strings (`"{$array['key']}"`) — PHP_CodeSniffer
     hands the whole string over as one token, so there is nothing to inspect.
   - Chains rooted in something that is not a variable (`foo()['key']`,
@@ -93,6 +97,15 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     `function bump(&$value)`) — the call site is a write, but only the callee's
     signature says so, and a sniff sees one file at a time. Such a call is
     reported as a read; silence would require cross-file analysis.
+  - A `foreach` whose target is a dynamic member holding a brace-bearing
+    expression (`foreach ($rows as $order->{match (true) { ... }})`) — the loop's
+    scope goes unrecorded, and the tokenizer then labels the *next* statement's
+    destructuring pattern as an index. That label is the only thing separating
+    an index (a read) from a pattern (a write), so that statement's write target
+    is reported as though it were an offset read. The mislabelling happens
+    before any sniff runs, so it is pinned in `tokenizer-limits.inc` — where an
+    upstream fix surfaces as a test failure — rather than worked around by
+    re-deriving the distinction from token data already known to be wrong.
 - **Auto-fixable — No (detection only).** Auto-fix scoping was investigated and
   rejected on two counts. First, the nested rewrite is lossy:
   `$payload['a']['b']` becomes `data_get($payload, 'a.b')`, and that dotted
@@ -105,12 +118,13 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   developer.
 
 Tests covering compliant `data_get()` usage, the out-of-scope boundary
-constructs, reads that sit beside a write without becoming one, reads computed
-inside a write target's offset, per-line violation reporting,
-one-diagnostic-per-chain, input PHP itself rejects (unterminated mid-edit
-chains and malformed statements), and the detection-only guarantee live at
-`tests/Standards/ArrayAccessorsTest.php`, with fixtures under
-`tests/Standards/Fixtures/ArrayAccessorsSniff/`.
+constructs, reads that sit beside a write or an existence check without becoming
+one, reads computed inside a write target's offset, per-line violation
+reporting, one-diagnostic-per-chain, input PHP itself rejects (chains left
+mid-edit on an unclosed bracket, brace, or bare `->`, files ending on a bare
+variable, and malformed statements), the tokenizer defect above, and the
+detection-only guarantee live at `tests/Standards/ArrayAccessorsTest.php`, with
+fixtures under `tests/Standards/Fixtures/ArrayAccessorsSniff/`.
 
 ## What remains code review
 

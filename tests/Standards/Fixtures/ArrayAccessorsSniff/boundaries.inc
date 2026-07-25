@@ -44,6 +44,20 @@ class ArrayAccessorsBoundaries
         return $payload;
     }
 
+    // The same writes behind a `$` sigil. The operator that marks them sits
+    // before the sigil rather than before the variable, so a chain rooted at
+    // $name cannot see it: `++` and `&` would both be missed and the writes
+    // flagged as reads. The trailing assignment needs no sigil handling -- it
+    // is decided by the `=` after the chain -- and is here to show the three
+    // spellings agree.
+    public function writesThroughAVariableVariable(string $name): void
+    {
+        ++$$name['counter'];
+        $reference = &$$name['bound'];
+        $reference = 'set';
+        $$name['assigned'] = 'set';
+    }
+
     public function assignsForeachTargets(array $rows): array
     {
         $collected = [];
