@@ -73,3 +73,34 @@ function chainedReceiversAreNeverRewritten(Collection $collection, callable $cal
 {
     return count($collection->filter($callback)) + count($collection->unlessEmpty($callback));
 }
+
+// Every rebinding construct below leaves the name holding something that is not
+// a Collection, so phpcbf must leave all of these byte-for-byte alone. Rewritten,
+// each one is a runtime fatal rather than a style change.
+function rebindingConstructsAreNeverRewritten(array $groups, array $rows, string $subject): int
+{
+    $data = collect($rows);
+    [$data, $offset] = [$rows, 1];
+    $total = count($data) + $offset;
+
+    foreach ($groups as $data) {
+        $total += count($data);
+    }
+
+    try {
+        throw new RuntimeException('failed');
+    } catch (RuntimeException $data) {
+        $total += (int) $data->getCode();
+    }
+
+    $captured = collect($rows);
+    $mutate = static function () use (&$captured): void {
+        $captured = [1, 2, 3];
+    };
+    $mutate();
+
+    $escaped = collect($rows);
+    preg_match('/[a-z]+/', $subject, $escaped);
+
+    return $total + count($captured) + count($escaped);
+}

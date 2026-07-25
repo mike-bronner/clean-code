@@ -23,6 +23,19 @@ use PHP_CodeSniffer\Util\Tokens;
  * prove is left alone: this sniff never guesses, because a false accusation
  * trains people to ignore the rule — and a false accusation that `phpcbf` then
  * acts on rewrites working code into a fatal.
+ *
+ * That posture is enforced by two rules, and everything else here follows from
+ * them:
+ *
+ * - **A name is tracked only when every binding of it in the scope proved a
+ *   Collection** (see mapCollectionVariables()). Retirement is the default for
+ *   any construct that binds a name and cannot be read, and it applies to the
+ *   whole scope rather than from the failing binding onwards.
+ * - **The fixer only rewrites a receiver the tokens prove outright** (see
+ *   isFixable()). Where the sniff has inferred a type rather than proved one —
+ *   through TERMINAL_METHODS, or across a call that may take the variable by
+ *   reference — the finding is reported and left alone. An inference good
+ *   enough for a warning is not good enough to rewrite source.
  */
 class OnlyUseCollectionMethodsSniff implements Sniff
 {
@@ -201,6 +214,37 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     private array $importAliases = [];
 
     /**
+     * The lower-cased local names the file's `use function` imports bind, as
+     * name => imported short name. An unqualified call to one of these is the
+     * imported function, not the builtin it shadows: `use function
+     * App\Support\countDistinctTags as count;` makes a bare `count($c)` a call
+     * to `countDistinctTags()`, so rewriting it to `$c->count()` would silently
+     * change the answer. A fully-qualified `\count()` is unaffected — the
+     * leading separator pins it to the global function.
+     *
+     * @var array<string, string>
+     */
+    private array $functionImports = [];
+
+    /**
+     * Variables handed bare to a call the sniff cannot prove takes them by
+     * value, as scope => name => true. PHP lets any callee declare a parameter
+     * `&$x` and rebind the caller's variable through it, and neither a userland
+     * signature nor the by-reference builtins are knowable from this file's
+     * tokens.
+     *
+     * Rather than mirror PHP's by-reference builtins — a moving third-party API
+     * whose every omission would be a false positive — the sniff treats a bare
+     * variable handed to any *other* call as no longer provably unmutated, and
+     * collapses the severity: such a call is still reported, but never fixed.
+     * The seventeen functions this sniff reports on all take their arguments by
+     * value, so `count($c)` itself never escapes its own receiver.
+     *
+     * @var array<int, array<string, bool>>
+     */
+    private array $escapedVariables = [];
+
+    /**
      * The file's arrow functions, as the token range of each one's body plus
      * the parameters it declares, mapped to whether each is a Collection.
      *
@@ -238,8 +282,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // Order matters: the alias map decides what counts as a Collection type
         // hint, which the arrow-function table records, which the variable map
         // consults.
-        $this->importAliases = $this->mapImportAliases($phpcsFile);
+        [$this->importAliases, $this->functionImports] = $this->mapImports($phpcsFile);
         $this->arrowFunctions = $this->mapArrowFunctions($phpcsFile);
+        $this->escapedVariables = $this->mapEscapedVariables($phpcsFile);
 
         $this->flagGenericCalls($phpcsFile, $this->mapCollectionVariables($phpcsFile));
 
@@ -291,42 +336,60 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * Maps the file's class imports by the name the code actually uses, so an
-     * aliased import is judged by the class it names rather than by its alias:
-     * `use …\Collection as Coll` makes `Coll::make()` a Collection, and
-     * `use …\Arr as RowCollection` stops `RowCollection::wrap()` looking like
-     * one.
+     * Maps the file's imports by the name the code actually uses, so an aliased
+     * import is judged by what it names rather than by its alias.
      *
-     * @return array<string, string>
+     * Class imports decide what counts as a Collection: `use …\Collection as
+     * Coll` makes `Coll::make()` a Collection, and `use …\Arr as
+     * RowCollection` stops `RowCollection::wrap()` looking like one.
+     *
+     * Function imports decide what counts as a *builtin*: an unqualified name a
+     * `use function` import has bound is that function, not the global one it
+     * shadows, so the sniff must leave it alone.
+     *
+     * @return array{0: array<string, string>, 1: array<string, string>}
+     *     the class aliases and the function imports, both keyed by lower-cased
+     *     local name
      */
-    private function mapImportAliases(File $phpcsFile): array
+    private function mapImports(File $phpcsFile): array
     {
         $tokens = $phpcsFile->getTokens();
-        $aliases = [];
+        $classes = [];
+        $functions = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
-            if ($tokens[$ptr]['code'] !== T_USE || $this->isClassImport($phpcsFile, $ptr) === false) {
+            if ($tokens[$ptr]['code'] !== T_USE) {
                 continue;
             }
 
-            $end = $this->statementEnd($phpcsFile, ($ptr + 1));
+            $kind = $this->importKind($phpcsFile, $ptr);
+            $end = $kind === null ? null : $this->statementEnd($phpcsFile, ($ptr + 1));
 
             if ($end === null) {
                 continue;
             }
 
-            $this->collectImportAliases($phpcsFile, ($ptr + 1), ($end - 1), $aliases);
+            $names = [];
+            $this->collectImportAliases($phpcsFile, ($ptr + 1), ($end - 1), $names);
+
+            if ($kind === 'function') {
+                $functions = array_merge($functions, $names);
+            } else {
+                $classes = array_merge($classes, $names);
+            }
+
             $ptr = $end;
         }
 
-        return $aliases;
+        return [$classes, $functions];
     }
 
     /**
-     * Whether the T_USE at $usePtr imports classes, as opposed to pulling in a
-     * trait, capturing a closure's variables, or importing functions/constants.
+     * What the T_USE at $usePtr imports — 'class' or 'function' — or null when
+     * it imports nothing the sniff cares about: a trait `use`, a closure's
+     * capture list, or a `use const`.
      */
-    private function isClassImport(File $phpcsFile, int $usePtr): bool
+    private function importKind(File $phpcsFile, int $usePtr): ?string
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -334,19 +397,23 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // only enclosing construct an import can legitimately sit in.
         foreach ($tokens[$usePtr]['conditions'] ?? [] as $code) {
             if ($code !== T_NAMESPACE) {
-                return false;
+                return null;
             }
         }
 
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
 
         if ($next === false || $tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
-            return false;
+            return null;
         }
 
         // Matched on content: `function`/`const` after `use` tokenise
         // differently across PHPCS versions, but never read otherwise.
-        return in_array(strtolower($tokens[$next]['content']), ['const', 'function'], true) === false;
+        return match (strtolower($tokens[$next]['content'])) {
+            'const' => null,
+            'function' => 'function',
+            default => 'class',
+        };
     }
 
     /**
@@ -414,12 +481,28 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * one function is not mistaken for the Collection of the same name in
      * another.
      *
+     * The map is consulted *position-insensitively*: flagGenericCalls() judges
+     * every call site in a scope against the finished map, not against the
+     * state of the walk at that line. Two rules follow from that, and together
+     * they are what keeps the fixer off code it cannot prove:
+     *
+     * - **Retirement is the default.** Every construct that binds a name and
+     *   cannot be proved to bind a Collection retires the name. An assignment
+     *   target the sniff cannot fully parse retires too — it never steps over
+     *   one, because stepping over leaves the *previous* binding standing and
+     *   the fixer then trusts it.
+     * - **Retirement is sticky.** A name is tracked only if *every* binding of
+     *   it in the scope proved a Collection. Retiring only from that point on
+     *   would leave `$c = [1, 2]; count($c); $c = collect([1, 2]);` flagging —
+     *   and rewriting — a call that operates on the array.
+     *
      * @return array<int, array<string, bool>>
      */
     private function mapCollectionVariables(File $phpcsFile): array
     {
         $tokens = $phpcsFile->getTokens();
         $variables = [];
+        $retired = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
             // Arrow-function parameters are deliberately absent here: they bind
@@ -427,52 +510,366 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             // in $this->arrowFunctions instead (see mapArrowFunctions()).
             if (in_array($tokens[$ptr]['code'], [T_CLOSURE, T_FUNCTION], true) === true) {
                 $this->addTypeHintedParameters($phpcsFile, $ptr, $variables);
+                $this->retireReferenceCaptures($phpcsFile, $ptr, $variables, $retired);
 
                 continue;
             }
 
-            if ($tokens[$ptr]['code'] !== T_EQUAL) {
-                continue;
-            }
-
-            $target = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
-
-            if ($target === false || $this->isLocalVariableTarget($phpcsFile, $target) === false) {
-                continue;
-            }
-
-            $scope = $this->scopeOf($phpcsFile, $target);
-            $name = $tokens[$target]['content'];
-
-            // A conditional assignment says nothing about what the variable
-            // holds at the call site: the branch may not have run, and the
-            // branch next door may assign something else entirely. Rather than
-            // let the textually last write win — which would flag, and offer to
-            // "fix", code that is correct at runtime — the name is retired.
-            if ($this->isUnconditionalAssignment($phpcsFile, $target, $scope) === false) {
-                unset($variables[$scope][$name]);
+            if (in_array($tokens[$ptr]['code'], [T_CATCH, T_FOREACH], true) === true) {
+                $this->retireBoundClause($phpcsFile, $ptr, $variables, $retired);
 
                 continue;
             }
 
-            $end = $this->statementEnd($phpcsFile, ($ptr + 1));
-
-            if ($end === null) {
-                continue;
-            }
-
-            if ($this->isCollectionExpression($phpcsFile, ($ptr + 1), ($end - 1), $variables) === true) {
-                $variables[$scope][$name] = true;
+            if (in_array($tokens[$ptr]['code'], [T_GLOBAL, T_STATIC], true) === true) {
+                $this->retireDeclaredVariables($phpcsFile, $ptr, $variables, $retired);
 
                 continue;
             }
 
-            // Reassignment to a non-Collection retires the tracking, so later
-            // calls on the same name are not misreported.
-            unset($variables[$scope][$name]);
+            if (isset(Tokens::$assignmentTokens[$tokens[$ptr]['code']]) === true) {
+                $this->recordAssignment($phpcsFile, $ptr, $variables, $retired);
+            }
+        }
+
+        return $this->withoutRetired($variables, $retired);
+    }
+
+    /**
+     * Records what the assignment operator at $ptr binds: a Collection the
+     * tokens prove, or — in every other case — a retirement.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function recordAssignment(File $phpcsFile, int $ptr, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $target = $phpcsFile->findStartOfStatement($ptr);
+
+        // Destructuring binds several names at once out of an expression whose
+        // shape the sniff does not model, so every target it names is retired.
+        if (in_array($tokens[$target]['code'], [T_LIST, T_OPEN_SHORT_ARRAY], true) === true) {
+            $closer = $tokens[$target]['bracket_closer'] ?? $tokens[$target]['parenthesis_closer'] ?? null;
+
+            if ($closer !== null) {
+                $this->retireRange($phpcsFile, $target, $closer, $variables, $retired);
+            }
+
+            return;
+        }
+
+        // Anything other than a lone local variable on the left — a property
+        // write, an index write, a static property — is a target the sniff
+        // cannot fully parse. The name the target *starts* with is the one
+        // being written through, so that is the one retired.
+        if (
+            $this->isLocalVariableTarget($phpcsFile, $target) === false
+            || $phpcsFile->findNext(Tokens::$emptyTokens, ($target + 1), $ptr, true) !== false
+        ) {
+            $this->retireVariable($phpcsFile, $target, $variables, $retired);
+
+            return;
+        }
+
+        $scope = $this->scopeOf($phpcsFile, $target);
+        $name = $tokens[$target]['content'];
+
+        // A compound assignment (`.=`, `+=`, `??=`) combines the name's own
+        // prior value with something else; only a plain `=` states outright
+        // what the name now holds.
+        //
+        // A conditional assignment says nothing about what the variable holds
+        // at the call site either: the branch may not have run, and the branch
+        // next door may assign something else entirely. Rather than let the
+        // textually last write win — which would flag, and offer to "fix", code
+        // that is correct at runtime — the name is retired.
+        if (
+            $tokens[$ptr]['code'] !== T_EQUAL
+            || $this->isUnconditionalAssignment($phpcsFile, $target, $scope) === false
+        ) {
+            $this->retire($scope, $name, $variables, $retired);
+
+            return;
+        }
+
+        $end = $this->statementEnd($phpcsFile, ($ptr + 1));
+
+        // An unterminated statement is an expression the sniff cannot read, so
+        // it retires rather than leaves the previous binding standing.
+        if (
+            $end === null
+            || $this->isCollectionExpression($phpcsFile, ($ptr + 1), ($end - 1), $variables) === false
+        ) {
+            $this->retire($scope, $name, $variables, $retired);
+
+            return;
+        }
+
+        $variables[$scope][$name] = true;
+    }
+
+    /**
+     * Retires every name a `foreach` or `catch` clause binds.
+     *
+     * `foreach` binds everything after its `as` — value, key, and destructuring
+     * targets alike — and nothing before it, so the collection being iterated
+     * keeps its tracking. `catch` binds the one variable it names.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retireBoundClause(File $phpcsFile, int $ptr, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $opener = $tokens[$ptr]['parenthesis_opener'] ?? null;
+        $closer = $tokens[$ptr]['parenthesis_closer'] ?? null;
+
+        if ($opener === null || $closer === null) {
+            return;
+        }
+
+        if ($tokens[$ptr]['code'] === T_FOREACH) {
+            $opener = $phpcsFile->findNext(T_AS, ($opener + 1), $closer);
+
+            if ($opener === false) {
+                return;
+            }
+        }
+
+        $this->retireRange($phpcsFile, $opener, $closer, $variables, $retired);
+    }
+
+    /**
+     * Retires every name a `global` or `static` declaration binds. Both rebind
+     * an already-assigned local — the name stops referring to whatever was
+     * assigned to it and starts referring to the global, or to the function's
+     * own static.
+     *
+     * `static` is only such a declaration when a variable follows it:
+     * `static function`, `static::`, `static fn` and a static closure all reuse
+     * the keyword and bind nothing.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retireDeclaredVariables(File $phpcsFile, int $ptr, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
+
+        if ($next === false || $tokens[$next]['code'] !== T_VARIABLE) {
+            return;
+        }
+
+        $end = $this->statementEnd($phpcsFile, $next);
+
+        if ($end !== null) {
+            $this->retireRange($phpcsFile, $next, $end, $variables, $retired);
+        }
+    }
+
+    /**
+     * Retires every name a closure captures by reference, in the scope the
+     * closure sits in. The callee is right there in the same file, but *when*
+     * it runs is not: a `use (&$rows)` closure invoked later rebinds `$rows` at
+     * a point no token records, so the capture alone retires the name.
+     *
+     * By-value captures bind a copy and leave the outer name alone.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retireReferenceCaptures(File $phpcsFile, int $ptr, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$ptr]['parenthesis_closer'] ?? null;
+        $bodyStart = $tokens[$ptr]['scope_opener'] ?? null;
+
+        if ($closer === null || $bodyStart === null) {
+            return;
+        }
+
+        $use = $phpcsFile->findNext(T_USE, ($closer + 1), $bodyStart);
+
+        if ($use === false) {
+            return;
+        }
+
+        $captureOpener = $phpcsFile->findNext(Tokens::$emptyTokens, ($use + 1), $bodyStart, true);
+        $captureCloser = $captureOpener === false
+            ? null
+            : ($tokens[$captureOpener]['parenthesis_closer'] ?? null);
+
+        if ($captureCloser === null) {
+            return;
+        }
+
+        // The capture list sits outside the closure body, so scopeOf() on a
+        // name in it already resolves to the enclosing scope — the one the
+        // rebinding will be seen from.
+        for ($current = $captureOpener; $current <= $captureCloser; $current++) {
+            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($current - 1), $captureOpener, true);
+
+            if (
+                $tokens[$current]['code'] === T_VARIABLE
+                && $previous !== false
+                && $tokens[$previous]['code'] === T_BITWISE_AND
+            ) {
+                $this->retireVariable($phpcsFile, $current, $variables, $retired);
+            }
+        }
+    }
+
+    /**
+     * Retires every variable named in the inclusive token range.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retireRange(File $phpcsFile, int $start, int $end, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($ptr = $start; $ptr <= $end; $ptr++) {
+            if ($tokens[$ptr]['code'] === T_VARIABLE) {
+                $this->retireVariable($phpcsFile, $ptr, $variables, $retired);
+            }
+        }
+    }
+
+    /**
+     * Retires the variable at $ptr in the scope it belongs to. A name reached
+     * through `::` is a static property, not a local, and retiring it would
+     * poison the unrelated local that happens to share its name.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retireVariable(File $phpcsFile, int $ptr, array &$variables, array &$retired): void
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if ($tokens[$ptr]['code'] !== T_VARIABLE || $this->isLocalVariableTarget($phpcsFile, $ptr) === false) {
+            return;
+        }
+
+        $this->retire($this->scopeOf($phpcsFile, $ptr), $tokens[$ptr]['content'], $variables, $retired);
+    }
+
+    /**
+     * Retires $name in $scope, both for the rest of this walk and for the
+     * finished map. Dropping it from the live map matters as much as recording
+     * it: an assignment further down that reads the name (`$copy = $rows;`)
+     * must not inherit a binding that a construct above already invalidated.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     */
+    private function retire(int $scope, string $name, array &$variables, array &$retired): void
+    {
+        unset($variables[$scope][$name]);
+
+        $retired[$scope][$name] = true;
+    }
+
+    /**
+     * Drops every retired name from the finished map, so a name that any
+     * binding failed to prove is untracked throughout its scope rather than
+     * from the failing binding onwards.
+     *
+     * @param array<int, array<string, bool>> $variables
+     * @param array<int, array<string, bool>> $retired
+     *
+     * @return array<int, array<string, bool>>
+     */
+    private function withoutRetired(array $variables, array $retired): array
+    {
+        foreach ($retired as $scope => $names) {
+            if (isset($variables[$scope]) === true) {
+                $variables[$scope] = array_diff_key($variables[$scope], $names);
+            }
         }
 
         return $variables;
+    }
+
+    /**
+     * Maps every variable handed bare to a call the sniff cannot prove takes it
+     * by value, as scope => name => true. See $escapedVariables for why the
+     * result collapses the severity of a call rather than silencing it.
+     *
+     * @return array<int, array<string, bool>>
+     */
+    private function mapEscapedVariables(File $phpcsFile): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $escaped = [];
+
+        for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
+            if ($tokens[$ptr]['code'] !== T_OPEN_PARENTHESIS || isset($tokens[$ptr]['parenthesis_closer']) === false) {
+                continue;
+            }
+
+            if ($this->isByValueCallOpener($phpcsFile, $ptr) === true) {
+                continue;
+            }
+
+            foreach ($this->argumentRanges($phpcsFile, $ptr) as $argument) {
+                $variable = $this->bareVariable($phpcsFile, $argument[0], $argument[1]);
+
+                if ($variable !== null) {
+                    $escaped[$this->scopeOf($phpcsFile, $variable)][$tokens[$variable]['content']] = true;
+                }
+            }
+        }
+
+        return $escaped;
+    }
+
+    /**
+     * Whether the parenthesis at $ptr is one whose arguments provably cannot be
+     * rebound: a parameter list rather than a call, or a call to one of the
+     * seventeen functions this sniff reports on — all of which take their
+     * arguments by value, which is what keeps `count($c)` from escaping its own
+     * receiver.
+     */
+    private function isByValueCallOpener(File $phpcsFile, int $ptr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
+
+        if ($callee === false || in_array($tokens[$callee]['code'], [T_STRING, T_VARIABLE], true) === false) {
+            return true;
+        }
+
+        // A declaration's parameter list, not a call: its variables are the
+        // callee's own, and addTypeHintedParameters() has already judged them.
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true);
+
+        if ($before !== false && in_array($tokens[$before]['code'], [T_FN, T_FUNCTION], true) === true) {
+            return true;
+        }
+
+        return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]);
+    }
+
+    /**
+     * The variable the inclusive token range consists of, or null when the
+     * range is anything other than a single bare variable. Only a bare variable
+     * can be passed by reference; `f($c->all())` and `f([$c])` hand over a
+     * value, which no callee can rebind.
+     */
+    private function bareVariable(File $phpcsFile, int $start, int $end): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $first = $phpcsFile->findNext(Tokens::$emptyTokens, $start, ($end + 1), true);
+
+        if ($first === false || $tokens[$first]['code'] !== T_VARIABLE) {
+            return null;
+        }
+
+        return $phpcsFile->findNext(Tokens::$emptyTokens, ($first + 1), ($end + 1), true) === false ? $first : null;
     }
 
     /**
@@ -586,7 +983,27 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     ): bool {
         return in_array($function, self::FIXABLE_FUNCTIONS, true) === true
             && count($arguments) === 1
-            && $this->isUnchainedCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables);
+            && $this->isUnchainedCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables)
+            && $this->isUnescapedReceiver($phpcsFile, $collectionArgument[0], $collectionArgument[1]);
+    }
+
+    /**
+     * Whether the receiver spanning [$start, $end] is free of the by-reference
+     * doubt mapped by mapEscapedVariables(): a variable handed bare to some
+     * other call may have been rebound through a `&$parameter` since, so it is
+     * proven at its assignment but not at this call site.
+     */
+    private function isUnescapedReceiver(File $phpcsFile, int $start, int $end): bool
+    {
+        $variable = $this->bareVariable($phpcsFile, $start, $end);
+
+        if ($variable === null) {
+            return true;
+        }
+
+        $scope = $this->scopeOf($phpcsFile, $variable);
+
+        return isset($this->escapedVariables[$scope][$phpcsFile->getTokens()[$variable]['content']]) === false;
     }
 
     /**
@@ -1106,7 +1523,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
     /**
      * Whether the T_STRING at $stackPtr is a call to a global function rather
-     * than a method call, a static call, or a declaration.
+     * than a method call, a static call, a declaration, or a function the file
+     * imported under that name.
      */
     private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
@@ -1114,7 +1532,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if ($prev === false) {
-            return true;
+            return $this->isUnshadowedName($phpcsFile, $stackPtr);
         }
 
         if (in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true) {
@@ -1122,7 +1540,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         if ($tokens[$prev]['code'] !== T_NS_SEPARATOR) {
-            return true;
+            return $this->isUnshadowedName($phpcsFile, $stackPtr);
         }
 
         // A leading "\" still resolves to the global function; a preceding name
@@ -1131,6 +1549,19 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         return $beforeSeparator === false
             || in_array($tokens[$beforeSeparator]['code'], [T_NAMESPACE, T_STRING], true) === false;
+    }
+
+    /**
+     * Whether the unqualified name at $stackPtr still refers to the global
+     * function of that name. A `use function … as count;` import rebinds the
+     * name for the whole file, so a bare `count($c)` calls the import — and
+     * rewriting it to `$c->count()` would change the answer without so much as
+     * a warning. Only unqualified names can be shadowed this way; the caller
+     * has already resolved the fully-qualified form.
+     */
+    private function isUnshadowedName(File $phpcsFile, int $stackPtr): bool
+    {
+        return isset($this->functionImports[strtolower($phpcsFile->getTokens()[$stackPtr]['content'])]) === false;
     }
 
     /**

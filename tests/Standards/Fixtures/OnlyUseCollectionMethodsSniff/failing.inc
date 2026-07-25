@@ -104,3 +104,77 @@ function chainedReceiversAreReportedButNeverFixable(Collection $collection, arra
         count(collect($rows)->map(static fn (string $row): string => $row)),
     ];
 }
+
+// PHP lets any callee rebind a caller's variable through a `&$parameter`, and
+// neither a userland signature nor the by-reference builtins are knowable from
+// this file's tokens. Mirroring PHP's by-reference builtins would be another
+// moving third-party API whose every omission is a false positive, so a bare
+// variable handed to any other call is instead treated as no longer provably
+// unmutated: still reported, never rewritten. The severity collapses rather
+// than relocating.
+function byReferenceArgumentsAreReportedButNeverFixable(Collection $collection, string $subject): array
+{
+    receivesByReference($collection);
+    preg_match('/[a-z]+/', $subject, $collection);
+
+    return [
+        count($collection),
+        array_sum($collection),
+    ];
+}
+
+function receivesByReference(mixed &$target): void
+{
+    $target = [1, 2, 3];
+}
+
+// Retirement has to be aimed at the names a construct actually binds. The three
+// below sit next to a construct that retires *something*, and must survive it:
+// each is still a Collection at the call, so each stays reported and fixable.
+// Retiring too broadly would silence them, which no error count would reveal.
+
+// A foreach binds the names after `as`, and reads the subject. Iterating a
+// Collection must not retire the Collection.
+function foreachSubjectKeepsItsTracking(Collection $data): int
+{
+    $total = 0;
+
+    foreach ($data as $row) {
+        $total += (int) $row;
+    }
+
+    return $total + count($data);
+}
+
+// A by-value capture binds a copy inside the closure and leaves the outer name
+// alone; only `&` rebinds it.
+function valueCaptureLeavesTheOuterNameAlone(Collection $data): int
+{
+    $read = static function () use ($data): int {
+        return $data->count();
+    };
+
+    return $read() + count($data);
+}
+
+// A declaration's parameter list is not a call, so an untyped parameter later
+// assigned a Collection is not treated as having escaped by reference.
+function untypedParameterAssignedACollectionStaysFixable(array $rows, $data): int
+{
+    $data = collect($rows);
+
+    return count($data);
+}
+
+// A declaration's parameter list is not a call. Treated as one, the parameter
+// name below would register as having escaped by reference — and because a
+// parameter token resolves to the *file* scope rather than the function's, it
+// would land in the same bucket as the file-scope Collection of that name and
+// quietly cost it its autofix.
+function declaresAParameterSharingAFileScopeName($tally): void
+{
+    unset($tally);
+}
+
+$tally = collect([1, 2]);
+$fileScopeTotal = count($tally);

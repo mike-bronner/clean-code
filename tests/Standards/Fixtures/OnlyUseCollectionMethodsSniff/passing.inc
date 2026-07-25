@@ -250,3 +250,163 @@ function terminalAliasesEndTheChain(Collection $collection, callable $callback):
         + count($collection->reduceWithKeys($callback, 0))
         + count($collection->getOrPut('total', 0));
 }
+
+// A binding is only as good as the constructs that can undo it. Everything
+// below rebinds a tracked name through something that is not a plain
+// assignment, so each one has to retire the name: by the time the generic call
+// runs the variable holds something that is not a Collection. Left tracked,
+// every one of these is a call phpcbf would rewrite into a runtime fatal.
+
+function listDestructuringRetiresItsTargets(array $rows): int
+{
+    $data = collect($rows);
+    [$data, $offset] = [$rows, 1];
+
+    return count($data) + $offset;
+}
+
+function listConstructDestructuringRetiresItsTargets(array $rows): int
+{
+    $data = collect($rows);
+    list($data, $offset) = [$rows, 1];
+
+    return count($data) + $offset;
+}
+
+function foreachValueRetiresTheLoopVariable(array $groups): int
+{
+    $data = collect([]);
+    $total = 0;
+
+    foreach ($groups as $data) {
+        $total += count($data);
+    }
+
+    return $total;
+}
+
+function foreachDestructuringRetiresEveryTarget(array $groups): int
+{
+    $data = collect([]);
+    $total = 0;
+
+    foreach ($groups as [$data, $weight]) {
+        $total += count($data) + $weight;
+    }
+
+    return $total;
+}
+
+function foreachKeyRetiresTheKeyVariable(array $groups): int
+{
+    $data = collect([]);
+    $total = 0;
+
+    foreach ($groups as $data => $weight) {
+        $total += count($data) + $weight;
+    }
+
+    return $total;
+}
+
+function catchRetiresTheCaughtVariable(array $rows): int
+{
+    $data = collect($rows);
+
+    try {
+        throw new RuntimeException('failed');
+    } catch (RuntimeException $data) {
+        return count($data->getMessage());
+    }
+}
+
+// The closure body rebinds the captured name, and when it runs is not knowable
+// from the tokens — the `&` in the capture list is the whole proof needed.
+function referenceCaptureRetiresTheCapturedName(array $rows): int
+{
+    $data = collect($rows);
+    $mutate = static function () use (&$data): void {
+        $data = [1, 2, 3];
+    };
+    $mutate();
+
+    return count($data);
+}
+
+// `global` and `static` both rebind an already-assigned local: the name stops
+// referring to the Collection and starts referring to the global or the
+// function's static.
+function globalRebindsTheName(array $rows): int
+{
+    $data = collect($rows);
+    global $data;
+
+    return count($data);
+}
+
+function staticRebindsTheName(array $rows): int
+{
+    $data = collect($rows);
+    static $data;
+
+    return count($data);
+}
+
+// A compound assignment combines the name's own prior value with something
+// else, so it never states outright that the name still holds a Collection.
+function compoundAssignmentRetiresTheName(array $rows): int
+{
+    $data = collect($rows);
+    $data .= 'suffix';
+
+    return count($data);
+}
+
+// `??=` is the compound assignment that looks most like a proof — the
+// right-hand side really is a Collection — but whether it ran at all depends on
+// the name's prior value, which is exactly what the sniff cannot see. Retiring
+// here is a deliberate false negative, and the safe direction to miss in.
+function coalescingAssignmentRetiresTheName(array $rows, $data): int
+{
+    $data ??= collect($rows);
+
+    return count($data);
+}
+
+// An index write is a target the sniff cannot fully parse, so it retires rather
+// than steps over. The container is in fact still a Collection here, so this is
+// another deliberate false negative — the price of never stepping over a write.
+function indexWriteRetiresTheContainer(array $rows): int
+{
+    $data = collect($rows);
+    $data[] = 'extra';
+
+    return count($data);
+}
+
+// Retirement is sticky: this call sits *before* the assignment that makes the
+// name a Collection, so judging the name by the file's last write would flag —
+// and rewrite — a call that operates on the array.
+function retirementAppliesToCallsBeforeTheCollectionAssignment(array $rows): int
+{
+    $data = $rows;
+    $total = count($data);
+    $data = collect($rows);
+
+    return $total + $data->count();
+}
+
+// A name copied out of one that another construct retires cannot inherit a
+// binding that construct invalidated.
+function copiesDoNotInheritARetiredBinding(array $groups, array $rows): int
+{
+    $data = collect($rows);
+
+    foreach ($groups as $data) {
+        $ignored = $data;
+    }
+
+    $copy = $data;
+
+    return count($copy) + count($ignored);
+}

@@ -50,6 +50,26 @@ class OnlyUseCollectionMethodsTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    /**
+     * A `use function … as count;` import rebinds the name for the whole file,
+     * so an unqualified `count($collection)` is the import rather than the
+     * builtin the sniff maps — and `count` is one of only two functions the
+     * fixer rewrites, so trusting the name alone turns a working call into a
+     * silently different answer.
+     *
+     * Both directions are pinned from one fixture: the two shadowed calls stay
+     * silent, and the fully-qualified `\count()` on line 33 is the builtin
+     * again and stays reported *and* fixable. Asserting only the silence would
+     * pass just as well if the sniff stopped reporting the file altogether.
+     */
+    public function testImportedFunctionsShadowTheBuiltinButQualifiedCallsDoNot(): void
+    {
+        $file = $this->processFixture('imported-function.inc');
+
+        $this->assertSame([33 => [self::SNIFF_CODE . '.Found']], $this->sourcesByLine($file->getErrors()));
+        $this->assertSame([33], $this->fixableLines($file->getErrors()));
+    }
+
     public function testEveryViolationIsFlaggedAtItsOwnLineWithTheExpectedCode(): void
     {
         $file = $this->processFixture('failing.inc');
@@ -84,6 +104,12 @@ class OnlyUseCollectionMethodsTest extends TestCase
                 93 => [self::SNIFF_CODE . '.Found'],
                 103 => [self::SNIFF_CODE . '.Found'],
                 104 => [self::SNIFF_CODE . '.Found'],
+                121 => [self::SNIFF_CODE . '.Found'],
+                122 => [self::SNIFF_CODE . '.Found'],
+                146 => [self::SNIFF_CODE . '.Found'],
+                157 => [self::SNIFF_CODE . '.Found'],
+                166 => [self::SNIFF_CODE . '.Found'],
+                180 => [self::SNIFF_CODE . '.Found'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -128,6 +154,12 @@ class OnlyUseCollectionMethodsTest extends TestCase
                 93 => 'count() => count()',
                 103 => 'count() => count()',
                 104 => 'count() => count()',
+                121 => 'count() => count()',
+                122 => 'array_sum() => sum()',
+                146 => 'count() => count()',
+                157 => 'count() => count()',
+                166 => 'count() => count()',
+                180 => 'count() => count()',
             ],
             $this->mappingsByLine($file->getErrors())
         );
@@ -145,13 +177,21 @@ class OnlyUseCollectionMethodsTest extends TestCase
      * report, not something to rewrite source on. They must report and stay
      * unfixable; if they ever appear below, an incomplete list can fatal a
      * codebase again.
+     *
+     * Lines 121-122 are the same collapse applied to by-reference mutation: the
+     * receiver was handed bare to a call that may carry a `&$parameter`, so it
+     * is proven at its assignment but not at the call site. Reported, never
+     * rewritten.
      */
     public function testOnlyProvablyTypedSingleArgumentCallsAreFixable(): void
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(28, $file->getErrorCount());
-        $this->assertSame([18, 31, 49, 81, 82, 92, 93], $this->fixableLines($file->getErrors()));
+        $this->assertSame(34, $file->getErrorCount());
+        $this->assertSame(
+            [18, 31, 49, 81, 82, 92, 93, 146, 157, 166, 180],
+            $this->fixableLines($file->getErrors())
+        );
     }
 
     /**
