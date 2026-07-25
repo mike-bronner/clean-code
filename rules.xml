@@ -116,6 +116,17 @@
     </rule>
 
     <!--
+        Collections: Only Use Collection Methods (#28) —
+        docs/standards/collections-only-use-collection-methods.md.
+
+        Enforced by the custom CleanCode.Collections.OnlyUseCollectionMethods
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; no third-party rule to wire in. Generic.PHP.ForbiddenFunctions
+        was evaluated and rejected: it forbids the named functions everywhere,
+        including on plain arrays, which this standard allows.
+    -->
+
+    <!--
         Arrays: Operator spacing & line breaks (#35) —
         docs/standards/arrays-operator-spacing-and-line-breaks.md.
 

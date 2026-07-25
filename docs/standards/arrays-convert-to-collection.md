@@ -21,7 +21,11 @@ native array-manipulation functions (`array_map()`, `array_filter()`,
 open parenthesis, not preceded by `->`, `::`, `new`, or `function` — and each
 has a direct Collection equivalent (`collect()->map()/filter()/reduce()`).
 Focused sniff issue:
-[#165](https://github.com/mike-bronner/phpcs-rules/issues/165).
+[#165](https://github.com/mike-bronner/phpcs-rules/issues/165). Its mirror
+image —the same functions applied to a value that is *already* a Collection —
+is [Collections: Only Use Collection
+Methods](collections-only-use-collection-methods.md), enforced today by
+`CleanCode.Collections.OnlyUseCollectionMethods`.
 
 - **Detection** — a global-scope call to a native array function from the
   configured list is flagged as a collection-pipeline candidate, with the
