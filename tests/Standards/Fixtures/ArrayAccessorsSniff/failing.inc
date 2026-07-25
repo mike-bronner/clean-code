@@ -88,4 +88,67 @@ class ArrayAccessorsFailing
 
         return [$target, $order];
     }
+
+    /**
+     * The same computed offsets, written with an expression that carries a `{}`
+     * or a `;` of its own. `match` arms, closures, and anonymous classes are
+     * expressions, so an offset may be built inside one -- and then neither the
+     * brace ending it nor the statement separator inside it ends the enclosing
+     * offset. A search that stopped at either would take the read for the
+     * target and drop it.
+     */
+    public function readsComputedIndexesSpanningBracesAndStatements(
+        array $payload,
+        array $rows,
+        array $source,
+        array $target
+    ): array {
+        foreach ($rows as $target[match (true) { default => $payload['matched'] }]) {
+        }
+
+        foreach ($rows as $target[(function () use ($payload) { return $payload['returned']; })()]) {
+        }
+
+        foreach ($rows as $target[(static function () use ($payload) { return $payload['static']; })()]) {
+        }
+
+        [$target[match (true) { default => $payload['first'] }]] = $source;
+        list($target[match (true) { default => $payload['second'] }]) = $source;
+        [$target[strtolower(match (true) { default => $payload['third'] })]] = $source;
+        list($target[(function () use ($payload) { return $payload['fourth']; })()]) = $source;
+
+        [
+            $target[
+                (new class () {
+                    public function pick(array $payload): string
+                    {
+                        return $payload['fifth'];
+                    }
+                })->pick($payload)
+            ],
+        ] = $source;
+
+        return $target;
+    }
+
+    /**
+     * The dynamic-member half of the same table: an offset built inside
+     * `$order->{...}` with a brace or a statement of its own. These are last in
+     * the class and followed by no further statement on purpose -- see
+     * tokenizer-limits.inc for the PHP_CodeSniffer scope-map defect this shape
+     * triggers in whatever follows it.
+     */
+    public function readsComputedDynamicMembersSpanningBraces(
+        array $payload,
+        array $rows,
+        object $order
+    ): object {
+        foreach ($rows as $order->{match (true) { default => $payload['member'] }}) {
+        }
+
+        foreach ($rows as $order->{(function () use ($payload) { return $payload['named']; })()}) {
+        }
+
+        return $order;
+    }
 }

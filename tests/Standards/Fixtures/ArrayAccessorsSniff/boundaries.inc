@@ -73,6 +73,36 @@ class ArrayAccessorsBoundaries
         }
     }
 
+    // The nesting can invert: a closure puts whole statements inside an
+    // accessor's offset, so a write target can sit *within* an index rather
+    // than around one. The target is still a target -- the `foreach`
+    // parentheses and the destructuring pattern each enclose it more tightly
+    // than the index brackets do. Deciding by the innermost enclosing construct
+    // keeps that straight; asking only "is an index bracket anywhere outside
+    // me?" would answer yes and flag a write.
+    public function assignsInsideAnAccessorOffset(array $rows, array $data, array $collected, array $source): array
+    {
+        $data[
+            (function () use ($rows, $collected) {
+                foreach ($rows as $collected['value']) {
+                }
+
+                return count($collected);
+            })()
+        ] = 'set';
+
+        $data[
+            (function () use ($source, $collected) {
+                [$collected['first']] = $source;
+                list($collected['second']) = $source;
+
+                return count($collected);
+            })()
+        ] = 'set';
+
+        return $data;
+    }
+
     public function checksExistence(array $payload, object $order): bool
     {
         if (isset($payload['name']) === true) {

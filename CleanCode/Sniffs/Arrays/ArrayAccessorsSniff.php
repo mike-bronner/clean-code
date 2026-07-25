@@ -44,7 +44,7 @@ use PHP_CodeSniffer\Util\Tokens;
  *   which `data_get()` does not resolve. A dynamic *property*
  *   (`$object->{$name}`) is a read and is flagged.
  *
- * Three blind spots follow from the token stream and are accepted: accessors
+ * Four blind spots follow from the token stream and are accepted: accessors
  * embedded in interpolated strings ("{$array['key']}") are a single string
  * token to PHP_CodeSniffer and cannot be inspected, a chain rooted in
  * anything other than a variable (`foo()['key']`, `self::CONSTANTS['key']`) has
@@ -52,6 +52,17 @@ use PHP_CodeSniffer\Util\Tokens;
  * parameter (`bump($array['key'])` where `function bump(&$value)`) is a write
  * that only the callee's signature reveals — a sniff sees one file, so the call
  * site is indistinguishable from a by-value read.
+ *
+ * The fourth is upstream: a `foreach` whose target is a dynamic member holding
+ * a brace-bearing expression (`$order->{match (true) { ... }}`) leaves
+ * PHP_CodeSniffer unable to record the loop's scope, and the tokenizer then
+ * labels the following statement's destructuring pattern T_OPEN_SQUARE_BRACKET
+ * rather than T_OPEN_SHORT_ARRAY. That label is the only thing separating an
+ * index (a read) from a pattern (a write), so the pattern's write target is
+ * reported as though it were an offset read. It is recorded in
+ * tokenizer-limits.inc rather than worked around: the mislabelling happens
+ * before any sniff runs, and reconstructing the distinction would mean
+ * re-deriving it from token data already known to be wrong.
  *
  * Detection only. A fixer would have to rewrite `$array['key']['nested']` to
  * `data_get($array, 'key.nested')`, which is unsafe on two counts: the dotted
@@ -74,6 +85,19 @@ class ArrayAccessorsSniff implements Sniff
     ];
 
     /**
+     * enclosureVerdict(): the enclosing construct assigns into the chain, so
+     * the chain is a write target.
+     */
+    private const VERDICT_TARGET = 'target';
+
+    /**
+     * enclosureVerdict(): the enclosing construct reads the chain to locate
+     * something else — an index or a dynamic member name — so the chain is a
+     * read even when that construct is itself written to.
+     */
+    private const VERDICT_OFFSET = 'offset';
+
+    /**
      * The property-access operators. `?->` is included: it guards against a
      * null *object*, not against a missing property, so the standard's fallback
      * argument applies to it just as it does to `->`.
@@ -81,15 +105,43 @@ class ArrayAccessorsSniff implements Sniff
     private const OBJECT_OPERATORS = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR];
 
     /**
-     * Every closer a construct enclosing an accessor chain can end with, so
-     * the walk outward from a chain sees each enclosing construct in turn
-     * rather than only the ones a given caller cares about.
+     * The openers matching the closers in self::SCAN_TOKENS. A construct that *opens*
+     * during the outward walk began after the chain's root, so it is a sibling:
+     * neither it nor anything inside it can enclose the chain, and the walk
+     * skips the whole span in one step. That is what makes an unbounded search
+     * affordable — over PHP_CodeSniffer's and Slevomat's ~15MB of source,
+     * scanning siblings token by token instead costs 10.8s against 6.4s.
+     *
+     * Jumping is also what lets the walk trust every closer it stops on: with
+     * each sibling skipped whole, a closer reached is necessarily an enclosing
+     * one.
+     *
+     * @var array<int, int|string>
      */
-    private const ENCLOSING_CLOSERS = [
+    private const ENCLOSING_OPENERS = [
+        T_OPEN_SQUARE_BRACKET,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_PARENTHESIS,
+        T_OPEN_CURLY_BRACKET,
+    ];
+
+    /**
+     * Every token the outward walk stops on: every closer a construct enclosing
+     * an accessor chain can end with — so the walk sees each enclosing construct
+     * in turn rather than only the ones a given verdict cares about — plus the
+     * self::ENCLOSING_OPENERS it jumps over.
+     *
+     * @var array<int, int|string>
+     */
+    private const SCAN_TOKENS = [
         T_CLOSE_SQUARE_BRACKET,
         T_CLOSE_SHORT_ARRAY,
         T_CLOSE_PARENTHESIS,
         T_CLOSE_CURLY_BRACKET,
+        T_OPEN_SQUARE_BRACKET,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_PARENTHESIS,
+        T_OPEN_CURLY_BRACKET,
     ];
 
     /**
@@ -240,13 +292,13 @@ class ArrayAccessorsSniff implements Sniff
      * closer, a `foreach` target has no assignment operator at all, and a
      * reference bind is marked by an `&` that precedes the chain.
      *
-     * The paths that read a token adjacent to the chain need no further
-     * qualification — a chain nested in another accessor's offset is adjacent
-     * to that accessor's `[` or `{`, never to an operator, so it is never
-     * mistaken for the target. The two paths that infer write-ness from an
-     * *enclosing* construct do: `$target[$key['idx']]` names one write target
-     * and one read, and only the outer chain is the target. Both are therefore
-     * gated on isNestedInAccessorOffset().
+     * A token adjacent to the chain settles the operator cases outright. The
+     * rest — a `foreach` target, a destructuring target, and the offset read
+     * that can sit inside either — are properties of a construct *enclosing*
+     * the chain, and one enclosing construct covers the target and its offset
+     * alike: `$target[$key['idx']]` names one write and one read. They are
+     * therefore decided together by enclosureVerdict(), whose innermost
+     * enclosing construct wins.
      */
     private function isWriteTarget(File $phpcsFile, int $stackPtr): bool
     {
@@ -272,80 +324,163 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        $isOffset = $this->isNestedInAccessorOffset($phpcsFile, $stackPtr);
-
-        if ($isOffset === false && $this->isForeachTarget($phpcsFile, $stackPtr) === true) {
-            return true;
-        }
-
         $endPtr = $this->findChainEnd($phpcsFile, $stackPtr);
         $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($endPtr + 1), null, true);
 
-        if ($nextPtr === false) {
-            return false;
-        }
+        if ($nextPtr !== false) {
+            $code = $tokens[$nextPtr]['code'];
 
-        $code = $tokens[$nextPtr]['code'];
-
-        if (in_array($code, [T_INC, T_DEC], true) === true) {
-            return true;
-        }
-
-        // T_DOUBLE_ARROW is a member of Tokens::$assignmentTokens, but a chain
-        // *followed* by `=>` is a read: the key of an array literal
-        // (`[$row['id'] => $row['name']]`) or a match arm's condition. The one
-        // construct where `=>` does mark a write — a `foreach` key target
-        // (`foreach ($rows as $out['key'] => $value)`) — is settled by
-        // isForeachTarget() above, so it is excluded here.
-        if ($code !== T_DOUBLE_ARROW && isset(Tokens::$assignmentTokens[$code]) === true) {
-            return true;
-        }
-
-        if ($isOffset === true) {
-            return false;
-        }
-
-        return $this->isDestructuringTarget($phpcsFile, $stackPtr, $endPtr);
-    }
-
-    /**
-     * Whether the chain is nested inside another accessor's index bracket or
-     * dynamic-member brace — the `$key` of `$target[$key['idx']]` or of
-     * `$order->{$key['name']}`. Such a chain is read to compute *where* the
-     * enclosing accessor points, so it stays a read even when that enclosing
-     * accessor is itself a write target: `foreach ($rows as $out[$key['idx']])`
-     * and `[$out[$key['idx']]] = $source` each write `$out` and read `$key`.
-     *
-     * The walk goes outward, one enclosing construct at a time, because the
-     * offset need not be the innermost one: an array literal or destructuring
-     * pattern and a parenthesised sub-expression are both transparent, so
-     * `[$out[trim($key['idx'])]] = $source` still nests the read. A curly brace
-     * that is not a dynamic member (a scope brace) ends the walk — the chain
-     * cannot be an offset of a construct it is not an expression inside.
-     */
-    private function isNestedInAccessorOffset(File $phpcsFile, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $searchPtr = $stackPtr;
-
-        while (($closerPtr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $searchPtr)) !== false) {
-            $code = $tokens[$closerPtr]['code'];
-
-            // An index closes with T_CLOSE_SQUARE_BRACKET; a short array or
-            // destructuring pattern closes with T_CLOSE_SHORT_ARRAY, so the
-            // two never blur.
-            if ($code === T_CLOSE_SQUARE_BRACKET) {
+            if (in_array($code, [T_INC, T_DEC], true) === true) {
                 return true;
             }
 
-            if ($code === T_CLOSE_CURLY_BRACKET) {
-                return $this->isDynamicMemberBrace($phpcsFile, $tokens[$closerPtr]['bracket_opener']);
+            // T_DOUBLE_ARROW is a member of Tokens::$assignmentTokens, but a
+            // chain *followed* by `=>` is a read: the key of an array literal
+            // (`[$row['id'] => $row['name']]`) or a match arm's condition. The
+            // one construct where `=>` does mark a write — a `foreach` key
+            // target (`foreach ($rows as $out['key'] => $value)`) — carries no
+            // assignment operator of its own, so excluding `=>` here leaves it
+            // to enclosureVerdict() rather than dropping it.
+            if ($code !== T_DOUBLE_ARROW && isset(Tokens::$assignmentTokens[$code]) === true) {
+                return true;
+            }
+        }
+
+        return $this->enclosureVerdict($phpcsFile, $stackPtr) === self::VERDICT_TARGET;
+    }
+
+    /**
+     * Classifies the chain by the nearest enclosing construct that settles what
+     * it is: VERDICT_TARGET when the construct assigns into the chain,
+     * VERDICT_OFFSET when the construct reads the chain to locate something
+     * else, and null when nothing enclosing it decides either way.
+     *
+     * The walk goes outward one construct at a time and the *innermost*
+     * decisive one wins, which is what keeps each verdict scoped to the
+     * construct that earned it. Both directions of the pairing matter:
+     *
+     * - `foreach ($rows as $out[$key['idx']])` writes `$out` and reads `$key`.
+     *   Walking out from `$key` meets the index `]` before the `foreach` `)`,
+     *   so the read is an offset; from `$out` the `]` is not enclosing at all,
+     *   so the `)` decides and it is a target.
+     * - `$data[fn () => foreach-target-in-a-closure] = 'x'` inverts the nesting:
+     *   walking out from the inner target meets the `foreach` `)` *before* the
+     *   enclosing index `]`, so it stays a target. A walk that asked only
+     *   "is an index bracket anywhere outside me?" would call it an offset and
+     *   flag a write.
+     *
+     * Every construct that decides nothing is transparent and the walk steps
+     * over it. That includes a scope brace: `match`, closures, arrow functions,
+     * and anonymous classes are all expressions, so an offset can be computed
+     * inside one and the brace ending it is not the end of the enclosing
+     * expression.
+     */
+    private function enclosureVerdict(File $phpcsFile, int $stackPtr): ?string
+    {
+        $searchPtr = $stackPtr;
+
+        while (($closerPtr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $searchPtr)) !== false) {
+            $verdict = $this->classifyEnclosure($phpcsFile, $stackPtr, $closerPtr);
+
+            if ($verdict !== null) {
+                return $verdict;
             }
 
             $searchPtr = ($closerPtr + 1);
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * Classifies a single enclosing construct by its closer, or null when it
+     * decides nothing and the walk should step over it.
+     */
+    private function classifyEnclosure(File $phpcsFile, int $stackPtr, int $closerPtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $code = $tokens[$closerPtr]['code'];
+
+        // An index closes with T_CLOSE_SQUARE_BRACKET; a short array or
+        // destructuring pattern closes with T_CLOSE_SHORT_ARRAY, so the two
+        // never blur. Being inside an index means being read to say *where*
+        // the enclosing accessor points — a read even when that accessor is
+        // itself written to.
+        if ($code === T_CLOSE_SQUARE_BRACKET) {
+            return self::VERDICT_OFFSET;
+        }
+
+        // A dynamic member name (`$order->{$key['name']}`) is the same offset
+        // in a brace. Any other curly brace decides nothing.
+        if ($code === T_CLOSE_CURLY_BRACKET) {
+            return $this->isDynamicMemberBrace($phpcsFile, $tokens[$closerPtr]['bracket_opener']) === true
+                ? self::VERDICT_OFFSET
+                : null;
+        }
+
+        if ($this->isForeachTargetClause($phpcsFile, $stackPtr, $closerPtr) === true) {
+            return self::VERDICT_TARGET;
+        }
+
+        if ($this->isAssignedPattern($phpcsFile, $closerPtr) === true) {
+            return self::VERDICT_TARGET;
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether the closer ends a `foreach`'s parentheses with the chain in its
+     * `as` clause, which assigns into the accessors it names: the value target
+     * (`foreach ($rows as $out['value'])`), the key target (`foreach ($rows as
+     * $out['key'] => $value)`), and any destructuring pattern (`foreach ($rows
+     * as [$out['a'], $out['b']])`). None of them carries an assignment operator
+     * an adjacent token could reveal.
+     *
+     * Only the clause after `as` is a target; the subject before it
+     * (`foreach ($payload['rows'] as $row)`) is a read and stays reportable.
+     */
+    private function isForeachTargetClause(File $phpcsFile, int $stackPtr, int $closerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
+
+        if ($ownerPtr === null || $tokens[$ownerPtr]['code'] !== T_FOREACH) {
+            return false;
+        }
+
+        $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
+        $asPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
+
+        return $asPtr !== false && $asPtr < $stackPtr;
+    }
+
+    /**
+     * Whether the closer ends a destructuring pattern that is assigned to —
+     * `[$array['a'], $array['b']] = $source`, `list($object->property) =
+     * $source`, `['x' => $array['a']] = $source`. Destructuring is write-side
+     * access, and `data_get()` cannot stand in for it any more than it can for
+     * a plain assignment target.
+     *
+     * A pattern *not* followed by `=` is an ordinary array literal, which
+     * decides nothing: the caller steps over it and keeps walking, so a
+     * pattern nested in another (`[[$array['a']]] = $source`) is still found.
+     */
+    private function isAssignedPattern(File $phpcsFile, int $closerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if ($this->isPatternCloser($phpcsFile, $closerPtr) === false) {
+            return false;
+        }
+
+        $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($closerPtr + 1), null, true);
+
+        // Destructuring assigns with `=`; PHP has no compound form of it. A
+        // pattern closed at the very end of a file being edited has no
+        // following token to test, so it decides nothing, the walk continues
+        // outward, and the read is reported — the safe direction for a linter.
+        return $nextPtr !== false && $tokens[$nextPtr]['code'] === T_EQUAL;
     }
 
     /**
@@ -364,116 +499,6 @@ class ArrayAccessorsSniff implements Sniff
         }
 
         return in_array($tokens[$previousPtr]['code'], self::OBJECT_OPERATORS, true);
-    }
-
-    /**
-     * Whether the chain sits in a `foreach`'s `as` clause, which assigns into
-     * the accessors it names: the value target (`foreach ($rows as
-     * $out['value'])`), the key target (`foreach ($rows as $out['key'] =>
-     * $value)`), and any destructuring pattern (`foreach ($rows as
-     * [$out['a'], $out['b']])`). None of them carries an assignment operator
-     * the trailing-token check could see.
-     *
-     * Only the clause after `as` is a target; the subject before it
-     * (`foreach ($payload['rows'] as $row)`) is a read and stays reportable.
-     *
-     * Position after `as` is necessary but not sufficient, so this answers
-     * only that half: in `foreach ($rows as $out[$key['idx']])` the clause
-     * names two chains and assigns into just one, the other being the offset
-     * it is written at. The caller settles that with
-     * isNestedInAccessorOffset(), which sees the index brackets a token's
-     * nested_parenthesis cannot.
-     */
-    private function isForeachTarget(File $phpcsFile, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-
-        // A token's nested_parenthesis only records matched pairs, so the
-        // opener's closer is always resolvable here.
-        foreach ($tokens[$stackPtr]['nested_parenthesis'] ?? [] as $openerPtr => $closerPtr) {
-            $ownerPtr = $tokens[$openerPtr]['parenthesis_owner'] ?? null;
-
-            if ($ownerPtr === null || $tokens[$ownerPtr]['code'] !== T_FOREACH) {
-                continue;
-            }
-
-            $asPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
-
-            if ($asPtr !== false && $asPtr < $stackPtr) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Whether the chain is an element of a destructuring pattern that is
-     * assigned to — `[$array['a'], $array['b']] = $source`,
-     * `list($object->property) = $source`, `['x' => $array['a']] = $source`.
-     * Destructuring is write-side access, and `data_get()` cannot stand in for
-     * it any more than it can for a plain assignment target.
-     *
-     * findChainEnd() stops at the chain's own closer, where the next token is
-     * the pattern's `,` or `]`, so the `=` governing the whole pattern is only
-     * reachable by walking out of each enclosing pattern in turn.
-     *
-     * Enclosure by a pattern is necessary but not sufficient, so this answers
-     * only that half: in `[$out[$key['idx']]] = $source` both chains sit
-     * inside the pattern and only `$out` is assigned into, `$key` being the
-     * offset it is written at. The caller settles that with
-     * isNestedInAccessorOffset() before the walk is trusted.
-     */
-    private function isDestructuringTarget(File $phpcsFile, int $stackPtr, int $chainEndPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $searchPtr = $chainEndPtr;
-
-        while (true) {
-            $closerPtr = $this->findEnclosingPatternCloser($phpcsFile, $stackPtr, $searchPtr);
-
-            if ($closerPtr === false) {
-                return false;
-            }
-
-            $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($closerPtr + 1), null, true);
-
-            // Destructuring assigns with `=`; PHP has no compound form of it.
-            // A pattern closed at the very end of a file being edited has no
-            // following token to test, so the walk continues outward, runs out
-            // of enclosing patterns, and the read is reported — the safe
-            // direction for a linter.
-            if ($nextPtr !== false && $tokens[$nextPtr]['code'] === T_EQUAL) {
-                return true;
-            }
-
-            // Not this pattern — try the one enclosing it (`[[$array['a']]]`).
-            $searchPtr = ($closerPtr + 1);
-        }
-    }
-
-    /**
-     * Returns the closer of the nearest destructuring pattern enclosing the
-     * chain, searching forward from $searchPtr, or false when no such pattern
-     * encloses it. Constructs that enclose the chain without being a pattern
-     * (an index, a call's parentheses) are stepped over, so the search
-     * continues outward past them.
-     *
-     * @return int|false
-     */
-    private function findEnclosingPatternCloser(File $phpcsFile, int $stackPtr, int $searchPtr)
-    {
-        $ptr = $searchPtr;
-
-        while (($ptr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $ptr)) !== false) {
-            if ($this->isPatternCloser($phpcsFile, $ptr) === true) {
-                return $ptr;
-            }
-
-            ++$ptr;
-        }
-
-        return false;
     }
 
     /**
@@ -509,10 +534,18 @@ class ArrayAccessorsSniff implements Sniff
 
     /**
      * Returns the closer of the nearest construct of any kind enclosing the
-     * chain, searching forward from $searchPtr and stopping at the end of the
-     * statement, or false when nothing encloses it. A closer whose opener
-     * precedes the chain's root is what makes the construct an enclosing one
-     * rather than a sibling.
+     * chain, searching forward from $searchPtr, or false when nothing encloses
+     * it. A closer whose opener precedes the chain's root is what makes the
+     * construct an enclosing one rather than a sibling.
+     *
+     * The search is deliberately unbounded. PHP_CodeSniffer's `$local` flag
+     * stops at the first `;` in the token stream regardless of nesting, which
+     * is not the end of the enclosing expression: an offset can hold a closure
+     * or anonymous class whose body has statements of its own
+     * (`$target[(function () { return $key['idx']; })()]`), and bounding the
+     * search there would hide the construct the chain is actually inside. No
+     * statement bound expressed in `;` can be correct for that reason, so the
+     * walk terminates only on running out of enclosing constructs.
      *
      * @return int|false
      */
@@ -521,17 +554,21 @@ class ArrayAccessorsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $ptr = $searchPtr;
 
-        while (($ptr = $phpcsFile->findNext(self::ENCLOSING_CLOSERS, $ptr, null, false, null, true)) !== false) {
-            // An unterminated construct in a file being edited has no opener
-            // recorded; it cannot be shown to enclose the chain, so it is
-            // stepped over and the read is reported.
-            $openerPtr = $tokens[$ptr]['bracket_opener'] ?? $tokens[$ptr]['parenthesis_opener'] ?? null;
-
-            if ($openerPtr !== null && $openerPtr < $stackPtr) {
+        while (($ptr = $phpcsFile->findNext(self::SCAN_TOKENS, $ptr)) !== false) {
+            if (in_array($tokens[$ptr]['code'], self::ENCLOSING_OPENERS, true) === false) {
                 return $ptr;
             }
 
-            ++$ptr;
+            $siblingCloserPtr = $tokens[$ptr]['bracket_closer'] ?? $tokens[$ptr]['parenthesis_closer'] ?? null;
+
+            // An unterminated sibling in a file being edited cannot be skipped,
+            // and the walk cannot tell what encloses the chain past it. It ends
+            // here and the read is reported — the safe direction for a linter.
+            if ($siblingCloserPtr === null) {
+                return false;
+            }
+
+            $ptr = ($siblingCloserPtr + 1);
         }
 
         return false;

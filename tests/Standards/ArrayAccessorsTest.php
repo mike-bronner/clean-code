@@ -109,6 +109,16 @@ class ArrayAccessorsTest extends TestCase
                 85 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 86 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 87 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                106 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                109 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                112 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                115 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                116 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                117 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                118 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                125 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                146 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                149 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -162,6 +172,7 @@ class ArrayAccessorsTest extends TestCase
             [
                 9 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 10 => [self::SNIFF_CODE . '.DirectPropertyAccess'],
+                19 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -269,6 +280,99 @@ class ArrayAccessorsTest extends TestCase
     }
 
     /**
+     * The offset expression may carry braces and statements of its own, and
+     * neither ends the accessor enclosing it: `match` arms, closures, and
+     * anonymous classes are expressions, so a `}` is not the end of the
+     * enclosing expression and a `;` inside one is not the end of the enclosing
+     * statement. A search bounded by either takes the read for the target and
+     * drops it — the whole of failing.inc:106-149 reported nothing before the
+     * outward walk stopped terminating on them.
+     *
+     * Each gated path is covered, since only a path that infers write-ness from
+     * an enclosing construct can lose the read this way:
+     *
+     * - 106/115/116, a `match` arm — `foreach` target, short-array and `list()`
+     *   patterns.
+     * - 117, `strtolower(match ...)` — the deciding index is not the innermost
+     *   enclosing construct, and a `match` sits between it and the read.
+     * - 109/112/118, a closure and a static closure whose bodies carry `return
+     *   ...;` — the `;` that bounded the search before.
+     * - 125, an anonymous class with a whole method body in the offset.
+     * - 146/149, the dynamic-member column, whose offset sits in a brace.
+     *
+     * Counts are asserted alongside columns so the write half stays pinned:
+     * flagging `$target`/`$order` too would report twice and fail here.
+     */
+    public function testOffsetsSpanningBracesAndStatementsAreFlagged(): void
+    {
+        $errors = $this->processFixture('failing.inc')->getErrors();
+
+        $columnsByLine = [
+            106 => 61,
+            109 => 72,
+            112 => 79,
+            115 => 44,
+            116 => 48,
+            117 => 55,
+            118 => 59,
+            125 => 32,
+            146 => 62,
+            149 => 73,
+        ];
+
+        foreach ($columnsByLine as $line => $column) {
+            $this->assertCount(1, $errors[$line], "line {$line} reports once");
+            $this->assertSame($column, array_key_first($errors[$line]), "line {$line} column");
+        }
+    }
+
+    /**
+     * The nesting inverts as readily as it nests: a closure can put a whole
+     * write statement *inside* an accessor's offset, so a `foreach` or
+     * destructuring target sits within an index rather than around one. The
+     * target is still a target, because the construct assigning into it
+     * encloses it more tightly than the index does.
+     *
+     * boundaries.inc pins both directions (its assignsInsideAnAccessorOffset()
+     * against the offset reads on failing.inc:106-149). Deciding by the
+     * innermost enclosing construct is what keeps them apart: a walk that
+     * asked only "is an index bracket anywhere outside me?" would answer yes
+     * for the inverted shapes and flag a write, and one that asked only "is a
+     * `foreach` anywhere outside me?" would drop every offset read.
+     */
+    public function testWriteTargetsNestedInsideAnAccessorOffsetAreNotFlagged(): void
+    {
+        $file = $this->processFixture('boundaries.inc');
+
+        $this->assertSame([], $file->getErrors());
+    }
+
+    /**
+     * Records a PHP_CodeSniffer defect the sniff cannot see past, so an
+     * upstream fix surfaces as a failure here rather than silently.
+     *
+     * A `foreach` whose target is a dynamic member holding a brace-bearing
+     * expression leaves the loop's scope unrecorded, and the tokenizer then
+     * labels the *next* statement's destructuring pattern T_OPEN_SQUARE_BRACKET
+     * instead of T_OPEN_SHORT_ARRAY. That label is the only thing separating an
+     * index (a read) from a pattern (a write), so line 30's write target
+     * `$target` is reported alongside the genuine read of `$payload` — two
+     * violations where the same statement, after an ordinary dynamic member,
+     * correctly yields one (line 43).
+     *
+     * It is pinned rather than worked around: the mislabelling happens before
+     * any sniff runs, and reconstructing the distinction would mean re-deriving
+     * it from token data already known to be wrong.
+     */
+    public function testATokenizerScopeDefectIsRecordedRatherThanWorkedAround(): void
+    {
+        $errors = $this->processFixture('tokenizer-limits.inc')->getErrors();
+
+        $this->assertSame([10, 18], array_keys($errors[30]), 'the defect adds a false positive');
+        $this->assertSame([18], array_keys($errors[43]), 'the same statement is correct without it');
+    }
+
+    /**
      * A statement PHP would reject must not suppress a read the sniff would
      * otherwise report. `doSomething($payload['key']) = $default` (line 11) is
      * a parse error — a call is not an assignable target — and only `list()`
@@ -297,7 +401,7 @@ class ArrayAccessorsTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(27, $file->getErrorCount());
+        $this->assertSame(37, $file->getErrorCount());
         $this->assertSame(0, $file->getFixableCount());
     }
 
