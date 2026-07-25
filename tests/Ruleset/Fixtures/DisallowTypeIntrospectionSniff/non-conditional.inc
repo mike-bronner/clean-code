@@ -286,4 +286,33 @@ final class Reporter
 
         return 'none';
     }
+
+    /**
+     * First-class callable syntax builds a `Closure` referring to the function;
+     * it introspects nothing where it is written, exactly like the arrow-function
+     * predicate above. The caller that eventually invokes the reference decides
+     * what to do with each answer.
+     */
+    public function firstClassCallableInsideAnIfCondition(array $values): string
+    {
+        if (count(array_unique(array_map(get_class(...), $values))) > 1) {
+            return 'mixed';
+        }
+
+        return 'uniform';
+    }
+
+    /**
+     * The same reference in a ternary condition and a `match` subject — the
+     * positions a call would be reported in.
+     */
+    public function firstClassCallableInOtherConditions(array $values): string
+    {
+        $labels = array_map(gettype(...), $values);
+
+        return match (count(array_unique(array_map(get_debug_type(...), $values)))) {
+            0 => $labels === [] ? 'empty' : 'never',
+            default => 'some',
+        };
+    }
 }

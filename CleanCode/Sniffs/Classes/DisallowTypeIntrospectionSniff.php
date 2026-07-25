@@ -37,6 +37,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * Every branch a check is measured against must therefore live inside the same
  * callback the check does.
  *
+ * A bare `name(` only reaches the global function when nothing in the file
+ * shadows that name — a `use function` import (aliased or not) or a function of
+ * the same name declared in the file both resolve elsewhere. `name(...)` is
+ * likewise not a call at all: first-class callable syntax defers a reference,
+ * and the deferred check decides nothing where it is written.
+ *
  * Detection only: replacing a type check with polymorphism means moving
  * behaviour onto the object (or narrowing a signature) and updating call
  * sites, so no token-based auto-fix can be applied.
@@ -106,6 +112,35 @@ class DisallowTypeIntrospectionSniff implements Sniff
     ];
 
     /**
+     * Scopes whose `function` declarations are methods. A method never shadows
+     * the resolution of a bare `name(` — PHP only consults the current
+     * namespace and then the global one.
+     */
+    private const OO_SCOPES = [
+        T_ANON_CLASS,
+        T_CLASS,
+        T_ENUM,
+        T_INTERFACE,
+        T_TRAIT,
+    ];
+
+    /**
+     * Path of the file {@see $shadowedNames} was computed for, or null before
+     * the first computation. PHPCS finishes one file before starting the next,
+     * so remembering only the most recent answer keeps the file scan to once
+     * per file without retaining every file's answer for a whole run.
+     */
+    private ?string $shadowedNamesFile = null;
+
+    /**
+     * The introspection function names the file at {@see $shadowedNamesFile}
+     * shadows.
+     *
+     * @var array<int, string>
+     */
+    private array $shadowedNames = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -170,8 +205,9 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     /**
      * True when the name at $stackPtr is invoked as the global function of
-     * that name: followed by `(`, and not qualified as a method, a class
-     * member, a `new` target, a declaration, or another namespace's function.
+     * that name: followed by `(`, actually calling rather than referencing,
+     * and not qualified as a method, a class member, a `new` target, a
+     * declaration, another namespace's function, or a name the file shadows.
      */
     private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
@@ -183,25 +219,177 @@ class DisallowTypeIntrospectionSniff implements Sniff
             return false;
         }
 
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-
-        if ($prev === false) {
-            return true;
-        }
-
-        if (in_array($tokens[$prev]['code'], self::NOT_A_GLOBAL_CALL, true)) {
+        if ($this->isFirstClassCallable($phpcsFile, $next)) {
             return false;
         }
 
-        if ($tokens[$prev]['code'] !== T_NS_SEPARATOR) {
-            return true;
+        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+
+        if ($prev !== false && in_array($tokens[$prev]['code'], self::NOT_A_GLOBAL_CALL, true)) {
+            return false;
         }
 
-        // `\get_class()` is the global function; `Vendor\get_class()` is not.
-        $qualifier = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
+        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
+            // `\get_class()` is the global function, and an explicit qualifier
+            // outranks any import; `Vendor\get_class()` is a different one.
+            $qualifier = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
 
-        return $qualifier === false
-            || in_array($tokens[$qualifier]['code'], [T_NAMESPACE, T_STRING], true) === false;
+            return $qualifier === false
+                || in_array($tokens[$qualifier]['code'], [T_NAMESPACE, T_STRING], true) === false;
+        }
+
+        // An unqualified name falls back to the global function only when the
+        // file does not resolve it to one of its own.
+        return in_array(
+            strtolower($tokens[$stackPtr]['content']),
+            $this->shadowedNames($phpcsFile),
+            true
+        ) === false;
+    }
+
+    /**
+     * True when `name(...)` is PHP 8.1 first-class callable syntax: the parens
+     * hold nothing but `...`, so the expression builds a `Closure` referring to
+     * the function instead of invoking it. Nothing is introspected where it is
+     * written — the caller that eventually invokes the reference decides that,
+     * which is the same reasoning that exempts a callback predicate.
+     *
+     * A variadic unpack (`is_a(...$args)`) has an argument after the `...` and
+     * is an ordinary call.
+     */
+    private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$openerPtr]['parenthesis_closer'] ?? null;
+
+        if ($closer === null) {
+            return false;
+        }
+
+        $first = $phpcsFile->findNext(Tokens::$emptyTokens, ($openerPtr + 1), $closer, true);
+
+        return $first !== false
+            && $tokens[$first]['code'] === T_ELLIPSIS
+            && $phpcsFile->findNext(Tokens::$emptyTokens, ($first + 1), $closer, true) === false;
+    }
+
+    /**
+     * The introspection function names an unqualified call in this file
+     * resolves to something other than the global function of that name:
+     * imported by `use function` (under its own name or an alias), or declared
+     * as a function in the file.
+     *
+     * The whole file is treated as one scope. A file holding several namespace
+     * blocks could therefore be credited with a shadow that only covers one of
+     * them, but the result is a missed report rather than a false one, and
+     * PSR-1 rules the shape out anyway.
+     *
+     * @return array<int, string>
+     */
+    private function shadowedNames(File $phpcsFile): array
+    {
+        if ($this->shadowedNamesFile === $phpcsFile->getFilename()) {
+            return $this->shadowedNames;
+        }
+
+        $tokens = $phpcsFile->getTokens();
+        $names = [];
+
+        for ($i = 0; $i < $phpcsFile->numTokens; $i++) {
+            if ($tokens[$i]['code'] === T_USE) {
+                $names = array_merge($names, $this->importedFunctionNames($phpcsFile, $i));
+
+                continue;
+            }
+
+            if ($tokens[$i]['code'] !== T_FUNCTION) {
+                continue;
+            }
+
+            $declared = $this->declaredFunctionName($phpcsFile, $i);
+
+            if ($declared !== null) {
+                $names[] = $declared;
+            }
+        }
+
+        $this->shadowedNamesFile = $phpcsFile->getFilename();
+        $this->shadowedNames = array_values(array_intersect($names, self::INTROSPECTION_FUNCTIONS));
+
+        return $this->shadowedNames;
+    }
+
+    /**
+     * The names a `use function …;` statement at $usePtr binds in this file —
+     * the alias when one is given, otherwise the imported function's own name.
+     * Any other `use` (a trait, a closure's `use (…)`) binds no function name.
+     *
+     * Each comma-separated entry ends at the name it binds, so the last `T_STRING`
+     * of a segment is that name in every form the statement takes: plain,
+     * `as`-aliased, and braced group imports alike.
+     *
+     * The `function` keyword itself is matched by content as well as by code:
+     * PHPCS re-tokenises it from `T_FUNCTION` to `T_STRING` here, precisely
+     * because it declares nothing. No other `use` can be followed by that word
+     * — `function` is reserved, so it names no trait.
+     *
+     * @return array<int, string>
+     */
+    private function importedFunctionNames(File $phpcsFile, int $usePtr): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
+
+        if ($next === false || strtolower($tokens[$next]['content']) !== 'function') {
+            return [];
+        }
+
+        $end = $phpcsFile->findNext(T_SEMICOLON, $next);
+
+        if ($end === false) {
+            return [];
+        }
+
+        $names = [];
+        $bound = null;
+
+        for ($i = ($next + 1); $i <= $end; $i++) {
+            if ($tokens[$i]['code'] === T_STRING) {
+                $bound = strtolower($tokens[$i]['content']);
+
+                continue;
+            }
+
+            if ($tokens[$i]['code'] !== T_COMMA && $i !== $end) {
+                continue;
+            }
+
+            if ($bound !== null) {
+                $names[] = $bound;
+            }
+
+            $bound = null;
+        }
+
+        return $names;
+    }
+
+    /**
+     * The lower-cased name a `function` declaration at $functionPtr binds in
+     * the file's own namespace, or null when it binds none there — a method
+     * declares a class member, which bare-call resolution never consults.
+     */
+    private function declaredFunctionName(File $phpcsFile, int $functionPtr): ?string
+    {
+        foreach ($phpcsFile->getTokens()[$functionPtr]['conditions'] as $condition) {
+            if (in_array($condition, self::OO_SCOPES, true)) {
+                return null;
+            }
+        }
+
+        $name = $phpcsFile->getDeclarationName($functionPtr);
+
+        return $name === null ? null : strtolower($name);
     }
 
     /**

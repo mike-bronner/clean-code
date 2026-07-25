@@ -69,8 +69,17 @@ The standard is therefore enforced by the custom
     or a `match` arm's result, rather than in the condition that selected it.
   - **Same-named methods and functions** — `$this->gettype($value)`,
     `Vendor\get_class($value)`, and a `function gettype()` declaration are not
-    the global introspection functions. A root-namespaced `\get_class()` *is*,
-    and is flagged.
+    the global introspection functions. Nor is a bare name the file resolves to
+    something of its own: a `use function Vendor\get_class;` import (under its
+    own name or an `as` alias), or a `function get_class()` declared in the
+    file's namespace. A root-namespaced `\get_class()` *is* the global
+    function — an explicit qualifier outranks any import — and is flagged.
+  - **First-class callables** — `array_map(get_class(...), $values)`. The
+    `name(...)` syntax builds a `Closure` referring to the function rather than
+    calling it, so nothing is introspected where it is written; like a callback
+    predicate, the caller that eventually invokes it decides what to do with
+    each answer. A variadic unpack (`is_a(...$args)`) *is* a call and is
+    flagged.
 
 - **Auto-fixable — No (detection only).** Removing a type check means moving
   the behaviour onto the object (polymorphism) or narrowing a signature so the
@@ -80,10 +89,18 @@ The standard is therefore enforced by the custom
 
 Ruleset-integration tests covering compliant code, per-line/column violation
 reporting for `instanceof` and for each introspection function, the
-non-branching boundary cases, and the non-fixable (detection-only) guarantee
-live at `tests/Ruleset/DisallowTypeIntrospectionTest.php`.
+non-branching boundary cases, the name-resolution cases above (imports,
+aliases, file-local declarations, first-class callables — each paired with a
+control that must still be reported), and the non-fixable (detection-only)
+guarantee live at `tests/Ruleset/DisallowTypeIntrospectionTest.php`.
 
 ## What remains code review
+
+Every gap below is **under-detection** — introspection the sniff stays silent
+about. That is deliberate: a linter that flags correct code gets switched off,
+so wherever the token stream cannot settle the question the sniff says nothing.
+It knowingly keeps **no over-detection**; a false positive is a bug, and should
+be reported as one.
 
 - **Deciding whether the refactor is polymorphism or a narrower signature.**
   The sniff points at the type check; choosing between pushing behaviour onto
@@ -94,6 +111,15 @@ live at `tests/Ruleset/DisallowTypeIntrospectionTest.php`.
   hidden behind a helper method (`if ($this->isThrowable($value))`) all read as
   ordinary expressions to a token-based sniff. They are the same smell and are
   still worth flagging in review.
+- **Introspection reached through a value rather than a name.**
+  `$fn = 'get_class'; if ($fn($value) === …)` and
+  `\Closure::fromCallable('get_class')` name the function in a *string*, and
+  which function a variable holds at the call site is a data-flow question no
+  token-based sniff can answer. Unreachable by design, not an oversight.
 - **`for` loops.** Their parentheses hold the initialiser and the increment
   alongside the condition, and a token-level check cannot tell them apart, so
   the sniff leaves `for` alone.
+- **Several namespaces in one file.** Shadowing (an import or a declared
+  function) is resolved against the file as a whole, so a name shadowed in one
+  namespace block is treated as shadowed in all of them. PSR-1 rules the shape
+  out, and the cost is a missed report rather than a false one.

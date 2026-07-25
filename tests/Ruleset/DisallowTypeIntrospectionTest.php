@@ -96,7 +96,9 @@ class DisallowTypeIntrospectionTest extends TestCase
         // get_class in an if (11), get_debug_type in a ternary (20), gettype
         // as a switch subject (25), is_a/is_subclass_of in match arms (36,
         // 37), a root-namespaced \get_class() (44), an upper-cased call (53),
-        // is_subclass_of in a while (64), and gettype in a case label (76).
+        // is_subclass_of in a while (64), gettype in a case label (76), and a
+        // variadic unpack (92) — which shares the `...` of the first-class
+        // callable syntax but, having an argument after it, really does call.
         $this->assertSame(
             [
                 ['line' => 11, 'column' => 13, 'source' => $code],
@@ -108,6 +110,7 @@ class DisallowTypeIntrospectionTest extends TestCase
                 ['line' => 53, 'column' => 13, 'source' => $code],
                 ['line' => 64, 'column' => 16, 'source' => $code],
                 ['line' => 76, 'column' => 18, 'source' => $code],
+                ['line' => 92, 'column' => 13, 'source' => $code],
             ],
             $this->violations($file)
         );
@@ -129,9 +132,56 @@ class DisallowTypeIntrospectionTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    public function testAnImportedNameIsNotTheGlobalIntrospectionFunction(): void
+    {
+        $file = $this->processFixture('shadowed-by-import.inc');
+        $code = self::SNIFF_CODE . '.IntrospectionFunction';
+
+        // The four `use function` imports — plain (23), aliased (35), and both
+        // members of a braced group, one of them aliased (46, 50) — rebind the
+        // name, so those calls reach the imported function and are silent. Only
+        // the two controls remain: an introspection function this file does not
+        // import (64), and a root-qualified `\get_class()` (77), which is the
+        // global function whatever the bare name resolves to.
+        $this->assertSame(
+            [
+                ['line' => 64, 'column' => 13, 'source' => $code],
+                ['line' => 77, 'column' => 14, 'source' => $code],
+            ],
+            $this->violations($file)
+        );
+    }
+
+    public function testANameDeclaredAsAFunctionInTheFileIsNotTheGlobalOne(): void
+    {
+        $file = $this->processFixture('shadowed-by-declaration.inc');
+        $code = self::SNIFF_CODE . '.IntrospectionFunction';
+
+        // The file declares its own `get_class()` (12), so the bare call at 24
+        // resolves to that and is silent. The three controls still report: a
+        // root-qualified `\get_class()` (37), a name declared only as a *method*
+        // (51) — which an unqualified call never reaches, so it shadows nothing
+        // — and a name the file does not declare at all (69).
+        $this->assertSame(
+            [
+                ['line' => 37, 'column' => 14, 'source' => $code],
+                ['line' => 51, 'column' => 13, 'source' => $code],
+                ['line' => 69, 'column' => 13, 'source' => $code],
+            ],
+            $this->violations($file)
+        );
+    }
+
     public function testViolationsAreNotAutoFixable(): void
     {
-        foreach (['violations.inc', 'introspection-functions.inc'] as $fixture) {
+        $fixtures = [
+            'violations.inc',
+            'introspection-functions.inc',
+            'shadowed-by-import.inc',
+            'shadowed-by-declaration.inc',
+        ];
+
+        foreach ($fixtures as $fixture) {
             $file = $this->processFixture($fixture);
 
             $this->assertGreaterThan(0, $file->getErrorCount(), $fixture . ' must report violations');

@@ -79,4 +79,20 @@ final class Inspector
                 return 'other';
         }
     }
+
+    /**
+     * A variadic unpack is an ordinary call, not the first-class callable
+     * syntax that shares its `...` — there is an argument after the ellipsis,
+     * and the call runs here.
+     *
+     * @param array<int, mixed> $args
+     */
+    public function byVariadicUnpack(array $args): string
+    {
+        if (is_a(...$args)) {
+            return 'related';
+        }
+
+        return 'other';
+    }
 }
