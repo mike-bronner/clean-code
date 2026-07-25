@@ -45,9 +45,23 @@ Only Eloquent models. A class counts as a model when either signal holds:
 
 - it is declared in a namespace with a `Models` segment (the Laravel default,
   `App\Models\…`), or
-- it extends a recognised Eloquent base class, matched on the short name:
-  `Model`, `Authenticatable`, `Pivot`, `MorphPivot` — so
-  `use Illuminate\Foundation\Auth\User as Authenticatable;` is recognised too.
+- it extends a recognised Eloquent base class — `Illuminate\Database\Eloquent\Model`,
+  `Illuminate\Foundation\Auth\User` (the class conventionally imported as
+  `Authenticatable`), `Illuminate\Database\Eloquent\Relations\Pivot`, or
+  `Illuminate\Database\Eloquent\Relations\MorphPivot`.
+
+The base class is compared **after** the name in `extends` has been resolved
+through the file's imports (see [Resolution](#resolution) below), never as it is
+written. The name as written is not a reliable signal in either direction:
+`extends EloquentModel` under `use Illuminate\Database\Eloquent\Model as
+EloquentModel;` *is* a model, and `extends Model` under
+`use App\Support\ValueObject as Model;` is not — a project that owns a `Model`
+class of its own aliases Eloquent's out of the way exactly like that.
+
+By the same rule, an `extends Model` with no matching import resolves against
+the enclosing namespace and is that namespace's own class, not Eloquent's:
+outside `Illuminate\Database\Eloquent` itself, reaching Eloquent's `Model`
+requires a `use` statement or a leading backslash.
 
 Everything else in the tree is left alone: `fetchUser(): User` in a service
 class is ordinary code, and holding it to the `find` prefix would be noise.
@@ -69,11 +83,20 @@ The yes/no prefixes accepted are the auxiliary/modal family: `is`, `are`,
 when the next character starts a new word, so `isLand` passes and `island` does
 not.
 
-A return type is read as **a collection** when its short name is `Collection`,
-`LazyCollection`, or `Enumerable`; as **a model** when it is `self`, `static`,
-`$this`, or `parent`, or when it resolves into a namespace carrying a `Models`
-segment. Nullable types are read as the type they wrap (`?User` and `User|null`
-both describe a `User`).
+A return type is read as **a collection** when it resolves to a class whose
+short name is `Collection`, `LazyCollection`, or `Enumerable`; as **a model**
+when it is `self`, `static`, `$this`, or `parent`, or when it resolves into a
+namespace carrying a `Models` segment. Nullable types are read as the type they
+wrap (`?User` and `User|null` both describe a `User`).
+
+### Resolution
+
+Every name the sniff interprets — the base class in `extends`, and every return
+type — is resolved before it is judged, and the model a `find` method must name
+is taken from the resolved name too. So `allComments(): CollectionAlias` is a
+collection when `CollectionAlias` imports one, and `findUserByName(): Client`
+is correctly named when `Client` imports `App\Models\User` — the method is named
+after the model it returns, not after a file-local alias.
 
 Resolution follows PHP's own rules, in this order:
 
@@ -85,6 +108,13 @@ Resolution follows PHP's own rules, in this order:
    and a qualified one (`Domain\Models\Account` under `use App\Domain;`);
 3. anything still unresolved is prefixed with the **enclosing namespace**,
    PHP's fallback for an unimported name.
+
+`use function` and `use const` import from PHP's separate function and constant
+tables, never a type, so they are skipped and can never redirect a return type.
+That holds for each shape the marker takes: on one item of a mixed group
+(`use App\Models\{User, function make};`), before a group prefix
+(`use function App\Models\{build};`), and on a plain statement
+(`use function App\Models\build;`).
 
 ### Behavior notes (asserted by the test suite)
 
@@ -125,10 +155,11 @@ Resolution follows PHP's own rules, in this order:
   is what makes those types appear in the first place.
 - **Genuine union and intersection return types are skipped** — there is no
   single type to reason about.
-- **Model base classes are matched on their short name.** A project whose
-  models extend a local `BaseModel` outside a `Models` namespace goes
-  unrecognised; putting models under `App\Models` (or extending an Eloquent
-  base directly) is what the rule keys on.
+- **Only the listed Eloquent base classes are recognised, and only directly.** A
+  project whose models extend a local `BaseModel` outside a `Models` namespace
+  goes unrecognised — PHPCS reads one file at a time and cannot follow
+  `BaseModel` to the Eloquent class behind it. Putting models under `App\Models`
+  (or extending an Eloquent base directly) is what the rule keys on.
 - **Booleans exposed through the endorsed `Attribute` syntax are not
   prefix-checked.** `active(): Attribute` returns an `Attribute`, not a `bool`,
   and the idiomatic closure inside it (`get: fn () => …`) is usually untyped —
