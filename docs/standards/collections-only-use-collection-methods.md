@@ -38,13 +38,46 @@ is one of:
   `new Collection(...)`, on any class whose name ends in `Collection`
   (`Collection`, `EloquentCollection`, `OrderCollection`, …);
 - a parameter type-hinted as such a class;
-- a variable assigned any of the above — tracked per function scope, and
-  retired again as soon as the variable is reassigned to something else.
+- a variable *unconditionally* assigned any of the above — tracked per function
+  scope, and retired again as soon as the variable is reassigned to something
+  else.
+
+A bare class name is resolved through the file's `use` imports first, so the
+alias never decides on its own: `use Illuminate\Support\Collection as Coll`
+makes `Coll::make($rows)` a Collection, and `use Illuminate\Support\Arr as
+RowCollection` stops `RowCollection::wrap($rows)` looking like one. A name
+written with a namespace prefix names its class directly and is never resolved
+through the imports.
 
 A chain of method calls on one of those is still a Collection
 (`collect($rows)->map(...)`), *unless* the last call in the chain returns
 something else (`->toArray()`, `->all()`, `->sum()`, `->first()`, …). That is
 what keeps `count($collection->toArray())` — plain-array code — unreported.
+The sniff's terminal-method list is audited against the whole Collection API in
+one pass, because an omission there is a false positive; a method that returns
+a non-Collection only for *some* arguments (`pop()`, `shift()`, `random()`,
+`find()`) is listed anyway, trading a false negative for never accusing wrongly.
+
+### Only unconditional assignments count
+
+An assignment inside an `if`, a loop, a `try` or a `match` proves nothing about
+what the variable holds at the call site — the branch may not have run, and the
+branch next door may assign something else:
+
+```php
+if ($useArray) {
+    $data = $rows;
+} else {
+    $data = collect($rows);
+}
+
+count($data);   // not reported: neither branch is provable
+```
+
+Rather than let the textually last assignment win — which would report, and
+offer to auto-fix, code that is correct at runtime — the sniff retires the
+variable. A property write (`self::$items = collect($rows)`) never registers
+the local or parameter that shares its name, for the same reason.
 
 ### Flagged functions
 
@@ -92,5 +125,6 @@ The receiver-type condition is what makes this rule its own sniff.
 The sniff needs a *token-provable* Collection, so it stays silent where the
 type is only knowable at runtime: values read from properties
 (`count($this->rows)`), returns of arbitrary methods, arrays that merely happen
-to hold a Collection, and variables captured into a closure's `use (...)` list.
-Those calls stay with code review.
+to hold a Collection, variables captured into a closure's `use (...)` list, and
+variables whose only assignment sits inside a branch or loop. Those calls stay
+with code review.

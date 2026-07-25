@@ -25,6 +25,14 @@ class OnlyUseCollectionMethodsTest extends TestCase
 
     private const FIXTURE_DIR = '/Fixtures/OnlyUseCollectionMethodsSniff/';
 
+    /**
+     * Every violation carries the same code, so only the message distinguishes
+     * one mapping from another. Matching it against this pattern is what turns
+     * the sniff's function => method table into something the suite verifies.
+     */
+    private const MESSAGE_PATTERN = '/^Use the Collection method (\w+)\(\) instead of'
+        . ' the generic PHP function (\w+)\(\) on a Collection$/';
+
     public function testSniffIsRegisteredInMasterRuleset(): void
     {
         $ruleset = new Ruleset($this->createConfig());
@@ -46,7 +54,6 @@ class OnlyUseCollectionMethodsTest extends TestCase
 
         $this->assertSame(
             [
-                12 => [self::SNIFF_CODE . '.Found'],
                 13 => [self::SNIFF_CODE . '.Found'],
                 14 => [self::SNIFF_CODE . '.Found'],
                 15 => [self::SNIFF_CODE . '.Found'],
@@ -54,17 +61,65 @@ class OnlyUseCollectionMethodsTest extends TestCase
                 17 => [self::SNIFF_CODE . '.Found'],
                 18 => [self::SNIFF_CODE . '.Found'],
                 19 => [self::SNIFF_CODE . '.Found'],
-                30 => [self::SNIFF_CODE . '.Found'],
+                20 => [self::SNIFF_CODE . '.Found'],
                 31 => [self::SNIFF_CODE . '.Found'],
                 32 => [self::SNIFF_CODE . '.Found'],
-                39 => [self::SNIFF_CODE . '.Found'],
+                33 => [self::SNIFF_CODE . '.Found'],
                 40 => [self::SNIFF_CODE . '.Found'],
                 41 => [self::SNIFF_CODE . '.Found'],
-                48 => [self::SNIFF_CODE . '.Found'],
+                42 => [self::SNIFF_CODE . '.Found'],
                 49 => [self::SNIFF_CODE . '.Found'],
-                57 => [self::SNIFF_CODE . '.Found'],
+                50 => [self::SNIFF_CODE . '.Found'],
+                58 => [self::SNIFF_CODE . '.Found'],
+                67 => [self::SNIFF_CODE . '.Found'],
+                68 => [self::SNIFF_CODE . '.Found'],
+                69 => [self::SNIFF_CODE . '.Found'],
+                70 => [self::SNIFF_CODE . '.Found'],
+                71 => [self::SNIFF_CODE . '.Found'],
+                81 => [self::SNIFF_CODE . '.Found'],
+                82 => [self::SNIFF_CODE . '.Found'],
             ],
             $this->sourcesByLine($file->getErrors())
+        );
+    }
+
+    /**
+     * The violation code is the same for all seventeen mapped functions, so
+     * the message is the only thing that proves the sniff named the right
+     * replacement. Every mapping in GENERIC_FUNCTIONS appears below.
+     */
+    public function testEveryViolationNamesTheCollectionMethodThatReplacesTheFunction(): void
+    {
+        $file = $this->processFixture('failing.inc');
+
+        $this->assertSame(
+            [
+                13 => 'array_map() => map()',
+                14 => 'array_filter() => filter()',
+                15 => 'array_reduce() => reduce()',
+                16 => 'array_keys() => keys()',
+                17 => 'array_values() => values()',
+                18 => 'count() => count()',
+                19 => 'in_array() => contains()',
+                20 => 'implode() => implode()',
+                31 => 'array_sum() => sum()',
+                32 => 'array_slice() => slice()',
+                33 => 'array_unique() => unique()',
+                40 => 'count() => count()',
+                41 => 'count() => count()',
+                42 => 'array_merge() => merge()',
+                49 => 'count() => count()',
+                50 => 'array_values() => values()',
+                58 => 'count() => count()',
+                67 => 'array_diff() => diff()',
+                68 => 'array_intersect() => intersect()',
+                69 => 'array_key_exists() => has()',
+                70 => 'array_search() => search()',
+                71 => 'join() => implode()',
+                81 => 'count() => count()',
+                82 => 'count() => count()',
+            ],
+            $this->mappingsByLine($file->getErrors())
         );
     }
 
@@ -76,8 +131,8 @@ class OnlyUseCollectionMethodsTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(17, $file->getErrorCount());
-        $this->assertSame(5, $file->getFixableCount());
+        $this->assertSame(24, $file->getErrorCount());
+        $this->assertSame(7, $file->getFixableCount());
     }
 
     public function testAutoFixProducesTheExpectedOutput(): void
@@ -151,5 +206,36 @@ class OnlyUseCollectionMethodsTest extends TestCase
         ksort($sources);
 
         return $sources;
+    }
+
+    /**
+     * Collapses the same structure to a map of line number => the
+     * "generic() => method()" pair the violation's message actually names, so
+     * a wrong substitution in the mapping table cannot pass unnoticed. A
+     * message that does not match the expected shape fails outright rather
+     * than being reported as an empty pair.
+     *
+     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+     *
+     * @return array<int, string>
+     */
+    private function mappingsByLine(array $messages): array
+    {
+        $mappings = [];
+
+        foreach ($messages as $line => $columns) {
+            foreach ($columns as $violations) {
+                foreach ($violations as $violation) {
+                    $this->assertMatchesRegularExpression(self::MESSAGE_PATTERN, $violation['message']);
+                    preg_match(self::MESSAGE_PATTERN, $violation['message'], $matches);
+
+                    $mappings[$line] = $matches[2] . '() => ' . $matches[1] . '()';
+                }
+            }
+        }
+
+        ksort($mappings);
+
+        return $mappings;
     }
 }

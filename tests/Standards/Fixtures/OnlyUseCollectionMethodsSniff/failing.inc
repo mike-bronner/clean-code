@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Collection as Coll;
 
 function genericFunctionsOnAssignedCollections(array $rows): array
 {
@@ -55,4 +56,29 @@ function genericFunctionsOnQualifiedAndNullsafeCollections(Collection $collectio
 function multiArgumentCallsAreReportedButNotFixable(Collection $collection): int
 {
     return count($collection, COUNT_RECURSIVE);
+}
+
+// The remaining mapped functions, so every entry in the mapping table is
+// pinned — the argument-order-reversed ones (array_key_exists => has,
+// array_search => search) most of all.
+function remainingMappedFunctionsAreFlagged(Collection $collection, array $rows): array
+{
+    return [
+        array_diff($collection, $rows),
+        array_intersect($collection, $rows),
+        array_key_exists('a', $collection),
+        array_search('a', $collection, true),
+        join(', ', $collection),
+    ];
+}
+
+// An aliased import is judged by the class it names, not by the alias.
+function aliasedCollectionImportsAreFlagged(Coll $collection, array $rows): array
+{
+    $made = Coll::make($rows);
+
+    return [
+        count($collection),
+        count($made),
+    ];
 }

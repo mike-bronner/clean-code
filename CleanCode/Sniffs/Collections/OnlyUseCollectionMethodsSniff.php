@@ -19,9 +19,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * A value is treated as a Collection when it is *statically* provable from the
  * tokens alone — a `collect()` call, a `Collection::make()`/`::wrap()` factory
  * call, a `new Collection(...)`, a parameter type-hinted as a Collection, or a
- * variable assigned one of those. Anything the tokens cannot prove is left
- * alone: this sniff never guesses, because a false accusation trains people to
- * ignore the rule.
+ * variable *unconditionally* assigned one of those. Anything the tokens cannot
+ * prove is left alone: this sniff never guesses, because a false accusation
+ * trains people to ignore the rule — and a false accusation that `phpcbf` then
+ * acts on rewrites working code into a fatal.
  */
 class OnlyUseCollectionMethodsSniff implements Sniff
 {
@@ -80,46 +81,83 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * Collection methods that return something *other* than a Collection, so a
      * chain ending in one of them is no longer a Collection and calls wrapping
      * it are not violations (`count($collection->toArray())` is plain-array
-     * code). Lower-cased for case-insensitive comparison.
+     * code).
+     *
+     * Keys are lower-cased for case-insensitive comparison; each value records
+     * what the method returns, so the list's intent stays legible to whoever
+     * extends it. The two ways to get an entry wrong are not symmetrical:
+     *
+     * - **Omitting** a method that returns a non-Collection makes the sniff
+     *   treat its result as a Collection — a false positive, and on a fixable
+     *   function a rewrite that fatals (`count($c->random())` becoming
+     *   `$c->random()->count()`). Never acceptable, which is why this list is
+     *   audited against the whole Collection API rather than grown one report
+     *   at a time.
+     * - **Listing** a method that returns a non-Collection only for *some*
+     *   arguments (`pop()`, `shift()`, `random()` and `find()` all hand back a
+     *   Collection when given a count or a list of keys) makes the sniff stay
+     *   silent on the Collection form — a false negative, which is the
+     *   direction this sniff fails in by design. Those entries are marked
+     *   "argument-dependent" below.
+     *
+     * Methods that return `$this` (`each()`, `push()`, `tap()`, `dump()`, …)
+     * are deliberately absent: the chain is still a Collection after them.
      */
     private const TERMINAL_METHODS = [
-        'all',
-        'average',
-        'avg',
-        'contains',
-        'containsoneitem',
-        'containsstrict',
-        'count',
-        'doesntcontain',
-        'every',
-        'first',
-        'firstorfail',
-        'firstwhere',
-        'get',
-        'has',
-        'hasany',
-        'implode',
-        'isempty',
-        'isnotempty',
-        'join',
-        'jsonserialize',
-        'last',
-        'max',
-        'median',
-        'min',
-        'mode',
-        'pipe',
-        'pop',
-        'pull',
-        'reduce',
-        'search',
-        'shift',
-        'sole',
-        'some',
-        'sum',
-        'toarray',
-        'tojson',
-        'value',
+        'after' => 'mixed — the item following the given one',
+        'all' => 'array',
+        'average' => 'int|float|null',
+        'avg' => 'int|float|null',
+        'before' => 'mixed — the item preceding the given one',
+        'contains' => 'bool',
+        'containsoneitem' => 'bool',
+        'containsstrict' => 'bool',
+        'count' => 'int',
+        'doesntcontain' => 'bool',
+        'every' => 'bool',
+        'find' => 'mixed, or a Collection when given a list of keys — argument-dependent (Eloquent)',
+        'first' => 'mixed',
+        'firstorfail' => 'mixed',
+        'firstwhere' => 'mixed',
+        'get' => 'mixed',
+        'getiterator' => 'Traversable',
+        'has' => 'bool',
+        'hasany' => 'bool',
+        'implode' => 'string',
+        'isempty' => 'bool',
+        'isnotempty' => 'bool',
+        'join' => 'string',
+        'jsonserialize' => 'array',
+        'last' => 'mixed',
+        'max' => 'mixed',
+        'median' => 'int|float|null',
+        'min' => 'mixed',
+        'mode' => 'array|null',
+        'modelkeys' => 'array (Eloquent)',
+        'offsetexists' => 'bool',
+        'offsetget' => 'mixed',
+        'percentage' => 'float|null',
+        'pipe' => 'mixed — the callback\'s return; argument-dependent',
+        'pipeinto' => 'object',
+        'pipethrough' => 'mixed — the last callback\'s return; argument-dependent',
+        'pop' => 'mixed, or a Collection when given $count — argument-dependent',
+        'pull' => 'mixed',
+        'random' => 'mixed, or a Collection when given $number — argument-dependent',
+        'reduce' => 'mixed — the callback\'s return; argument-dependent',
+        'reducespread' => 'array',
+        'search' => 'int|string|false',
+        'shift' => 'mixed, or a Collection when given $count — argument-dependent',
+        'sole' => 'mixed',
+        'some' => 'bool',
+        'sum' => 'int|float',
+        'toarray' => 'array',
+        'tojson' => 'string',
+        'toquery' => 'Builder (Eloquent)',
+        'unless' => 'mixed — the callback\'s return, else $this; argument-dependent',
+        'value' => 'mixed',
+        'when' => 'mixed — the callback\'s return, else $this; argument-dependent',
+        'whenempty' => 'mixed — the callback\'s return, else $this; argument-dependent',
+        'whennotempty' => 'mixed — the callback\'s return, else $this; argument-dependent',
     ];
 
     /**
@@ -133,6 +171,17 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         T_NULLSAFE_OBJECT_OPERATOR,
         T_OBJECT_OPERATOR,
     ];
+
+    /**
+     * The class aliases the file's `use` imports introduce, as lower-cased
+     * alias => imported short name (`use …\Collection as Coll` gives
+     * `coll => Collection`). Held as state rather than threaded through every
+     * name check; rebuilt at the top of each process() call, because PHPCS
+     * reuses one sniff instance for the whole run.
+     *
+     * @var array<string, string>
+     */
+    private array $importAliases = [];
 
     /**
      * @return array<int|string>
@@ -152,9 +201,129 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
+        $this->importAliases = $this->mapImportAliases($phpcsFile);
+
         $this->flagGenericCalls($phpcsFile, $this->mapCollectionVariables($phpcsFile));
 
         return $phpcsFile->numTokens;
+    }
+
+    /**
+     * Maps the file's class imports by the name the code actually uses, so an
+     * aliased import is judged by the class it names rather than by its alias:
+     * `use …\Collection as Coll` makes `Coll::make()` a Collection, and
+     * `use …\Arr as RowCollection` stops `RowCollection::wrap()` looking like
+     * one.
+     *
+     * @return array<string, string>
+     */
+    private function mapImportAliases(File $phpcsFile): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $aliases = [];
+
+        for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
+            if ($tokens[$ptr]['code'] !== T_USE || $this->isClassImport($phpcsFile, $ptr) === false) {
+                continue;
+            }
+
+            $end = $this->statementEnd($phpcsFile, ($ptr + 1));
+
+            if ($end === null) {
+                continue;
+            }
+
+            $this->collectImportAliases($phpcsFile, ($ptr + 1), ($end - 1), $aliases);
+            $ptr = $end;
+        }
+
+        return $aliases;
+    }
+
+    /**
+     * Whether the T_USE at $usePtr imports classes, as opposed to pulling in a
+     * trait, capturing a closure's variables, or importing functions/constants.
+     */
+    private function isClassImport(File $phpcsFile, int $usePtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        // A trait `use` lives inside a class body. A braced namespace is the
+        // only enclosing construct an import can legitimately sit in.
+        foreach ($tokens[$usePtr]['conditions'] ?? [] as $code) {
+            if ($code !== T_NAMESPACE) {
+                return false;
+            }
+        }
+
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
+
+        if ($next === false || $tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
+            return false;
+        }
+
+        // Matched on content: `function`/`const` after `use` tokenise
+        // differently across PHPCS versions, but never read otherwise.
+        return in_array(strtolower($tokens[$next]['content']), ['const', 'function'], true) === false;
+    }
+
+    /**
+     * Records every alias in one import statement spanning [$start, $end],
+     * including the grouped form (`use A\{B, C as D};`). Only the trailing name
+     * segment matters, so the shared prefix needs no special handling.
+     *
+     * @param array<string, string> $aliases
+     */
+    private function collectImportAliases(File $phpcsFile, int $start, int $end, array &$aliases): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $imported = '';
+        $alias = '';
+        $isAlias = false;
+
+        for ($ptr = $start; $ptr <= $end; $ptr++) {
+            if ($tokens[$ptr]['code'] === T_AS) {
+                $isAlias = true;
+
+                continue;
+            }
+
+            if ($tokens[$ptr]['code'] === T_STRING && $isAlias === true) {
+                $alias = $tokens[$ptr]['content'];
+
+                continue;
+            }
+
+            if ($tokens[$ptr]['code'] === T_STRING) {
+                $imported = $tokens[$ptr]['content'];
+
+                continue;
+            }
+
+            if ($tokens[$ptr]['code'] !== T_COMMA) {
+                continue;
+            }
+
+            $this->recordImportAlias($imported, $alias, $aliases);
+            $imported = '';
+            $alias = '';
+            $isAlias = false;
+        }
+
+        $this->recordImportAlias($imported, $alias, $aliases);
+    }
+
+    /**
+     * @param array<string, string> $aliases
+     */
+    private function recordImportAlias(string $imported, string $alias, array &$aliases): void
+    {
+        if ($imported === '') {
+            return;
+        }
+
+        // Class names are case-insensitive in PHP, so the lookup key is too.
+        $aliases[strtolower($alias === '' ? $imported : $alias)] = $imported;
     }
 
     /**
@@ -183,7 +352,21 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
             $target = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
-            if ($target === false || $tokens[$target]['code'] !== T_VARIABLE) {
+            if ($target === false || $this->isLocalVariableTarget($phpcsFile, $target) === false) {
+                continue;
+            }
+
+            $scope = $this->scopeOf($phpcsFile, $target);
+            $name = $tokens[$target]['content'];
+
+            // A conditional assignment says nothing about what the variable
+            // holds at the call site: the branch may not have run, and the
+            // branch next door may assign something else entirely. Rather than
+            // let the textually last write win — which would flag, and offer to
+            // "fix", code that is correct at runtime — the name is retired.
+            if ($this->isUnconditionalAssignment($phpcsFile, $target, $scope) === false) {
+                unset($variables[$scope][$name]);
+
                 continue;
             }
 
@@ -192,9 +375,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             if ($end === null) {
                 continue;
             }
-
-            $scope = $this->scopeOf($phpcsFile, $target);
-            $name = $tokens[$target]['content'];
 
             if ($this->isCollectionExpression($phpcsFile, ($ptr + 1), ($end - 1), $variables) === true) {
                 $variables[$scope][$name] = true;
@@ -236,7 +416,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             // Union and intersection hints are split apart: a parameter that
             // can be a Collection is treated as one.
             foreach (explode('|', str_replace('&', '|', $hint)) as $type) {
-                if ($this->isCollectionClass($this->shortName(ltrim($type, '?\\'))) === false) {
+                $name = ltrim($type, '?');
+
+                if ($this->isCollectionClass($this->shortName($name), str_contains($name, '\\') === false) === false) {
                     continue;
                 }
 
@@ -420,7 +602,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         return $lastMethod === null
-            || in_array($lastMethod, self::TERMINAL_METHODS, true) === false;
+            || isset(self::TERMINAL_METHODS[$lastMethod]) === false;
     }
 
     /**
@@ -462,7 +644,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 : null;
         }
 
-        if ($tokens[$next]['code'] !== T_DOUBLE_COLON || $this->isCollectionClass($name['short']) === false) {
+        if (
+            $tokens[$next]['code'] !== T_DOUBLE_COLON
+            || $this->isCollectionClass($name['short'], $name['aliasable']) === false
+        ) {
             return null;
         }
 
@@ -484,7 +669,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $name = $this->qualifiedName($phpcsFile, $classPtr, $end);
 
-        if ($this->isCollectionClass($name['short']) === false) {
+        if ($this->isCollectionClass($name['short'], $name['aliasable']) === false) {
             return null;
         }
 
@@ -522,12 +707,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     /**
      * Consumes the run of name tokens starting at $ptr.
      *
-     * @return array{short: string, end: int, qualified: bool} the trailing name
-     *                                                         segment, the last
-     *                                                         token consumed,
-     *                                                         and whether the
-     *                                                         name carries a
-     *                                                         namespace prefix
+     * @return array{short: string, end: int, qualified: bool, aliasable: bool}
+     *     the trailing name segment, the last token consumed, whether the name
+     *     carries a namespace prefix, and whether it is a bare name that a
+     *     `use` import could have renamed (`\Collection` is not: the leading
+     *     separator pins it to the global namespace)
      */
     private function qualifiedName(File $phpcsFile, int $ptr, int $end): array
     {
@@ -553,6 +737,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             'short' => $short,
             'end' => $last,
             'qualified' => $segments > 1,
+            'aliasable' => $segments === 1 && $tokens[$ptr]['code'] !== T_NS_SEPARATOR,
         ];
     }
 
@@ -663,6 +848,52 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
+     * Whether the token at $target is a plain local variable being assigned,
+     * rather than a property write that merely ends in a T_VARIABLE.
+     *
+     * `$this->items = …` is excluded for free (its name tokenises as T_STRING),
+     * but `self::$items`, `static::$items` and `Example::$items` all end in a
+     * T_VARIABLE, and registering those against the *enclosing method's* scope
+     * would make a static property poison the local — or the parameter — that
+     * happens to share its name.
+     */
+    private function isLocalVariableTarget(File $phpcsFile, int $target): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if ($tokens[$target]['code'] !== T_VARIABLE) {
+            return false;
+        }
+
+        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($target - 1), null, true);
+
+        return $prev === false || $tokens[$prev]['code'] !== T_DOUBLE_COLON;
+    }
+
+    /**
+     * Whether the assignment to $target always runs when its scope runs — i.e.
+     * it sits directly in the function/closure/file body rather than inside a
+     * branch, loop, `try`, `match` or any other construct whose execution the
+     * sniff cannot reason about from the tokens.
+     *
+     * Every condition enclosing $target that opens *after* the scope opener is
+     * such a construct: the scope's own opener, and anything wrapping it (a
+     * class, a namespace), sort before it.
+     */
+    private function isUnconditionalAssignment(File $phpcsFile, int $target, int $scope): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        foreach (array_keys($tokens[$target]['conditions'] ?? []) as $opener) {
+            if ($opener > $scope) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Whether the T_STRING at $stackPtr is a call to a global function rather
      * than a method call, a static call, or a declaration.
      */
@@ -695,10 +926,23 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * Whether $shortName names a Collection class. Framework and app
      * collections alike end in "Collection" (Collection, EloquentCollection,
      * OrderCollection, …).
+     *
+     * A bare name may be an alias, in which case the imported class decides —
+     * `use …\Collection as Coll` makes `Coll` one, `use …\Arr as RowCollection`
+     * makes `RowCollection` not one. A name written with a namespace prefix
+     * names its class directly and is never resolved through the imports.
      */
-    private function isCollectionClass(string $shortName): bool
+    private function isCollectionClass(string $shortName, bool $isAliasable): bool
     {
-        return $shortName !== '' && str_ends_with($shortName, 'Collection');
+        if ($shortName === '') {
+            return false;
+        }
+
+        $resolved = $isAliasable === true
+            ? ($this->importAliases[strtolower($shortName)] ?? $shortName)
+            : $shortName;
+
+        return str_ends_with($resolved, 'Collection');
     }
 
     /**

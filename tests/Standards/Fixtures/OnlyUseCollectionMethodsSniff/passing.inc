@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Arr as RowCollection;
 use Illuminate\Support\Collection;
 
 function collectionMethodsOnly(array $rows): int
@@ -92,4 +93,92 @@ function lookAlikeConstructorsAreNotCollections(array $rows): int
 function offsetReadsAreNotCollections(Collection $collection): int
 {
     return count($collection['rows']);
+}
+
+// A variable assigned inside a branch is not provably a Collection at the call
+// site — the other branch may have run instead. Both orders are pinned: a
+// verdict that depended on which assignment came last would flip between them.
+function conditionalAssignmentsAreNotProvable(bool $useArray, array $rows): int
+{
+    if ($useArray) {
+        $data = $rows;
+    } else {
+        $data = collect($rows);
+    }
+
+    if ($useArray) {
+        $reversed = collect($rows);
+    } else {
+        $reversed = $rows;
+    }
+
+    return count($data) + count($reversed);
+}
+
+// A loop body may not run at all, so an assignment inside one proves nothing
+// about the variable afterwards.
+function loopAssignmentsAreNotProvable(array $rowSets): int
+{
+    $data = [];
+
+    foreach ($rowSets as $rows) {
+        $data = collect($rows);
+    }
+
+    return count($data);
+}
+
+// self::$x, static::$x and Example::$x all end in a variable token, but they
+// write a property — never the local or parameter that shares its name.
+class StaticPropertyWritesDoNotLeakIntoLocals
+{
+    private static Collection $items;
+
+    public function fromSelf(array $rows, array $items): int
+    {
+        self::$items = collect($rows);
+
+        return count($items);
+    }
+
+    public function fromStatic(array $rows, array $items): int
+    {
+        static::$items = Collection::make($rows);
+
+        return count($items);
+    }
+
+    public function fromClassName(array $rows, array $items): int
+    {
+        StaticPropertyWritesDoNotLeakIntoLocals::$items = new Collection($rows);
+
+        return count($items);
+    }
+}
+
+// A method that hands back something other than a Collection ends the chain:
+// a no-argument random() yields a single item, modelKeys() and mode() arrays.
+function nonCollectionReturnsEndTheChain(Collection $collection): int
+{
+    return count($collection->random())
+        + count($collection->modelKeys())
+        + count($collection->mode());
+}
+
+// An alias resolves to the class it imports, so a Collection-suffixed alias on
+// a class that is not one stays plain-array code.
+function aliasedNonCollectionImportsAreNotCollections(array $rows): int
+{
+    return count(RowCollection::wrap($rows));
+}
+
+// A closure's use (...) list is a capture, not an import, and a captured
+// variable's type is not provable inside the closure.
+function closureCapturesAreNotImports(array $rows): callable
+{
+    $collection = collect($rows);
+
+    return static function () use ($collection): int {
+        return count($collection);
+    };
 }
