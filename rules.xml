@@ -24,6 +24,14 @@
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
 
+    <!--
+        Classes: Class Naming (#27) —
+        docs/standards/classes-class-naming.md. Enforced solely by the custom
+        CleanCode.Classes.ClassSuffixByFolder sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above; no third-party sniff models a
+        folder-derived class suffix, so there is nothing to configure here.
+    -->
+
     <!-- Constructors: Property Promotion (#47) -->
     <rule ref="SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion"/>
 
