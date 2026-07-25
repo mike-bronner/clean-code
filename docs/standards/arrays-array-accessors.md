@@ -1,0 +1,85 @@
+# Arrays: Array Accessors (`data_get`)
+
+## Standard
+
+- Always use `data_get()` to access arrays, instead of accessing their elements
+  directly.
+
+**Why:**
+
+- Provides fallback logic in case the element does not exist in arrays.
+- Allows parsing of properties on any kind of object (array, collection,
+  object, model) without type checks (reduces mental debt).
+- Allows easy parsing of nested objects (reduces mental debt).
+
+_Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
+
+## Enforceability — Tier 2 (custom sniff)
+
+No existing PHPCS or Slevomat sniff expresses this rule. The bundled and
+Slevomat catalogues police array *syntax* — for example
+[`Slevomat Arrays.DisallowImplicitArrayCreation`](https://github.com/slevomat/coding-standard/blob/master/doc/arrays.md)
+(assignment into an undeclared array) and `Generic.Arrays.ArrayIndent`
+(layout) — not the *accessor* used to read a value, and none of them knows
+about `data_get()`, which is a Laravel helper rather than a language feature.
+Evaluated against this standard's test suite, they match none of it. The
+standard is therefore enforced by the custom `CleanCode.Arrays.ArrayAccessors`
+sniff, wired into the master `rules.xml` via the CleanCode standard
+([#33](https://github.com/mike-bronner/phpcs-rules/issues/33)).
+
+- **Detection** — a read through a direct accessor is flagged at the variable
+  the accessor chain is rooted in. Element reads (`$payload['name']`) are
+  reported as `CleanCode.Arrays.ArrayAccessors.DirectArrayAccess`, property
+  reads (`$order->reference`, including the nullsafe `$order?->reference`) as
+  `CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess`.
+- **One diagnostic per chain** — a whole chain collapses into a single
+  `data_get()` call, so it earns a single diagnostic:
+  `$payload['address']['city']`, `$order->address->city`, and the mixed
+  `$payload['items'][0]->name` are each reported once, at their root variable,
+  not once per link.
+- **Not flagged** — these constructs are outside the standard and are
+  deliberately left untouched:
+  - **Write-side access** (`$array['key'] = $value`, `$array['key'] .= $more`,
+    `$array[] = $value`, `$array['key'] ??= $default`, `$object->property =
+    $value`, `++$array['key']`) — `data_get()` reads a value; it cannot stand
+    in for an assignment target.
+  - **Existence checks** (`isset()`, `empty()`, `unset()`,
+    `array_key_exists()`) — these already answer the missing-element question
+    that `data_get()`'s fallback exists to solve.
+  - **Array literals** (`['key' => $value]`) — a declaration, not a read.
+  - **`$this`-rooted access** (`$this->property`, `$this->config['key']`) — an
+    object's own state is known to exist, so neither the fallback nor the
+    type-agnostic lookup applies.
+  - **Method calls** (`$object->method()`, `$object?->method()`) — an
+    invocation of the object's own API, which `data_get()` does not resolve.
+- **Known blind spots** — two cases the token stream cannot express, accepted
+  rather than approximated:
+  - Accessors inside interpolated strings (`"{$array['key']}"`) — PHP_CodeSniffer
+    hands the whole string over as one token, so there is nothing to inspect.
+  - Chains rooted in something that is not a variable (`foo()['key']`,
+    `self::CONSTANTS['key']`) — there is no variable to report against. A
+    static *property* chain (`self::$registry['key']`) does have one and is
+    flagged.
+- **Auto-fixable — No (detection only).** Auto-fix scoping was investigated and
+  rejected on two counts. First, the nested rewrite is lossy:
+  `$payload['a']['b']` becomes `data_get($payload, 'a.b')`, and that dotted
+  path silently changes meaning whenever a key itself contains a dot. Second,
+  `data_get()` ships with Laravel, so emitting it into a file outside a Laravel
+  application produces code that does not run — a fixer cannot tell the
+  difference from the token stream. Choosing the replacement (a `data_get()`
+  path, a null-coalescing default, or a redesign that removes the lookup) is a
+  judgement call, so the sniff surfaces the read and leaves the rewrite to the
+  developer.
+
+Tests covering compliant `data_get()` usage, the out-of-scope boundary
+constructs, per-line violation reporting, one-diagnostic-per-chain, unterminated
+(mid-edit) chains, and the detection-only guarantee live at
+`tests/Standards/ArrayAccessorsTest.php`, with fixtures under
+`tests/Standards/Fixtures/ArrayAccessorsSniff/`.
+
+## What remains code review
+
+Whether a flagged read *should* become a `data_get()` call, a null-coalesced
+default, or a redesign that avoids the lookup altogether. The sniff points at
+every direct read; picking the replacement — and the fallback value it should
+carry — is the developer's call.
