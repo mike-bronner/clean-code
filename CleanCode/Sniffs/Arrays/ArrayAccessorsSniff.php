@@ -81,10 +81,16 @@ class ArrayAccessorsSniff implements Sniff
     private const OBJECT_OPERATORS = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR];
 
     /**
-     * The closers of the two constructs a destructuring pattern is written
-     * with: a short array (`[$a, $b] = $source`) and `list($a, $b) = $source`.
+     * Every closer a construct enclosing an accessor chain can end with, so
+     * the walk outward from a chain sees each enclosing construct in turn
+     * rather than only the ones a given caller cares about.
      */
-    private const PATTERN_CLOSERS = [T_CLOSE_SHORT_ARRAY, T_CLOSE_PARENTHESIS];
+    private const ENCLOSING_CLOSERS = [
+        T_CLOSE_SQUARE_BRACKET,
+        T_CLOSE_SHORT_ARRAY,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_CURLY_BRACKET,
+    ];
 
     /**
      * Constructs whose parentheses answer "does this exist?" — the question
@@ -233,6 +239,14 @@ class ArrayAccessorsSniff implements Sniff
      * chain: a destructuring pattern puts its `=` beyond the pattern's own
      * closer, a `foreach` target has no assignment operator at all, and a
      * reference bind is marked by an `&` that precedes the chain.
+     *
+     * The paths that read a token adjacent to the chain need no further
+     * qualification — a chain nested in another accessor's offset is adjacent
+     * to that accessor's `[` or `{`, never to an operator, so it is never
+     * mistaken for the target. The two paths that infer write-ness from an
+     * *enclosing* construct do: `$target[$key['idx']]` names one write target
+     * and one read, and only the outer chain is the target. Both are therefore
+     * gated on isNestedInAccessorOffset().
      */
     private function isWriteTarget(File $phpcsFile, int $stackPtr): bool
     {
@@ -258,7 +272,9 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        if ($this->isForeachTarget($phpcsFile, $stackPtr) === true) {
+        $isOffset = $this->isNestedInAccessorOffset($phpcsFile, $stackPtr);
+
+        if ($isOffset === false && $this->isForeachTarget($phpcsFile, $stackPtr) === true) {
             return true;
         }
 
@@ -285,12 +301,74 @@ class ArrayAccessorsSniff implements Sniff
             return true;
         }
 
+        if ($isOffset === true) {
+            return false;
+        }
+
         return $this->isDestructuringTarget($phpcsFile, $stackPtr, $endPtr);
     }
 
     /**
+     * Whether the chain is nested inside another accessor's index bracket or
+     * dynamic-member brace — the `$key` of `$target[$key['idx']]` or of
+     * `$order->{$key['name']}`. Such a chain is read to compute *where* the
+     * enclosing accessor points, so it stays a read even when that enclosing
+     * accessor is itself a write target: `foreach ($rows as $out[$key['idx']])`
+     * and `[$out[$key['idx']]] = $source` each write `$out` and read `$key`.
+     *
+     * The walk goes outward, one enclosing construct at a time, because the
+     * offset need not be the innermost one: an array literal or destructuring
+     * pattern and a parenthesised sub-expression are both transparent, so
+     * `[$out[trim($key['idx'])]] = $source` still nests the read. A curly brace
+     * that is not a dynamic member (a scope brace) ends the walk — the chain
+     * cannot be an offset of a construct it is not an expression inside.
+     */
+    private function isNestedInAccessorOffset(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $searchPtr = $stackPtr;
+
+        while (($closerPtr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $searchPtr)) !== false) {
+            $code = $tokens[$closerPtr]['code'];
+
+            // An index closes with T_CLOSE_SQUARE_BRACKET; a short array or
+            // destructuring pattern closes with T_CLOSE_SHORT_ARRAY, so the
+            // two never blur.
+            if ($code === T_CLOSE_SQUARE_BRACKET) {
+                return true;
+            }
+
+            if ($code === T_CLOSE_CURLY_BRACKET) {
+                return $this->isDynamicMemberBrace($phpcsFile, $tokens[$closerPtr]['bracket_opener']);
+            }
+
+            $searchPtr = ($closerPtr + 1);
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the brace at $openerPtr opens a dynamic member name
+     * (`$object->{$name}`) rather than a scope. Only the object operator
+     * before it tells them apart: PHP_CodeSniffer gives both a
+     * T_OPEN_CURLY_BRACKET and a matching bracket_closer.
+     */
+    private function isDynamicMemberBrace(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
+
+        if ($previousPtr === false) {
+            return false;
+        }
+
+        return in_array($tokens[$previousPtr]['code'], self::OBJECT_OPERATORS, true);
+    }
+
+    /**
      * Whether the chain sits in a `foreach`'s `as` clause, which assigns into
-     * every accessor it names: the value target (`foreach ($rows as
+     * the accessors it names: the value target (`foreach ($rows as
      * $out['value'])`), the key target (`foreach ($rows as $out['key'] =>
      * $value)`), and any destructuring pattern (`foreach ($rows as
      * [$out['a'], $out['b']])`). None of them carries an assignment operator
@@ -298,6 +376,13 @@ class ArrayAccessorsSniff implements Sniff
      *
      * Only the clause after `as` is a target; the subject before it
      * (`foreach ($payload['rows'] as $row)`) is a read and stays reportable.
+     *
+     * Position after `as` is necessary but not sufficient, so this answers
+     * only that half: in `foreach ($rows as $out[$key['idx']])` the clause
+     * names two chains and assigns into just one, the other being the offset
+     * it is written at. The caller settles that with
+     * isNestedInAccessorOffset(), which sees the index brackets a token's
+     * nested_parenthesis cannot.
      */
     private function isForeachTarget(File $phpcsFile, int $stackPtr): bool
     {
@@ -332,6 +417,12 @@ class ArrayAccessorsSniff implements Sniff
      * findChainEnd() stops at the chain's own closer, where the next token is
      * the pattern's `,` or `]`, so the `=` governing the whole pattern is only
      * reachable by walking out of each enclosing pattern in turn.
+     *
+     * Enclosure by a pattern is necessary but not sufficient, so this answers
+     * only that half: in `[$out[$key['idx']]] = $source` both chains sit
+     * inside the pattern and only `$out` is assigned into, `$key` being the
+     * offset it is written at. The caller settles that with
+     * isNestedInAccessorOffset() before the walk is trusted.
      */
     private function isDestructuringTarget(File $phpcsFile, int $stackPtr, int $chainEndPtr): bool
     {
@@ -362,27 +453,78 @@ class ArrayAccessorsSniff implements Sniff
     }
 
     /**
-     * Returns the closer of the nearest short-array or `list()` construct
-     * enclosing the chain, searching forward from $searchPtr and stopping at
-     * the end of the statement, or false when no such construct encloses it.
-     * A closer whose opener precedes the chain's root is what makes the
-     * construct an enclosing one rather than a sibling.
-     *
-     * Index brackets are deliberately not pattern closers: in
-     * `$target[$array['key']] = $value` the enclosing `]` closes an index, and
-     * counting it would read the trailing `=` as assigning to
-     * `$array['key']`, which is a read. PHP_CodeSniffer tokenizes an index
-     * closer as T_CLOSE_SQUARE_BRACKET and an array/pattern closer as
-     * T_CLOSE_SHORT_ARRAY, so the two never blur.
+     * Returns the closer of the nearest destructuring pattern enclosing the
+     * chain, searching forward from $searchPtr, or false when no such pattern
+     * encloses it. Constructs that enclose the chain without being a pattern
+     * (an index, a call's parentheses) are stepped over, so the search
+     * continues outward past them.
      *
      * @return int|false
      */
     private function findEnclosingPatternCloser(File $phpcsFile, int $stackPtr, int $searchPtr)
     {
+        $ptr = $searchPtr;
+
+        while (($ptr = $this->findEnclosingCloser($phpcsFile, $stackPtr, $ptr)) !== false) {
+            if ($this->isPatternCloser($phpcsFile, $ptr) === true) {
+                return $ptr;
+            }
+
+            ++$ptr;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the closer ends one of the two constructs a destructuring
+     * pattern is written with: a short array (`[$a, $b] = $source`) or
+     * `list($a, $b) = $source`.
+     *
+     * The `list()` check is on the parentheses' owning construct, not on the
+     * parentheses alone. Any other call's `)` closes an expression, not a
+     * pattern, and accepting it would let the parse error
+     * `doSomething($array['key']) = $default` silently drop the read that its
+     * well-formed counterpart reports — the unsafe direction for a linter,
+     * which should report when a construct is ambiguous rather than stay
+     * quiet.
+     */
+    private function isPatternCloser(File $phpcsFile, int $closerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $code = $tokens[$closerPtr]['code'];
+
+        if ($code === T_CLOSE_SHORT_ARRAY) {
+            return true;
+        }
+
+        if ($code !== T_CLOSE_PARENTHESIS) {
+            return false;
+        }
+
+        $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
+
+        return $ownerPtr !== null && $tokens[$ownerPtr]['code'] === T_LIST;
+    }
+
+    /**
+     * Returns the closer of the nearest construct of any kind enclosing the
+     * chain, searching forward from $searchPtr and stopping at the end of the
+     * statement, or false when nothing encloses it. A closer whose opener
+     * precedes the chain's root is what makes the construct an enclosing one
+     * rather than a sibling.
+     *
+     * @return int|false
+     */
+    private function findEnclosingCloser(File $phpcsFile, int $stackPtr, int $searchPtr)
+    {
         $tokens = $phpcsFile->getTokens();
         $ptr = $searchPtr;
 
-        while (($ptr = $phpcsFile->findNext(self::PATTERN_CLOSERS, $ptr, null, false, null, true)) !== false) {
+        while (($ptr = $phpcsFile->findNext(self::ENCLOSING_CLOSERS, $ptr, null, false, null, true)) !== false) {
+            // An unterminated construct in a file being edited has no opener
+            // recorded; it cannot be shown to enclose the chain, so it is
+            // stepped over and the read is reported.
             $openerPtr = $tokens[$ptr]['bracket_opener'] ?? $tokens[$ptr]['parenthesis_opener'] ?? null;
 
             if ($openerPtr !== null && $openerPtr < $stackPtr) {

@@ -14,7 +14,10 @@ use PHPUnit\Framework\TestCase;
  * Accessors, #33). Fixtures live in Fixtures/ArrayAccessorsSniff/ beside this
  * file: compliant data_get() usage in passing.inc, the constructs the standard
  * deliberately leaves alone in boundaries.inc, and the flagged reads in
- * failing.inc. The rule is detection-only, so there are no autofix fixtures.
+ * failing.inc. Two fixtures cover input PHP itself would reject, which the
+ * sniff must report rather than drop: unterminated.inc for a bracket that
+ * never closes, malformed.inc for a statement that parses to nonsense. The
+ * rule is detection-only, so there are no autofix fixtures.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -53,6 +56,13 @@ class ArrayAccessorsTest extends TestCase
      * pattern targets. A `data_get()` rewrite of any of them either loses the
      * assignment or drops the reference, so flagging one leaves the developer
      * with no compliant form of the statement.
+     *
+     * One of those targets is deliberately a scope's last statement. Deciding
+     * a `foreach` or destructuring target means looking past the chain for the
+     * construct enclosing it, and there the search runs all the way to the
+     * method's own closing brace. A scope brace and a dynamic member name
+     * (`$order->{$name}`) are both curly braces to PHP_CodeSniffer, so
+     * confusing the two would read the target as an offset and flag it.
      */
     public function testBoundaryConstructsAreNotFlagged(): void
     {
@@ -91,6 +101,14 @@ class ArrayAccessorsTest extends TestCase
                 54 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 56 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 60 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                72 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                75 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                78 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                81 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                84 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                85 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                86 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                87 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -199,6 +217,79 @@ class ArrayAccessorsTest extends TestCase
     }
 
     /**
+     * A write target names two chains when its offset is computed:
+     * `$target[$payload['index']]` assigns into `$target` and *reads*
+     * `$payload` to pick the slot. Only the outer chain is the target, so the
+     * inner one stays flagged however the write is spelled.
+     *
+     * The distinction is only at risk where write-ness is inferred from a
+     * construct *enclosing* the chain rather than from an adjacent token,
+     * because an enclosing construct covers the offset as well as the target.
+     * That is exactly the two paths pinned here — `foreach` targets and
+     * destructuring patterns (failing.inc:72-87):
+     *
+     * - 72, `foreach ($rows as $target[$payload['value']])` — value target.
+     * - 75, `foreach ($rows as $target[$payload['key']] => $ignored)` — key
+     *   target, where `=>` marks the write rather than an array literal.
+     * - 78, `foreach ($rows as $order->{$payload['member']})` — dynamic
+     *   property target, whose offset sits in a brace rather than brackets.
+     * - 84, `[$target[$payload['first']]] = $source` — short-array pattern.
+     * - 85, `list($target[$payload['second']]) = $source` — `list()` pattern.
+     * - 86, `['x' => $target[$payload['third']]] = $source` — keyed pattern.
+     *
+     * Lines 81 and 87 wrap the offset in `strtolower(...)`, once per path. The
+     * enclosing construct nearest the read is then the call's `)`, not the
+     * index `]`, so a search that gave up at the first construct it met would
+     * miss the index and drop the read. The offset need not be the innermost
+     * enclosing construct, and computing one with a call is ordinary.
+     *
+     * Each line asserts the count as well as the column, so the write half of
+     * the pair is pinned too: a fix that flagged `$target`/`$order` as well
+     * would report twice and fail here, as would one that dropped the read.
+     */
+    public function testComputedIndexesInsideWriteTargetsAreFlagged(): void
+    {
+        $errors = $this->processFixture('failing.inc')->getErrors();
+
+        $columnsByLine = [
+            72 => 35,
+            75 => 35,
+            78 => 36,
+            81 => 46,
+            84 => 18,
+            85 => 22,
+            86 => 25,
+            87 => 29,
+        ];
+
+        foreach ($columnsByLine as $line => $column) {
+            $this->assertCount(1, $errors[$line], "line {$line} reports once");
+            $this->assertSame($column, array_key_first($errors[$line]), "line {$line} column");
+        }
+    }
+
+    /**
+     * A statement PHP would reject must not suppress a read the sniff would
+     * otherwise report. `doSomething($payload['key']) = $default` (line 11) is
+     * a parse error — a call is not an assignable target — and only `list()`
+     * parentheses close a destructuring pattern, so the trailing `=` says
+     * nothing about the argument. It reports exactly as its well-formed
+     * counterpart on line 12 does.
+     */
+    public function testAMalformedAssignmentStillReportsItsRead(): void
+    {
+        $file = $this->processFixture('malformed.inc');
+
+        $this->assertSame(
+            [
+                11 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                12 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+            ],
+            $this->sourcesByLine($file->getErrors())
+        );
+    }
+
+    /**
      * Pins the detection-only decision: rewriting a chain to a dotted
      * `data_get()` path is a judgement call, so no violation is auto-fixable.
      */
@@ -206,7 +297,7 @@ class ArrayAccessorsTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(19, $file->getErrorCount());
+        $this->assertSame(27, $file->getErrorCount());
         $this->assertSame(0, $file->getFixableCount());
     }
 

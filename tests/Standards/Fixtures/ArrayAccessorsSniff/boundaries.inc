@@ -63,6 +63,16 @@ class ArrayAccessorsBoundaries
         return $collected;
     }
 
+    // The write target is the scope's last statement, so nothing terminates the
+    // search for an enclosing construct before the method's own closing brace.
+    // A scope brace is not a dynamic member name, so it must not be mistaken
+    // for one -- doing so would read $collected as an offset and flag it.
+    public function assignsAsTheLastStatementInAScope(array $rows, array $collected): void
+    {
+        foreach ($rows as $collected['value']) {
+        }
+    }
+
     public function checksExistence(array $payload, object $order): bool
     {
         if (isset($payload['name']) === true) {

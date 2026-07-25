@@ -56,6 +56,19 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
       returns a value, so a rewrite would silently drop the reference and the
       statement would have no compliant form at all. A bitwise and
       (`$mask & $array['flags']`) is an ordinary read and stays flagged.
+
+    A write target names one chain, but the statement may name two: in
+    `$target[$payload['index']] = 'set'` only `$target` is assigned into, while
+    `$payload` is *read* to work out which slot to write. A chain nested inside
+    another accessor's index brackets or dynamic-member braces is therefore
+    flagged, however the surrounding write is spelled —
+    `foreach ($rows as $target[$payload['index']])`,
+    `[$target[$payload['index']]] = $source`,
+    `list($target[$payload['index']]) = $source`, and
+    `$order->{$payload['member']} = 'set'` each write the outer chain and read
+    the inner one. The offset need not be the innermost thing enclosing the
+    read: `$target[strtolower($payload['index'])] = 'set'` reads `$payload`
+    just the same.
   - **Existence checks** (`isset()`, `empty()`, `unset()`,
     `array_key_exists()`) — these already answer the missing-element question
     that `data_get()`'s fallback exists to solve.
@@ -92,9 +105,10 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   developer.
 
 Tests covering compliant `data_get()` usage, the out-of-scope boundary
-constructs, reads that sit beside a write without becoming one, per-line
-violation reporting, one-diagnostic-per-chain, unterminated (mid-edit) chains,
-and the detection-only guarantee live at
+constructs, reads that sit beside a write without becoming one, reads computed
+inside a write target's offset, per-line violation reporting,
+one-diagnostic-per-chain, input PHP itself rejects (unterminated mid-edit
+chains and malformed statements), and the detection-only guarantee live at
 `tests/Standards/ArrayAccessorsTest.php`, with fixtures under
 `tests/Standards/Fixtures/ArrayAccessorsSniff/`.
 

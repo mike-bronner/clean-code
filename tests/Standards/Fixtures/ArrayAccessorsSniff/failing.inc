@@ -61,4 +61,31 @@ class ArrayAccessorsFailing
 
         return [$keyed, $target, $flags, $label];
     }
+
+    public function readsComputedIndexesInsideWriteTargets(
+        array $payload,
+        array $rows,
+        array $source,
+        array $target,
+        object $order
+    ): array {
+        foreach ($rows as $target[$payload['value']]) {
+        }
+
+        foreach ($rows as $target[$payload['key']] => $ignored) {
+        }
+
+        foreach ($rows as $order->{$payload['member']}) {
+        }
+
+        foreach ($rows as $target[strtolower($payload['computed'])]) {
+        }
+
+        [$target[$payload['first']]] = $source;
+        list($target[$payload['second']]) = $source;
+        ['x' => $target[$payload['third']]] = $source;
+        [$target[strtolower($payload['fourth'])]] = $source;
+
+        return [$target, $order];
+    }
 }
