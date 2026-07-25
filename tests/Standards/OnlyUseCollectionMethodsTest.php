@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards;
 
+use MikeBronner\CleanCode\Sniffs\Collections\OnlyUseCollectionMethodsSniff;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
 /**
  * Tests the custom CleanCode.Collections.OnlyUseCollectionMethods sniff
@@ -78,6 +80,10 @@ class OnlyUseCollectionMethodsTest extends TestCase
                 71 => [self::SNIFF_CODE . '.Found'],
                 81 => [self::SNIFF_CODE . '.Found'],
                 82 => [self::SNIFF_CODE . '.Found'],
+                92 => [self::SNIFF_CODE . '.Found'],
+                93 => [self::SNIFF_CODE . '.Found'],
+                103 => [self::SNIFF_CODE . '.Found'],
+                104 => [self::SNIFF_CODE . '.Found'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -118,21 +124,82 @@ class OnlyUseCollectionMethodsTest extends TestCase
                 71 => 'join() => implode()',
                 81 => 'count() => count()',
                 82 => 'count() => count()',
+                92 => 'count() => count()',
+                93 => 'count() => count()',
+                103 => 'count() => count()',
+                104 => 'count() => count()',
             ],
             $this->mappingsByLine($file->getErrors())
         );
     }
 
     /**
-     * Only the single-argument 1:1 swaps (count(), array_sum()) are fixable;
-     * the rest need semantic judgement and stay detection-only.
+     * Fixability is asserted line by line rather than as a total, because the
+     * two conditions that withhold it are invisible in a count: a call is
+     * fixable only when it is a single-argument 1:1 swap (count(), array_sum())
+     * *and* its receiver is a Collection the tokens prove outright.
+     *
+     * That second condition is what keeps the fixer away from TERMINAL_METHODS.
+     * Lines 103-104 chain off a Collection, so the sniff types them by asking
+     * whether the chain's last method is on that hand-curated list — fine for a
+     * report, not something to rewrite source on. They must report and stay
+     * unfixable; if they ever appear below, an incomplete list can fatal a
+     * codebase again.
      */
-    public function testOnlyUnambiguousSingleArgumentCallsAreFixable(): void
+    public function testOnlyProvablyTypedSingleArgumentCallsAreFixable(): void
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(24, $file->getErrorCount());
-        $this->assertSame(7, $file->getFixableCount());
+        $this->assertSame(28, $file->getErrorCount());
+        $this->assertSame([18, 31, 49, 81, 82, 92, 93], $this->fixableLines($file->getErrors()));
+    }
+
+    /**
+     * TERMINAL_METHODS decides whether a chain is still a Collection, and it
+     * fails in the dangerous direction: a method missing from it is assumed to
+     * return a Collection, so every omission is a false positive. It is also a
+     * hand-curated mirror of a framework API that changes without this package,
+     * which is how random() slipped in unnoticed.
+     *
+     * The fixer no longer consults it (see
+     * testOnlyProvablyTypedSingleArgumentCallsAreFixable), so an omission now
+     * costs a warning rather than a rewrite — but only five of its sixty
+     * entries have behavioural coverage, and without this the other fifty-five
+     * could be deleted with the suite still green. Pinning the key set makes
+     * every edit to the constant a deliberate, reviewed one.
+     */
+    public function testTerminalMethodsListIsPinned(): void
+    {
+        $keys = array_keys($this->terminalMethods());
+
+        $this->assertSame(
+            [
+                'after', 'all', 'average', 'avg', 'before', 'contains', 'containsoneitem', 'containsstrict', 'count',
+                'doesntcontain', 'every', 'find', 'first', 'firstorfail', 'firstwhere', 'get', 'getiterator',
+                'getorput', 'has', 'hasany', 'implode', 'isempty', 'isnotempty', 'join', 'jsonserialize', 'last',
+                'max', 'median', 'min', 'mode', 'modelkeys', 'offsetexists', 'offsetget', 'offsetset', 'offsetunset',
+                'percentage', 'pipe', 'pipeinto', 'pipethrough', 'pop', 'pull', 'random', 'reduce', 'reducespread',
+                'reducewithkeys', 'search', 'shift', 'sole', 'some', 'sum', 'toarray', 'tojson', 'toquery', 'unless',
+                'unlessempty', 'unlessnotempty', 'value', 'when', 'whenempty', 'whennotempty',
+            ],
+            $keys
+        );
+    }
+
+    /**
+     * Lookups lower-case the method name before checking the list, so an entry
+     * carrying a capital can never match. Keeping the list sorted is what makes
+     * a missing entry visible to the next person auditing it against the
+     * framework.
+     */
+    public function testTerminalMethodsAreLowerCasedAndSorted(): void
+    {
+        $keys = array_keys($this->terminalMethods());
+        $sorted = $keys;
+        sort($sorted);
+
+        $this->assertSame($sorted, $keys);
+        $this->assertSame(array_map('strtolower', $keys), $keys);
     }
 
     public function testAutoFixProducesTheExpectedOutput(): void
@@ -144,6 +211,16 @@ class OnlyUseCollectionMethodsTest extends TestCase
             __DIR__ . self::FIXTURE_DIR . 'autofix-after.inc',
             $file->fixer->getContents()
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function terminalMethods(): array
+    {
+        $sniff = new ReflectionClass(OnlyUseCollectionMethodsSniff::class);
+
+        return $sniff->getConstant('TERMINAL_METHODS');
     }
 
     private function processFixture(string $fixture): LocalFile
@@ -206,6 +283,32 @@ class OnlyUseCollectionMethodsTest extends TestCase
         ksort($sources);
 
         return $sources;
+    }
+
+    /**
+     * The sorted, de-duplicated lines carrying a violation PHPCBF would rewrite.
+     *
+     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+     *
+     * @return array<int, int>
+     */
+    private function fixableLines(array $messages): array
+    {
+        $lines = [];
+
+        foreach ($messages as $line => $columns) {
+            foreach ($columns as $violations) {
+                foreach ($violations as $violation) {
+                    if ($violation['fixable'] === true) {
+                        $lines[$line] = $line;
+                    }
+                }
+            }
+        }
+
+        ksort($lines);
+
+        return array_values($lines);
     }
 
     /**

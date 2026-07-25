@@ -62,6 +62,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * behaviour (`in_array()`'s `$strict`, `array_filter()`'s `$mode`), or a
      * changed return type (`array_keys()` returns an array, `keys()` returns a
      * Collection).
+     *
+     * Membership here is necessary but not sufficient: isFixable() also
+     * requires the Collection to be the call's only argument and to be an
+     * unchained origin, so the fixer never acts on a type inferred through
+     * TERMINAL_METHODS.
      */
     private const FIXABLE_FUNCTIONS = [
         'array_sum',
@@ -88,17 +93,23 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * extends it. The two ways to get an entry wrong are not symmetrical:
      *
      * - **Omitting** a method that returns a non-Collection makes the sniff
-     *   treat its result as a Collection — a false positive, and on a fixable
-     *   function a rewrite that fatals (`count($c->random())` becoming
-     *   `$c->random()->count()`). Never acceptable, which is why this list is
-     *   audited against the whole Collection API rather than grown one report
-     *   at a time.
+     *   treat its result as a Collection — a false positive on that chain.
      * - **Listing** a method that returns a non-Collection only for *some*
      *   arguments (`pop()`, `shift()`, `random()` and `find()` all hand back a
      *   Collection when given a count or a list of keys) makes the sniff stay
      *   silent on the Collection form — a false negative, which is the
      *   direction this sniff fails in by design. Those entries are marked
      *   "argument-dependent" below.
+     *
+     * This list is a hand-curated mirror of a third-party API that changes
+     * without us, so it will always be *somewhat* stale — which is why the
+     * fixer no longer depends on it. `isFixable()` requires a receiver the
+     * tokens prove outright (a variable, `collect()`, a factory call, `new`),
+     * never one typed through this list, so an omission costs a spurious
+     * warning rather than a rewrite into a runtime fatal. Keeping the list
+     * current still matters for report quality; it is just no longer load
+     * bearing for correctness. `OnlyUseCollectionMethodsTest` pins the exact
+     * key set, so any edit here is a deliberate one.
      *
      * Methods that return `$this` (`each()`, `push()`, `tap()`, `dump()`, …)
      * are deliberately absent: the chain is still a Collection after them.
@@ -121,6 +132,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         'firstwhere' => 'mixed',
         'get' => 'mixed',
         'getiterator' => 'Traversable',
+        'getorput' => 'mixed',
         'has' => 'bool',
         'hasany' => 'bool',
         'implode' => 'string',
@@ -136,6 +148,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         'modelkeys' => 'array (Eloquent)',
         'offsetexists' => 'bool',
         'offsetget' => 'mixed',
+        'offsetset' => 'void',
+        'offsetunset' => 'void',
         'percentage' => 'float|null',
         'pipe' => 'mixed — the callback\'s return; argument-dependent',
         'pipeinto' => 'object',
@@ -145,6 +159,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         'random' => 'mixed, or a Collection when given $number — argument-dependent',
         'reduce' => 'mixed — the callback\'s return; argument-dependent',
         'reducespread' => 'array',
+        'reducewithkeys' => 'mixed — delegates to reduce(); argument-dependent',
         'search' => 'int|string|false',
         'shift' => 'mixed, or a Collection when given $count — argument-dependent',
         'sole' => 'mixed',
@@ -154,6 +169,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         'tojson' => 'string',
         'toquery' => 'Builder (Eloquent)',
         'unless' => 'mixed — the callback\'s return, else $this; argument-dependent',
+        'unlessempty' => 'mixed — alias of whenNotEmpty(); argument-dependent',
+        'unlessnotempty' => 'mixed — alias of whenEmpty(); argument-dependent',
         'value' => 'mixed',
         'when' => 'mixed — the callback\'s return, else $this; argument-dependent',
         'whenempty' => 'mixed — the callback\'s return, else $this; argument-dependent',
@@ -184,6 +201,23 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     private array $importAliases = [];
 
     /**
+     * The file's arrow functions, as the token range of each one's body plus
+     * the parameters it declares, mapped to whether each is a Collection.
+     *
+     * Arrow functions need a table of their own because PHPCS does not record
+     * T_FN in a token's `conditions` (unlike T_CLOSURE and T_FUNCTION), so
+     * containment cannot be read off the token the way scopeOf() reads it for
+     * the other two — it has to come from the T_FN's own scope range.
+     *
+     * Built in T_FN order, so for nested arrow functions the innermost match is
+     * the last one. Rebuilt at the top of each process() call, because PHPCS
+     * reuses one sniff instance for the whole run.
+     *
+     * @var array<int, array{start: int, end: int, parameters: array<string, bool>}>
+     */
+    private array $arrowFunctions = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -201,11 +235,59 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
+        // Order matters: the alias map decides what counts as a Collection type
+        // hint, which the arrow-function table records, which the variable map
+        // consults.
         $this->importAliases = $this->mapImportAliases($phpcsFile);
+        $this->arrowFunctions = $this->mapArrowFunctions($phpcsFile);
 
         $this->flagGenericCalls($phpcsFile, $this->mapCollectionVariables($phpcsFile));
 
         return $phpcsFile->numTokens;
+    }
+
+    /**
+     * Records every arrow function's body range and the parameters it declares.
+     *
+     * An arrow function auto-captures the enclosing scope, so a name it does
+     * *not* declare is the enclosing scope's — but a parameter it declares is a
+     * new binding that shadows the outer name, in an arrow function exactly as
+     * in a closure. Both directions are recorded here (`false` for a parameter
+     * that is not a Collection), because a parameter shadowing an enclosing
+     * Collection has to stop the outward lookup rather than fall through it.
+     *
+     * @return array<int, array{start: int, end: int, parameters: array<string, bool>}>
+     */
+    private function mapArrowFunctions(File $phpcsFile): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $arrowFunctions = [];
+
+        for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
+            if ($tokens[$ptr]['code'] !== T_FN) {
+                continue;
+            }
+
+            // An unterminated arrow function is not analysed rather than
+            // guessed at.
+            if (isset($tokens[$ptr]['scope_opener'], $tokens[$ptr]['scope_closer']) === false) {
+                continue;
+            }
+
+            $parameters = [];
+
+            foreach ($phpcsFile->getMethodParameters($ptr) as $parameter) {
+                $parameters[$parameter['name']] = $this->isCollectionHint($parameter['type_hint']);
+            }
+
+            $arrowFunctions[] = [
+                'start' => $tokens[$ptr]['scope_opener'],
+                'end' => $tokens[$ptr]['scope_closer'],
+                'parameters' => $parameters,
+            ];
+        }
+
+        return $arrowFunctions;
     }
 
     /**
@@ -340,7 +422,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $variables = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
-            if (in_array($tokens[$ptr]['code'], [T_CLOSURE, T_FN, T_FUNCTION], true) === true) {
+            // Arrow-function parameters are deliberately absent here: they bind
+            // in the arrow function, not in the scope around it, so they live
+            // in $this->arrowFunctions instead (see mapArrowFunctions()).
+            if (in_array($tokens[$ptr]['code'], [T_CLOSURE, T_FUNCTION], true) === true) {
                 $this->addTypeHintedParameters($phpcsFile, $ptr, $variables);
 
                 continue;
@@ -391,42 +476,39 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * Registers parameters type-hinted as a Collection against their function's
-     * scope.
+     * Registers a function's or closure's parameters that are type-hinted as a
+     * Collection against its own scope.
      *
      * @param array<int, array<string, bool>> $variables
      */
     private function addTypeHintedParameters(File $phpcsFile, int $functionPtr, array &$variables): void
     {
-        $tokens = $phpcsFile->getTokens();
-
-        // An arrow function shares its enclosing scope (see scopeOf()), so its
-        // parameters have to be registered against that same scope to be found.
-        $scope = $tokens[$functionPtr]['code'] === T_FN
-            ? $this->scopeOf($phpcsFile, $functionPtr)
-            : $functionPtr;
-
         foreach ($phpcsFile->getMethodParameters($functionPtr) as $parameter) {
-            $hint = $parameter['type_hint'];
-
-            if ($hint === '') {
-                continue;
-            }
-
-            // Union and intersection hints are split apart: a parameter that
-            // can be a Collection is treated as one.
-            foreach (explode('|', str_replace('&', '|', $hint)) as $type) {
-                $name = ltrim($type, '?');
-
-                if ($this->isCollectionClass($this->shortName($name), str_contains($name, '\\') === false) === false) {
-                    continue;
-                }
-
-                $variables[$scope][$parameter['name']] = true;
-
-                break;
+            if ($this->isCollectionHint($parameter['type_hint']) === true) {
+                $variables[$functionPtr][$parameter['name']] = true;
             }
         }
+    }
+
+    /**
+     * Whether $hint names a Collection. Union and intersection hints are split
+     * apart: a parameter that can be a Collection is treated as one.
+     */
+    private function isCollectionHint(string $hint): bool
+    {
+        if ($hint === '') {
+            return false;
+        }
+
+        foreach (explode('|', str_replace('&', '|', $hint)) as $type) {
+            $name = ltrim($type, '?');
+
+            if ($this->isCollectionClass($this->shortName($name), str_contains($name, '\\') === false) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -466,8 +548,70 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            $this->report($phpcsFile, $ptr, $opener, $function, $arguments, $collectionArgument);
+            $this->report(
+                $phpcsFile,
+                $ptr,
+                $opener,
+                $function,
+                $collectionArgument,
+                $this->isFixable($phpcsFile, $function, $arguments, $collectionArgument, $variables)
+            );
         }
+    }
+
+    /**
+     * Whether the fixer may rewrite this call: a 1:1 swap function, called with
+     * the Collection as its only argument, on a receiver the tokens prove
+     * outright.
+     *
+     * That last condition is what keeps TERMINAL_METHODS out of the fixer's
+     * path. isCollectionExpression() types a chained receiver by asking whether
+     * the chain's last method is on that list, and assumes a Collection when it
+     * is not — so every method missing from the list makes a chain look like a
+     * Collection. As a *report* that costs a spurious warning. As a *fix* it
+     * rewrites `count($c->random())` into `$c->random()->count()`, which fatals.
+     * Requiring an unchained origin severs the two, so a list that has drifted
+     * behind the framework can only ever produce noise.
+     *
+     * @param array<int, array{0: int, 1: int}> $arguments
+     * @param array{0: int, 1: int}             $collectionArgument
+     * @param array<int, array<string, bool>>   $variables
+     */
+    private function isFixable(
+        File $phpcsFile,
+        string $function,
+        array $arguments,
+        array $collectionArgument,
+        array $variables
+    ): bool {
+        return in_array($function, self::FIXABLE_FUNCTIONS, true) === true
+            && count($arguments) === 1
+            && $this->isUnchainedCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables);
+    }
+
+    /**
+     * Whether the expression spanning [$start, $end] is a Collection origin
+     * with nothing chained onto it — a tracked variable, a `collect()` call, a
+     * `Collection::make()`/`::wrap()` factory call, or a `new Collection()`.
+     *
+     * @param array<int, array<string, bool>> $variables
+     */
+    private function isUnchainedCollection(File $phpcsFile, int $start, int $end, array $variables): bool
+    {
+        if ($start > $end) {
+            return false;
+        }
+
+        $first = $phpcsFile->findNext(Tokens::$emptyTokens, $start, ($end + 1), true);
+
+        if ($first === false) {
+            return false;
+        }
+
+        $originEnd = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables);
+
+        return $originEnd !== null
+            && $phpcsFile->findNext(Tokens::$emptyTokens, ($originEnd + 1), ($end + 1), true) === false;
     }
 
     /**
@@ -488,24 +632,20 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * @param array<int, array{0: int, 1: int}> $arguments
-     * @param array{0: int, 1: int}             $collectionArgument
+     * @param array{0: int, 1: int} $collectionArgument
      */
     private function report(
         File $phpcsFile,
         int $stackPtr,
         int $opener,
         string $function,
-        array $arguments,
-        array $collectionArgument
+        array $collectionArgument,
+        bool $isFixable
     ): void {
         $tokens = $phpcsFile->getTokens();
         $method = self::GENERIC_FUNCTIONS[$function];
         $message = 'Use the Collection method %s() instead of the generic PHP function %s() on a Collection';
         $data = [$method, $tokens[$stackPtr]['content']];
-
-        $isFixable = in_array($function, self::FIXABLE_FUNCTIONS, true) === true
-            && count($arguments) === 1;
 
         if ($isFixable === false) {
             $phpcsFile->addError($message, $stackPtr, 'Found', $data);
@@ -616,9 +756,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         if ($tokens[$ptr]['code'] === T_VARIABLE) {
-            $scope = $this->scopeOf($phpcsFile, $ptr);
-
-            return isset($variables[$scope][$tokens[$ptr]['content']]) === true ? $ptr : null;
+            return $this->isCollectionVariable($phpcsFile, $ptr, $variables) === true ? $ptr : null;
         }
 
         if ($tokens[$ptr]['code'] === T_NEW) {
@@ -827,11 +965,76 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * The innermost variable scope containing $ptr, or 0 for file scope.
+     * Whether the variable at $ptr provably holds a Collection at that point.
+     *
+     * An arrow function auto-captures, so a name it does not declare resolves
+     * to the enclosing scope — but a parameter it *does* declare is a new
+     * binding that shadows the outer name, and shadows it in both directions:
+     * a `Collection` parameter is a Collection only inside the arrow function,
+     * and an `array` parameter is an array inside it even when the enclosing
+     * scope holds a Collection of that name. The innermost enclosing arrow
+     * function that declares the name therefore decides; only when none does is
+     * the enclosing function scope consulted.
+     *
+     * @param array<int, array<string, bool>> $variables
+     */
+    private function isCollectionVariable(File $phpcsFile, int $ptr, array $variables): bool
+    {
+        $name = $phpcsFile->getTokens()[$ptr]['content'];
+        $binding = $this->arrowParameterBinding($ptr, $name);
+
+        if ($binding !== null) {
+            return $binding;
+        }
+
+        return isset($variables[$this->scopeOf($phpcsFile, $ptr)][$name]) === true;
+    }
+
+    /**
+     * Whether the innermost arrow function enclosing $ptr that declares $name
+     * declares it as a Collection, or null when no enclosing arrow function
+     * declares it at all — in which case the name is captured from outside.
+     */
+    private function arrowParameterBinding(int $ptr, string $name): ?bool
+    {
+        $binding = null;
+
+        // Built in T_FN order, so a later match is nested inside an earlier one
+        // and the last one to declare the name is the innermost.
+        foreach ($this->arrowFunctions as $arrowFunction) {
+            if ($ptr < $arrowFunction['start'] || $ptr > $arrowFunction['end']) {
+                continue;
+            }
+
+            $binding = $arrowFunction['parameters'][$name] ?? $binding;
+        }
+
+        return $binding;
+    }
+
+    /**
+     * Whether $ptr sits inside any arrow function's body.
+     */
+    private function isInsideArrowFunction(int $ptr): bool
+    {
+        foreach ($this->arrowFunctions as $arrowFunction) {
+            if ($ptr >= $arrowFunction['start'] && $ptr <= $arrowFunction['end']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The innermost function or closure scope containing $ptr, or 0 for file
+     * scope.
      *
      * Arrow functions are deliberately not scopes here: they auto-capture the
      * enclosing scope's variables by value, so a Collection in scope outside
-     * `fn () => …` is the same Collection inside it.
+     * `fn () => …` is the same Collection inside it. That holds for names an
+     * arrow function *uses*; names it *declares* as parameters shadow instead,
+     * and are resolved by arrowParameterBinding() before this is reached.
      */
     private function scopeOf(File $phpcsFile, int $ptr): int
     {
@@ -883,6 +1086,14 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     private function isUnconditionalAssignment(File $phpcsFile, int $target, int $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
+
+        // An arrow function's body is a deferred expression with locals of its
+        // own, so an assignment inside one proves nothing about the scope
+        // around it. PHPCS records no T_FN in `conditions`, so the loop below
+        // cannot see it — the range check has to stand in.
+        if ($this->isInsideArrowFunction($target) === true) {
+            return false;
+        }
 
         foreach (array_keys($tokens[$target]['conditions'] ?? []) as $opener) {
             if ($opener > $scope) {

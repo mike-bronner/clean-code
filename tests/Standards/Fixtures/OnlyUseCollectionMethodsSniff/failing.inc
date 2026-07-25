@@ -82,3 +82,25 @@ function aliasedCollectionImportsAreFlagged(Coll $collection, array $rows): arra
         count($made),
     ];
 }
+
+// Shadowing cuts both ways: inside the arrow function its own Collection
+// parameter *is* a Collection, and a name it does not declare still resolves to
+// the enclosing scope's Collection by capture.
+function arrowFunctionParametersBindInsideTheArrowFunction(Collection $outer): array
+{
+    return [
+        static fn (Collection $rows): int => count($rows),
+        static fn (): int => count($outer),
+    ];
+}
+
+// A chain is typed through TERMINAL_METHODS, which is a curated mirror of a
+// framework API — good enough to report on, never good enough to rewrite. These
+// stay reported and unfixable however the list drifts.
+function chainedReceiversAreReportedButNeverFixable(Collection $collection, array $rows): array
+{
+    return [
+        count($collection->filter(static fn (string $row): bool => $row !== '')),
+        count(collect($rows)->map(static fn (string $row): string => $row)),
+    ];
+}

@@ -182,3 +182,71 @@ function closureCapturesAreNotImports(array $rows): callable
         return count($collection);
     };
 }
+
+// An arrow function's parameter is a new binding that shadows the enclosing
+// name, in an arrow function exactly as in a closure. Both directions are
+// pinned, because the leak ran both ways: a Collection parameter is a
+// Collection only *inside* the arrow function, and an array parameter is an
+// array inside it even when a Collection of that name is in scope outside.
+class ArrowFunctionParametersShadowTheEnclosingScope
+{
+    public function collectionParameterDoesNotEscapeOutwards(array $items): int
+    {
+        $counter = static fn (Collection $items): int => $items->count();
+
+        return count($items) + $counter(collect([]));
+    }
+
+    public function arrayParameterShadowsAnEnclosingCollection(array $rowSets): int
+    {
+        $rows = collect($rowSets);
+        $counter = static fn (array $rows): int => count($rows);
+
+        return $counter([]) + $rows->count();
+    }
+}
+
+// The same shapes written as closures, which were always correct — they pin the
+// behaviour the arrow-function cases above were brought into line with.
+class ClosureParametersShadowTheEnclosingScope
+{
+    public function collectionParameterDoesNotEscapeOutwards(array $items): int
+    {
+        $counter = static function (Collection $items): int {
+            return $items->count();
+        };
+
+        return count($items) + $counter(collect([]));
+    }
+
+    public function arrayParameterShadowsAnEnclosingCollection(array $rowSets): int
+    {
+        $rows = collect($rowSets);
+        $counter = static function (array $rows): int {
+            return count($rows);
+        };
+
+        return $counter([]) + $rows->count();
+    }
+}
+
+// An assignment in an arrow function's body binds inside it and runs only when
+// it is called, so it proves nothing about the scope around it.
+function arrowBodyAssignmentsDoNotEscape(array $rows): int
+{
+    $data = [];
+    $assign = static fn (): Collection => $data = collect($rows);
+
+    return count($data) + $assign()->count();
+}
+
+// unlessEmpty()/unlessNotEmpty() are aliases of whenNotEmpty()/whenEmpty() and
+// reduceWithKeys() delegates to reduce(), so they end the chain exactly as the
+// methods they stand in for do. getOrPut() hands back the stored value.
+function terminalAliasesEndTheChain(Collection $collection, callable $callback): int
+{
+    return count($collection->unlessEmpty($callback))
+        + count($collection->unlessNotEmpty($callback))
+        + count($collection->reduceWithKeys($callback, 0))
+        + count($collection->getOrPut('total', 0));
+}

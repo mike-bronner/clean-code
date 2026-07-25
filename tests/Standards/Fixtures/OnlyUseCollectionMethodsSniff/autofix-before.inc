@@ -57,3 +57,19 @@ function terminalMethodsAreNeverRewritten(Collection $collection): int
 {
     return count($collection->random());
 }
+
+function arrowParametersAreNeverRewritten(array $items, array $rowSets): int
+{
+    $counter = static fn (Collection $items): int => $items->count();
+    $rows = collect($rowSets);
+    $shadowed = static fn (array $rows): int => count($rows);
+
+    return count($items) + $counter(collect([])) + $shadowed([]) + $rows->count();
+}
+
+// A chained receiver's type comes from TERMINAL_METHODS, so the fixer declines
+// it however complete that list happens to be.
+function chainedReceiversAreNeverRewritten(Collection $collection, callable $callback): int
+{
+    return count($collection->filter($callback)) + count($collection->unlessEmpty($callback));
+}
