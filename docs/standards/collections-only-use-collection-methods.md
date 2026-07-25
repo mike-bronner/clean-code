@@ -58,6 +58,34 @@ one pass, because an omission there is a false positive; a method that returns
 a non-Collection only for *some* arguments (`pop()`, `shift()`, `random()`,
 `find()`) is listed anyway, trading a false negative for never accusing wrongly.
 
+That list is a hand-maintained mirror of a framework API that changes without
+this package, so it will always be somewhat behind. The auto-fixer therefore
+never relies on it — see [Auto-fixing](#auto-fixing) — which caps the cost of an
+omission at a spurious warning.
+
+### Arrow-function parameters shadow, they do not leak
+
+An arrow function auto-captures, so a Collection in scope outside `fn () => …`
+is the same Collection inside it. A name the arrow function *declares as a
+parameter* is a different matter: that is a new binding, and it shadows the
+outer name in both directions.
+
+```php
+$counter = static fn (Collection $items): int => $items->count();
+
+count($items);   // not reported: $items here is the enclosing array
+```
+
+```php
+$rows = collect($rowSets);
+$counter = static fn (array $rows): int => count($rows);
+//                                         ^ not reported: the parameter is an
+//                                           array, not the outer Collection
+```
+
+An assignment inside an arrow function's body binds there too, and runs only
+when the arrow function is called, so it never registers a variable outside it.
+
 ### Only unconditional assignments count
 
 An assignment inside an `if`, a loop, a `try` or a `match` proves nothing about
@@ -93,6 +121,21 @@ Only the unambiguous 1:1 swaps are fixed: a single-argument `count($c)` and
 the Collection side and return the same scalar, so the rewrite cannot change
 behaviour.
 
+The receiver has to be a Collection the tokens prove outright, too — a tracked
+variable, a `collect()` call, a `Collection::make()`/`::wrap()` factory call or
+a `new Collection()`. A **chained** receiver is reported but never rewritten:
+
+```php
+count($c->filter($fn));   // reported, not auto-fixed
+```
+
+A chain's type comes from the terminal-method list, and anything missing from
+that list is assumed to return a Collection. That assumption is acceptable in a
+warning and unacceptable in a rewrite — `count($c->random())` turned into
+`$c->random()->count()` is a runtime fatal, not a style nit. Keeping the fixer
+on provable receivers means a list that has drifted behind the framework can
+only ever produce noise.
+
 Everything else is reported but left alone, because the swap needs judgement a
 fixer cannot make:
 
@@ -125,6 +168,6 @@ The receiver-type condition is what makes this rule its own sniff.
 The sniff needs a *token-provable* Collection, so it stays silent where the
 type is only knowable at runtime: values read from properties
 (`count($this->rows)`), returns of arbitrary methods, arrays that merely happen
-to hold a Collection, variables captured into a closure's `use (...)` list, and
-variables whose only assignment sits inside a branch or loop. Those calls stay
-with code review.
+to hold a Collection, variables captured into a closure's `use (...)` list,
+variables whose only assignment sits inside a branch or loop, and variables
+assigned inside an arrow function's body. Those calls stay with code review.
