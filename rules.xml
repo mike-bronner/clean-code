@@ -88,6 +88,19 @@
     <rule ref="PSR1.Methods.CamelCapsMethodName"/>
     <rule ref="Squiz.Classes.ValidClassName"/>
 
+    <!--
+        Models: Naming Conventions (#44) —
+        docs/standards/models-naming-conventions.md. No bundled or Slevomat
+        sniff reasons about a declaration's *return type* when judging its
+        name (Squiz.NamingConventions.* and PSR1.Methods.CamelCapsMethodName
+        check casing only; Slevomat's Superfluous*Naming sniffs check class
+        name suffixes), so this is the custom sniff
+        CleanCode.Naming.ModelNamingConventions — picked up automatically via
+        the ./CleanCode/ruleset.xml ref above, like every other CleanCode
+        sniff. Reporting-only: renaming an identifier and rewriting a legacy
+        accessor are both semantic changes a fixer must not make.
+    -->
+
     <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
     <rule ref="Generic.Files.LineLength">
         <properties>
