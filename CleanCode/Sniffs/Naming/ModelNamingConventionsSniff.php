@@ -15,9 +15,18 @@ use PHP_CodeSniffer\Util\Tokens;
  * Only Eloquent model classes are inspected. A class counts as a model when it
  * is declared in a namespace carrying a `Models` segment (the Laravel default,
  * `App\Models\…`) or when it extends a recognised Eloquent base class
- * (`Model`, `Authenticatable`, `Pivot`, `MorphPivot`, matched on the short
- * name). Everything else in the tree is left alone — the naming rules below
- * describe how models expose data and would be noise anywhere else.
+ * (`Model`, `Authenticatable`, `Pivot`, `MorphPivot`). Everything else in the
+ * tree is left alone — the naming rules below describe how models expose data
+ * and would be noise anywhere else.
+ *
+ * Every name the sniff interprets — the base class, and every return type — is
+ * put through resolveType() first and only then reduced to a short name, so an
+ * aliased import is followed the way PHP itself follows it. Reading a name as
+ * written is the one mistake this sniff cannot afford: `extends EloquentModel`
+ * would stop looking like a model, `extends Model` aliased onto a value object
+ * would start looking like one, an aliased `Collection` would slip the `get`
+ * rule, and `findUserByName(): Client` would be told to rename itself after the
+ * alias rather than the model.
  *
  * Six checks, all reporting-only (renaming an identifier is never safe for a
  * fixer, and rewriting a legacy accessor is a semantic change):
@@ -78,14 +87,20 @@ class ModelNamingConventionsSniff implements Sniff
     ];
 
     /**
-     * Eloquent base classes (short names) that mark their subclass as a model
-     * when the namespace does not already say so.
+     * Eloquent base classes that mark their subclass as a model when the
+     * namespace does not already say so. Held fully qualified, and compared
+     * against what `extends` resolves to, because the short name is not a
+     * reliable signal in either direction: `Authenticatable` is a conventional
+     * *alias* of `Illuminate\Foundation\Auth\User` rather than any class's real
+     * name, and a bare `Model` is whatever the file's imports and namespace say
+     * it is — which, outside `Illuminate\Database\Eloquent`, is Eloquent's
+     * `Model` only when an import or a leading `\` makes it so.
      */
     private const MODEL_BASE_CLASSES = [
-        'Model',
-        'Authenticatable',
-        'Pivot',
-        'MorphPivot',
+        'illuminate\database\eloquent\model',
+        'illuminate\foundation\auth\user',
+        'illuminate\database\eloquent\relations\pivot',
+        'illuminate\database\eloquent\relations\morphpivot',
     ];
 
     /**
@@ -195,12 +210,12 @@ class ModelNamingConventionsSniff implements Sniff
         }
 
         $namespace = $this->currentNamespace($phpcsFile);
+        $imports = $this->importMap($phpcsFile);
 
-        if ($this->isModel($phpcsFile, $stackPtr, $namespace) === false) {
+        if ($this->isModel($phpcsFile, $stackPtr, $namespace, $imports) === false) {
             return;
         }
 
-        $imports = $this->importMap($phpcsFile);
         $end = $tokens[$stackPtr]['scope_closer'];
         $ptr = $tokens[$stackPtr]['scope_opener'] + 1;
 
@@ -336,7 +351,14 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        if (in_array(strtolower($this->shortName($type)), self::COLLECTION_TYPES, true)) {
+        // Every check below reads the name the return type *resolves* to, never
+        // the name as written. A declared name means nothing until it has been
+        // through the import map — `CollectionAlias` may be a collection and
+        // `Client` may be `User` — and interpreting the alias itself both misses
+        // violations and invents them.
+        $resolved = $this->resolveType($type, $namespace, $imports);
+
+        if (in_array(strtolower($this->shortName($resolved)), self::COLLECTION_TYPES, true)) {
             if ($this->hasPrefix($name, 'get') === false) {
                 $phpcsFile->addError(self::MESSAGE_GET_PREFIX, $stackPtr, 'GetMethodPrefix', [$name]);
             }
@@ -344,7 +366,7 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        if ($this->isModelType($type, $namespace, $imports) === false) {
+        if ($this->isModelType($type, $resolved) === false) {
             return;
         }
 
@@ -356,7 +378,7 @@ class ModelNamingConventionsSniff implements Sniff
 
         // `self`/`static`/`$this`/`parent` name no model, so there is nothing
         // to require in the rest of the method name.
-        $model = in_array(strtolower($type), self::SELF_TYPES, true) ? '' : $this->shortName($type);
+        $model = in_array(strtolower($type), self::SELF_TYPES, true) ? '' : $this->shortName($resolved);
 
         if ($model !== '' && str_contains(substr($name, strlen('find')), $model) === false) {
             $phpcsFile->addError(
@@ -371,8 +393,18 @@ class ModelNamingConventionsSniff implements Sniff
     /**
      * True when the class at $classPtr is an Eloquent model: declared under a
      * `Models` namespace segment, or extending a recognised Eloquent base.
+     *
+     * The base class is read through resolveType() rather than as written:
+     * `extends EloquentModel` under `use Illuminate\Database\Eloquent\Model as
+     * EloquentModel;` is an Eloquent model, and `extends Model` under
+     * `use App\Support\ValueObject as Model;` is not. Judging the name as
+     * written gets both backwards.
+     *
+     * The comparison is case-insensitive because PHP class names are.
+     *
+     * @param array<string, string> $imports
      */
-    private function isModel(File $phpcsFile, int $classPtr, string $namespace): bool
+    private function isModel(File $phpcsFile, int $classPtr, string $namespace, array $imports): bool
     {
         if ($this->hasModelsSegment($namespace)) {
             return true;
@@ -380,16 +412,25 @@ class ModelNamingConventionsSniff implements Sniff
 
         $extends = $phpcsFile->findExtendedClassName($classPtr);
 
-        return $extends !== false && in_array($this->shortName($extends), self::MODEL_BASE_CLASSES, true);
+        if ($extends === false) {
+            return false;
+        }
+
+        $base = strtolower($this->resolveType($extends, $namespace, $imports));
+
+        return in_array($base, self::MODEL_BASE_CLASSES, true);
     }
 
     /**
      * True when the return type denotes a model instance: the enclosing model
      * itself, or a class resolving into a `Models` namespace.
      *
-     * @param array<string, string> $imports
+     * Takes both the type as written — `self`/`static` and the builtins are
+     * keywords, not names an import could ever redirect — and the name it
+     * resolves to, which is the only thing that can be tested for a `Models`
+     * segment.
      */
-    private function isModelType(string $type, string $namespace, array $imports): bool
+    private function isModelType(string $type, string $resolved): bool
     {
         $lower = strtolower($type);
 
@@ -401,7 +442,7 @@ class ModelNamingConventionsSniff implements Sniff
             return false;
         }
 
-        return $this->hasModelsSegment($this->resolveType($type, $namespace, $imports));
+        return $this->hasModelsSegment($resolved);
     }
 
     /**
@@ -556,8 +597,9 @@ class ModelNamingConventionsSniff implements Sniff
     /**
      * Maps every imported short name (or alias) in the file to the name it
      * resolves to, covering both plain and group `use` statements. Class
-     * imports only — `use function`/`use const`, trait uses inside a class, and
-     * closure `use (…)` clauses are skipped.
+     * imports only — trait uses inside a class and closure `use (…)` clauses
+     * are screened here, and `use function`/`use const` by parseUseStatement(),
+     * whose docblock explains why the token stream leaves it no choice.
      *
      * @return array<string, string>
      */
@@ -572,12 +614,16 @@ class ModelNamingConventionsSniff implements Sniff
                 continue;
             }
 
+            // A closure declared at file level carries no enclosing condition,
+            // so its `use (…)` clause reaches here. This keeps that clause out
+            // of the map rather than fixing a violation: the check above
+            // catches every closure inside a class, and the keys a file-level
+            // one would contribute always hold a parenthesis or a space, which
+            // no declared type can match. A guard, not a behaviour — no fixture
+            // can tell its removal apart.
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, $ptr + 1, null, true);
 
-            if (
-                $next === false
-                || in_array($tokens[$next]['code'], [T_OPEN_PARENTHESIS, T_FUNCTION, T_CONST], true)
-            ) {
+            if ($next === false || $tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
                 continue;
             }
 
@@ -604,11 +650,32 @@ class ModelNamingConventionsSniff implements Sniff
      * Parses the body of one `use` statement (everything between the keyword
      * and its semicolon) into alias => resolved-name pairs.
      *
+     * Function and constant imports are dropped here rather than by the caller,
+     * because PHPCS retokenises the `function`/`const` marker of a `use`
+     * statement as a plain `T_STRING` in every form — there is no token type
+     * left to screen on, and the marker arrives as ordinary leading text.
+     *
+     * It can appear in either of two places, and neither check subsumes the
+     * other:
+     *
+     * - **before the prefix**, marking the whole statement
+     *   (`use function App\Support\{helper, tally};`) — screened first, since
+     *   the split below would otherwise read `function App\Support` as a
+     *   namespace and import every item under it;
+     * - **on an individual item** of a group
+     *   (`use App\Support\{ClassA, function helper};`) — screened per item, so
+     *   the class beside it still imports.
+     *
      * @return array<string, string>
      */
     private function parseUseStatement(string $statement): array
     {
         $statement = trim($statement);
+
+        if ($this->isSymbolImport($statement)) {
+            return [];
+        }
+
         $prefix = '';
 
         if (str_contains($statement, '{')) {
@@ -622,7 +689,7 @@ class ModelNamingConventionsSniff implements Sniff
         foreach (explode(',', $statement) as $name) {
             $name = trim($name);
 
-            if ($name === '') {
+            if ($name === '' || $this->isSymbolImport($name)) {
                 continue;
             }
 
@@ -638,5 +705,16 @@ class ModelNamingConventionsSniff implements Sniff
         }
 
         return $map;
+    }
+
+    /**
+     * True when a `use` statement — or one item of a group `use` — is marked
+     * `function` or `const`, and so imports from PHP's function or constant
+     * table rather than importing a type. Neither can ever be what a return
+     * type or an `extends` clause names.
+     */
+    private function isSymbolImport(string $name): bool
+    {
+        return preg_match('/^(?:function|const)\s/i', $name) === 1;
     }
 }

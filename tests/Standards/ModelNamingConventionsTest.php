@@ -91,8 +91,11 @@ class ModelNamingConventionsTest extends TestCase
 
     /**
      * A model that lives outside a `Models` namespace is still recognised
-     * through the Eloquent base class it extends — directly (`Model`) and
-     * through an aliased import (`Authenticatable`).
+     * through the Eloquent base class it extends. Each class in the fixture
+     * spells its base differently — a plain import, an aliased one
+     * (`Model as EloquentModel`), the conventional `Authenticatable` alias of
+     * `Illuminate\Foundation\Auth\User`, and a fully qualified name — and none
+     * of them can be matched on the name as written.
      */
     public function testModelIsRecognisedByItsEloquentBaseClass(): void
     {
@@ -100,9 +103,20 @@ class ModelNamingConventionsTest extends TestCase
 
         $this->assertSame(
             [
-                16 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
-                18 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
-                26 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                // Plain import of the Eloquent base.
+                20 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                22 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                // Base imported under an alias: only resolution reaches
+                // Illuminate\Database\Eloquent\Model.
+                34 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                36 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                // `Authenticatable` is an alias, not a class name — it resolves
+                // to Illuminate\Foundation\Auth\User, whose short name is
+                // `User`, so neither the alias nor the resolved short name
+                // identifies it. Only the fully qualified name does.
+                50 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                // Fully qualified base, no import at all.
+                62 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -110,11 +124,82 @@ class ModelNamingConventionsTest extends TestCase
 
     /**
      * The naming rules describe how a model exposes data; a plain service class
-     * carrying the very same declarations must go unreported.
+     * carrying the very same declarations must go unreported — and so must a
+     * class extending something merely *called* `Model`, which the fixture
+     * aliases onto a plain value object. Projects owning their own `Model` do
+     * exactly that, so the base name as written proves nothing.
      */
     public function testNonModelClassIsLeftAlone(): void
     {
         $file = $this->processFixture('not-a-model.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    /**
+     * An unimported `Model` resolves against the enclosing namespace, so it is
+     * the project's own base class and not Eloquent's — reaching Eloquent's
+     * requires a `use` statement or a leading backslash.
+     */
+    public function testUnimportedBaseClassIsNotEloquentsModel(): void
+    {
+        $file = $this->processFixture('unimported-base.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    /**
+     * Every name the sniff interprets goes through the import map first. Read
+     * as written, none of these three violations exists: `CollectionAlias` is
+     * not in the collection list, and `findLedgerById()` appears to name the
+     * very model it returns.
+     */
+    public function testAliasedTypesAreResolvedBeforeTheyAreInterpreted(): void
+    {
+        $file = $this->processFixture('aliased-imports.inc');
+
+        $this->assertSame(
+            [
+                // Resolves to Illuminate\Support\Collection.
+                24 => [self::SNIFF_CODE . '.GetMethodPrefix'],
+                // Resolves to App\Domain\Models\Account.
+                31 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                // Named after the alias rather than the model behind it.
+                39 => [self::SNIFF_CODE . '.FindModelName'],
+            ],
+            $this->sourcesByLine($file->getErrors())
+        );
+    }
+
+    /**
+     * The costly direction: correct code that the same blindness would report.
+     * A method named after the model it really returns must not be told to
+     * rename itself after a file-local alias.
+     */
+    public function testCorrectNamesBehindAliasedTypesAreNotReported(): void
+    {
+        $file = $this->processFixture('aliased-imports-passing.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    /**
+     * `use function` / `use const` import from PHP's separate symbol tables and
+     * never name a type, so they must not enter the class import map — where
+     * they would resolve a return type under the imported namespace and report
+     * correct code. The marker appears in three shapes, all covered by the
+     * fixture: on an individual item of a mixed group, before a group prefix,
+     * and on a plain statement.
+     *
+     * Screening them must not cost the class item beside them, which the
+     * silent, correctly named `findUserById(): User` proves is still imported.
+     */
+    public function testSymbolImportsNeverEnterTheClassImportMap(): void
+    {
+        $file = $this->processFixture('group-use-mixed.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());
