@@ -130,9 +130,31 @@ class IndustryStandardsTest extends TestCase
         $root = dirname(__DIR__, 2);
 
         return [
+            // The chains this fixture exists to lay out are, by definition,
+            // direct property reads, so the array-accessors standard (#33)
+            // flags every one of them. That is the two standards agreeing, not
+            // a PSR12 conflict: CleanCode.ClearCode.OneThoughtPerLine governs
+            // how a chain is broken across lines, CleanCode.Arrays.ArrayAccessors
+            // says the chain should be a data_get() call in the first place.
+            // Pinned per line so any *other* new violation still fails here.
             'one-thought-per-line chain style is PSR12-clean' => [
                 $root . '/CleanCode/Tests/ClearCode/OneThoughtPerLineUnitTest.inc.fixed',
-                [],
+                [
+                    3 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    4 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    9 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    11 => [
+                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
+                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
+                    ],
+                    12 => [
+                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
+                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
+                    ],
+                    25 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    30 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    41 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                ],
             ],
             'throwable-only catches are PSR12-clean' => [
                 $root . '/tests/Rules/Fixtures/ReferenceThrowableOnly.inc.fixed',

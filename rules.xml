@@ -144,4 +144,21 @@
             <property name="ignoreNewlines" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        Arrays: Array Accessors (#33) —
+        docs/standards/arrays-array-accessors.md.
+
+        Values are read with data_get() rather than by direct element
+        ($array['key']) or property ($object->property) access. No PHPCS or
+        Slevomat sniff expresses this Laravel-specific rule, so it is the
+        custom CleanCode.Arrays.ArrayAccessors sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above — no per-sniff registration
+        is needed, and tests/Standards/ArrayAccessorsTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        Detection only: rewriting a chain to a dotted data_get() path changes
+        meaning when a key contains a dot, and data_get() is a Laravel helper,
+        so an auto-fix cannot be applied safely outside a Laravel application.
+    -->
 </ruleset>
