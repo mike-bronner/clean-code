@@ -42,17 +42,33 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   - **Write-side access** (`$array['key'] = $value`, `$array['key'] .= $more`,
     `$array[] = $value`, `$array['key'] ??= $default`, `$object->property =
     $value`, `++$array['key']`) — `data_get()` reads a value; it cannot stand
-    in for an assignment target.
+    in for an assignment target. This covers every shape the target takes, not
+    only the ones carrying an assignment operator:
+    - **Destructuring patterns** — `[$row['a'], $row['b']] = $source`,
+      `list($object->property) = $source`, `['key' => $row['a']] = $source`,
+      and nested combinations of them.
+    - **`foreach` targets** — the value (`foreach ($rows as $out['value'])`),
+      the key (`foreach ($rows as $out['key'] => $value)`), and destructuring
+      patterns in the `as` clause (`foreach ($rows as [$out['a']])`). The
+      *subject* of the loop (`foreach ($payload['rows'] as $row)`) is a read
+      and is flagged.
+    - **Reference binds** (`$reference = &$array['key']`) — `data_get()`
+      returns a value, so a rewrite would silently drop the reference and the
+      statement would have no compliant form at all. A bitwise and
+      (`$mask & $array['flags']`) is an ordinary read and stays flagged.
   - **Existence checks** (`isset()`, `empty()`, `unset()`,
     `array_key_exists()`) — these already answer the missing-element question
     that `data_get()`'s fallback exists to solve.
-  - **Array literals** (`['key' => $value]`) — a declaration, not a read.
+  - **Array literals** (`['key' => $value]`) — a declaration, not a read. Only
+    the literal's own syntax is exempt: an accessor used as a literal's key or
+    value (`[$row['id'] => $row['name']]`, the shape `mapWithKeys()` callbacks
+    are built from) is read to build it, so both sides are reported.
   - **`$this`-rooted access** (`$this->property`, `$this->config['key']`) — an
     object's own state is known to exist, so neither the fallback nor the
     type-agnostic lookup applies.
   - **Method calls** (`$object->method()`, `$object?->method()`) — an
     invocation of the object's own API, which `data_get()` does not resolve.
-- **Known blind spots** — two cases the token stream cannot express, accepted
+- **Known blind spots** — three cases the token stream cannot express, accepted
   rather than approximated:
   - Accessors inside interpolated strings (`"{$array['key']}"`) — PHP_CodeSniffer
     hands the whole string over as one token, so there is nothing to inspect.
@@ -60,6 +76,10 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     `self::CONSTANTS['key']`) — there is no variable to report against. A
     static *property* chain (`self::$registry['key']`) does have one and is
     flagged.
+  - Arguments bound to a by-reference parameter (`bump($array['key'])` where
+    `function bump(&$value)`) — the call site is a write, but only the callee's
+    signature says so, and a sniff sees one file at a time. Such a call is
+    reported as a read; silence would require cross-file analysis.
 - **Auto-fixable — No (detection only).** Auto-fix scoping was investigated and
   rejected on two counts. First, the nested rewrite is lossy:
   `$payload['a']['b']` becomes `data_get($payload, 'a.b')`, and that dotted
@@ -72,8 +92,9 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   developer.
 
 Tests covering compliant `data_get()` usage, the out-of-scope boundary
-constructs, per-line violation reporting, one-diagnostic-per-chain, unterminated
-(mid-edit) chains, and the detection-only guarantee live at
+constructs, reads that sit beside a write without becoming one, per-line
+violation reporting, one-diagnostic-per-chain, unterminated (mid-edit) chains,
+and the detection-only guarantee live at
 `tests/Standards/ArrayAccessorsTest.php`, with fixtures under
 `tests/Standards/Fixtures/ArrayAccessorsSniff/`.
 

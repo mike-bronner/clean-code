@@ -24,11 +24,19 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * - **Write-side access** (`$array['key'] = $value`, `$array['key'] .= $more`,
  *   `$array[] = $value`, `$object->property = $value`, `++$array['key']`) —
- *   `data_get()` reads; it cannot stand in for an assignment target.
+ *   `data_get()` reads; it cannot stand in for an assignment target. This
+ *   covers every shape the target can take: a destructuring pattern
+ *   (`[$array['a'], $array['b']] = $source`, `list($object->property) =
+ *   $source`), a `foreach` value, key, or pattern target (`foreach ($rows as
+ *   $out['key'] => $value)`), and a reference bind (`$ref = &$array['key']`,
+ *   which `data_get()`'s by-value return could not preserve).
  * - **Existence checks** (`isset()`, `empty()`, `unset()`,
  *   `array_key_exists()`) — these already handle the missing-element case that
  *   `data_get()`'s fallback exists to solve.
- * - **Array literals** (`['key' => $value]`) — a declaration, not a read.
+ * - **Array literals** (`['key' => $value]`) — a declaration, not a read. Only
+ *   the literal's own syntax is exempt: an accessor used as a literal's key or
+ *   value (`[$row['id'] => $row['name']]`) is read to build it, so both sides
+ *   are reported.
  * - **`$this`-rooted access** (`$this->property`, `$this->config['key']`) — an
  *   object's own state is known to exist; no fallback or type check applies.
  * - **Method calls** (`$object->method()`, `$object?->method()`, and the
@@ -36,11 +44,14 @@ use PHP_CodeSniffer\Util\Tokens;
  *   which `data_get()` does not resolve. A dynamic *property*
  *   (`$object->{$name}`) is a read and is flagged.
  *
- * Two blind spots follow from the token stream and are accepted: accessors
+ * Three blind spots follow from the token stream and are accepted: accessors
  * embedded in interpolated strings ("{$array['key']}") are a single string
- * token to PHP_CodeSniffer and cannot be inspected, and a chain rooted in
+ * token to PHP_CodeSniffer and cannot be inspected, a chain rooted in
  * anything other than a variable (`foo()['key']`, `self::CONSTANTS['key']`) has
- * no variable to report against.
+ * no variable to report against, and an argument bound to a by-reference
+ * parameter (`bump($array['key'])` where `function bump(&$value)`) is a write
+ * that only the callee's signature reveals — a sniff sees one file, so the call
+ * site is indistinguishable from a by-value read.
  *
  * Detection only. A fixer would have to rewrite `$array['key']['nested']` to
  * `data_get($array, 'key.nested')`, which is unsafe on two counts: the dotted
@@ -68,6 +79,12 @@ class ArrayAccessorsSniff implements Sniff
      * argument applies to it just as it does to `->`.
      */
     private const OBJECT_OPERATORS = [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR];
+
+    /**
+     * The closers of the two constructs a destructuring pattern is written
+     * with: a short array (`[$a, $b] = $source`) and `list($a, $b) = $source`.
+     */
+    private const PATTERN_CLOSERS = [T_CLOSE_SHORT_ARRAY, T_CLOSE_PARENTHESIS];
 
     /**
      * Constructs whose parentheses answer "does this exist?" — the question
@@ -209,16 +226,39 @@ class ArrayAccessorsSniff implements Sniff
 
     /**
      * Whether the chain is written to rather than read from — the assignment,
-     * compound-assignment, and increment/decrement targets `data_get()` cannot
-     * replace.
+     * compound-assignment, increment/decrement, reference-bind, destructuring,
+     * and `foreach` targets `data_get()` cannot replace.
+     *
+     * The decision needs a wider window than the one token following the
+     * chain: a destructuring pattern puts its `=` beyond the pattern's own
+     * closer, a `foreach` target has no assignment operator at all, and a
+     * reference bind is marked by an `&` that precedes the chain.
      */
     private function isWriteTarget(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        // Pre-increment/decrement: `++$array['key']`.
-        if ($previousPtr !== false && in_array($tokens[$previousPtr]['code'], [T_INC, T_DEC], true)) {
+        if ($previousPtr !== false) {
+            // Pre-increment/decrement: `++$array['key']`.
+            if (in_array($tokens[$previousPtr]['code'], [T_INC, T_DEC], true) === true) {
+                return true;
+            }
+
+            // A reference bind (`$ref = &$array['key']`) writes through the
+            // chain, and `data_get()` returns a value — rewriting it would
+            // silently drop the reference, leaving no compliant form of the
+            // statement. isReference() tells the bind apart from a bitwise
+            // and (`$mask & $array['flag']`), which is an ordinary read.
+            if (
+                $tokens[$previousPtr]['code'] === T_BITWISE_AND
+                && $phpcsFile->isReference($previousPtr) === true
+            ) {
+                return true;
+            }
+        }
+
+        if ($this->isForeachTarget($phpcsFile, $stackPtr) === true) {
             return true;
         }
 
@@ -231,8 +271,128 @@ class ArrayAccessorsSniff implements Sniff
 
         $code = $tokens[$nextPtr]['code'];
 
-        return in_array($code, Tokens::$assignmentTokens, true)
-            || in_array($code, [T_INC, T_DEC], true);
+        if (in_array($code, [T_INC, T_DEC], true) === true) {
+            return true;
+        }
+
+        // T_DOUBLE_ARROW is a member of Tokens::$assignmentTokens, but a chain
+        // *followed* by `=>` is a read: the key of an array literal
+        // (`[$row['id'] => $row['name']]`) or a match arm's condition. The one
+        // construct where `=>` does mark a write — a `foreach` key target
+        // (`foreach ($rows as $out['key'] => $value)`) — is settled by
+        // isForeachTarget() above, so it is excluded here.
+        if ($code !== T_DOUBLE_ARROW && isset(Tokens::$assignmentTokens[$code]) === true) {
+            return true;
+        }
+
+        return $this->isDestructuringTarget($phpcsFile, $stackPtr, $endPtr);
+    }
+
+    /**
+     * Whether the chain sits in a `foreach`'s `as` clause, which assigns into
+     * every accessor it names: the value target (`foreach ($rows as
+     * $out['value'])`), the key target (`foreach ($rows as $out['key'] =>
+     * $value)`), and any destructuring pattern (`foreach ($rows as
+     * [$out['a'], $out['b']])`). None of them carries an assignment operator
+     * the trailing-token check could see.
+     *
+     * Only the clause after `as` is a target; the subject before it
+     * (`foreach ($payload['rows'] as $row)`) is a read and stays reportable.
+     */
+    private function isForeachTarget(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        // A token's nested_parenthesis only records matched pairs, so the
+        // opener's closer is always resolvable here.
+        foreach ($tokens[$stackPtr]['nested_parenthesis'] ?? [] as $openerPtr => $closerPtr) {
+            $ownerPtr = $tokens[$openerPtr]['parenthesis_owner'] ?? null;
+
+            if ($ownerPtr === null || $tokens[$ownerPtr]['code'] !== T_FOREACH) {
+                continue;
+            }
+
+            $asPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
+
+            if ($asPtr !== false && $asPtr < $stackPtr) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the chain is an element of a destructuring pattern that is
+     * assigned to — `[$array['a'], $array['b']] = $source`,
+     * `list($object->property) = $source`, `['x' => $array['a']] = $source`.
+     * Destructuring is write-side access, and `data_get()` cannot stand in for
+     * it any more than it can for a plain assignment target.
+     *
+     * findChainEnd() stops at the chain's own closer, where the next token is
+     * the pattern's `,` or `]`, so the `=` governing the whole pattern is only
+     * reachable by walking out of each enclosing pattern in turn.
+     */
+    private function isDestructuringTarget(File $phpcsFile, int $stackPtr, int $chainEndPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $searchPtr = $chainEndPtr;
+
+        while (true) {
+            $closerPtr = $this->findEnclosingPatternCloser($phpcsFile, $stackPtr, $searchPtr);
+
+            if ($closerPtr === false) {
+                return false;
+            }
+
+            $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($closerPtr + 1), null, true);
+
+            // Destructuring assigns with `=`; PHP has no compound form of it.
+            // A pattern closed at the very end of a file being edited has no
+            // following token to test, so the walk continues outward, runs out
+            // of enclosing patterns, and the read is reported — the safe
+            // direction for a linter.
+            if ($nextPtr !== false && $tokens[$nextPtr]['code'] === T_EQUAL) {
+                return true;
+            }
+
+            // Not this pattern — try the one enclosing it (`[[$array['a']]]`).
+            $searchPtr = ($closerPtr + 1);
+        }
+    }
+
+    /**
+     * Returns the closer of the nearest short-array or `list()` construct
+     * enclosing the chain, searching forward from $searchPtr and stopping at
+     * the end of the statement, or false when no such construct encloses it.
+     * A closer whose opener precedes the chain's root is what makes the
+     * construct an enclosing one rather than a sibling.
+     *
+     * Index brackets are deliberately not pattern closers: in
+     * `$target[$array['key']] = $value` the enclosing `]` closes an index, and
+     * counting it would read the trailing `=` as assigning to
+     * `$array['key']`, which is a read. PHP_CodeSniffer tokenizes an index
+     * closer as T_CLOSE_SQUARE_BRACKET and an array/pattern closer as
+     * T_CLOSE_SHORT_ARRAY, so the two never blur.
+     *
+     * @return int|false
+     */
+    private function findEnclosingPatternCloser(File $phpcsFile, int $stackPtr, int $searchPtr)
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ptr = $searchPtr;
+
+        while (($ptr = $phpcsFile->findNext(self::PATTERN_CLOSERS, $ptr, null, false, null, true)) !== false) {
+            $openerPtr = $tokens[$ptr]['bracket_opener'] ?? $tokens[$ptr]['parenthesis_opener'] ?? null;
+
+            if ($openerPtr !== null && $openerPtr < $stackPtr) {
+                return $ptr;
+            }
+
+            ++$ptr;
+        }
+
+        return false;
     }
 
     /**

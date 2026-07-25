@@ -46,4 +46,19 @@ class ArrayAccessorsFailing
 
         return [$translated, $registered, $dynamic];
     }
+
+    public function readsSittingBesideWrites(array $payload, array $target, int $mask): array
+    {
+        $keyed = [$payload['id'] => $payload['name']];
+        $target[$payload['index']] = 'set';
+        $flags = $mask & $payload['flags'];
+
+        foreach ($payload['rows'] as $row) {
+            $keyed[] = $row;
+        }
+
+        $label = strtoupper($payload['label']);
+
+        return [$keyed, $target, $flags, $label];
+    }
 }

@@ -25,6 +25,44 @@ class ArrayAccessorsBoundaries
         return $payload;
     }
 
+    public function destructuresIntoElements(array $source, object $order): array
+    {
+        [$payload['first'], $payload['second']] = $source;
+        list($payload['third'], $payload['fourth']) = $source;
+        [$order->first, $order->second] = $source;
+        ['key' => $payload['keyed']] = $source;
+        [[$payload['nested']]] = $source;
+
+        return $payload;
+    }
+
+    public function bindsByReference(array $payload): array
+    {
+        $reference = &$payload['name'];
+        $reference = 'set';
+
+        return $payload;
+    }
+
+    public function assignsForeachTargets(array $rows): array
+    {
+        $collected = [];
+
+        foreach ($rows as $collected['value']) {
+        }
+
+        foreach ($rows as $collected['key'] => $ignored) {
+        }
+
+        foreach ($rows as [$collected['first'], $collected['second']]) {
+        }
+
+        foreach ($rows as $index => [$collected['third']]) {
+        }
+
+        return $collected;
+    }
+
     public function checksExistence(array $payload, object $order): bool
     {
         if (isset($payload['name']) === true) {

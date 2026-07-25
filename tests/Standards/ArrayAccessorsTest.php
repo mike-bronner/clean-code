@@ -45,6 +45,14 @@ class ArrayAccessorsTest extends TestCase
      * Write-side access, existence checks, array literals, $this-rooted reads,
      * and method calls are out of the standard's scope and must stay silent —
      * a false positive on any of them makes the rule unusable.
+     *
+     * Write-side means every shape the target can take, not just the operator
+     * cases: the fixture also covers destructuring (`[$payload['first']] =
+     * $source`, `list(...)`, keyed and nested patterns), a reference bind
+     * (`$reference = &$payload['name']`), and `foreach` value, key, and
+     * pattern targets. A `data_get()` rewrite of any of them either loses the
+     * assignment or drops the reference, so flagging one leaves the developer
+     * with no compliant form of the statement.
      */
     public function testBoundaryConstructsAreNotFlagged(): void
     {
@@ -75,6 +83,14 @@ class ArrayAccessorsTest extends TestCase
                 43 => [self::SNIFF_CODE . '.DirectPropertyAccess'],
                 44 => [self::SNIFF_CODE . '.DirectArrayAccess'],
                 45 => [self::SNIFF_CODE . '.DirectPropertyAccess'],
+                52 => [
+                    self::SNIFF_CODE . '.DirectArrayAccess',
+                    self::SNIFF_CODE . '.DirectArrayAccess',
+                ],
+                53 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                54 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                56 => [self::SNIFF_CODE . '.DirectArrayAccess'],
+                60 => [self::SNIFF_CODE . '.DirectArrayAccess'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -148,6 +164,41 @@ class ArrayAccessorsTest extends TestCase
     }
 
     /**
+     * A read stays a read when it sits next to a write, which is where the
+     * read/write boundary is easiest to get wrong. Each line pins one side of
+     * a distinction the sniff has to draw from the token stream:
+     *
+     * - line 52, `[$payload['id'] => $payload['name']]` — an accessor before
+     *   `=>` is the key of an array literal, read to build it. `=>` is a
+     *   member of PHPCS's assignment-token set, so treating that set as
+     *   "writes" silently drops the key side; both sides must report.
+     * - line 53, `$target[$payload['index']] = 'set'` — the read is an index
+     *   *into* a write target. The `]` enclosing it closes an index, not a
+     *   destructuring pattern, so the trailing `=` does not make it a write.
+     * - line 54, `$mask & $payload['flags']` — the `&` is a bitwise and, not
+     *   the reference bind that boundaries.inc exempts.
+     * - line 56, `foreach ($payload['rows'] as $row)` — the subject of a
+     *   `foreach` is read; only the `as` clause is assigned into.
+     * - line 60, `strtoupper($payload['label'])` — an ordinary call's
+     *   parentheses have no owning construct at all, unlike the `foreach` and
+     *   `if` parentheses elsewhere in this fixture.
+     */
+    public function testReadsBesideWritesAreStillFlagged(): void
+    {
+        $errors = $this->processFixture('failing.inc')->getErrors();
+
+        $this->assertSame([19, 37], array_keys($errors[52]));
+        $this->assertSame(17, array_key_first($errors[53]));
+        $this->assertSame(26, array_key_first($errors[54]));
+        $this->assertSame(18, array_key_first($errors[56]));
+        $this->assertSame(29, array_key_first($errors[60]));
+        $this->assertCount(1, $errors[53]);
+        $this->assertCount(1, $errors[54]);
+        $this->assertCount(1, $errors[56]);
+        $this->assertCount(1, $errors[60]);
+    }
+
+    /**
      * Pins the detection-only decision: rewriting a chain to a dotted
      * `data_get()` path is a judgement call, so no violation is auto-fixable.
      */
@@ -155,7 +206,7 @@ class ArrayAccessorsTest extends TestCase
     {
         $file = $this->processFixture('failing.inc');
 
-        $this->assertSame(13, $file->getErrorCount());
+        $this->assertSame(19, $file->getErrorCount());
         $this->assertSame(0, $file->getFixableCount());
     }
 
