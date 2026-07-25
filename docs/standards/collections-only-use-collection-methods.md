@@ -39,8 +39,16 @@ is one of:
   (`Collection`, `EloquentCollection`, `OrderCollection`, …);
 - a parameter type-hinted as such a class;
 - a variable *unconditionally* assigned any of the above — tracked per function
-  scope, and retired again as soon as the variable is reassigned to something
-  else.
+  scope, and only when **every** binding of that name in the scope proved a
+  Collection. Any other binding of it — a reassignment, `foreach`, `catch`,
+  destructuring, `global`/`static`, a `use (&$name)` capture, a compound
+  assignment or an index write — retires the name for the whole scope, not just
+  from that line on.
+
+The name is also left alone where the call itself is not what it appears to be:
+a `use function … as count;` import rebinds the name for the whole file, so an
+unqualified `count($collection)` is that import rather than the builtin. A
+fully-qualified `\count($collection)` is the builtin again, and is reported.
 
 A bare class name is resolved through the file's `use` imports first, so the
 alias never decides on its own: `use Illuminate\Support\Collection as Coll`
@@ -165,9 +173,47 @@ The receiver-type condition is what makes this rule its own sniff.
 
 ## What remains code review
 
-The sniff needs a *token-provable* Collection, so it stays silent where the
-type is only knowable at runtime: values read from properties
-(`count($this->rows)`), returns of arbitrary methods, arrays that merely happen
-to hold a Collection, variables captured into a closure's `use (...)` list,
-variables whose only assignment sits inside a branch or loop, and variables
-assigned inside an arrow function's body. Those calls stay with code review.
+The sniff needs a *token-provable* Collection, so it stays silent where the type
+is only knowable at runtime. Those calls stay with code review:
+
+- values read from properties (`count($this->rows)`);
+- returns of arbitrary methods, and arrays that merely happen to hold a
+  Collection;
+- variables captured into a closure's `use (...)` list;
+- variables whose only assignment sits inside a branch or loop, and variables
+  assigned inside an arrow function's body;
+- any name a construct the sniff cannot fully parse has bound. A name is tracked
+  only when *every* binding of it in the scope proved a Collection, so
+  `foreach`, `catch`, destructuring, `global`/`static`, a `use (&$name)`
+  capture, a compound assignment (`.=`, `??=`) and an index write (`$c[] = …`)
+  all retire it. Two of those retire a name that really is still a Collection —
+  `$c[] = …` and `$c ??= collect(…)` — and both are deliberate: missing a
+  violation costs a report, and the alternative direction costs working code
+  (see below).
+
+Missing a violation is the direction this sniff is built to fail in, and the
+list above is the harmless half. The dangerous half is where it *speaks*.
+
+## What the sniff can get wrong
+
+Read this before running `phpcbf` across a codebase — everything here is a case
+where the sniff reports, and the entries marked **fixable** are cases where
+`--fix` would rewrite your source:
+
+| Case | Reported | Fixable | Consequence |
+|---|---|---|---|
+| A chain whose last method is missing from `TERMINAL_METHODS` | yes | **no** | A spurious report on `count($c->newMethod())`. The list is a hand-curated mirror of a framework API, so it drifts; the fixer does not consult it. |
+| A receiver handed bare to another call that may take it by reference (`preg_match('/x/', $s, $c)`, a userland `&$target`) | yes | **no** | A spurious report after the callee has replaced the value. Neither a userland signature nor PHP's by-reference builtins are knowable from the tokens. |
+| A Collection stored in a property or returned from a method | no | — | Silent; see above. |
+
+Both reported-but-unfixable rows are deliberate **severity collapses**: the sniff
+cannot prove the type at the call site, so it says so and declines to act. That
+is the whole design rule — *the fixer only ever rewrites a receiver the tokens
+prove outright*: a tracked variable, `collect()`, a `Collection::make()`/`::wrap()`
+factory call, or a `new Collection()`, none of which has escaped to another call.
+An inference good enough to raise a warning is not good enough to rewrite source,
+because a wrong rewrite is a runtime fatal rather than a style nit.
+
+There is no known case where the fixer rewrites working code into a fatal. If
+you find one, it is a bug of the highest severity in this sniff — the tests pin
+every shape found so far as byte-for-byte untouched by `phpcbf`.
