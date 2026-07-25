@@ -19,11 +19,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * name). Everything else in the tree is left alone — the naming rules below
  * describe how models expose data and would be noise anywhere else.
  *
- * Five checks, all reporting-only (renaming an identifier is never safe for a
+ * Six checks, all reporting-only (renaming an identifier is never safe for a
  * fixer, and rewriting a legacy accessor is a semantic change):
  *
  * - **BooleanPropertyPrefix** — a `bool`-typed property must read as a yes/no
- *   question (`isActive`, `hasQuota`, `shouldQueue`).
+ *   question (`isActive`, `hasQuota`, `shouldQueue`), whether it is declared in
+ *   the class body or promoted from a constructor parameter.
  * - **BooleanMethodPrefix** — a `bool`-returning method must read the same way.
  *   The standard's preferred shape for a condition check is
  *   `has<ConditionInPastTense>`; past-tense morphology is not machine
@@ -206,9 +207,13 @@ class ModelNamingConventionsSniff implements Sniff
         while ($ptr < $end) {
             if ($tokens[$ptr]['code'] === T_FUNCTION) {
                 $this->processMethod($phpcsFile, $ptr, $namespace, $imports);
+                $this->processPromotedProperties($phpcsFile, $ptr);
 
-                // Jump the body so locals, closures, and nested anonymous
-                // classes are never mistaken for members of this model.
+                // Jump the parameter list and the body in one step, so locals,
+                // closures, and nested anonymous classes are never mistaken for
+                // members of this model. Promoted properties live in the part
+                // being jumped, which is why they are collected above rather
+                // than by the T_VARIABLE branch below.
                 $ptr = $this->endOfMethod($phpcsFile, $ptr);
 
                 continue;
@@ -239,11 +244,51 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        if (strtolower($this->normalizeType($property['type'])) !== 'bool') {
+        $name = ltrim($phpcsFile->getTokens()[$stackPtr]['content'], '$');
+
+        $this->reportBooleanProperty($phpcsFile, $stackPtr, $property['type'], $name);
+    }
+
+    /**
+     * Flags constructor-promoted properties, which declare a property in the
+     * parameter list rather than the class body. They are as much a member as
+     * a classically declared one, and the package's own ruleset references
+     * SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion — so
+     * running the fixer rewrites class-body properties into this shape, and a
+     * check blind to it would let `composer fix` launder its own findings away.
+     *
+     * A plain parameter carries no visibility modifier and declares no
+     * property, so it is left alone.
+     *
+     * Unlike processProperty(), this needs no exception guard: PHPCS raises
+     * only for a token that is not a function/closure/arrow-function, and the
+     * caller reaches this exclusively from the T_FUNCTION branch.
+     */
+    private function processPromotedProperties(File $phpcsFile, int $stackPtr): void
+    {
+        foreach ($phpcsFile->getMethodParameters($stackPtr) as $parameter) {
+            if (isset($parameter['property_visibility']) === false) {
+                continue;
+            }
+
+            $this->reportBooleanProperty(
+                $phpcsFile,
+                $parameter['token'],
+                $parameter['type_hint'],
+                ltrim($parameter['name'], '$')
+            );
+        }
+    }
+
+    /**
+     * The BooleanPropertyPrefix check itself, shared by both ways a model can
+     * declare a property. An untyped property carries no signal and is skipped.
+     */
+    private function reportBooleanProperty(File $phpcsFile, int $stackPtr, string $type, string $name): void
+    {
+        if (strtolower($this->normalizeType($type)) !== 'bool') {
             return;
         }
-
-        $name = ltrim($phpcsFile->getTokens()[$stackPtr]['content'], '$');
 
         if ($this->hasQuestionPrefix($name)) {
             return;
@@ -360,23 +405,32 @@ class ModelNamingConventionsSniff implements Sniff
     }
 
     /**
-     * Expands a return type as written into the namespace it resolves to: an
-     * already-qualified name stands as-is, an imported short name resolves
-     * through the import, and anything else resolves against the enclosing
-     * namespace (PHP's own fallback for an unimported name).
+     * Expands a return type as written into the name it resolves to, following
+     * PHP's own resolution rules:
+     *
+     * - a **fully qualified** name (leading `\`) stands as written, bypassing
+     *   the import map entirely — so `\DateTime` is `DateTime` even in a file
+     *   that imports something else under that alias;
+     * - otherwise the **first segment** is resolved through the imports, which
+     *   covers both a short name (`User`) and a qualified one (`Relations\HasMany`
+     *   under `use Illuminate\Database\Eloquent\Relations;`);
+     * - anything left resolves against the enclosing namespace, PHP's fallback
+     *   for an unimported name.
      *
      * @param array<string, string> $imports
      */
     private function resolveType(string $type, string $namespace, array $imports): string
     {
-        $type = ltrim($type, '\\');
-
-        if (str_contains($type, '\\')) {
-            return $type;
+        if (str_starts_with($type, '\\')) {
+            // The trim is normalisation, so every branch returns the same
+            // shape; only the early return itself carries behaviour.
+            return ltrim($type, '\\');
         }
 
-        if (isset($imports[$type])) {
-            return $imports[$type];
+        [$head, $rest] = array_pad(explode('\\', $type, 2), 2, null);
+
+        if (isset($imports[$head])) {
+            return ($rest === null) ? $imports[$head] : $imports[$head] . '\\' . $rest;
         }
 
         return ($namespace === '') ? $type : $namespace . '\\' . $type;

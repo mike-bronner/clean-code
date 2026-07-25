@@ -69,8 +69,14 @@ class Post extends Model
         return Attribute::make(get: fn (): string => $this->author->name);
     }
 
-    public function __construct()
-    {
-        parent::__construct();
+    // Promoted boolean properties phrased as a yes/no question, alongside a
+    // promoted non-boolean and a plain parameter.
+    public function __construct(
+        private bool $isArchived = false,
+        protected bool $hasCoverPhoto = false,
+        private string $slug = '',
+        string $title = '',
+    ) {
+        parent::__construct(['title' => $title]);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domain;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
@@ -56,5 +57,30 @@ class Post extends Model
     public function setTitleAttribute(string $value): void
     {
         $this->attributes['title'] = $value;
+    }
+
+    // A root-anchored name that does resolve into a Models namespace is still
+    // a model — the leading backslash is not a blanket exemption.
+    public function fetchAdmin(): \App\Models\User
+    {
+        return new User();
+    }
+
+    // A qualified name resolves its first segment through the imports, so this
+    // is App\Domain\Models\Account — a model, and unprefixed.
+    public function loadAccount(): Domain\Models\Account
+    {
+        return new Domain\Models\Account();
+    }
+
+    // Promoted properties are declared in the parameter list, but they are
+    // properties: the same yes/no rule applies. The plain $title parameter
+    // beside them declares nothing and stays silent.
+    public function __construct(
+        private bool $archived = false,
+        protected bool $flagged = false,
+        string $title = '',
+    ) {
+        parent::__construct(['title' => $title]);
     }
 }

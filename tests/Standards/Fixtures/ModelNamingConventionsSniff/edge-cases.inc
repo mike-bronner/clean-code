@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
 use Illuminate\Support\Carbon;
+// Aliases a model onto a global class name, so a root-anchored return type
+// below would resolve to a model if the imports were consulted for it.
+use App\Models\User as DateTimeImmutable;
 
 class Comment extends Model
 {
@@ -74,6 +77,32 @@ class Comment extends Model
     public function casts(): array
     {
         return [];
+    }
+
+    // A leading backslash makes a name fully qualified: PHP resolves it
+    // globally, bypassing the enclosing namespace...
+    public function publishedOnGlobal(): \DateTime
+    {
+        return new \DateTime();
+    }
+
+    // ...and bypassing the import map too, so this is the global class and not
+    // the model aliased onto its name above.
+    public function expiresAt(): \DateTimeImmutable
+    {
+        return new \DateTimeImmutable();
+    }
+
+    // A promoted property with no type carries no signal, exactly like an
+    // untyped class-body property, and a non-boolean one is not this rule's
+    // business however its name reads. A plain parameter — no visibility
+    // modifier — declares no property at all, whatever its type.
+    public function __construct(
+        private $published = null,
+        private string $isReference = '',
+        bool $strict = false,
+    ) {
+        parent::__construct(['strict' => $strict]);
     }
 
     // Nothing declared inside a method body is a member of this model: not the

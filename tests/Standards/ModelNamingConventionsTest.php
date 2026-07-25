@@ -54,24 +54,34 @@ class ModelNamingConventionsTest extends TestCase
             [
                 // Boolean property not phrased as a yes/no question — the
                 // third only borrows the letters of `is` ($isolated).
-                12 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
-                14 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
-                18 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                13 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                15 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                19 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
                 // Boolean method not phrased as a yes/no question — the second
                 // only borrows the letters of `can` (candidate()).
-                20 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
-                26 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                21 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
+                27 => [self::SNIFF_CODE . '.BooleanMethodPrefix'],
                 // Single-model return without the `find` prefix — the second
                 // writes its nullability as `User|null` rather than `?User`.
-                31 => [self::SNIFF_CODE . '.FindMethodPrefix'],
-                36 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                32 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                37 => [self::SNIFF_CODE . '.FindMethodPrefix'],
                 // `find`-prefixed but silent about the model it returns.
-                41 => [self::SNIFF_CODE . '.FindModelName'],
+                42 => [self::SNIFF_CODE . '.FindModelName'],
                 // Collection return without the `get` prefix.
-                46 => [self::SNIFF_CODE . '.GetMethodPrefix'],
+                47 => [self::SNIFF_CODE . '.GetMethodPrefix'],
                 // Legacy accessor style, read and write halves alike.
-                51 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
-                56 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
+                52 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
+                57 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
+                // Root-anchored return type that does resolve into a Models
+                // namespace — fully qualified is not an exemption.
+                64 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                // Qualified name whose first segment resolves through an
+                // import: App\Domain\Models\Account.
+                71 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                // Promoted properties, flagged on their own parameter line;
+                // the plain $title parameter beside them declares nothing.
+                80 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                81 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
             ],
             $this->sourcesByLine($file->getErrors())
         );
@@ -111,11 +121,13 @@ class ModelNamingConventionsTest extends TestCase
     }
 
     /**
-     * The declarations that carry no usable signal — untyped properties,
+     * The declarations that carry no usable signal — untyped properties
+     * (promoted or not), non-boolean promoted properties, plain parameters,
      * missing or union return types, `array` and other builtins, magic methods,
      * Eloquent's own override points, group-imported relation types, non-model
-     * classes from other namespaces, and locals inside a method body — must all
-     * stay silent rather than guess.
+     * classes from other namespaces, root-anchored (fully qualified) return
+     * types that resolve outside a Models namespace, and locals inside a method
+     * body — must all stay silent rather than guess.
      */
     public function testAmbiguousAndExemptDeclarationsAreSkipped(): void
     {
