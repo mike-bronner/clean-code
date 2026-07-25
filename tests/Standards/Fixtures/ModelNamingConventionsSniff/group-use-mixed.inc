@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
-use App\Models\{User, function make as Ledger, const STATUS_ACTIVE};
+use App\Models\{User, function make as Ledger, const STATUS_ACTIVE as ActiveStatus};
 use function App\Models\{build as Widget};
 use function App\Models\assemble as Gadget;
 use const App\Models\STATUS_DRAFT;
@@ -24,6 +24,10 @@ use Illuminate\Database\Eloquent\Model;
  * functions and constants live in PHP's separate symbol tables and must never
  * reach the class import map. And the class item of a mixed group still has to
  * import — screening its neighbours must not cost it.
+ *
+ * Every marked import below is used as a return type, both markers included:
+ * an unused import proves nothing, since a screen that never fires and a screen
+ * nothing depends on look identical from the outside.
  */
 class Thing extends Model
 {
@@ -60,5 +64,23 @@ class Thing extends Model
     public function craft(): Gadget
     {
         return new Gadget();
+    }
+
+    // `ActiveStatus` aliases a *constant* item of the mixed group, so like
+    // `Ledger` beside it, it imports no type and resolves to App\Domain\
+    // ActiveStatus. Let the const item into the class map and the alias points
+    // at the literal "App\Models\const STATUS_ACTIVE" — a `Models` segment, and
+    // a violation reported against correct code.
+    public function fetchActiveStatus(): ActiveStatus
+    {
+        return ActiveStatus::default();
+    }
+
+    // The constant marker on a plain statement, the shape `Gadget` covers for
+    // functions: `STATUS_DRAFT` resolves to App\Domain\STATUS_DRAFT, and only
+    // the const half of the screen keeps it out of App\Models.
+    public function fetchDraftStatus(): STATUS_DRAFT
+    {
+        return STATUS_DRAFT::default();
     }
 }

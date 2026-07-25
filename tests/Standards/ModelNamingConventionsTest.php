@@ -192,7 +192,13 @@ class ModelNamingConventionsTest extends TestCase
      * they would resolve a return type under the imported namespace and report
      * correct code. The marker appears in three shapes, all covered by the
      * fixture: on an individual item of a mixed group, before a group prefix,
-     * and on a plain statement.
+     * and on a plain statement — and it marks a constant as readily as a
+     * function, so the fixture carries both keywords in the shapes that can
+     * express them.
+     *
+     * Every one of those imports is *used* as a return type. That is what makes
+     * this assertion depend on the screen: an unused import would leave the
+     * const half of the check free to be deleted with the suite still green.
      *
      * Screening them must not cost the class item beside them, which the
      * silent, correctly named `findUserById(): User` proves is still imported.
@@ -200,6 +206,59 @@ class ModelNamingConventionsTest extends TestCase
     public function testSymbolImportsNeverEnterTheClassImportMap(): void
     {
         $file = $this->processFixture('group-use-mixed.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    /**
+     * PHP identifies class names, `use` aliases and method names
+     * case-insensitively, so the sniff has to as well: a name spelled
+     * differently from the symbol it refers to is still that symbol. Matched on
+     * source casing, none of these violations exists — the aliased base class
+     * resolves to nothing and takes its whole class dark with it, the
+     * acronym-drifted return type is not the imported model, and neither legacy
+     * accessor ends in `Attribute`.
+     */
+    public function testCaseMismatchedSymbolsAreStillIdentified(): void
+    {
+        $file = $this->processFixture('case-mismatched-symbols.inc');
+
+        $this->assertSame(
+            [
+                // The class is a model only through `extends eloquentmodel`,
+                // the mis-cased spelling of an aliased Eloquent base — so this
+                // property is reported only if that resolved.
+                24 => [self::SNIFF_CODE . '.BooleanPropertyPrefix'],
+                // `ApiToken` is the imported `APIToken`: a model, and this
+                // method lacks the `find` prefix.
+                32 => [self::SNIFF_CODE . '.FindMethodPrefix'],
+                // Identified case-insensitively, judged case-sensitively: the
+                // model is spelled `APIToken`, so `findApiToken` does not name
+                // it. The judging half must stay strict.
+                43 => [self::SNIFF_CODE . '.FindModelName'],
+                // Live legacy accessors — Eloquent finds them through
+                // method_exists(), which folds case.
+                57 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
+                62 => [self::SNIFF_CODE . '.LegacyAttributeAccessor'],
+            ],
+            $this->sourcesByLine($file->getErrors())
+        );
+
+        $this->assertSame([], $file->getWarnings());
+    }
+
+    /**
+     * The costly direction of the same invariant. Under a `Models` namespace a
+     * mis-cased alias that misses the import map falls through to
+     * namespace-qualification, manufacturing a name with a `Models` segment —
+     * so the sniff reads a value object as a model and a collection as a single
+     * instance, and reports correct code. The mis-cased override is worse than
+     * noise: acting on the advice breaks the override.
+     */
+    public function testCaseMismatchedSymbolsDoNotInventViolations(): void
+    {
+        $file = $this->processFixture('case-mismatched-symbols-passing.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());

@@ -28,6 +28,15 @@ use PHP_CodeSniffer\Util\Tokens;
  * rule, and `findUserByName(): Client` would be told to rename itself after the
  * alias rather than the model.
  *
+ * That resolution is **case-insensitive**, because PHP resolves class names,
+ * namespaces, `use` aliases and method names case-insensitively: `ApiToken`
+ * reaches `use App\Models\APIToken;`, `extends eloquentmodel` reaches the alias
+ * `EloquentModel`, and `newcollection()` really does override Eloquent's
+ * `newCollection()`. Judging is the mirror image and stays **case-sensitive**:
+ * the yes/no prefixes, the `find`/`get` prefixes, and the model name a `find`
+ * method must contain are all spellings a developer chose, so `ispublished` does
+ * not satisfy `is`. Identify by folding case; judge without.
+ *
  * Six checks, all reporting-only (renaming an identifier is never safe for a
  * fixer, and rewriting a legacy accessor is a semantic change):
  *
@@ -43,8 +52,8 @@ use PHP_CodeSniffer\Util\Tokens;
  *   prefixed `find`.
  * - **FindModelName** — and must name the model it returns
  *   (`findUserByName(): User`). Only checked when the returned model's short
- *   name is knowable; `self`, `static`, `$this`, and `parent` name no model, so
- *   the prefix alone is required there.
+ *   name is knowable; `self`, `static`, and `parent` name no model, so the
+ *   prefix alone is required there.
  * - **GetMethodPrefix** — a method returning a collection must be prefixed
  *   `get`. The model name cannot be derived from a `Collection` return type, so
  *   only the prefix is enforced.
@@ -144,12 +153,13 @@ class ModelNamingConventionsSniff implements Sniff
     ];
 
     /**
-     * Types that always denote the enclosing model itself.
+     * Types that always denote the enclosing model itself. `$this` is not among
+     * them: it is not a declared return type in PHP, and PHPCS reports `static`
+     * for the position where a docblock would write it.
      */
     private const SELF_TYPES = [
         'self',
         'static',
-        '$this',
         'parent',
     ];
 
@@ -157,14 +167,19 @@ class ModelNamingConventionsSniff implements Sniff
      * Eloquent override points that return a model or a collection but whose
      * names are fixed by the framework — renaming them breaks the override, so
      * the prefix rules do not apply.
+     *
+     * Held lower-cased and compared against a lower-cased name, because PHP
+     * dispatches methods case-insensitively: `newcollection()` genuinely
+     * overrides Eloquent's `newCollection()`, and telling its author to rename
+     * it would break the override while the sniff looked right.
      */
     private const FRAMEWORK_METHODS = [
-        'newCollection',
-        'newModelInstance',
-        'newFromBuilder',
-        'newInstance',
-        'newPivot',
-        'newRelatedInstance',
+        'newcollection',
+        'newmodelinstance',
+        'newfrombuilder',
+        'newinstance',
+        'newpivot',
+        'newrelatedinstance',
         'replicate',
         'fresh',
         'refresh',
@@ -327,13 +342,18 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        if (preg_match('/^(?:get|set)[A-Z][A-Za-z0-9_]*Attribute$/', $name) === 1) {
+        // Matched case-insensitively because Eloquent finds an accessor with
+        // method_exists($this, 'get' . Str::studly($key) . 'Attribute'), and
+        // method_exists() folds case — so `getFooattribute()` is a live legacy
+        // accessor for `foo`, and nothing else in the ruleset would catch it
+        // (it is valid PSR-1 camelCase).
+        if (preg_match('/^(?:get|set)[A-Za-z0-9_]+Attribute$/i', $name) === 1) {
             $phpcsFile->addError(self::MESSAGE_LEGACY_ATTRIBUTE, $stackPtr, 'LegacyAttributeAccessor', [$name]);
 
             return;
         }
 
-        if (in_array($name, self::FRAMEWORK_METHODS, true)) {
+        if (in_array(strtolower($name), self::FRAMEWORK_METHODS, true)) {
             return;
         }
 
@@ -376,8 +396,8 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        // `self`/`static`/`$this`/`parent` name no model, so there is nothing
-        // to require in the rest of the method name.
+        // `self`/`static`/`parent` name no model, so there is nothing to
+        // require in the rest of the method name.
         $model = in_array(strtolower($type), self::SELF_TYPES, true) ? '' : $this->shortName($resolved);
 
         if ($model !== '' && str_contains(substr($name, strlen('find')), $model) === false) {
@@ -400,7 +420,10 @@ class ModelNamingConventionsSniff implements Sniff
      * `use App\Support\ValueObject as Model;` is not. Judging the name as
      * written gets both backwards.
      *
-     * The comparison is case-insensitive because PHP class names are.
+     * Both halves of that are case-insensitive because PHP class names are: the
+     * import lookup inside resolveType() folds case, and so does the comparison
+     * against MODEL_BASE_CLASSES here. `extends eloquentmodel` names the same
+     * class as `extends EloquentModel`, so a model must not go dark for it.
      *
      * @param array<string, string> $imports
      */
@@ -452,7 +475,8 @@ class ModelNamingConventionsSniff implements Sniff
      * - a **fully qualified** name (leading `\`) stands as written, bypassing
      *   the import map entirely — so `\DateTime` is `DateTime` even in a file
      *   that imports something else under that alias;
-     * - otherwise the **first segment** is resolved through the imports, which
+     * - otherwise the **first segment** is resolved through the imports —
+     *   case-insensitively, as PHP matches a reference to its `use` — which
      *   covers both a short name (`User`) and a qualified one (`Relations\HasMany`
      *   under `use Illuminate\Database\Eloquent\Relations;`);
      * - anything left resolves against the enclosing namespace, PHP's fallback
@@ -469,6 +493,13 @@ class ModelNamingConventionsSniff implements Sniff
         }
 
         [$head, $rest] = array_pad(explode('\\', $type, 2), 2, null);
+
+        // Lower-cased, because the map is keyed that way: PHP matches a
+        // reference to its `use` statement case-insensitively, so
+        // `use App\Models\APIToken;` is reached by `ApiToken` as well. Missing
+        // the map would silently fall through to namespace-qualification, which
+        // both hides violations and invents them.
+        $head = strtolower($head);
 
         if (isset($imports[$head])) {
             return ($rest === null) ? $imports[$head] : $imports[$head] . '\\' . $rest;
@@ -596,7 +627,8 @@ class ModelNamingConventionsSniff implements Sniff
 
     /**
      * Maps every imported short name (or alias) in the file to the name it
-     * resolves to, covering both plain and group `use` statements. Class
+     * resolves to, covering both plain and group `use` statements, and keyed
+     * lower-case for the case-insensitive lookup resolveType() performs. Class
      * imports only — trait uses inside a class and closure `use (…)` clauses
      * are screened here, and `use function`/`use const` by parseUseStatement(),
      * whose docblock explains why the token stream leaves it no choice.
@@ -701,7 +733,12 @@ class ModelNamingConventionsSniff implements Sniff
             }
 
             $resolved = ltrim($name, '\\');
-            $map[$alias] = ($prefix === '') ? $resolved : $prefix . '\\' . $resolved;
+
+            // The key is lower-cased so a reference cased differently from its
+            // `use` still finds it, the way PHP does. The *value* keeps its
+            // source casing: shortName() feeds it into message text, where the
+            // model's real spelling is the whole point of the advice.
+            $map[strtolower($alias)] = ($prefix === '') ? $resolved : $prefix . '\\' . $resolved;
         }
 
         return $map;
