@@ -9,17 +9,7 @@ $USER->SAVE();
 User::query()->firstOrFail()->delete();
 Order::factory()->create();
 $callable = $user->delete(...);
-
-$this->save();
-$this->update(['name' => $name]);
-$this?->delete();
-User::create(['name' => $name]);
-static::create(['name' => $name]);
-parent::update(['name' => $name]);
-
-$user->saveQuietly();
-$repository->persist($user);
-$wasSaved = $user->save;
+$this->agent->save();
 
 class UserController
 {
@@ -28,7 +18,8 @@ class UserController
         $user->save();
     }
 
-    public function update(int $id): void
+    public function destroy(User $user): void
     {
+        $user->delete();
     }
 }
