@@ -161,4 +161,18 @@
         meaning when a key contains a dot, and data_get() is a Laravel helper,
         so an auto-fix cannot be applied safely outside a Laravel application.
     -->
+
+    <!--
+        Models: Persistence Methods (Repository Pattern) (#37) —
+        docs/standards/models-persistence-methods-repository-pattern.md.
+
+        The custom CleanCode.Models.DisallowExternalPersistenceCalls sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        block only scopes it. Factory chains (User::factory()->create()) make
+        generic CRUD calls idiomatic in tests, so the sniff stays out of test
+        paths.
+    -->
+    <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
 </ruleset>
