@@ -75,9 +75,9 @@ class DisallowExternalPersistenceCallsTest extends TestCase
      * one of the sniff's early returns, and a false positive on any of them
      * makes the rule unusable:
      *
-     * - lines 3-6, `$this->save()` and friends — the receiver check. This is
-     *   the usage the standard mandates: a descriptive model method calling
-     *   `$this->save()` at the end.
+     * - lines 3-6 and line 28, `$this->save()` and friends — the receiver
+     *   check. This is the usage the standard mandates: a descriptive model
+     *   method calling `$this->save()` at the end.
      * - lines 8-10, `User::create(...)`, `static::`, `parent::` — static calls
      *   carry no object operator at all, so the sniff never registers on them.
      *   Deliberately out of scope: `Model::create()` is token-indistinguishable
@@ -86,15 +86,20 @@ class DisallowExternalPersistenceCallsTest extends TestCase
      *   that merely start with, extend, or paraphrase a configured name.
      * - lines 16-17, `$user->save` — a property read. Without the "next token
      *   is an open parenthesis" check these read as calls.
-     * - lines 19-20, `$user->{$method}()` and `$user->{'save'}()` — a dynamic
-     *   member name is a brace, not a T_STRING, so the name is unknowable at
-     *   token level. These are the only inputs that reach the sniff's T_STRING
-     *   check at all, and they are silent either way: the token they carry is
-     *   `{`, which no configured method name can equal. The check is therefore
-     *   a type guard rather than a behavioural branch, and removing it changes
-     *   no result here — stated plainly because no fixture can pin it.
-     * - lines 29-38, `create()`/`update()`/`delete()` method *declarations* —
-     *   a model defining the very methods the sniff names must not flag itself.
+     * - lines 19-21, `$user->{$method}()`, `$user->{'save'}()` and
+     *   `$user->$method()` — a dynamic member name is unknowable at token
+     *   level. Every `->` reaches the sniff's T_STRING check; these are the
+     *   three input shapes that the check actually *rejects*, and they cover
+     *   both member tokens a dynamic name can produce: `{` for the two braced
+     *   forms, T_VARIABLE for the plain variable one. They are silent either
+     *   way — neither token's content is a legal PHP method name, so no
+     *   configured name can equal it and removing the check changes no result
+     *   here. The check is therefore a type guard rather than a behavioural
+     *   branch, which is why no fixture can pin it; stated plainly rather than
+     *   left to imply coverage.
+     * - lines 31, 35 and 39, `create()`/`update()`/`delete()` method
+     *   *declarations* — a model defining the very methods the sniff names
+     *   must not flag itself.
      */
     public function testCompliantFileProducesNoViolations(): void
     {

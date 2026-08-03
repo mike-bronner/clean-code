@@ -18,6 +18,7 @@ $pending = $order->update;
 
 $user->{$method}();
 $user->{'save'}();
+$user->$method();
 
 class Agent
 {
