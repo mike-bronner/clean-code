@@ -175,4 +175,21 @@
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
         <exclude-pattern>*/tests/*</exclude-pattern>
     </rule>
+
+    <!--
+        Models: Relationship Properties (#42) —
+        docs/standards/models-relationship-properties.md.
+
+        The custom CleanCode.Models.DisallowChainedPropertyFetch sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        block only scopes it. Test suites build object graphs inline and read
+        straight through them, so the sniff stays out of test paths, matching
+        the sibling Models standard above.
+
+        No <severity> or <type> override: the standard mandates the accessor,
+        so the sniff reports at its own error severity.
+    -->
+    <rule ref="CleanCode.Models.DisallowChainedPropertyFetch">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
 </ruleset>
