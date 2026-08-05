@@ -44,7 +44,9 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *
      * @var array<int, int>
      */
-    private const FAILING_LINES = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 23];
+    private const FAILING_LINES = [
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19, 20, 21, 22, 27, 33,
+    ];
 
     /**
      * Absolute paths of the fixture copies staged outside the repository, so
@@ -100,14 +102,24 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *   preceded by `::`, and all four are needed: the last two prove the root
      *   test is not simply "the walk ended on a T_VARIABLE", since
      *   `$instance`/`$registry` are variables.
-     * - lines 22-24, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic
+     * - lines 22-25, the negative half of the grouping-parenthesis walk.
+     *   `($book)->author` is a single hop however it is parenthesised.
+     *   `(new Book())->author->name` and `(Book::query()->first())->author->name`
+     *   are an instantiation and a static root, neither of which becomes a
+     *   variable root by being wrapped — the group is walked into, and what is
+     *   found inside still decides. `foo($book)->author->name` is the
+     *   discriminating pair to failing.inc:14: the parentheses there hold the
+     *   root, the parentheses here are a call's argument list, so walking into
+     *   them (and finding `$book`) would flag a function-call root the sniff
+     *   has never claimed.
+     * - lines 27-29, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic
      *   member name is not a property-fetch hop, because which property is
      *   read is unknowable at token level, so the single plain hop after it is
      *   not a chain. Both tokens a dynamic name can produce are covered: `{`
      *   for the two braced forms, T_VARIABLE for the plain-variable one.
      *   failing.inc:12 is the other half of this — two plain hops after a
      *   dynamic one *are* a chain.
-     * - lines 26-32, an accessor declaration returning `$this->authorName` —
+     * - lines 31-37, an accessor declaration returning `$this->authorName` —
      *   the shape the standard asks for, in situ.
      */
     public function testCompliantFileProducesNoViolations(): void
@@ -146,9 +158,31 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *   not itself a property hop, but the two hops after it are, and the root
      *   is still `$book`. Same rule as line 9: the unreadable hop ends its own
      *   segment only.
-     * - line 17, a chain broken across lines with a comment in the middle —
+     * - lines 14-16, roots held inside a grouping parenthesis:
+     *   `($book)->author->name`, `($condition ? $book : $fallback)->author->name`
+     *   and `(($book))->author?->name`. A parenthesised variable is still a
+     *   variable, so wrapping the root must not silence the chain — the walk
+     *   has to look inside the group rather than at whatever precedes its
+     *   opener (`=`, `?`, `:`, another `(`), and has to keep doing so through
+     *   nesting. Both arms of the ternary are variables, which is why flagging
+     *   it is right rather than a guess about which arm is taken.
+     * - lines 18-22, the positive half of the same walk: every other bracketed
+     *   group is stepped over, not walked into, and each line pins one of the
+     *   ways that decision is reached. Lines 18-21 are argument lists, one per
+     *   token that can sit in front of a call's opener — `$fn('author')`
+     *   (T_VARIABLE), `($fn)()` (T_CLOSE_PARENTHESIS), `$handlers['x']()`
+     *   (T_CLOSE_SQUARE_BRACKET), `$book->{$method}()`
+     *   (T_CLOSE_CURLY_BRACKET) — all chains of two plain hops on a call
+     *   result whose own root is a variable, the same reason line 9 is
+     *   flagged. Dropping any one of those tokens reverts its line to walking
+     *   into the argument list, where the root found is the argument rather
+     *   than the callable. Line 22, `$book->{Book::KEY}->address->city`, is
+     *   why walking in is restricted to parentheses in the first place: the
+     *   braces hold a member name, not a receiver, so reading a root out of
+     *   them finds `Book::KEY` and loses the real root, `$book`.
+     * - line 27, a chain broken across lines with a comment in the middle —
      *   the layout the operator-line-break standard mandates must not hide it.
-     * - line 23, the shape inside a controller that the standard is aimed at.
+     * - line 33, the shape inside a controller that the standard is aimed at.
      */
     public function testEveryViolationIsFlaggedAtItsOwnLineWithTheExpectedCode(): void
     {
@@ -212,8 +246,8 @@ class DisallowChainedPropertyFetchTest extends TestCase
      * Test suites build object graphs inline and read straight through them,
      * so rules.xml scopes the sniff out of test paths. The exclusion is a path
      * match, so processing failing.inc where it actually lives — under tests/
-     * — must report nothing, even though the same bytes produce eleven errors
-     * from outside the repository.
+     * — must report nothing, even though the same bytes produce an error on
+     * every line of FAILING_LINES from outside the repository.
      *
      * Both halves are asserted together. The in-repo run alone would pass just
      * as well against a sniff that never fires at all, which is precisely the
@@ -241,6 +275,14 @@ class DisallowChainedPropertyFetchTest extends TestCase
      * check on the next line anyway. It is kept for saying so outright instead
      * of leaning on that coercion. Stated here because no fixture can pin it —
      * this test covers the truncated chain, not the guard.
+     *
+     * Two guards in the root walk are defensive in the same way, and are named
+     * here rather than claimed as covered. isInvokedOn() returning false for an
+     * opener with nothing before it cannot be reached — a file starts with its
+     * open tag, so some token always precedes. Bounding the search inside a
+     * grouping parenthesis at its opener only changes the result for a group
+     * with no content, and `()->a->b` is not an expression PHP accepts.
+     * Removing either changes no result on any fixture here.
      *
      * Line 3 keeps the assertion honest: the file still has to report the
      * complete chain that precedes the truncation, so a sniff that fell silent

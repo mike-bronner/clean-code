@@ -50,8 +50,13 @@ follow-up issue
   (`$a->b()->c->d` flags `c->d`, `$a->b()->c` does not). A dynamic member name
   (`$a->{$b}`, `$a->$b`) ends its segment the same way. Array-access hops
   (`$a->b['x']->c`) and static-rooted chains (`Foo::bar()->baz->qux`) are out
-  of scope. `tests/` is excluded via ruleset path scoping in `rules.xml` —
-  test suites build object graphs inline and read straight through them.
+  of scope. A grouping parenthesis around the root does not hide the chain —
+  `($book)->author->name` and `($condition ? $book : $fallback)->author->name`
+  are flagged, because what the group holds is what decides; by the same rule
+  `(new Book())->author->name` and `(Book::query()->first())->author->name`
+  stay out of scope, since neither wraps a variable. `tests/` is excluded via
+  ruleset path scoping in `rules.xml` — test suites build object graphs inline
+  and read straight through them.
 
 ### Known limitations
 

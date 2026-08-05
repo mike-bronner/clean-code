@@ -11,6 +11,16 @@ $a->b['x']->c->d;
 $books[0]->author->name;
 $book->{$relation}->address->city;
 
+($book)->author->name;
+($condition ? $book : $fallback)->author->name;
+(($book))->author?->name;
+
+$fn('author')->author->name;
+($fn)()->author->name;
+$handlers['x']()->author->name;
+$book->{$method}()->author->name;
+$book->{Book::KEY}->address->city;
+
 $name = $book
     ->author
     // the relationship hop

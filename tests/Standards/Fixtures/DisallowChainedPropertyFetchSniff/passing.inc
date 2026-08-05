@@ -19,6 +19,11 @@ static::make()->author->name;
 self::$instance->author->name;
 Book::$registry->author->name;
 
+($book)->author;
+(new Book())->author->name;
+(Book::query()->first())->author->name;
+foo($book)->author->name;
+
 $a->{$b}->c;
 $a->{'b'}->c;
 $a->$b->c;

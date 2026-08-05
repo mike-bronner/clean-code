@@ -24,7 +24,9 @@ use PHP_CodeSniffer\Util\Tokens;
  * segment and are judged on their own ($a->b()->c->d flags c->d). A dynamic
  * member name ($a->{$b}, $a->$b) is unknowable at token level and ends its
  * segment the same way. Array access and static roots (Foo::bar()->baz->qux)
- * are out of scope.
+ * are out of scope. A grouping parenthesis around the root hides nothing —
+ * ($book)->author->name reads the same relationship as $book->author->name,
+ * so the root is looked for inside the group.
  */
 class DisallowChainedPropertyFetchSniff implements Sniff
 {
@@ -128,7 +130,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
      * variable. Walks left over the whole receiver expression, stepping over
      * completed calls, subscripts and braced member names, so that
      * $a->b()->c->d is recognised as variable-rooted while
-     * Foo::bar()->baz->qux is not.
+     * Foo::bar()->baz->qux is not. A grouping parenthesis is walked into
+     * instead of over, since it is where the root of ($a)->b->c actually sits.
      */
     private function isRootedInVariable(File $phpcsFile, int $operatorPtr): bool
     {
@@ -146,7 +149,20 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                     return false;
                 }
 
-                $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
+                $beforeOpenerPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
+
+                // A call, a subscript and a braced member name all belong to
+                // the token in front of their opener, so the walk continues
+                // there. A grouping parenthesis belongs to nothing in front of
+                // it — ($a)->b->c, ($cond ? $a : $b)->author->name — and holds
+                // its own root, so the walk continues inside the group.
+                if ($code === T_CLOSE_PARENTHESIS && $this->isInvokedOn($tokens, $beforeOpenerPtr) === false) {
+                    $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), ($openerPtr + 1), true);
+
+                    continue;
+                }
+
+                $ptr = $beforeOpenerPtr;
 
                 continue;
             }
@@ -207,6 +223,38 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     {
         return $tokens[$ptr]['code'] === T_OBJECT_OPERATOR
             || $tokens[$ptr]['code'] === T_NULLSAFE_OBJECT_OPERATOR;
+    }
+
+    /**
+     * Whether an opening parenthesis is an argument list belonging to what
+     * precedes it, rather than a grouping parenthesis standing on its own.
+     * Decided from the preceding token: only a token that ends an expression
+     * can be called, and each listed here is one — a name (foo()), a variable
+     * ($fn()), another call (foo()()), a subscript ($handlers['x']()) or a
+     * braced member name ($book->{$method}()). Anything else in that position
+     * (=, ?, :, return, another opener) cannot be, so the parenthesis groups.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int|false                        $beforeOpenerPtr pointer to the
+     *        token before the opener, false when the opener starts the file
+     */
+    private function isInvokedOn(array $tokens, $beforeOpenerPtr): bool
+    {
+        if ($beforeOpenerPtr === false) {
+            return false;
+        }
+
+        return in_array(
+            $tokens[$beforeOpenerPtr]['code'],
+            [
+                T_STRING,
+                T_VARIABLE,
+                T_CLOSE_PARENTHESIS,
+                T_CLOSE_SQUARE_BRACKET,
+                T_CLOSE_CURLY_BRACKET,
+            ],
+            true
+        );
     }
 
     /**
