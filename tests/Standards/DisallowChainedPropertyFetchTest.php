@@ -14,8 +14,9 @@ use PHPUnit\Framework\TestCase;
  * (Models: Relationship Properties, #42). Fixtures live in
  * Fixtures/DisallowChainedPropertyFetchSniff/ beside this file: the remedied
  * shape and every near-miss the sniff must leave alone in passing.inc, the
- * flagged chains in failing.inc, and a chain cut off mid-edit in
- * unterminated.inc.
+ * flagged chains in failing.inc, a chain cut off mid-edit in unterminated.inc,
+ * the published suppression comment in suppressed.inc, and source PHP itself
+ * would reject in malformed.inc.
  *
  * rules.xml scopes the sniff out of test paths, and these fixtures live under
  * tests/ — so processing one in place reports nothing whatever the sniff does.
@@ -285,13 +286,19 @@ class DisallowChainedPropertyFetchTest extends TestCase
      * of leaning on that coercion. Stated here because no fixture can pin it —
      * this test covers the truncated chain, not the guard.
      *
-     * Two guards in the root walk are defensive in the same way, and are named
-     * here rather than claimed as covered. isInvokedOn() returning false for an
-     * opener with nothing before it cannot be reached — a file starts with its
-     * open tag, so some token always precedes. Bounding the search inside a
+     * That leaves the root walk's own guards, and every one of them is
+     * accounted for rather than left to inference. The two that decide a
+     * result are pinned by fixtures that go red without them — the unmatched
+     * opener and the non-identifier receiver, both in malformed.inc (see
+     * testMalformedSourceIsRefusedRatherThanGuessedAt()). The rest are
+     * defensive, and are named here rather than claimed as covered:
+     * isInvokedOn() returning false for an opener with nothing before it
+     * cannot be reached — a file starts with its open tag, so some token
+     * always precedes, which is equally why no unbounded findPrevious() in the
+     * walk or in process() can return false. Bounding the search inside a
      * grouping parenthesis at its opener only changes the result for a group
      * with no content, and `()->a->b` is not an expression PHP accepts.
-     * Removing either changes no result on any fixture here.
+     * Removing any of those changes no result on any fixture here.
      *
      * Line 3 keeps the assertion honest: the file still has to report the
      * complete chain that precedes the truncation, so a sniff that fell silent
@@ -303,6 +310,43 @@ class DisallowChainedPropertyFetchTest extends TestCase
 
         $this->assertSame([], $file->getWarnings());
         $this->assertSame([3 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
+    }
+
+    /**
+     * PHP_CodeSniffer tokenizes whatever it is handed, so the root walk can be
+     * given source PHP itself would reject. Each line here refuses one such
+     * shape, and each pins one guard that no well-formed fixture reaches:
+     *
+     * - line 3, `$a->b)->c->d;` — a stray closer. An unmatched parenthesis
+     *   carries no parenthesis_opener, so openerOf() returns false and the
+     *   `$openerPtr === false` guard ends the walk. That guard decides the
+     *   result rather than merely reading defensively: without it the false
+     *   opener is used as a bound instead (`false + 1`), the walk reads back
+     *   into `b`, steps over its hop to `$a`, and reports `c->d`.
+     * - line 4, `$a->5->b->c;` — a numeric member name. The walk lands on a
+     *   token that is neither a name nor a variable, and the catch-all guard
+     *   refuses it. Without that guard the walk falls through to the
+     *   object-operator branch below, reaches `$a`, and reports `b->c`.
+     *
+     * Both are false positives on source that cannot run, which at error
+     * severity is a broken build over a typo mid-edit.
+     *
+     * Line 5 keeps the assertion honest: a well-formed chain in the same file
+     * must still be reported, so a sniff that gave up on the file at the first
+     * malformed line would fail here rather than pass.
+     *
+     * The bracket forms of line 3 (`$a->b]->c->d;`, `$a->b}->c->d;`) reach the
+     * same guard through openerOf()'s bracket_opener branch and are left out
+     * deliberately: both abort processing in the sibling
+     * CleanCode.Arrays.ArrayAccessors sniff, which reads bracket_opener
+     * unguarded on main, before this sniff sees the file at all.
+     */
+    public function testMalformedSourceIsRefusedRatherThanGuessedAt(): void
+    {
+        $file = $this->processFixture('malformed.inc');
+
+        $this->assertSame([], $file->getWarnings());
+        $this->assertSame([5 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
     }
 
     /**
