@@ -203,12 +203,21 @@ class DisallowChainedPropertyFetchTest extends TestCase
      * in the message is computed from the flagged hop, not from the start of
      * the expression: a message built from the whole statement would read
      * `a->b` there.
+     *
+     * The operator between the two is quoted from the matched token, so lines
+     * 4 and 5 read back as `author?->name`: the sniff registers on both
+     * operators, and a message that wrote `->` out as a literal would misquote
+     * every nullsafe hop it reported. Line 5 is the one that discriminates
+     * hardest — only its second operator is nullsafe, so a message taking the
+     * operator from anywhere but the flagged hop still reads `author->name`.
      */
     public function testTheErrorMessageNamesTheChainAndTheAccessorRemedy(): void
     {
         $file = $this->processFixture('failing.inc');
 
         $this->assertStringContainsString('author->name', $this->firstMessageOnLine($file, 3));
+        $this->assertStringContainsString('author?->name', $this->firstMessageOnLine($file, 4));
+        $this->assertStringContainsString('author?->name', $this->firstMessageOnLine($file, 5));
         $this->assertStringContainsString('c->d', $this->firstMessageOnLine($file, 9));
         $this->assertStringContainsString(
             'getAuthorNameAttribute()',

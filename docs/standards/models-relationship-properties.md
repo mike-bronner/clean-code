@@ -39,7 +39,8 @@ follow-up issue
   (`->` or `?->`, mixed freely) rooted in a variable or `$this`. One
   diagnostic per chain, on the pair that first completes it, so
   `$book->author->address->city` points at `author->address` — the first model
-  that should carry an accessor.
+  that should carry an accessor. The message quotes the pair with the operator
+  the source actually wrote, so a nullsafe hop reads back as `author?->name`.
 - **Error severity** — the standard mandates the accessor, so the sniff calls
   `addError()`. `rules.xml` adds no `<severity>` or `<type>` override.
 - **Detection only** — the fix is a new accessor method plus a default for the
@@ -54,9 +55,12 @@ follow-up issue
   `($book)->author->name` and `($condition ? $book : $fallback)->author->name`
   are flagged, because what the group holds is what decides; by the same rule
   `(new Book())->author->name` and `(Book::query()->first())->author->name`
-  stay out of scope, since neither wraps a variable. `tests/` is excluded via
-  ruleset path scoping in `rules.xml` — test suites build object graphs inline
-  and read straight through them.
+  stay out of scope, since neither wraps a variable. Source PHP itself would
+  reject — a stray closing bracket or a non-identifier member name left
+  mid-edit (`$a->b)->c->d`, `$a->5->b->c`) — is refused rather than guessed at,
+  so a typo in progress cannot break the build over a chain that is not there
+  yet. `tests/` is excluded via ruleset path scoping in `rules.xml` — test
+  suites build object graphs inline and read straight through them.
 
 ### Known limitations
 

@@ -94,7 +94,14 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 . '(see docs/standards/models-relationship-properties.md)',
             $memberPtr,
             'Found',
-            [$tokens[$receiverPtr]['content'] . '->' . $tokens[$memberPtr]['content']]
+            // The operator is quoted from the matched token rather than written
+            // out, so a nullsafe hop reads back as the source wrote it
+            // (author?->name) instead of being reported as author->name.
+            [
+                $tokens[$receiverPtr]['content']
+                    . $tokens[$stackPtr]['content']
+                    . $tokens[$memberPtr]['content'],
+            ]
         );
     }
 
