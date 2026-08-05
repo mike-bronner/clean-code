@@ -24,34 +24,68 @@ than every call site guarding against `null`.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
-
-This is an architectural standard: whether a property fetch traverses an
-Eloquent *relationship* — rather than a value object, DTO, or `stdClass`
-graph — requires type information a token-based PHPCS sniff does not have.
-It is enforced via code review and developer discipline, not a PHPCS sniff.
-
-## Partial-enforcement assessment
+## Enforceability — Tier 2 (custom sniff)
 
 The violation's textual shape is token-visible: a chained property fetch
-(`$var->prop->prop` — two or more consecutive object-operator property
-fetches without call parentheses) is exactly the anti-pattern the standard
-names. A narrow heuristic sniff can flag that subset. Focused sniff issue:
-[#188](https://github.com/mike-bronner/phpcs-rules/issues/188).
+(`$book->author->name` — two or more consecutive object-operator property
+fetches with no call parentheses between them) is exactly the traversal the
+standard rules out. Sniff:
+`CleanCode.Models.DisallowChainedPropertyFetch`
+([#42](https://github.com/mike-bronner/phpcs-rules/issues/42), absorbing the
+follow-up issue
+[#188](https://github.com/mike-bronner/phpcs-rules/issues/188)).
 
-- **Detection** — chains of two or more consecutive property fetches
-  (`$a->b->c`), suggesting the terminal value be exposed as an accessor
-  attribute on the first model.
-- **Warning severity, not error** — without type awareness the sniff cannot
-  tell relationship traversal from legitimate nested object access, so it
-  points at review candidates rather than mandating a fix.
-- **Property fetches only** — chains through method calls (`$a->b()->c`) are
-  a different access pattern and are out of scope for this heuristic.
+- **Detection** — two or more consecutive plain property-fetch hops
+  (`->` or `?->`, mixed freely) rooted in a variable or `$this`. One
+  diagnostic per chain, on the pair that first completes it, so
+  `$book->author->address->city` points at `author->address` — the first model
+  that should carry an accessor.
+- **Error severity** — the standard mandates the accessor, so the sniff calls
+  `addError()`. `rules.xml` adds no `<severity>` or `<type>` override.
+- **Detection only** — the fix is a new accessor method plus a default for the
+  absent relationship, which cannot be synthesised from the tokens. Nothing
+  here is auto-fixable.
+- **Boundaries** — a method-call hop is a different access pattern, so it ends
+  the segment it belongs to; property fetches after it are judged on their own
+  (`$a->b()->c->d` flags `c->d`, `$a->b()->c` does not). A dynamic member name
+  (`$a->{$b}`, `$a->$b`) ends its segment the same way. Array-access hops
+  (`$a->b['x']->c`) and static-rooted chains (`Foo::bar()->baz->qux`) are out
+  of scope. `tests/` is excluded via ruleset path scoping in `rules.xml` —
+  test suites build object graphs inline and read straight through them.
+
+### Known limitations
+
+PHPCS has no type information, so the sniff matches a shape, not a
+relationship. Expect these:
+
+- **False positives on non-Eloquent object graphs.** A DTO, a `stdClass`, or
+  a `json_decode()` result read as `$payload->data->id` has the same token
+  shape as a relationship traversal and is flagged the same way.
+- **The accessor's own body is flagged.** `getAuthorNameAttribute()` returns
+  `$this->author->name` — the one place the traversal belongs. `$this`-rooted
+  chains are flagged like any other, so the accessor needs the suppression
+  below.
+- **No detection of the equivalent violations that hide the shape.** A dynamic
+  property name (`$book->{$relation}->name`, `$book->$relation->name`) is
+  unreadable at token level, so it ends its segment like a method call does —
+  that two-hop read is not flagged, though two plain hops *after* a dynamic one
+  still are. Helper-based reads (`data_get($book, 'author.name')`) reach the
+  same relationship and are invisible entirely.
+
+### Suppressing an accepted false positive
+
+At error severity an unsuppressed false positive breaks the build, so suppress
+it inline with a one-line justification:
+
+```php
+// phpcs:ignore CleanCode.Models.DisallowChainedPropertyFetch -- accessor body: the one place this traversal belongs
+return $this->author->name
+    ?? "";
+```
 
 ## What remains code review
 
 Whether a flagged chain actually crosses a model relationship, whether an
-accessor with a safe default is the right remedy, and equivalent violations
-the shape heuristic cannot see (dynamic property names, `data_get()`-style
-helpers) are judgement calls about types and intent — those stay with code
-review.
+accessor with a safe default is the right remedy, and whether a suppression is
+justified rather than convenient are judgement calls about types and intent.
+Those stay with code review.
