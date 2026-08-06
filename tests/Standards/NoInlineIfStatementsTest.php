@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
@@ -93,13 +94,13 @@ class NoInlineIfStatementsTest extends TestCase
 
     private function masterRulesetConfig(): Config
     {
-        // Pin installed_paths explicitly so the Slevomat rules the master
-        // ruleset references resolve: sibling suites blank PHPCS's static
-        // Config data (via ConfigDouble), which would otherwise deregister
-        // the Slevomat standard by the time this suite runs.
+        // Pin installed_paths explicitly so the third-party rules the
+        // master ruleset references resolve: sibling suites blank PHPCS's
+        // static Config data (via ConfigDouble), which would otherwise
+        // deregister those standards by the time this suite runs.
         Config::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 

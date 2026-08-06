@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Rules;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
@@ -105,11 +106,11 @@ class LineLengthRulesTest extends TestCase
     {
         // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
         // blanks the static Config data (via ConfigDouble), which would
-        // otherwise silently deregister the Slevomat standard the master
+        // otherwise silently deregister the third-party standards the master
         // ruleset references, breaking the rules.xml parse here.
         Config::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 

@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Ruleset;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
@@ -92,11 +93,11 @@ class RequireConstructorPropertyPromotionRulesetTest extends TestCase
             // ConfigDouble isolates PHPCS's static config state per suite
             // (the CleanCode sniff suite blanks it), so the installer-written
             // installed_paths is gone by the time this suite runs — point
-            // PHPCS at the Slevomat standard explicitly.
+            // PHPCS at the third-party standards explicitly.
             self::$config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
             Config::setConfigData(
                 'installed_paths',
-                $root . '/vendor/slevomat/coding-standard',
+                ThirdPartyStandards::installedPaths(),
                 true
             );
             self::$ruleset = new Ruleset(self::$config);
@@ -126,7 +127,7 @@ class RequireConstructorPropertyPromotionRulesetTest extends TestCase
         $config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
         Config::setConfigData(
             'installed_paths',
-            $root . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 

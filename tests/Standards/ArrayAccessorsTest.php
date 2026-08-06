@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -512,11 +513,12 @@ class ArrayAccessorsTest extends TestCase
         $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
 
         // ConfigDouble blanks CodeSniffer.conf, where Composer registers
-        // Slevomat's installed path; the master ruleset references Slevomat,
-        // so restore it (in memory only) for the rules.xml parse.
+        // the third-party standards' installed paths; the master ruleset
+        // references them, so restore them (in memory only) for the
+        // rules.xml parse.
         ConfigDouble::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 

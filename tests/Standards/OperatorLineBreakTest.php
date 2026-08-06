@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Standards;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -125,7 +126,7 @@ class OperatorLineBreakTest extends TestCase
 
         ConfigDouble::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 
