@@ -14,11 +14,11 @@ retroactively via `load()` after the query has already run.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 2 (runtime safety check + custom sniffs)
+## Enforceability — Tier 2 (custom sniff + runtime safety check)
 
 The standard **is enforceable**: Laravel ships a lazy-loading safety check
-that turns violations into exceptions, and the token-visible slices around it
-are sniffable.
+that turns violations into exceptions, and whether that check is switched on
+is itself token-visible — so a sniff enforces the enforcement.
 
 ### Runtime safety check
 
@@ -39,12 +39,37 @@ production). A missing query-site `with()` surfaces immediately in development
 and tests as a hard failure instead of degrading into silent N+1 queries —
 models must be eager loaded, exactly as the standard requires.
 
-### Custom sniffs
+### Custom sniff — the safety check is switched on
 
-- **Safety check present** — the `preventLazyLoading` call in the service
-  provider's `boot()` is single-file token-visible, so a sniff can verify the
-  runtime enforcement is actually switched on. Focused sniff issue:
-  [#154](https://github.com/mike-bronner/phpcs-rules/issues/154).
+The safety check only protects a codebase if somebody enabled it, and that is
+plain token content. Sniff: `CleanCode.Models.RequireLazyLoadingPrevention`
+([#154](https://github.com/mike-bronner/phpcs-rules/issues/154)).
+
+- **Detection** — the application service provider is reported when its class
+  body contains no static call to `Model::preventLazyLoading()` or
+  `Model::shouldBeStrict()`. The defect is an absence, so the warning is
+  reported on the class declaration.
+- **`shouldBeStrict()` counts** — Laravel's strict mode enables
+  `preventLazyLoading()` as part of what it turns on.
+- **The call may sit anywhere in the class** — delegating from `boot()` to a
+  private `configureModels()` helper is a common provider idiom, and the
+  check is equally enabled either way.
+- **Configurable class list** — the watched class names are a public sniff
+  property (`serviceProviderClasses`); the shipped default is
+  `AppServiceProvider`. An application that boots the check from another
+  provider adds that class to the list.
+- **Warning severity, not error** — packages and non-application codebases
+  have no such provider at all, and a project opts in by ruleset inclusion.
+- **Boundaries** — the sniff is keyed to the class name, not to
+  `extends ServiceProvider`: every application and package ships several
+  providers (route, event, auth, package), and none of them is expected to
+  enable the check, so keying off the parent would warn on all of them. A
+  call is recognised by shape (`::name(`), so one written into a dead private
+  method still satisfies the sniff, and an argument that disables the check in
+  every environment (`preventLazyLoading(false)`) is not read.
+
+### Further token-visible slice
+
 - **Non-empty `$with`** — a populated `protected $with = [...];` property on a
   model (the construct the first rule prohibits) is readable by single-file
   token analysis. Focused sniff issue:
@@ -65,8 +90,8 @@ models must be eager loaded, exactly as the standard requires.
 
 The safety check turns *implicit* lazy loading into a hard failure in
 development and tests (it is disabled in production per the recommended
-config above), and the sniffs cover the `$with` property and the check's
-presence. Judging whether a given query loads the *right* relationships at the
-right place — and preferring query-site `with()` over a later explicit
-`load()` (which the runtime check does not forbid) — remains a query-site
-design call for code review.
+config above), and the sniff keeps that check from being quietly left out.
+Judging whether a given query loads the *right* relationships at the right
+place — and preferring query-site `with()` over a later explicit `load()`
+(which the runtime check does not forbid) — remains a query-site design call
+for code review.

@@ -175,4 +175,15 @@
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
         <exclude-pattern>*/tests/*</exclude-pattern>
     </rule>
+
+    <!--
+        Models: Eager Loading (#74) — docs/standards/models-eager-loading.md.
+
+        The custom CleanCode.Models.RequireLazyLoadingPrevention sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. The sniff only ever speaks
+        about a class named in its serviceProviderClasses property (default:
+        AppServiceProvider), so it is already silent everywhere else, tests
+        included.
+    -->
 </ruleset>
