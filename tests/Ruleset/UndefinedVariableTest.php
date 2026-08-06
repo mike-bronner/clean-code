@@ -21,6 +21,15 @@ use PHPUnit\Framework\TestCase;
  * other PHPMD rules or to none. Both halves are pinned below: the excluded
  * codes stay silent through rules.xml, and the same fixture proves they would
  * fire without the excludes — so dropping an <exclude> fails this suite.
+ *
+ * The sniff is not a drop-in match for PHPMD. Two fixtures split the two
+ * cases so neither claim leans on the other:
+ *
+ * - violations.inc — the parity set. PHPMD 2.15.0 and this ruleset flag the
+ *   same lines.
+ * - divergences.inc — where they differ, plus the shape neither tool catches.
+ *   Pinned by a test so the gap cannot drift back into an unearned parity
+ *   claim; described in docs/standards/phpmd-clean-code-undefined-variable.md.
  */
 class UndefinedVariableTest extends TestCase
 {
@@ -52,20 +61,66 @@ class UndefinedVariableTest extends TestCase
         $this->assertSame([], $file->getWarnings());
     }
 
+    /**
+     * The parity set: PHPMD 2.15.0, run with only UndefinedVariable enabled,
+     * reports these same four lines on this same fixture and nothing else.
+     */
     public function testEachUndefinedReadIsFlaggedAtItsOwnLine(): void
     {
         $file = $this->processFixture('violations.inc');
 
         $this->assertSame(
             [
-                11 => [self::UNDEFINED],          // return $undefinedScalar;
-                16 => [self::UNDEFINED],          // return $undefinedArray['key'];
-                21 => [self::UNDEFINED],          // "value: {$undefinedInString}"
-                26 => [self::UNDEFINED],          // read one line above its assignment
-                34 => [self::UNDEFINED_UNSET],    // unset($neverAssigned);
+                17 => [self::UNDEFINED],          // return $undefinedScalar;
+                22 => [self::UNDEFINED],          // return $undefinedArray['key'];
+                27 => [self::UNDEFINED],          // "value: {$undefinedInString}"
+                32 => [self::UNDEFINED_UNSET],    // unset($neverAssigned);
             ],
             $this->sourceMap($file->getWarnings())
         );
+    }
+
+    /**
+     * Pins the two shapes where this ruleset is stricter than PHPMD, and — by
+     * asserting the whole map — the one shape neither tool reports.
+     *
+     * PHPMD 2.15.0 reports nothing at all on this fixture. This ruleset
+     * reports exactly two lines. Line 75, the conditionally-assigned read, is
+     * absent from both: it would appear in this map if the sniff caught it.
+     *
+     * Neither behaviour is configurable — VariableAnalysisSniff exposes no
+     * property that toggles statement-order or closure scoping — so the gap is
+     * documented rather than tuned away, per the issue's own fallback clause.
+     */
+    public function testDivergencesFromPhpmdAreFlaggedExactlyWhereRecorded(): void
+    {
+        $file = $this->processFixture('divergences.inc');
+
+        $this->assertSame(
+            [
+                34 => [self::UNDEFINED],    // read one line above its assignment
+                56 => [self::UNDEFINED],    // closure local read outside the closure
+            ],
+            $this->sourceMap($file->getWarnings())
+        );
+    }
+
+    /**
+     * Guards the test above from crediting our own <exclude>s for the silence
+     * on line 75: the same fixture, run through the unconfigured
+     * VariableAnalysis standard, still says nothing about that line. The two
+     * divergence lines are asserted present in the same pass, so a fixture
+     * that stopped parsing could not fake this.
+     */
+    public function testTheConditionalBlindSpotIsTheSniffsOwnBehaviour(): void
+    {
+        $file = $this->processFixture('divergences.inc', 'VariableAnalysis');
+
+        $flaggedLines = array_keys($this->sourceMap($file->getWarnings()));
+
+        $this->assertContains(34, $flaggedLines);
+        $this->assertContains(56, $flaggedLines);
+        $this->assertNotContains(75, $flaggedLines);
     }
 
     /**

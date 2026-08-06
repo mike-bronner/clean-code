@@ -198,11 +198,22 @@
                                   undefined variable.
 
         UndefinedVariable and UndefinedUnsetVariable both stay: each fires on
-        a read of a name that was never assigned (`echo $x;` and
-        `unset($x);` respectively), which is exactly what PHPMD flags. The
-        sniff carries no thresholds — PHPMD's rule has none either — so no
+        a read of a name the scope never assigns (`echo $x;` and `unset($x);`
+        respectively), which is the defect PHPMD's rule targets. The sniff
+        carries no thresholds — PHPMD's rule has none either — so no
         <properties> are configured; its defaults already treat superglobals,
         $this, and `global`/`static` declarations as defined.
+
+        Not a drop-in match for PHPMD, and no property makes it one. On two
+        shapes this ruleset is stricter — a read placed above its own
+        assignment, and a closure local read outside its closure — because the
+        sniff tracks statement order and closure scope where PHPMD asks only
+        whether the method assigns the name anywhere. Both extra reports are
+        true defects, so they are kept. A third shape, a name assigned on one
+        branch and read unconditionally after it, is missed by both tools and
+        stays code review. All three are pinned by
+        tests/Ruleset/Fixtures/UndefinedVariable/divergences.inc and set out in
+        docs/standards/phpmd-clean-code-undefined-variable.md.
 
         Detection only: a variable that was never defined has no safe
         machine-derivable value, so there is nothing to auto-fix.

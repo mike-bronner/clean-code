@@ -31,11 +31,10 @@ does, through its single `VariableAnalysis.CodeAnalysis.VariableAnalysis`
 sniff, wired into the master `rules.xml`
 ([#85](https://github.com/mike-bronner/phpcs-rules/issues/85)).
 
-- **Detection** — every read of a name that was never assigned is flagged at
+- **Detection** — every read of a name the scope never assigns is flagged at
   its own line, whether the read is a plain variable
   (`VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable`), an
-  array element, a string interpolation, a read placed above its own
-  assignment, or an `unset()` argument
+  array element, a string interpolation, or an `unset()` argument
   (`…VariableAnalysis.UndefinedUnsetVariable`).
 - **Not auto-fixable** — an undefined variable has no machine-derivable value,
   so there is nothing for `phpcbf` to write. Both codes are reported as
@@ -57,11 +56,54 @@ standard does not quietly deliver rules that belong elsewhere.
 | `VariableRedeclaration` | Redeclaring a variable that *is* defined — the opposite case. No PHPMD counterpart. |
 | `SelfOutsideClass` / `StaticOutsideClass` | A `self::`/`static::` scope error, not a variable definition. |
 
+### Where the sniff and PHPMD differ
+
+The sniff is not a drop-in match for PHPMD, and no property makes it one — the
+sniff's public properties are allowlists for names and unused-variable
+handling; none toggles statement-order or closure scoping. Rather than weaken
+a fixture to force agreement, the differences are recorded here and pinned by
+`tests/Ruleset/Fixtures/UndefinedVariable/divergences.inc`.
+
+The two tools ask different questions. PHPMD asks whether the enclosing method
+assigns the name *anywhere*. The sniff asks whether an assignment has *already
+been reached*, in this scope, at the point of the read. Neither asks whether
+the assignment runs on every path.
+
+| Shape | PHPMD 2.15.0 | This ruleset |
+|---|---|---|
+| Read of a name the method never assigns | flags | flags |
+| Read placed above its own assignment, same scope | silent | **flags** |
+| Closure local read outside its closure | silent | **flags** |
+| Name assigned on one branch, read unconditionally after | silent | silent |
+
+Both extra reports are kept: each is a real defect that evaluates to `null` at
+runtime, so the stricter behaviour is an improvement on PHPMD, not a false
+positive. Adopting this ruleset can therefore surface findings a previous
+`phpmd` run did not.
+
+Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
+ruleset enabling only `rulesets/cleancode.xml/UndefinedVariable`, and
+`phpcs --standard=rules.xml --extensions=inc/php`.
+
 Ruleset-integration tests covering compliant code, per-line violation
-reporting, the unfixable-warning severity, and both halves of the exclude list
-live at `tests/Ruleset/UndefinedVariableTest.php`.
+reporting, the unfixable-warning severity, both halves of the exclude list, and
+the divergences above live at `tests/Ruleset/UndefinedVariableTest.php`.
 
 ## What remains code review
 
-Nothing — this rule is fully machine-enforced, and `phpmd` no longer needs to
-run separately for it.
+**A variable assigned on one branch and read unconditionally afterwards.**
+
+```php
+if ($flag) {
+    $result = 'set';
+}
+
+return $result;   // null whenever $flag is false — neither tool flags this
+```
+
+Both tools reason about scope membership, not path reachability, so both stay
+silent. Replacing `phpmd` with this ruleset loses no coverage here — PHPMD
+never caught it either — but the shape is a real defect and needs a reader.
+
+Everything else this rule covers is machine-enforced, and `phpmd` no longer
+needs to run separately for it.
