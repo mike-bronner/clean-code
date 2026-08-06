@@ -11,14 +11,20 @@ use PHP_CodeSniffer\Tests\ConfigDouble;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Integration test for the naming casing-convention rules (issue #22) wired
- * into the master rules.xml:
+ * Integration test for the naming casing-convention rules (issue #22) that
+ * the master rules.xml enforces:
  *
  * - Squiz.NamingConventions.ValidVariableName — camelCase variables and
  *   properties (PrivateNoUnderscore excluded: no underscore prefix demanded).
+ *   The one sniff of the three rules.xml references explicitly.
  * - PSR1.Methods.CamelCapsMethodName — camelCase methods (magic exempt).
  * - Squiz.Classes.ValidClassName — PascalCase classes, interfaces, traits,
  *   and enums (abstract classes are covered via their class token).
+ *
+ * The last two carry no explicit ref in rules.xml (#217): they reach the
+ * ruleset through its PSR12 ref, which includes PSR1 wholesale. The line map
+ * below therefore also pins that transitive path — drop the PSR12 ref, or
+ * exclude either sniff from it, and the expected violations disappear.
  *
  * All three sniffs are non-strict about consecutive capitals, so acronym
  * runs pass: $userID, getUserID(), and HTTPClient are all accepted alongside
