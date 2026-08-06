@@ -31,5 +31,5 @@ jobs:
       - name: Self-lint (PSR-12)
         run: composer lint
 
-      - name: Sniff unit tests
+      - name: Sniff test suite (Pest)
         run: composer test
