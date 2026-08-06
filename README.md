@@ -29,7 +29,8 @@ Or reference it from your project's own `phpcs.xml.dist`:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the package layout, how a new
-sniff/standard plugs into `rules.xml`, and how to add its unit test.
+sniff/standard plugs into `rules.xml`, the test-fixture contract, and how to
+add its Pest test.
 
 ## Standards
 

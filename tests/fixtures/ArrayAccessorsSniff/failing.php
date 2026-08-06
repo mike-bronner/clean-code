@@ -163,7 +163,7 @@ class ArrayAccessorsFailing
      * The dynamic-member half of the same table: an offset built inside
      * `$order->{...}` with a brace or a statement of its own. These are last in
      * the class and followed by no further statement on purpose -- see
-     * tokenizer-limits.inc for the PHP_CodeSniffer scope-map defect this shape
+     * tokenizer-limits.php for the PHP_CodeSniffer scope-map defect this shape
      * triggers in whatever follows it.
      */
     public function readsComputedDynamicMembersSpanningBraces(

@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          beStrictAboutTestsThatDoNotTestAnything="false"
          bootstrap="tests/bootstrap.php"
          cacheResult="false"
          colors="true">
     <testsuites>
-        <testsuite name="CleanCode">
-            <directory>CleanCode/Tests</directory>
+        <!--
+            Fixtures live under tests/fixtures/ and in tests/Integration/fixtures/
+            and are plain .php files. They are never collected as tests: a
+            <directory> defaults to suffix="Test.php", so only the test files
+            below are loaded. That is what lets a deliberately malformed
+            fixture sit inside a suite directory safely.
+        -->
+        <testsuite name="Contract">
+            <directory>tests/Contract</directory>
         </testsuite>
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
