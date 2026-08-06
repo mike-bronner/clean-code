@@ -106,6 +106,36 @@
     -->
     <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 
+    <!--
+        PHPMD/CleanCode: IfStatementAssignment (#79) —
+        docs/standards/phpmd-clean-code-if-statement-assignment.md.
+
+        Generic.CodeAnalysis.AssignmentInCondition replaces the PHPMD rule. It
+        reports every assignment PHPMD's rule reports, at the same line, and
+        goes further: PHPMD looks only at if/elseif clauses, only at plain "=",
+        and only inside a function or method body, while the Generic sniff also
+        covers for/switch/case/while/match conditions, the compound operators
+        (.=, +=, ??= ...), and file-scope code. Broader coverage of the same
+        smell is deliberate — the extra shapes belong to no other PHPMD rule,
+        and the sniff's two codes (Found, FoundInWhileCondition) group the
+        constructs together anyway, so narrowing to PHPMD's subset is not
+        expressible as configuration.
+
+        The sniff reports warnings out of the box; <type>error</type> raises it
+        so an assignment in a condition fails a phpcs run the way it fails a
+        phpmd run. It has no fixer, matching PHPMD — turning an assignment into
+        a comparison is a guess at intent, not a mechanical rewrite.
+
+        The one shape the Generic sniff misses is a list() destructuring target
+        (`if (list($a, $b) = $data)`), which PHPMD does report; the custom
+        CleanCode.Conditionals.DisallowListAssignmentInCondition sniff covers
+        it and is picked up automatically via the ./CleanCode/ruleset.xml ref
+        above.
+    -->
+    <rule ref="Generic.CodeAnalysis.AssignmentInCondition">
+        <type>error</type>
+    </rule>
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
