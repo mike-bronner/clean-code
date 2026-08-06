@@ -47,7 +47,18 @@ class ViolatingConditions
             }
         }
 
-        return $foo . $baz . $first . $second . $nested . $element . $negated . $wrapped . $outer . $inner;
+        // Short-list destructuring. The Generic sniff's left-hand-side walk
+        // accepts it because the target ends in "]", which is why the custom
+        // list() sniff leaves this form alone — a claim that holds only as
+        // long as the Generic sniff keeps reporting it, so it is pinned here
+        // rather than assumed. PHPMD flags it too, so it belongs in this
+        // fixture: verified against phpmd 2.15.
+        if ([$shortFirst, $shortSecond] = $data) {
+            return 'j';
+        }
+
+        return $foo . $baz . $first . $second . $nested . $element . $negated . $wrapped . $outer . $inner
+            . $shortFirst . $shortSecond;
     }
 
     private string $name = '';

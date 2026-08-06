@@ -20,7 +20,9 @@ use PHPUnit\Framework\TestCase;
  *
  * - compliant.inc — neither tool reports anything.
  * - violations.inc — both tools report the same lines, the same number of
- *   times each. This is the "no gaps" half of the mapping.
+ *   times each. This is the "no gaps" half of the mapping. It also carries the
+ *   short-list destructuring form, which the custom sniff deliberately leaves
+ *   to the Generic sniff (see SHARED_VIOLATIONS).
  * - broader-than-phpmd.inc — only the Generic sniff reports. PHPMD's rule
  *   reads if/elseif clauses only, accepts a plain "=" only, and visits
  *   function and method bodies only, so compound operators, the other
@@ -49,6 +51,15 @@ class IfStatementAssignmentTest extends TestCase
     /**
      * Line => number of reports, for the shapes PHPMD reports too. Confirmed
      * identical under phpmd 2.15.
+     *
+     * Line 56 is short-list destructuring. It carries the division of labour
+     * between the two sniffs: the custom sniff excludes that form because the
+     * Generic sniff's left-hand-side walk already accepts a target ending in
+     * "]". Both assertions in
+     * testEveryAssignmentPhpmdReportsIsFlaggedAtTheSameLine pin that from
+     * opposite sides — the line map goes red if the Generic sniff ever stops
+     * reporting it, and the source set goes red if the custom sniff starts
+     * covering it as well.
      */
     private const SHARED_VIOLATIONS = [
         14 => 1,
@@ -61,6 +72,7 @@ class IfStatementAssignmentTest extends TestCase
         40 => 1,
         44 => 1,
         45 => 1,
+        56 => 1,
     ];
 
     /**
