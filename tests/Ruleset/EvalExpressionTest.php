@@ -12,14 +12,22 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration test for the Squiz.PHP.Eval rule as configured in the master
  * rules.xml, which replaces PHPMD's Design/EvalExpression rule (issue #107).
- * Fixtures live in Fixtures/Eval/ beside this file.
+ *
+ * Fixtures live in Fixtures/Eval/ beside this file, following the repo's
+ * fixture convention (CONTRIBUTING.md): compliant and violating code in
+ * separate files, passing.inc and failing.inc. There are no
+ * autofix-before.inc / autofix-after.inc files because the rule is not
+ * auto-fixable — Squiz\Sniffs\PHP\EvalSniff reports through addWarning() and
+ * registers no fixer, so phpcbf cannot act on it, and PHPMD offers no auto-fix
+ * for an eval expression either. testEvalExpressionsAreReportedWithoutAnAutoFix
+ * pins that, so the missing autofix fixtures stay an asserted fact rather than
+ * an assumption.
  *
  * Two properties of the mapping are pinned here beyond plain detection. The
  * sniff reports a *warning* out of the box; rules.xml raises it to an error so
  * eval() usage fails a phpcs run the way it fails a phpmd run, so the tests
  * assert the reports land in getErrors() and that getWarnings() stays empty.
- * The rule is also report-only — PHPMD offers no auto-fix for an eval
- * expression either — which the fixable-count assertion pins.
+ * The rule is also report-only, which the fixable-count assertion pins.
  */
 class EvalExpressionTest extends TestCase
 {
@@ -36,7 +44,7 @@ class EvalExpressionTest extends TestCase
 
     public function testCompliantFileProducesNoViolations(): void
     {
-        $file = $this->processFixture('compliant.inc');
+        $file = $this->processFixture('passing.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());
@@ -44,7 +52,7 @@ class EvalExpressionTest extends TestCase
 
     public function testEachEvalExpressionIsFlaggedAtItsOwnLine(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixture('failing.inc');
         $errors = $file->getErrors();
 
         $this->assertSame(self::VIOLATION_LINES, array_keys($errors));
@@ -59,7 +67,7 @@ class EvalExpressionTest extends TestCase
 
     public function testEvalExpressionsAreReportedAsErrorsRatherThanWarnings(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixture('failing.inc');
 
         $this->assertSame(count(self::VIOLATION_LINES), $file->getErrorCount());
         $this->assertSame(0, $file->getWarningCount());
@@ -68,7 +76,7 @@ class EvalExpressionTest extends TestCase
 
     public function testEvalExpressionsAreReportedWithoutAnAutoFix(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixture('failing.inc');
 
         // Guard against a vacuous pass: an empty report also has zero fixable
         // violations, so pin that the violations are actually there first.
