@@ -35,7 +35,8 @@ sniff/standard plugs into `rules.xml`, and how to add its unit test.
 
 Each standard is documented under [`docs/standards/`](docs/standards/). Standards
 that a token-based sniff cannot verify (Tier 3) are enforced by code review and
-developer discipline rather than a PHPCS rule.
+developer discipline rather than a PHPCS rule. Entries prefixed `PHPMD/` replicate
+a PHPMD rule in PHPCS so `phpmd` no longer has to run separately for it.
 
 - [Arrays: Array Accessors (`data_get`)](docs/standards/arrays-array-accessors.md) — Tier 2, custom sniff `CleanCode.Arrays.ArrayAccessors`: flags direct element (`$array['key']`) and property (`$object->property`) reads once per accessor chain, leaving write-side access, existence checks, array literals, `$this`-rooted access, and method calls alone, detection-only ([#33](https://github.com/mike-bronner/phpcs-rules/issues/33))
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
@@ -56,5 +57,6 @@ developer discipline rather than a PHPCS rule.
 - [Models: Persistence Methods (Repository Pattern)](docs/standards/models-persistence-methods-repository-pattern.md) — Tier 2, custom sniff `CleanCode.Models.DisallowExternalPersistenceCalls`: warns on generic CRUD calls (`create`/`delete`/`save`/`update`) on any receiver other than `$this`, detection-only ([#37](https://github.com/mike-bronner/phpcs-rules/issues/37))
 - [Naming: Casing Conventions](docs/standards/naming-casing-conventions.md) — Tier 1, existing sniffs: camelCase variables/properties/methods, PascalCase classes ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22))
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
+- [PHPMD/CleanCode: IfStatementAssignment](docs/standards/phpmd-clean-code-if-statement-assignment.md) — Tier 1, existing sniff `Generic.CodeAnalysis.AssignmentInCondition` raised to an error: flags an assignment used where a comparison was meant, across `if`/`elseif`/`while`/`for`/`switch`/`case`/`match` conditions and every assignment operator (wider than PHPMD, which reads `if`/`elseif` and plain `=` only), plus custom sniff `CleanCode.Conditionals.DisallowListAssignmentInCondition` for the `list()` destructuring target the Generic sniff misses, detection-only ([#79](https://github.com/mike-bronner/phpcs-rules/issues/79))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
 - [Use Statements: No Unused Entries](docs/standards/use-statements-no-unused-entries.md) — Tier 1, Slevomat `Namespaces.UnusedUses`, auto-fixable ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68))
