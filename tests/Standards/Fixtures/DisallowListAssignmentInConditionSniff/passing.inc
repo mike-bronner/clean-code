@@ -64,6 +64,50 @@ class PassingListAssignments
             unset($step, $handler);
         }
 
+        // The silent half of the for-header coverage: one shape here for each
+        // construct PHPCS scopes in a header, each with the list() in a
+        // section that is not the condition. The reported half lives in
+        // failing.inc. Every line below flags if the section test is widened
+        // to accept any part of the header, so this is where an over-correcting
+        // fix gets caught.
+        //
+        // An arrow function has no braced body to skip, but the tokenizer
+        // still gives it a scope_closer — set to whatever token ends its
+        // expression. In the initialiser that is the header's own first
+        // separator. The list() beside it is still in the initialiser and
+        // still ordinary.
+        for ($shortHandler = fn (): int => 1, list($nineteenth, $twentieth) = $data; $tick < 3; $tick++) {
+            unset($tick, $shortHandler, $nineteenth, $twentieth);
+        }
+
+        // The increment side of the same shape. There the arrow function's
+        // scope_closer is the header's own closing parenthesis instead.
+        for ($slot = 0; $slot < 3; $laterHandler = fn (): int => 2, list($twentyFirst, $twentySecond) = $data) {
+            unset($slot, $laterHandler, $twentyFirst, $twentySecond);
+        }
+
+        // An anonymous class in the initialiser: a braced body, so its own
+        // statement semicolons are skipped and the list() beside it stays in
+        // the initialiser.
+        for ($object = new class {
+            public function value(): int
+            {
+                $inner = 1;
+
+                return $inner;
+            }
+        }, list($twentyThird, $twentyFourth) = $data; $slice < 3; $slice++) {
+            unset($slice, $object, $twentyThird, $twentyFourth);
+        }
+
+        // A match expression in the initialiser: braced too, and its arms hold
+        // no semicolons at all, so nothing here can be mistaken for one.
+        for ($choice = match (true) {
+            default => 1,
+        }, list($twentyFifth, $twentySixth) = $data; $round < 3; $round++) {
+            unset($round, $choice, $twentyFifth, $twentySixth);
+        }
+
         // A list() that is read rather than assigned to: the token after its
         // closing parenthesis is not "=", even though it sits inside an if
         // condition (by way of an immediately-invoked closure).

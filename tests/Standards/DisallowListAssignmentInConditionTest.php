@@ -31,9 +31,38 @@ class DisallowListAssignmentInConditionTest extends TestCase
      * Every condition-bearing construct the sniff covers, in fixture order:
      * if, elseif, keyed list() in an if, a list() nested in a call argument in
      * an if, while, the condition section of a for, that same section reached
-     * through a closure, do-while, switch, match, and an if at file scope.
+     * through a closure, then that same section beside each remaining
+     * construct PHPCS scopes in a for header — an arrow function in the
+     * initialiser, an arrow function in the increment, an anonymous class, a
+     * match — and finally do-while, switch, match, and an if at file scope.
+     *
+     * passing.inc holds each of those same for-header shapes with the list()
+     * in a section that is *not* the condition, so the two fixtures bracket
+     * the separator scan from both sides.
+     *
+     * Which line pins what, measured by running each mutation rather than
+     * assumed. Two of the four are honestly not reddenable, and are kept as
+     * construct coverage only:
+     *
+     * - 44 (closure) and 79 (anonymous class) — both die if the scan stops
+     *   skipping braced bodies. 79 additionally dies on its own if the skip is
+     *   written per-construct and omits anonymous classes, which 44 does not
+     *   catch.
+     * - 55 (arrow function in the initialiser) — the regression this round
+     *   fixed, and the only line that dies if the scan jumps every
+     *   scope_closer rather than only a brace.
+     * - 64 (arrow function in the increment) — no mutation of the scan reddens
+     *   this, and none can: the header's two separators are both collected
+     *   before the scan reaches the increment, so whatever the scan does there
+     *   cannot change the answer. Kept because the increment is where an arrow
+     *   function's scope_closer is the header's closing parenthesis rather
+     *   than a semicolon, so the shape is worth holding against a future scan
+     *   that gathers separators differently.
+     * - 88 (match) — likewise not reddenable: match arms are expressions and
+     *   hold no semicolons, so skipping the match or not cannot change the
+     *   separator list. Kept to record that the construct was considered.
      */
-    private const VIOLATION_LINES = [14, 16, 20, 26, 30, 34, 44, 53, 55, 60, 66];
+    private const VIOLATION_LINES = [14, 16, 20, 26, 30, 34, 44, 55, 64, 79, 88, 94, 96, 101, 107];
 
     public function testMasterRulesetMakesTheSniffReachable(): void
     {
@@ -88,30 +117,6 @@ class DisallowListAssignmentInConditionTest extends TestCase
                 $this->assertFalse($error['fixable']);
             }
         }
-    }
-
-    /**
-     * A for header's three sections are separated by the header's own
-     * semicolons. A closure in the initialiser or the increment carries
-     * semicolons of its own, and reading one of those as a section separator
-     * puts the closure's whole body inside the "condition".
-     *
-     * passing.inc holds that shape on both sides of the condition and must
-     * stay silent; failing.inc holds the same shape in the condition section
-     * itself and must still be reported. The pair is what makes this
-     * discriminating: a sniff that ignored closures wholesale would pass the
-     * first assertion and fail the second.
-     */
-    public function testAClosureInAForHeaderDoesNotMoveTheConditionSection(): void
-    {
-        $silent = $this->processFixture('passing.inc');
-
-        $this->assertSame([], $silent->getErrors());
-
-        $reported = $this->processFixture('failing.inc');
-        $conditionSectionLine = 44;
-
-        $this->assertArrayHasKey($conditionSectionLine, $reported->getErrors());
     }
 
     /**

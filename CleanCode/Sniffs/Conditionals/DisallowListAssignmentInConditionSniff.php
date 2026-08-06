@@ -20,6 +20,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * we are OK" and abandons — so `if (list($a, $b) = $data)` is silent there
  * while PHPMD flags it. Short-list destructuring (`if ([$a, $b] = $data)`)
  * ends in "]" and is already covered, so only the long form needs this sniff.
+ * That exclusion depends on the Generic sniff, so it is pinned rather than
+ * assumed: tests/Ruleset/Fixtures/IfStatementAssignment/violations.inc holds a
+ * short-list condition, and the ruleset test asserts the Generic sniff is what
+ * reports it.
  *
  * The condition set mirrors the Generic sniff's rather than PHPMD's narrower
  * if/elseif pair, so the two sniffs together report one consistent rule across
@@ -132,12 +136,12 @@ class DisallowListAssignmentInConditionSniff implements Sniff
      * way.
      *
      * The middle section is the span between the header's first and second
-     * separators. Those have to be the header's *own* separators: any nested
-     * construct in the header carries semicolons of its own — a closure body
-     * in the initialiser or the increment is the common case — and counting
-     * one of those as a separator puts the whole nested body inside the
-     * "condition". So the separators come from a depth-aware scan rather than
-     * a plain search bounded by the header parentheses.
+     * separators. Those have to be the header's *own* separators: a braced
+     * body in the header carries semicolons of its own — a closure in the
+     * initialiser or the increment is the common case — and counting one of
+     * those as a separator puts the whole body inside the "condition". So the
+     * separators come from a scan that skips braced bodies rather than a plain
+     * search bounded by the header parentheses.
      *
      * A malformed header with fewer than two separators falls out as "not a
      * condition", with nothing to guess at.
@@ -158,17 +162,30 @@ class DisallowListAssignmentInConditionSniff implements Sniff
      * order — the ones at the header's own depth only.
      *
      * In valid PHP, a semicolon inside the header that is not a separator is
-     * always inside a braced body — a closure, an anonymous class. Nothing
-     * else in an expression can hold a statement. So skipping every scope
-     * whole, by jumping to its closer, is enough to leave only the separators;
-     * the scan needs no other kind of jump. Malformed source can of course put
-     * a stray semicolon anywhere, and then the count simply comes out wrong in
-     * the harmless direction: too many separators, and the caller's window
-     * lands somewhere no list() sits.
+     * always inside a *braced* body. Only a body holds statements, and only a
+     * statement ends in a semicolon: a closure, an anonymous class, a match.
+     * So the scan skips braced bodies whole, by jumping to the closing brace,
+     * and everything left at the header's own depth is a separator.
      *
-     * The jump lands on the closer and the loop's own increment steps past it.
-     * A token that is its own closer therefore stays put for that step, so the
-     * scan can neither stall nor run backwards, and no bounds guard is needed.
+     * The jump has to be limited to braced bodies rather than taken on any
+     * scope_closer, because PHPCS scopes more than braces. An arrow function
+     * has no body to skip — its expression cannot hold a statement — yet the
+     * tokenizer still gives it a scope_closer, set to whatever token ends the
+     * expression. In a for header that is the header's own punctuation: the
+     * separator semicolon for an arrow function in the initialiser or the
+     * condition, the closing parenthesis for one in the increment. Jumping
+     * there would consume a separator without ever testing it, leaving the
+     * header short of two and the whole loop looking like it had no condition
+     * section at all.
+     *
+     * Malformed source can of course put a stray semicolon anywhere, and then
+     * the count simply comes out wrong in the harmless direction: too many
+     * separators, and the caller's window lands somewhere no list() sits.
+     *
+     * The jump lands on the closing brace and the loop's own increment steps
+     * past it. A brace that is its own closer therefore stays put for that
+     * step, so the scan can neither stall nor run backwards, and no bounds
+     * guard is needed.
      *
      * @return list<int>
      */
@@ -185,7 +202,11 @@ class DisallowListAssignmentInConditionSniff implements Sniff
                 continue;
             }
 
-            $i = $tokens[$i]['scope_closer'] ?? $i;
+            $scopeCloser = $tokens[$i]['scope_closer'] ?? null;
+
+            if ($scopeCloser !== null && $tokens[$scopeCloser]['code'] === T_CLOSE_CURLY_BRACKET) {
+                $i = $scopeCloser;
+            }
         }
 
         return $separators;

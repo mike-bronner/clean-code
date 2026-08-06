@@ -85,9 +85,12 @@ already covered by the Generic sniff, so only the long form needs the custom one
 - An assignment as an ordinary statement, outside any condition.
 - A `for` loop's initialiser and increment sections. Only the middle section is
   a condition; `for ($i = 0; $i < 3; $i++)` is not a violation. The three
-  sections are read off the header's own two semicolons, so a closure in the
-  initialiser or the increment stays in the section it is written in — the
-  semicolons in its body do not move the condition.
+  sections are read off the header's own two semicolons. A braced body in the
+  header — a closure, an anonymous class — is skipped whole, so the semicolons
+  ending its own statements are not mistaken for section separators and the
+  code stays in the section it is written in. An arrow function is not skipped,
+  because its body is a single expression that can hold no statement and so no
+  semicolon of its own.
 - `=>` inside a condition — that is an array key, not an assignment.
 - Assignments in the conditional part of a ternary. Neither tool detects those.
 
