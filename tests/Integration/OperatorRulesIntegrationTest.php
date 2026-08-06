@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Integration;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
@@ -36,11 +37,11 @@ class OperatorRulesIntegrationTest extends TestCase
     {
         self::$config = new ConfigDouble(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
 
-        // The master ruleset references Slevomat; restore its installed path
-        // after ConfigDouble blanks the static config data.
+        // The master ruleset references third-party standards; restore their
+        // installed paths after ConfigDouble blanks the static config data.
         Config::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 
@@ -51,12 +52,12 @@ class OperatorRulesIntegrationTest extends TestCase
      * The fixture holds one instance of each operator concern; every line below
      * carries exactly one diagnostic from exactly one sniff. Regressions this
      * pins by adding a second (or dropping the only) source:
-     *   - re-stacking PSR12 on Squiz spacing (line 5/6),
-     *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (13),
+     *   - re-stacking PSR12 on Squiz spacing (line 9/10),
+     *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (17),
      *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
-     *     double-reports "if ( ! " (line 19), and
+     *     double-reports "if ( ! " (line 23), and
      *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
-     *     operator inside a multi-condition slips through unreported (line 24).
+     *     operator inside a multi-condition slips through unreported (line 28).
      */
     public function testEveryOperatorViolationIsReportedExactlyOnce(): void
     {
@@ -66,23 +67,23 @@ class OperatorRulesIntegrationTest extends TestCase
         $this->assertSame(
             [
                 // exactly-1-space spacing — Squiz supersedes PSR12, no stacking
-                5 => [
+                9 => [
                     'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
                     'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
                 ],
                 // concatenation spacing — ConcatenationSpacing only, no PSR12
-                6 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
+                10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
                 // padding before "=" — the ignoreSpacingBeforeAssignments knob
-                7 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
+                11 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
                 // dangling "." outside a condition — OperatorLineBreak's to own
-                9 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+                13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
                 // dangling "||" inside the if — OneConditionPerLine only
-                13 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
+                17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
                 // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
-                19 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
+                23 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
                 // dangling "===" inside a multi-condition — OperatorLineBreak
                 // owns it (OneConditionPerLine polices only the boolean "||")
-                24 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+                28 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
             ],
             $this->violationSourceMap($file)
         );

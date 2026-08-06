@@ -18,8 +18,12 @@ CleanCode/
 docs/standards/                            # one doc per clean-code standard
 tests/
 ├── bootstrap.php                          # wires CleanCode into PHPCS's test harness
+├── ThirdPartyStandards.php                # installed_paths for the standards rules.xml refs
+├── Integration/                           # whole-ruleset tests (no per-sniff narrowing)
 ├── Rules/
 │   └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
+├── Ruleset/
+│   └── <Name>Test.php + Fixtures/<Name>/  # third-party rules wired into rules.xml
 └── Standards/
     ├── <Name>Test.php                     # custom-sniff tests (see step 2 below)
     └── Fixtures/<Name>Sniff/              # passing.inc, failing.inc, autofix-before/after.inc
@@ -59,6 +63,19 @@ tests/
    thresholds/behaviour with a test at `tests/Rules/<Name>RulesTest.php` that
    runs `rules.xml` against fixtures via PHPCS's API — see
    `tests/Rules/LineLengthRulesTest.php` as the template.
+
+   Adding a rule from a **new** package (not Slevomat) also means adding its
+   path to `MikeBronner\CleanCode\Tests\ThirdPartyStandards::installedPaths()`.
+   Every suite builds its `Config` through `ConfigDouble`, which blanks the
+   `installed_paths` the Composer installer wrote — so each one restores the
+   value from that single helper, and a sniff missing from it fails to resolve
+   across the whole suite, not just in the new test.
+
+   Where a rule's configuration *narrows* a third-party sniff (excluding codes
+   that belong to another standard, say), pin both halves: that the excluded
+   codes stay silent through `rules.xml`, and that the same fixture raises them
+   through the bare standard. Without the second half the first passes even if
+   the fixture triggers nothing — see `tests/Ruleset/UndefinedVariableTest.php`.
 4. **Document the standard** under `docs/standards/` and link it from the
    README, following the existing docs there.
 

@@ -175,4 +175,42 @@
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
         <exclude-pattern>*/tests/*</exclude-pattern>
     </rule>
+
+    <!--
+        PHPMD/CleanCode: UndefinedVariable (#85) —
+        docs/standards/phpmd-clean-code-undefined-variable.md.
+
+        PHPMD's UndefinedVariable ("a variable used has not been previously
+        defined") has no PHPCS/Slevomat equivalent; the well-known external
+        standard sirbrillig/phpcs-variable-analysis covers it. Its single
+        sniff emits five codes, only two of which are this rule — the other
+        three are separate concerns with their own open issues or no PHPMD
+        counterpart, so they are excluded here rather than shipped as a side
+        effect:
+
+        - UnusedVariable        → PHPMD UnusedLocalVariable (#118) /
+                                  UnusedFormalParameter (#120), not this rule.
+        - VariableRedeclaration → no PHPMD counterpart; redeclaring a defined
+                                  variable is the opposite of using an
+                                  undefined one.
+        - SelfOutsideClass /
+          StaticOutsideClass    → a self::/static:: scope error, not an
+                                  undefined variable.
+
+        UndefinedVariable and UndefinedUnsetVariable both stay: each fires on
+        a read of a name that was never assigned (`echo $x;` and
+        `unset($x);` respectively), which is exactly what PHPMD flags. The
+        sniff carries no thresholds — PHPMD's rule has none either — so no
+        <properties> are configured; its defaults already treat superglobals,
+        $this, and `global`/`static` declarations as defined.
+
+        Detection only: a variable that was never defined has no safe
+        machine-derivable value, so there is nothing to auto-fix.
+    -->
+    <rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.StaticOutsideClass"/>
+    </rule>
 </ruleset>

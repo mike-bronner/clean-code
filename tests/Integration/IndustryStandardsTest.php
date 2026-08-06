@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Tests\Integration;
 
+use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
@@ -36,10 +37,11 @@ class IndustryStandardsTest extends TestCase
 
         // Pin installed_paths explicitly (after ConfigDouble blanks the
         // static config data): the master ruleset references the Slevomat
-        // standard for the Exceptions rules.
+        // standard for the Exceptions rules and the VariableAnalysis standard
+        // for undefined variables.
         Config::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ThirdPartyStandards::installedPaths(),
             true
         );
 
@@ -128,6 +130,8 @@ class IndustryStandardsTest extends TestCase
     public static function customStandardFixtureProvider(): array
     {
         $root = dirname(__DIR__, 2);
+        $directRead = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
+        $undefined = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
         return [
             // The chains this fixture exists to lay out are, by definition,
@@ -136,24 +140,33 @@ class IndustryStandardsTest extends TestCase
             // a PSR12 conflict: CleanCode.ClearCode.OneThoughtPerLine governs
             // how a chain is broken across lines, CleanCode.Arrays.ArrayAccessors
             // says the chain should be a data_get() call in the first place.
+            //
+            // The chain receivers ($user, $items, $order, $builder, ...) are
+            // never assigned in this fixture, so the undefined-variable
+            // standard (#85) flags each read too — the same kind of pinned
+            // fixture noise as the side-effect violations below, not a
+            // conflict. Seeding them here would shift every line number the
+            // OneThoughtPerLine unit test pins against the same file.
             // Pinned per line so any *other* new violation still fails here.
             'one-thought-per-line chain style is PSR12-clean' => [
                 $root . '/CleanCode/Tests/ClearCode/OneThoughtPerLineUnitTest.inc.fixed',
                 [
-                    3 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-                    4 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-                    9 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-                    11 => [
-                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                    ],
-                    12 => [
-                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                        'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                    ],
-                    25 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-                    30 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-                    41 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+                    3 => [$directRead, $undefined],
+                    4 => [$directRead, $undefined],
+                    9 => [$directRead, $undefined, $undefined],
+                    10 => [$undefined],
+                    11 => [$directRead, $directRead],
+                    12 => [$directRead, $directRead, $undefined, $undefined],
+                    20 => [$undefined],
+                    23 => [$undefined],
+                    25 => [$directRead, $undefined],
+                    30 => [$directRead, $undefined],
+                    38 => [$undefined],
+                    41 => [$directRead, $undefined],
+                    45 => [$undefined, $undefined],
+                    47 => [$undefined],
+                    49 => [$undefined, $undefined],
+                    52 => [$undefined],
                 ],
             ],
             'throwable-only catches are PSR12-clean' => [
