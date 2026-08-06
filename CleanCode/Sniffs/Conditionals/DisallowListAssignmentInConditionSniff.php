@@ -131,26 +131,63 @@ class DisallowListAssignmentInConditionSniff implements Sniff
      * increment are ordinary, so the Generic sniff bounds its search the same
      * way.
      *
-     * The middle section is the one with a semicolon on both sides inside the
-     * header: the initialiser has none before it, the increment none after.
-     * A malformed header with no semicolon at all therefore falls out as "not
-     * a condition" through the same test, with nothing to guess at.
+     * The middle section is the span between the header's first and second
+     * separators. Those have to be the header's *own* separators: any nested
+     * construct in the header carries semicolons of its own — a closure body
+     * in the initialiser or the increment is the common case — and counting
+     * one of those as a separator puts the whole nested body inside the
+     * "condition". So the separators come from a depth-aware scan rather than
+     * a plain search bounded by the header parentheses.
+     *
+     * A malformed header with fewer than two separators falls out as "not a
+     * condition", with nothing to guess at.
      */
     private function isInForConditionSection(File $phpcsFile, int $forPtr, int $stackPtr): bool
     {
+        $separators = $this->headerSeparators($phpcsFile, $forPtr);
+
+        if (isset($separators[0], $separators[1]) === false) {
+            return false;
+        }
+
+        return $stackPtr > $separators[0] && $stackPtr < $separators[1];
+    }
+
+    /**
+     * The semicolons that separate a for-loop header's three sections, in
+     * order — the ones at the header's own depth only.
+     *
+     * In valid PHP, a semicolon inside the header that is not a separator is
+     * always inside a braced body — a closure, an anonymous class. Nothing
+     * else in an expression can hold a statement. So skipping every scope
+     * whole, by jumping to its closer, is enough to leave only the separators;
+     * the scan needs no other kind of jump. Malformed source can of course put
+     * a stray semicolon anywhere, and then the count simply comes out wrong in
+     * the harmless direction: too many separators, and the caller's window
+     * lands somewhere no list() sits.
+     *
+     * The jump lands on the closer and the loop's own increment steps past it.
+     * A token that is its own closer therefore stays put for that step, so the
+     * scan can neither stall nor run backwards, and no bounds guard is needed.
+     *
+     * @return list<int>
+     */
+    private function headerSeparators(File $phpcsFile, int $forPtr): array
+    {
         $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$forPtr]['parenthesis_closer'];
+        $separators = [];
 
-        $before = $phpcsFile->findPrevious(
-            T_SEMICOLON,
-            ($stackPtr - 1),
-            $tokens[$forPtr]['parenthesis_opener']
-        );
-        $after = $phpcsFile->findNext(
-            T_SEMICOLON,
-            ($stackPtr + 1),
-            $tokens[$forPtr]['parenthesis_closer']
-        );
+        for ($i = ($tokens[$forPtr]['parenthesis_opener'] + 1); $i < $closer; $i++) {
+            if ($tokens[$i]['code'] === T_SEMICOLON) {
+                $separators[] = $i;
 
-        return $before !== false && $after !== false;
+                continue;
+            }
+
+            $i = $tokens[$i]['scope_closer'] ?? $i;
+        }
+
+        return $separators;
     }
 }

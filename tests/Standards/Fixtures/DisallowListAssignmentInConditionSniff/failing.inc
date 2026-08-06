@@ -35,6 +35,19 @@ class FailingListAssignments
             unset($tenth, $eleventh);
         }
 
+        // The condition section of a for, reached through a closure that
+        // carries semicolons of its own. Skipping the closure whole is what
+        // keeps the header's own two separators in view, so this stays inside
+        // the condition and is reported.
+        for ($marker = 0; (function () use ($rows): bool {
+            $flag = true;
+            list($eighteenth, $nineteenth) = $rows;
+
+            return $flag && $eighteenth === $nineteenth;
+        })(); $marker++) {
+            unset($marker);
+        }
+
         do {
             $seed = $rows;
         } while (list($twelfth, $thirteenth) = $seed);

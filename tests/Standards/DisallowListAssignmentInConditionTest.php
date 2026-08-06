@@ -30,10 +30,10 @@ class DisallowListAssignmentInConditionTest extends TestCase
     /**
      * Every condition-bearing construct the sniff covers, in fixture order:
      * if, elseif, keyed list() in an if, a list() nested in a call argument in
-     * an if, while, the condition section of a for, do-while, switch, match,
-     * and an if at file scope.
+     * an if, while, the condition section of a for, that same section reached
+     * through a closure, do-while, switch, match, and an if at file scope.
      */
-    private const VIOLATION_LINES = [14, 16, 20, 26, 30, 34, 40, 42, 47, 53];
+    private const VIOLATION_LINES = [14, 16, 20, 26, 30, 34, 44, 53, 55, 60, 66];
 
     public function testMasterRulesetMakesTheSniffReachable(): void
     {
@@ -88,6 +88,53 @@ class DisallowListAssignmentInConditionTest extends TestCase
                 $this->assertFalse($error['fixable']);
             }
         }
+    }
+
+    /**
+     * A for header's three sections are separated by the header's own
+     * semicolons. A closure in the initialiser or the increment carries
+     * semicolons of its own, and reading one of those as a section separator
+     * puts the closure's whole body inside the "condition".
+     *
+     * passing.inc holds that shape on both sides of the condition and must
+     * stay silent; failing.inc holds the same shape in the condition section
+     * itself and must still be reported. The pair is what makes this
+     * discriminating: a sniff that ignored closures wholesale would pass the
+     * first assertion and fail the second.
+     */
+    public function testAClosureInAForHeaderDoesNotMoveTheConditionSection(): void
+    {
+        $silent = $this->processFixture('passing.inc');
+
+        $this->assertSame([], $silent->getErrors());
+
+        $reported = $this->processFixture('failing.inc');
+        $conditionSectionLine = 44;
+
+        $this->assertArrayHasKey($conditionSectionLine, $reported->getErrors());
+    }
+
+    /**
+     * A for header with fewer than two section separators has no condition
+     * section to sit in. Only malformed source can produce one, and the sniff
+     * answers "not a condition" rather than guessing at a span.
+     *
+     * The fixture reaches the guard three ways — no separator at all, and one
+     * separator with the list() on either side of it — so the guard is
+     * exercised, not just asserted around.
+     *
+     * The assertions below pin the outcome: nothing reported, nothing crashed.
+     * The guard itself is load-bearing on top of that, and this is the test
+     * that proves it: removing it turns this case red, because PHPUnit's error
+     * handler surfaces the undefined-key read of the second separator that
+     * follows. Both halves were checked by running that mutation.
+     */
+    public function testForHeaderWithoutTwoSectionSeparatorsIsNotAConditionSection(): void
+    {
+        $file = $this->processFixture('malformed-for-header.inc');
+
+        $this->assertSame([], $file->getErrors());
+        $this->assertSame([], $file->getWarnings());
     }
 
     /**

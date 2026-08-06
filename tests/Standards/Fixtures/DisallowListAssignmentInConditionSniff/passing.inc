@@ -29,6 +29,41 @@ class PassingListAssignments
             unset($ninth, $tenth);
         }
 
+        // The same two sections, with the assignment wrapped in a closure that
+        // carries semicolons of its own. Those terminate the closure's
+        // statements; they are not the header's section separators, so the
+        // list() is still in the increment section and still ordinary.
+        for ($cursor = 0; $cursor < 3; (function () use ($data): void {
+            $side = 1;
+            list($thirteenth, $fourteenth) = $data;
+            unset($side, $thirteenth, $fourteenth);
+        })(), $cursor++) {
+            unset($cursor);
+        }
+
+        // The initialiser side of the same shape.
+        for ((function () use ($data): void {
+            $side = 1;
+            list($fifteenth, $sixteenth) = $data;
+            unset($side, $fifteenth, $sixteenth);
+        })(), $index = 0; $index < 3; $index++) {
+            unset($index);
+        }
+
+        // The same again with the closure assigned rather than invoked, in the
+        // initialiser. Its body sits at the header's own parenthesis depth, so
+        // only skipping the body as a scope keeps its semicolons out of the
+        // separator list. Counting them instead would take the first two as
+        // the header's separators and put this list() between them — reported
+        // as a condition it is nowhere near.
+        for ($handler = function () use ($data): void {
+            $side = 1;
+            list($seventeenth, $eighteenth) = $data;
+            unset($side, $seventeenth, $eighteenth);
+        }, $step = 0; $step < 3; $step++) {
+            unset($step, $handler);
+        }
+
         // A list() that is read rather than assigned to: the token after its
         // closing parenthesis is not "=", even though it sits inside an if
         // condition (by way of an immediately-invoked closure).
