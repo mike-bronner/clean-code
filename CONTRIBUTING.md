@@ -16,6 +16,7 @@ CleanCode/
     └── <Category>/<Name>UnitTest.php      # expected error/warning line maps
     └── <Category>/<Name>UnitTest.inc      # PHP fixture the sniff runs against
 docs/standards/                            # one doc per clean-code standard
+docs/phpmd/                                # one doc per replicated PHPMD rule
 tests/
 ├── bootstrap.php                          # wires CleanCode into PHPCS's test harness
 ├── Rules/
@@ -60,7 +61,11 @@ tests/
    runs `rules.xml` against fixtures via PHPCS's API — see
    `tests/Rules/LineLengthRulesTest.php` as the template.
 4. **Document the standard** under `docs/standards/` and link it from the
-   README, following the existing docs there.
+   README, following the existing docs there. A rule that replicates a **PHPMD**
+   rule rather than a mikebronner.dev clean-code standard is documented under
+   `docs/phpmd/<ruleset>-<rulename>.md` instead, and linked from the README's
+   "PHPMD rule coverage" list — the mapping (PHPMD rule → PHPCS sniff) is what
+   the doc has to state, so `phpmd` no longer needs to run for that rule.
 
 ## Running the checks
 
