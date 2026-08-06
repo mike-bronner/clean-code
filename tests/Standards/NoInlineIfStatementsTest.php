@@ -13,10 +13,12 @@
  * the fixture, so they stay stable as sibling standards land in the shared
  * ruleset.
  *
- * Fixtures live in tests/fixtures/InlineControlStructureSniff/: failing.php and
- * its expected auto-fixed output autofixed.php. There is no passing.php — the
- * standard's compliant form is ordinary braced code, covered throughout the
- * other fixtures in this suite.
+ * Fixtures live in tests/fixtures/InlineControlStructureSniff/: passing.php,
+ * failing.php, and the expected auto-fixed output autofixed.php. passing.php
+ * carries a braced form of every structure the sniff registers on — if/else,
+ * elseif chains, for, foreach, while, do-while, switch, and nesting — so its
+ * silence is a verdict about each of them rather than about an absence of
+ * control structures.
  */
 
 declare(strict_types=1);
@@ -27,6 +29,13 @@ it('is reachable through the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
     expect($ruleset->sniffCodes)->toHaveKey(INLINE_CONTROL_STRUCTURE);
+});
+
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(INLINE_CONTROL_STRUCTURE, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
 });
 
 it('flags inline conditionals at the expected lines', function (): void {

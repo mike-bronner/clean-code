@@ -32,6 +32,33 @@ it('registers both exception rules in the master ruleset', function (): void {
         ->and($ruleset->sniffCodes)->toHaveKey(REQUIRE_NON_CAPTURING_CATCH);
 });
 
+/**
+ * Each sniff gets its own compliant fixture in its own directory, so neither
+ * rule's passing assertion can be satisfied by the other's fixture. The
+ * ReferenceThrowableOnly one deliberately includes catches of specific types
+ * (\RuntimeException, an application exception) alongside \Throwable: the rule
+ * is about referencing the *general* \Exception, not about mandating \Throwable
+ * everywhere, and a fixture of nothing but \Throwable would not show that.
+ */
+it('produces no violations on the compliant Throwable fixture', function (): void {
+    $file = analyzeFixture(REFERENCE_THROWABLE_ONLY, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The compliant fixture pairs non-capturing catches with capturing ones whose
+ * variable *is* used — including uses that are easy to miss, a rethrow and a
+ * closure `use` — since the rule only fires when a capture goes unreferenced.
+ */
+it('produces no violations on the compliant non-capturing fixture', function (): void {
+    $file = analyzeFixture(REQUIRE_NON_CAPTURING_CATCH, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('flags general exception catches', function (): void {
     $file = analyzeFixture(REFERENCE_THROWABLE_ONLY, 'failing.php');
 

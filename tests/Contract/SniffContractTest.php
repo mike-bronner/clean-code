@@ -12,38 +12,41 @@
  * violation-source assertions live in the per-sniff files under
  * tests/Standards, tests/Rules, and tests/Ruleset.
  *
- * Coverage is uneven by design, so the contract is expressed as three datasets
- * rather than one — a sniff appears in the datasets its fixtures support:
+ * passing.php and failing.php are the floor: every sniff in this sweep carries
+ * both. The only axis on which coverage varies is the fixer —
  *
+ *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
- *     DisallowStaticMembers, LineLength) have no autofixed.php, because there
- *     is no safe mechanical rewrite.
- *   - Sniffs whose compliant form is just ordinary code (BlankLines,
- *     OneThoughtPerLine, InlineControlStructure, the two Exceptions rules, …)
- *     carry no passing.php; their autofixed.php serves that role, and the
- *     idempotence test below asserts it.
+ *     DisallowStaticMembers, LineLength) carry passing.php and failing.php but
+ *     no autofixed.php, because there is no safe mechanical rewrite.
  *
- * CleanCode.Models.DisallowExternalPersistenceCalls is deliberately absent from
- * every dataset. rules.xml scopes it out of test paths, so processing its
- * fixtures where they live reports nothing whatever the sniff does; it is
- * covered in tests/Standards/DisallowExternalPersistenceCallsTest.php, which
- * stages each fixture outside the repository first.
+ * — which is why the contract is expressed as separate datasets rather than one
+ * list. An autofixed.php is never a substitute for a passing.php: it is the
+ * fixer's own output, so asserting a sniff is silent on it tests the fixer
+ * twice and the compliant form never. CleanCode.Conditionals.OneConditionPerLine
+ * makes that concrete — its autofixed.php deliberately retains a non-fixable
+ * violation, so it could not stand in for a passing fixture even in principle.
+ *
+ * Two sniffs are deliberately absent from every dataset:
+ *
+ *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
+ *     out of test paths, so processing its fixtures where they live reports
+ *     nothing whatever the sniff does. It is covered in
+ *     tests/Standards/DisallowExternalPersistenceCallsTest.php, which stages
+ *     each fixture outside the repository first.
+ *   - The naming casing conventions — a composite standard carried by three
+ *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
+ *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
  */
 
 declare(strict_types=1);
 
-dataset('sniffs with a passing fixture', [
-    'CleanCode.Arrays.ArrayAccessors',
-    'CleanCode.Classes.DisallowStaticMembers',
-    'CleanCode.Operators.NotOperatorSpacing',
-    'CleanCode.Operators.OperatorLineBreak',
-    'CleanCode.Strings.MultilineStrings',
-    'Generic.Files.LineLength',
-    'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
-    'SlevomatCodingStandard.Namespaces.UnusedUses',
-]);
-
-dataset('sniffs with a failing fixture', [
+/**
+ * Every sniff the sweep covers. passing.php and failing.php are the contract's
+ * floor, so both datasets are fed from this one list rather than being written
+ * out twice: a sniff cannot be added to one and forgotten in the other.
+ */
+const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.ClearCode.OneThoughtPerLine',
@@ -59,7 +62,11 @@ dataset('sniffs with a failing fixture', [
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
     'SlevomatCodingStandard.Namespaces.UnusedUses',
-]);
+];
+
+dataset('sniffs with a passing fixture', SWEPT_SNIFFS);
+
+dataset('sniffs with a failing fixture', SWEPT_SNIFFS);
 
 dataset('autofixable sniffs', [
     'CleanCode.ClearCode.OneThoughtPerLine',

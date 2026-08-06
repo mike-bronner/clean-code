@@ -20,6 +20,18 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(ONE_CONDITION_PER_LINE);
 });
 
+/**
+ * A genuinely separate compliant fixture, not a reuse of autofixed.php: that
+ * file deliberately retains the non-fixable split-condition-wrapping-a-comment
+ * case (pinned below), so it is not clean and could never stand in for one.
+ */
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(ONE_CONDITION_PER_LINE, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('flags every violation at its own line', function (): void {
     $file = analyzeFixture(ONE_CONDITION_PER_LINE, 'failing.php');
 

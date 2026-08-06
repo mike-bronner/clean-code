@@ -27,6 +27,19 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(BLANK_LINES);
 });
 
+/**
+ * passing.php covers correctly spaced classes, interfaces, traits, enums,
+ * closures, and a plain function — the containers whose braces the sniff
+ * inspects. The open-tag case is deliberately not here: it can only occur once
+ * per file, so it has its own two fixtures below.
+ */
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(BLANK_LINES, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('flags every superfluous blank line at its own line', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 

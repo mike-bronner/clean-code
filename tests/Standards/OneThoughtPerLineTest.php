@@ -24,6 +24,13 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(ONE_THOUGHT_PER_LINE);
 });
 
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('flags every violation at its own line', function (): void {
     $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'failing.php');
 

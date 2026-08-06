@@ -23,6 +23,21 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(DISALLOW_DEBUG_FUNCTIONS);
 });
 
+/**
+ * passing.php pairs ordinary debug-free code with every near-miss shape the
+ * sniff must stay silent on — the debug names reached through an object
+ * operator, a nullsafe operator, a double colon, a declaration, `new`, a
+ * string, a property, and a namespace prefix. Each of those is one of the
+ * sniff's early returns, so the fixture's silence is a verdict about them
+ * rather than merely the absence of a debug call.
+ */
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('flags every debug call at its own line', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'failing.php');
 

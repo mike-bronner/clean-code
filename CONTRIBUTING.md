@@ -37,15 +37,26 @@ Every sniff owns a directory under `tests/fixtures/` named for its **class short
 name** — `CleanCode.Arrays.ArrayAccessors` → `ArrayAccessorsSniff/`. Inside it,
 up to three fixtures carry fixed names:
 
-| Fixture | Meaning |
-|---|---|
-| `passing.php` | code the sniff must leave alone |
-| `failing.php` | code the sniff must flag |
-| `autofixed.php` | `phpcbf`'s output for `failing.php` |
+| Fixture | Meaning | Required? |
+|---|---|---|
+| `passing.php` | code the sniff must leave alone | **always** |
+| `failing.php` | code the sniff must flag | **always** |
+| `autofixed.php` | `phpcbf`'s output for `failing.php` | fixable sniffs only |
 
-All fixtures are `.php`. Not every sniff has all three: a detection-only sniff
-has no `autofixed.php`, and a sniff whose compliant form is just ordinary code
-often has no `passing.php` (its `autofixed.php` plays that role).
+All fixtures are `.php`. `passing.php` and `failing.php` are the floor — every
+sniff carries both. Only `autofixed.php` is optional, and only because a
+detection-only sniff has no safe mechanical rewrite to assert.
+
+**`autofixed.php` is never a substitute for `passing.php`.** It is the fixer's
+own output, so asserting the sniff is silent on it tests the fixer twice and the
+compliant form never — and for a partial fixer it is not even clean
+(`OneConditionPerLineSniff/autofixed.php` deliberately retains a non-fixable
+violation).
+
+Make `passing.php` *discriminating*: it should contain the constructs the sniff
+registers on, in their compliant form, plus the near-miss shapes the sniff must
+stay silent on. A compliant fixture that simply contains nothing the sniff looks
+at will pass forever without asserting anything.
 
 Anything beyond the three gets a **descriptive** name saying what it exercises —
 `boundaries.php`, `marker-collision.php`, `after-open-tag-two-blanks.php` — plus
@@ -101,7 +112,10 @@ in and what applies the `<properties>` configured there.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** in `tests/Contract/SniffContractTest.php` —
-   one entry per dataset the sniff's fixtures support. That alone gives it the
+   one entry in `SWEPT_SNIFFS` (which feeds both the passing and failing
+   datasets, so the floor cannot be half-applied), plus an entry in
+   `autofixable sniffs` and, if its fixer is total,
+   `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
