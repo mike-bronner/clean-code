@@ -72,9 +72,9 @@ if (list($first, $second) = $data) {    // PHPMD flags it; the Generic sniff doe
 `CleanCode.Conditionals.DisallowListAssignmentInCondition` reports it, using the
 same message and the same `Found` code suffix. It covers the same constructs as
 the Generic sniff rather than PHPMD's narrower `if`/`elseif` pair, so the two
-together read as one rule. `case` is the exception: it has no parentheses to
-anchor the enclosure test on, and a `list()` assignment is not expressible in a
-case label.
+together read as one rule. `case` is the exception: a case label has no
+parentheses to anchor the enclosure test on. PHPMD does not read case labels
+either, so leaving them out opens no gap against it.
 
 Short-list destructuring (`if ([$first, $second] = $data)`) ends in `]` and is
 already covered by the Generic sniff, so only the long form needs the custom one.

@@ -23,9 +23,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * The condition set mirrors the Generic sniff's rather than PHPMD's narrower
  * if/elseif pair, so the two sniffs together report one consistent rule across
- * every condition. T_CASE is the one construct left out: it has no
- * parentheses to anchor the enclosure test, and a list() assignment is not
- * expressible in a case label.
+ * every condition. T_CASE is the one construct left out: a case label has no
+ * parentheses to anchor the enclosure test on. PHPMD does not read case labels
+ * either, so leaving them out opens no gap against it.
  *
  * Report-only. PHPMD offers no fixer for this rule, and there is no mechanical
  * rewrite of a destructuring-assignment condition into a comparison.
