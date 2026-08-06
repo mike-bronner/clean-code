@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="MikeBronnerCleanCode"
+         xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Master ruleset for mike-bronner/phpcs-rules. Individual sniff standards get wired in here via rule refs as they land — see CONTRIBUTING.md.</description>
+
+    <arg name="extensions" value="php"/>
+
+    <!--
+        Pin sniff behaviour to the package's PHP floor (composer.json requires
+        ^8.1) so version-gated Slevomat options (union/intersection hints,
+        standalone null/true/false, …) resolve the same on every runtime.
+        This value wins over a consumer ruleset's own <config> tag (nested
+        rulesets are processed last, so theirs is clobbered); the only
+        override that sticks is PHPCS's double-hyphen "runtime-set" CLI
+        option: phpcs [..]runtime-set php_version 80200.
+    -->
+    <config name="php_version" value="80100"/>
+
+    <!--
+        Wire individual standards in below as they land. Custom sniffs live in
+        the CleanCode standard; Slevomat rules are referenced individually,
+        e.g. <rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>.
+    -->
+    <rule ref="./CleanCode/ruleset.xml"/>
+
+    <!-- Constructors: Property Promotion (#47) -->
+    <rule ref="SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion"/>
+
+    <!--
+        Code Style: Industry Standards (PSR1/2/12) — #49.
+        PHPCS's bundled PSR12 standard includes PSR1 wholesale and implements
+        PSR-12, which supersedes PSR-2 (referencing PSR2 alongside it would
+        flag PSR12-correct code, e.g. multi-line function declarations).
+        Referenced BEFORE the custom clean-code rules below so that any
+        same-sniff configuration in a later rule overrides the industry
+        baseline — custom standards win where they conflict.
+
+        PSR12.Operators.OperatorSpacing is excluded: it enforces "at least 1
+        space" around operators, which the stricter "exactly 1 space"
+        Squiz.WhiteSpace.OperatorSpacing / Squiz.Strings.ConcatenationSpacing
+        sniffs configured for #35 supersede. They are *different* sniffs, so
+        the "same-sniff configuration wins" mechanism above cannot dedupe them
+        — left in, both fire and every operator-spacing violation is reported
+        twice. The exclude keeps exactly one diagnostic per violation.
+    -->
+    <rule ref="PSR12">
+        <exclude name="PSR12.Operators.OperatorSpacing"/>
+    </rule>
+
+    <!--
+        Type Hints and Return Types (#45): every method parameter, return
+        value, and property carries a native type hint. Only the missing-hint
+        codes are enforced; the annotation-centric codes (traversable
+        @param/@var specifications, useless-annotation cleanup, less-specific
+        native hints) police doc blocks, which the standard does not mandate.
+    -->
+    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint"/>
+    </rule>
+    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    </rule>
+
+    <!-- Exceptions (#63): always reference \Throwable when catching, and use
+         non-capturing catch when the caught variable is unused. -->
+    <rule ref="SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly"/>
+    <rule ref="SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch"/>
+    <!--
+        Naming: Casing conventions (#22) — camelCase variables, properties,
+        and methods; PascalCase classes, interfaces, traits, and enums.
+        SQL/URL/env casing lives in strings and is out of linter scope.
+    -->
+    <rule ref="Squiz.NamingConventions.ValidVariableName">
+        <!--
+            Squiz requires private properties to carry a leading underscore;
+            the clean-code standard wants plain camelCase for all properties.
+        -->
+        <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
+    </rule>
+    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
+    <rule ref="Squiz.Classes.ValidClassName"/>
+
+    <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="100"/>
+            <property name="absoluteLineLimit" value="120"/>
+        </properties>
+    </rule>
+
+    <!--
+        Conditionals: No Inline If-Statements (#9) —
+        docs/standards/conditionals-no-inline-if-statements.md. PSR12 (above)
+        already bundles this sniff; the explicit ref is intentional
+        belt-and-suspenders per CONTRIBUTING step 3 (third-party rules a
+        standard depends on are wired in explicitly), so the standard stays
+        enforced even if the PSR12 baseline is ever narrowed.
+    -->
+    <rule ref="Generic.ControlStructures.InlineControlStructure"/>
+
+    <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
+         imports referenced only in docblocks (@param, @throws, ...) from
+         being treated as unused — those references are live, not dead code. -->
+    <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
+        <properties>
+            <property name="searchAnnotations" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
+        Arrays: Operator spacing & line breaks (#35) —
+        docs/standards/arrays-operator-spacing-and-line-breaks.md.
+
+        Binary-operator and concatenation spacing (exactly 1 space each side)
+        are enforced by configuring two bundled Squiz sniffs; the not-operator
+        spacing and the operator line-break placement are custom CleanCode
+        sniffs (CleanCode.Operators.*), picked up automatically via the
+        ./CleanCode/ruleset.xml ref above.
+
+        ignoreNewlines="true" is required on both spacing sniffs: without it
+        they would flag operators that lead a wrapped continuation line (the
+        very layout the line-break standard mandates). Newline placement is
+        owned by CleanCode.Operators.OperatorLineBreak instead.
+    -->
+    <rule ref="Squiz.WhiteSpace.OperatorSpacing">
+        <properties>
+            <property name="ignoreNewlines" value="true"/>
+            <!-- Enforce a space before assignment too; the standard wants 1
+                 space each side, not alignment padding. -->
+            <property name="ignoreSpacingBeforeAssignments" value="false"/>
+        </properties>
+    </rule>
+    <rule ref="Squiz.Strings.ConcatenationSpacing">
+        <properties>
+            <property name="spacing" value="1"/>
+            <property name="ignoreNewlines" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
+        Arrays: Array Accessors (#33) —
+        docs/standards/arrays-array-accessors.md.
+
+        Values are read with data_get() rather than by direct element
+        ($array['key']) or property ($object->property) access. No PHPCS or
+        Slevomat sniff expresses this Laravel-specific rule, so it is the
+        custom CleanCode.Arrays.ArrayAccessors sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above — no per-sniff registration
+        is needed, and tests/Standards/ArrayAccessorsTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        Detection only: rewriting a chain to a dotted data_get() path changes
+        meaning when a key contains a dot, and data_get() is a Laravel helper,
+        so an auto-fix cannot be applied safely outside a Laravel application.
+    -->
+
+    <!--
+        Models: Persistence Methods (Repository Pattern) (#37) —
+        docs/standards/models-persistence-methods-repository-pattern.md.
+
+        The custom CleanCode.Models.DisallowExternalPersistenceCalls sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        block only scopes it. Factory chains (User::factory()->create()) make
+        generic CRUD calls idiomatic in tests, so the sniff stays out of test
+        paths.
+    -->
+    <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
+</ruleset>

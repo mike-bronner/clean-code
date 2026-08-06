@@ -66,7 +66,7 @@ models must be eager loaded, exactly as the standard requires.
 The safety check turns *implicit* lazy loading into a hard failure in
 development and tests (it is disabled in production per the recommended
 config above), and the sniffs cover the `$with` property and the check's
-presence. Judging whether a given
-query loads the *right* relationships at the right place — and preferring
-query-site `with()` over a later explicit `load()` (which the runtime check
-does not forbid) — remains a query-site design call for code review.
+presence. Judging whether a given query loads the *right* relationships at the
+right place — and preferring query-site `with()` over a later explicit
+`load()` (which the runtime check does not forbid) — remains a query-site
+design call for code review.
