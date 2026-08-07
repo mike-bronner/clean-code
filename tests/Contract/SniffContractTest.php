@@ -27,6 +27,15 @@
  * makes that concrete — its autofixed.php deliberately retains a non-fixable
  * violation, so it could not stand in for a passing fixture even in principle.
  *
+ * The other axis the datasets split on is *severity*. A detection-only sniff
+ * whose violations are warnings rather than errors still carries both floor
+ * fixtures, but "flags the failing fixture" has to look at the warning list —
+ * asserting on errors would pass against a sniff that says nothing at all. The
+ * two severities therefore have their own failing-fixture assertions, fed from
+ * SWEPT_SNIFFS and SWEPT_WARNING_SNIFFS. The merged 'every swept sniff' dataset
+ * feeds every severity-neutral assertion — registration and both halves of the
+ * passing fixture — so neither list can be added to and forgotten there.
+ *
  * Two sniffs are deliberately absent from every dataset:
  *
  *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
@@ -42,9 +51,10 @@
 declare(strict_types=1);
 
 /**
- * Every sniff the sweep covers. passing.php and failing.php are the contract's
- * floor, so both datasets are fed from this one list rather than being written
- * out twice: a sniff cannot be added to one and forgotten in the other.
+ * Every error-reporting sniff the sweep covers. passing.php and failing.php
+ * are the contract's floor, and both are asserted from this one list rather
+ * than a list written out twice: a sniff cannot be added to one and forgotten
+ * in the other.
  */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
@@ -64,9 +74,20 @@ const SWEPT_SNIFFS = [
     'SlevomatCodingStandard.Namespaces.UnusedUses',
 ];
 
-dataset('sniffs with a passing fixture', SWEPT_SNIFFS);
+/**
+ * The same floor, for sniffs that report warnings instead of errors. Kept as
+ * its own list purely so the failing-fixture assertion can read the right
+ * violation list; every other assertion treats the two alike.
+ */
+const SWEPT_WARNING_SNIFFS = [
+    'CleanCode.Models.RequireLazyLoadingPrevention',
+];
 
-dataset('sniffs with a failing fixture', SWEPT_SNIFFS);
+dataset('every swept sniff', array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS));
+
+dataset('error-reporting sniffs', SWEPT_SNIFFS);
+
+dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 
 dataset('autofixable sniffs', [
     'CleanCode.ClearCode.OneThoughtPerLine',
@@ -105,19 +126,29 @@ it('resolves every sniff through the master ruleset', function (string $sniffCod
     [, $ruleset] = buildRuleset();
 
     expect($ruleset->sniffCodes)->toHaveKey($sniffCode);
-})->with('sniffs with a failing fixture');
+})->with('every swept sniff');
 
 it('leaves the passing fixture untouched', function (string $sniffCode): void {
     expect(analyzeFixture($sniffCode, 'passing.php')->getErrors())->toBeEmpty();
-})->with('sniffs with a passing fixture');
+})->with('every swept sniff');
 
 it('raises no warnings on the passing fixture', function (string $sniffCode): void {
     expect(analyzeFixture($sniffCode, 'passing.php')->getWarnings())->toBeEmpty();
-})->with('sniffs with a passing fixture');
+})->with('every swept sniff');
 
 it('flags the failing fixture', function (string $sniffCode): void {
     expect(analyzeFixture($sniffCode, 'failing.php')->getErrors())->not->toBeEmpty();
-})->with('sniffs with a failing fixture');
+})->with('error-reporting sniffs');
+
+/**
+ * The warning-level half of the same floor. Asserted against getWarnings()
+ * rather than getErrors(), because these sniffs never raise an error and the
+ * error assertion above would hold just as well against a sniff that had
+ * fallen silent altogether.
+ */
+it('warns on the failing fixture', function (string $sniffCode): void {
+    expect(analyzeFixture($sniffCode, 'failing.php')->getWarnings())->not->toBeEmpty();
+})->with('warning-reporting sniffs');
 
 it('autofixes the failing fixture into the autofixed fixture', function (string $sniffCode): void {
     $file = analyzeFixture($sniffCode, 'failing.php');
