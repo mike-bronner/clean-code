@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="CleanCode"
+         xsi:noNamespaceSchemaLocation="../vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Custom sniffs implementing the clean-code standards defined at mikebronner.dev/clean-code. Every sniff in this standard's Sniffs/ directory is included automatically when the standard is referenced.</description>
+</ruleset>
