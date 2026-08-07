@@ -19,9 +19,12 @@ This standard is architectural: it constrains the *relationship* between two
 pieces of code in different layers, not the shape of any one of them. A PHPCS
 sniff sees one file's token stream at a time, so neither half is reachable.
 
-- **The front-end half is outside the token stream.** The restriction lives in
-  a Blade template, a JavaScript bundle, or a component the master `rules.xml`
-  never lints. There is no token to register on.
+- **The front-end half carries no token to register on.** A JavaScript bundle
+  is outside `rules.xml`'s `extensions="php"` scope entirely. A Blade template
+  is nominally in scope — `*.blade.php` does end in `.php` — but the
+  restriction there is a directive or a markup attribute, and even when PHPCS
+  tokenizes the file there is nothing in it that names the back-end guard it
+  is supposed to be paired with.
 - **The back-end half is an absence, not a token.** Verifying it means proving
   that *no* authorization check guards an endpoint. Authorization legitimately
   lives in route middleware (`routes/web.php`), a `FormRequest::authorize()`,
