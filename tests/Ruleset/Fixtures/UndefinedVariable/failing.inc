@@ -10,7 +10,7 @@ namespace MikeBronner\CleanCode\Tests\Ruleset\Fixtures\UndefinedVariable;
  * the parity set. Cases where the two tools disagree, or where both stay
  * silent, live in divergences.inc instead, so nothing here overstates parity.
  */
-class Violations
+class Failing
 {
     public function readsUndefinedScalar(): string
     {

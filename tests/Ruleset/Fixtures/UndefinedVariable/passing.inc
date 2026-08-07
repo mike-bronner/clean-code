@@ -6,7 +6,7 @@ namespace MikeBronner\CleanCode\Tests\Ruleset\Fixtures\UndefinedVariable;
 
 use Throwable;
 
-class Compliant
+class Passing
 {
     private string $name = 'compliant';
 

@@ -24,6 +24,7 @@ tests/
 │   └── <Name>RulesTest.php + Fixtures/    # master-ruleset (rules.xml) configuration tests
 ├── Ruleset/
 │   └── <Name>Test.php + Fixtures/<Name>/  # third-party rules wired into rules.xml
+│                                          # same fixture names as Standards/ below
 └── Standards/
     ├── <Name>Test.php                     # custom-sniff tests (see step 2 below)
     └── Fixtures/<Name>Sniff/              # passing.inc, failing.inc, autofix-before/after.inc
@@ -55,6 +56,23 @@ tests/
    `autofix-after.inc`. Sniffs added before this convention landed still use
    the older `CleanCode/Tests/` + `AbstractSniffUnitTest` layout; new ones
    follow the layout here.
+
+   **These four names are the contract for a sniff whether it is custom or
+   third-party** — a rule wired into `rules.xml` under step 3 names its
+   fixtures the same way, in `tests/Ruleset/Fixtures/<Name>/`. A rule may add
+   further fixtures for shapes that fit neither set (boundary cases, excluded
+   codes, a documented divergence), but `passing.inc` and `failing.inc` are
+   always present and always separate.
+
+   A rule that is *not* fixable ships no `autofix-after.inc`. Prove that by
+   running the fixer over `failing.inc` and asserting its output is
+   byte-identical to the input — measure the claim rather than leaving the
+   case untested. `tests/Ruleset/UndefinedVariableTest.php` is the template
+   for both this and the fixture naming above.
+
+   `tests/Ruleset/` folders written before this paragraph landed still use
+   `compliant.inc` / `violations.inc` and a shared `violations.inc.fixed`; new
+   ones use the four names here.
 3. **Wire Slevomat (or other third-party) rules into `rules.xml`** when a
    standard is enforced by an existing sniff instead of a custom one, e.g.
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`.

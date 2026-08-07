@@ -89,6 +89,14 @@ Ruleset-integration tests covering compliant code, per-line violation
 reporting, the unfixable-warning severity, both halves of the exclude list, and
 the divergences above live at `tests/Ruleset/UndefinedVariableTest.php`.
 
+Its fixtures follow the naming CONTRIBUTING.md prescribes:
+`tests/Ruleset/Fixtures/UndefinedVariable/passing.inc` for code the rule must
+stay silent on, `failing.inc` for the parity set, plus `divergences.inc` and
+`excluded-codes.inc` for the shapes that belong to neither. There is no
+`autofix-after.inc`, because the rule is not fixable — a test runs the real
+fixer over `failing.inc` and asserts its output is byte-identical to the input,
+so "unfixable" is measured rather than assumed.
+
 ## What remains code review
 
 **A variable assigned on one branch and read unconditionally afterwards.**

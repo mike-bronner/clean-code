@@ -22,14 +22,21 @@ use PHPUnit\Framework\TestCase;
  * codes stay silent through rules.xml, and the same fixture proves they would
  * fire without the excludes — so dropping an <exclude> fails this suite.
  *
- * The sniff is not a drop-in match for PHPMD. Two fixtures split the two
- * cases so neither claim leans on the other:
+ * Fixtures follow the naming CONTRIBUTING.md prescribes — passing.inc and
+ * failing.inc, never one shared file — plus two extra files for shapes that
+ * belong to neither set:
  *
- * - violations.inc — the parity set. PHPMD 2.15.0 and this ruleset flag the
+ * - passing.inc — code the rule must stay silent on.
+ * - failing.inc — the parity set. PHPMD 2.15.0 and this ruleset flag the
  *   same lines.
  * - divergences.inc — where they differ, plus the shape neither tool catches.
  *   Pinned by a test so the gap cannot drift back into an unearned parity
  *   claim; described in docs/standards/phpmd-clean-code-undefined-variable.md.
+ * - excluded-codes.inc — the four sniff codes rules.xml excludes.
+ *
+ * There is no autofix-after.inc: the rule is not fixable, and
+ * testTheFixerLeavesFailingFixtureByteIdentical proves it by running the real
+ * fixer rather than asserting the absence.
  */
 class UndefinedVariableTest extends TestCase
 {
@@ -53,9 +60,9 @@ class UndefinedVariableTest extends TestCase
         $this->assertArrayHasKey(self::SNIFF_CODE, $ruleset->sniffCodes);
     }
 
-    public function testCompliantFileProducesNoViolations(): void
+    public function testPassingFixtureProducesNoViolations(): void
     {
-        $file = $this->processFixture('compliant.inc');
+        $file = $this->processFixture('passing.inc');
 
         $this->assertSame([], $file->getErrors());
         $this->assertSame([], $file->getWarnings());
@@ -67,7 +74,7 @@ class UndefinedVariableTest extends TestCase
      */
     public function testEachUndefinedReadIsFlaggedAtItsOwnLine(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixture('failing.inc');
 
         $this->assertSame(
             [
@@ -130,15 +137,41 @@ class UndefinedVariableTest extends TestCase
      */
     public function testViolationsAreUnfixableWarnings(): void
     {
-        $file = $this->processFixture('violations.inc');
+        $file = $this->processFixture('failing.inc');
 
         $this->assertSame([], $file->getErrors());
+        $this->assertNotSame([], $file->getWarnings());
 
         foreach ($file->getWarnings() as $line => $columns) {
             foreach (array_merge(...array_values($columns)) as $warning) {
                 $this->assertFalse($warning['fixable'], 'Fixable warning on line ' . $line);
             }
         }
+    }
+
+    /**
+     * The "after-fixed" half of the fixture contract, for a rule that has no
+     * autofix-after.inc to compare against: the fixer's real output on
+     * failing.inc *is* failing.inc, byte for byte.
+     *
+     * Proven by driving the same `Fixer` phpcbf drives, not by trusting the
+     * `fixable` flag the test above reads. The warning count is asserted both
+     * before and after the run, so a fixture that stopped tripping the sniff —
+     * or a fixer that silently swallowed every diagnostic — cannot pass this
+     * vacuously.
+     */
+    public function testTheFixerLeavesFailingFixtureByteIdentical(): void
+    {
+        $fixture = __DIR__ . '/Fixtures/UndefinedVariable/failing.inc';
+
+        $file = $this->processFixture('failing.inc');
+
+        $this->assertCount(4, $file->getWarnings());
+
+        $file->fixer->fixFile();
+
+        $this->assertStringEqualsFile($fixture, $file->fixer->getContents());
+        $this->assertCount(4, $file->getWarnings());
     }
 
     public function testExcludedCodesStaySilentThroughTheMasterRuleset(): void
