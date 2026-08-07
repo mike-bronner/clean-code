@@ -103,7 +103,7 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     destructuring pattern as an index. That label is the only thing separating
     an index (a read) from a pattern (a write), so that statement's write target
     is reported as though it were an offset read. The mislabelling happens
-    before any sniff runs, so it is pinned in `tokenizer-limits.inc` — where an
+    before any sniff runs, so it is pinned in `tokenizer-limits.php` — where an
     upstream fix surfaces as a test failure — rather than worked around by
     re-deriving the distinction from token data already known to be wrong.
 - **Auto-fixable — No (detection only).** Auto-fix scoping was investigated and
@@ -124,7 +124,7 @@ reporting, one-diagnostic-per-chain, input PHP itself rejects (chains left
 mid-edit on an unclosed bracket, brace, or bare `->`, files ending on a bare
 variable, and malformed statements), the tokenizer defect above, and the
 detection-only guarantee live at `tests/Standards/ArrayAccessorsTest.php`, with
-fixtures under `tests/Standards/Fixtures/ArrayAccessorsSniff/`.
+fixtures under `tests/fixtures/ArrayAccessorsSniff/`.
 
 ## What remains code review
 

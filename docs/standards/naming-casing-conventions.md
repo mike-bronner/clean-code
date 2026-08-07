@@ -14,16 +14,19 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (existing sniffs)
 
 Only the PHP-identifier cases are statically checkable. Three existing sniffs
-are wired into the master `rules.xml` ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)):
+enforce them under the master `rules.xml` ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)).
+One is referenced explicitly; the other two arrive with the ruleset's `PSR12`
+reference, which includes `PSR1` wholesale
+([#217](https://github.com/mike-bronner/phpcs-rules/issues/217)):
 
-- **`Squiz.NamingConventions.ValidVariableName`** — camelCase variables and
+- **`Squiz.NamingConventions.ValidVariableName`** (explicit ref) — camelCase variables and
   properties. Its `PrivateNoUnderscore` code is excluded: Squiz demands a
   leading underscore on private properties, while this standard wants plain
   camelCase for every property regardless of visibility.
-- **`PSR1.Methods.CamelCapsMethodName`** — camelCase method names. Magic
+- **`PSR1.Methods.CamelCapsMethodName`** (via `PSR12` → `PSR1`) — camelCase method names. Magic
   methods (`__construct`, `__get`, …) are exempt, closures are ignored, and
   global functions are outside this rule's scope.
-- **`Squiz.Classes.ValidClassName`** — PascalCase names for `class`,
+- **`Squiz.Classes.ValidClassName`** (via `PSR12` → `PSR1`) — PascalCase names for `class`,
   `interface`, `trait`, and `enum` declarations (mirroring PHPMD's
   `CamelCaseClassName` scope). Abstract classes are covered — they carry the
   same class token.

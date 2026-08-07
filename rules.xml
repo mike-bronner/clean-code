@@ -77,6 +77,20 @@
         Naming: Casing conventions (#22) — camelCase variables, properties,
         and methods; PascalCase classes, interfaces, traits, and enums.
         SQL/URL/env casing lives in strings and is out of linter scope.
+
+        Only the variable/property sniff is referenced here. The method and
+        class-name halves of the standard — PSR1.Methods.CamelCapsMethodName
+        and Squiz.Classes.ValidClassName — arrive with the PSR12 ref above,
+        which includes PSR1 wholesale, so an explicit ref adds no coverage
+        and no configuration (#217). What it did add was ambiguity: sitting
+        in this custom-overrides-industry region, a bare re-ref reads as a
+        deliberate override of the baseline when it is not one.
+
+        Narrowing the PSR12 ref no longer silently drops these two, either:
+        CasingConventionsRulesetTest asserts the exact violation lines they
+        produce through rules.xml, so excluding either from PSR12 turns that
+        test red. The belt-and-suspenders ref further down is a different
+        case — it is documented as deliberate, and keeps its explanation.
     -->
     <rule ref="Squiz.NamingConventions.ValidVariableName">
         <!--
@@ -85,8 +99,6 @@
         -->
         <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
     </rule>
-    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
-    <rule ref="Squiz.Classes.ValidClassName"/>
 
     <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
     <rule ref="Generic.Files.LineLength">
@@ -174,5 +186,22 @@
     -->
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
         <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
+
+    <!--
+        PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
+
+        Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
+        which is exactly PHPMD's EvalExpression detection; no custom sniff is
+        needed. The sniff has no fixer, matching PHPMD (there is no mechanical
+        rewrite of an eval'd string into standard code).
+
+        The severity is raised from the sniff's built-in warning to an error so
+        the mapping matches PHPMD, where an EvalExpression violation fails the
+        run. A warning would leave phpcs exiting 0 on eval() usage, so phpmd
+        would still have to run separately for this rule.
+    -->
+    <rule ref="Squiz.PHP.Eval">
+        <type>error</type>
     </rule>
 </ruleset>

@@ -29,13 +29,24 @@ Or reference it from your project's own `phpcs.xml.dist`:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the package layout, how a new
-sniff/standard plugs into `rules.xml`, and how to add its unit test.
+sniff/standard plugs into `rules.xml`, the test-fixture contract, and how to
+add its Pest test.
 
 ## Standards
 
-Each standard is documented under [`docs/standards/`](docs/standards/). Standards
-that a token-based sniff cannot verify (Tier 3) are enforced by code review and
-developer discipline rather than a PHPCS rule.
+Each standard is documented under [`docs/standards/`](docs/standards/). Every
+entry below carries the tier assigned in that document's *Enforceability*
+section, and summarizes how the standard is enforced.
+
+- **Tier 1** and **Tier 2** standards are enforced automatically, by rules wired
+  into the master `rules.xml`: a bundled standard, an existing PHPCS or Slevomat
+  rule (configured where needed), a custom `CleanCode` sniff, or a combination
+  of these.
+- **Tier 3** standards are the ones a token-based sniff cannot verify. They are
+  enforced by code review and developer discipline rather than a PHPCS rule.
+
+Where a rule covers only part of a standard, that standard's document records
+what stays with code review.
 
 - [Arrays: Array Accessors (`data_get`)](docs/standards/arrays-array-accessors.md) — Tier 2, custom sniff `CleanCode.Arrays.ArrayAccessors`: flags direct element (`$array['key']`) and property (`$object->property`) reads once per accessor chain, leaving write-side access, existence checks, array literals, `$this`-rooted access, and method calls alone, detection-only ([#33](https://github.com/mike-bronner/phpcs-rules/issues/33))
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff: native array-function call detection ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165))
@@ -58,3 +69,11 @@ developer discipline rather than a PHPCS rule.
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
 - [Use Statements: No Unused Entries](docs/standards/use-statements-no-unused-entries.md) — Tier 1, Slevomat `Namespaces.UnusedUses`, auto-fixable ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68))
+
+## PHPMD rule coverage
+
+`rules.xml` also replicates PHPMD rules, so a project running this ruleset does
+not need to run `phpmd` separately for them. Each mapping is documented under
+[`docs/phpmd/`](docs/phpmd/).
+
+- [Design: EvalExpression](docs/phpmd/design-evalexpression.md) — Tier 1, existing sniff `Squiz.PHP.Eval` raised to error severity, report-only ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107))
