@@ -51,15 +51,16 @@ sniff, wired into the master `rules.xml`
 
 ### Codes deliberately excluded
 
-The sniff is broader than PHPMD's rule: it emits five codes. `rules.xml`
-excludes the three that are not about reading an undefined variable, so this
+The sniff is broader than PHPMD's rule: it emits six codes. `rules.xml`
+excludes the four that are not about reading an undefined variable, so this
 standard does not quietly deliver rules that belong elsewhere.
 
 | Excluded code | Why it is not this rule |
 |---|---|
 | `UnusedVariable` | An *unused* variable, not an undefined one. That is PHPMD's `UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)) and `UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)). |
 | `VariableRedeclaration` | Redeclaring a variable that *is* defined — the opposite case. No PHPMD counterpart. |
-| `SelfOutsideClass` / `StaticOutsideClass` | A `self::`/`static::` scope error, not a variable definition. |
+| `SelfOutsideClass` | A `self::` scope error, not a variable definition. |
+| `StaticOutsideClass` | A `static::` scope error, not a variable definition. |
 
 ### Where the sniff and PHPMD differ
 

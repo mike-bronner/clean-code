@@ -6,8 +6,8 @@
  * UndefinedVariable rule (issue #85). Fixtures live in
  * tests/fixtures/VariableAnalysisSniff/.
  *
- * The sniff emits five codes; rules.xml keeps the two that mean "a variable is
- * read before it is defined" and excludes the other three, which belong to
+ * The sniff emits six codes; rules.xml keeps the two that mean "a variable is
+ * read before it is defined" and excludes the other four, which belong to
  * other PHPMD rules or to none. Both halves are pinned below: the excluded
  * codes stay silent through rules.xml, and the same fixture proves they would
  * fire without the excludes — so dropping an <exclude> fails this suite.

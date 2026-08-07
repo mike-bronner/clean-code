@@ -212,8 +212,8 @@
         PHPMD's UndefinedVariable ("a variable used has not been previously
         defined") has no PHPCS/Slevomat equivalent; the well-known external
         standard sirbrillig/phpcs-variable-analysis covers it. Its single
-        sniff emits five codes, only two of which are this rule — the other
-        three are separate concerns with their own open issues or no PHPMD
+        sniff emits six codes, only two of which are this rule — the other
+        four are separate concerns with their own open issues or no PHPMD
         counterpart, so they are excluded here rather than shipped as a side
         effect:
 
@@ -222,9 +222,10 @@
         - VariableRedeclaration → no PHPMD counterpart; redeclaring a defined
                                   variable is the opposite of using an
                                   undefined one.
-        - SelfOutsideClass /
-          StaticOutsideClass    → a self::/static:: scope error, not an
-                                  undefined variable.
+        - SelfOutsideClass      → a self:: scope error, not an undefined
+                                  variable.
+        - StaticOutsideClass    → a static:: scope error, not an undefined
+                                  variable.
 
         UndefinedVariable and UndefinedUnsetVariable both stay: each fires on
         a read of a name the scope never assigns (`echo $x;` and `unset($x);`
