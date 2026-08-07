@@ -17,6 +17,7 @@ CleanCode/
 └── Sniffs/
     └── <Category>/<Name>Sniff.php         # one sniff per file
 docs/standards/                            # one doc per clean-code standard
+docs/phpmd/                                # one doc per replicated PHPMD rule
 tests/
 ├── bootstrap.php                          # PHPCS test constants + ConfigDouble autoloading
 ├── Pest.php                               # Pest config; requires Helpers.php
@@ -130,7 +131,11 @@ in and what applies the `<properties>` configured there.
    thresholds/behaviour with a test in `tests/Rules/` — see
    `tests/Rules/LineLengthRulesTest.php` as the template.
 6. **Document the standard** under `docs/standards/` and link it from the
-   README, following the existing docs there.
+   README, following the existing docs there. A rule that replicates a **PHPMD**
+   rule rather than a mikebronner.dev clean-code standard is documented under
+   `docs/phpmd/<ruleset>-<rulename>.md` instead, and linked from the README's
+   "PHPMD rule coverage" list — the mapping (PHPMD rule → PHPCS sniff) is what
+   the doc has to state, so `phpmd` no longer needs to run for that rule.
 
 ## Writing the tests
 
