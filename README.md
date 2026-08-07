@@ -70,3 +70,11 @@ what stays with code review.
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
 - [Use Statements: No Unused Entries](docs/standards/use-statements-no-unused-entries.md) — Tier 1, Slevomat `Namespaces.UnusedUses`, auto-fixable ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68))
+
+## PHPMD rule coverage
+
+`rules.xml` also replicates PHPMD rules, so a project running this ruleset does
+not need to run `phpmd` separately for them. Each mapping is documented under
+[`docs/phpmd/`](docs/phpmd/).
+
+- [Design: EvalExpression](docs/phpmd/design-evalexpression.md) — Tier 1, existing sniff `Squiz.PHP.Eval` raised to error severity, report-only ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107))

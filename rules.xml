@@ -198,4 +198,21 @@
         AppServiceProvider), so it is already silent everywhere else, tests
         included.
     -->
+
+    <!--
+        PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
+
+        Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
+        which is exactly PHPMD's EvalExpression detection; no custom sniff is
+        needed. The sniff has no fixer, matching PHPMD (there is no mechanical
+        rewrite of an eval'd string into standard code).
+
+        The severity is raised from the sniff's built-in warning to an error so
+        the mapping matches PHPMD, where an EvalExpression violation fails the
+        run. A warning would leave phpcs exiting 0 on eval() usage, so phpmd
+        would still have to run separately for this rule.
+    -->
+    <rule ref="Squiz.PHP.Eval">
+        <type>error</type>
+    </rule>
 </ruleset>
