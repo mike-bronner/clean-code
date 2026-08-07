@@ -76,4 +76,5 @@ what stays with code review.
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
+- [Design: DevelopmentCodeFragment](docs/phpmd/design-developmentcodefragment.md) — Tier 1, existing sniff `CleanCode.Debug.DisallowDebugFunctions` extended to PHPMD's `unwanted-functions` defaults, report-only ([#86](https://github.com/mike-bronner/phpcs-rules/issues/86))
 - [Design: EvalExpression](docs/phpmd/design-evalexpression.md) — Tier 1, existing sniff `Squiz.PHP.Eval` raised to error severity, report-only ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107))
