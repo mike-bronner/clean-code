@@ -197,6 +197,48 @@ it('handles a truncated call without falling over', function (): void {
 });
 
 /**
+ * Both hops of the detection step over whitespace and comments, so a call
+ * written across them is still a call. `spaced.php` gives each hop its own
+ * provider, and each provider is watched on its own run, so neither assertion
+ * can cover for the other.
+ *
+ * This run covers the lookback for the `::`, on line 7, where a block comment
+ * sits between the double colon and the method name. Reading the token
+ * immediately before the name would land on that comment, dismiss a genuine
+ * call, and warn on a provider that does enable the check. The second
+ * provider is not in the shipped watched list, so it takes no part here.
+ */
+it('skips comments between the double colon and the method name', function (): void {
+    $file = analyzeFixture(LAZY_LOADING, 'spaced.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The other hop, pointed at the second provider in the same fixture: the
+ * lookahead for the opening parenthesis, on line 15, where a block comment
+ * sits between the method name and its argument list. Reading the token
+ * immediately after the name would find that comment instead of the `(` and
+ * take the call for a constant fetch.
+ *
+ * `AppServiceProvider` leaves the watched list for this run, so nothing here
+ * rests on the lookback the test above pins.
+ */
+it('skips comments between the method name and its argument list', function (): void {
+    $file = analyzeFixture(
+        LAZY_LOADING,
+        'spaced.php',
+        static function (object $sniff): void {
+            $sniff->serviceProviderClasses = ['ModelServiceProvider'];
+        }
+    );
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
  * A `class` keyword with no name after it — the other half-written shape
  * PHPCS hands a sniff mid-edit. There is no class name to match against
  * the watched list, so the sniff passes over the file rather than falling
