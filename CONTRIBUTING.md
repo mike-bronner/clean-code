@@ -113,9 +113,11 @@ in and what applies the `<properties>` configured there.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** in `tests/Contract/SniffContractTest.php` —
-   one entry in `SWEPT_SNIFFS` (which feeds both the passing and failing
-   datasets, so the floor cannot be half-applied), plus an entry in
-   `autofixable sniffs` and, if its fixer is total,
+   one entry in `SWEPT_SNIFFS` if it reports errors, or in
+   `SWEPT_WARNING_SNIFFS` if its violations are warnings (the failing-fixture
+   assertion reads the matching violation list; both lists feed the passing and
+   registration datasets, so the floor cannot be half-applied). Add it to
+   `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
@@ -130,6 +132,19 @@ in and what applies the `<properties>` configured there.
    `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the configured
    thresholds/behaviour with a test in `tests/Rules/` — see
    `tests/Rules/LineLengthRulesTest.php` as the template.
+
+   A sniff from a **new Composer package** needs that package's path added to
+   the `installed_paths` list in `buildRuleset()` (`tests/Helpers.php`) as well.
+   Composer writes the path into `CodeSniffer.conf` on install, but every test
+   builds its `Config` through `ConfigDouble`, which blanks that file — so a
+   package missing from the list does not fail on its own sniff, it makes the
+   whole `rules.xml` parse fail and takes the entire suite down with it.
+
+   Where a third-party sniff emits more codes than the standard being adopted,
+   `<exclude>` the extra ones and pin **both halves**: that they stay silent
+   through `rules.xml`, and that they still fire without the excludes.
+   Otherwise a fixture that trips nothing looks exactly like a working exclude
+   list. `tests/Ruleset/UndefinedVariableTest.php` is the template.
 6. **Document the standard** under `docs/standards/` and link it from the
    README, following the existing docs there. A rule that replicates a **PHPMD**
    rule rather than a mikebronner.dev clean-code standard is documented under

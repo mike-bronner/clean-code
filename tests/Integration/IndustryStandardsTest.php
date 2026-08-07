@@ -16,6 +16,16 @@
 
 declare(strict_types=1);
 
+/**
+ * The two violation sources the PSR12-clean dataset below pins repeatedly.
+ * allViolationSourcesByLine() sorts each line's sources, and 'CleanCode…' sorts
+ * before 'VariableAnalysis…', so ACCESSOR always precedes UNDEFINED on a line
+ * carrying both.
+ */
+const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
+
+const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
+
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
@@ -82,23 +92,35 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
     // across lines, CleanCode.Arrays.ArrayAccessors says the chain should be a
     // data_get() call in the first place. Pinned per line so any *other* new
     // violation still fails here.
+    // The undefined-variable rule (#85) reports here too, and correctly: this
+    // fixture is bare procedural code that reads $user, $items, $first,
+    // $second, $range, $prop, $name, $obj, $builder and $this without ever
+    // assigning them. It is the fixer's own output for failing.php, byte-
+    // compared by tests/Contract/SniffContractTest.php, so it cannot be seeded
+    // with assignments the way tests/Integration/fixtures/operator-rules.php
+    // is — the seeding would have to land identically in failing.php and shift
+    // every line pinned in tests/Standards/OneThoughtPerLineTest.php. Pinning
+    // each report instead keeps the fixture untouched and still fails on any
+    // *new* violation, which is what this test is for.
     'one-thought-per-line chain style is PSR12-clean' => [
         fixturePath('OneThoughtPerLineSniff', 'autofixed.php'),
         [
-            3 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-            4 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-            9 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-            11 => [
-                'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-            ],
-            12 => [
-                'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-                'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess',
-            ],
-            25 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-            30 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
-            41 => ['CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess'],
+            3 => [ACCESSOR, UNDEFINED],
+            4 => [ACCESSOR, UNDEFINED],
+            9 => [ACCESSOR, UNDEFINED, UNDEFINED],
+            10 => [UNDEFINED],
+            11 => [ACCESSOR, ACCESSOR],
+            12 => [ACCESSOR, ACCESSOR, UNDEFINED, UNDEFINED],
+            20 => [UNDEFINED],
+            23 => [UNDEFINED],
+            25 => [ACCESSOR, UNDEFINED],
+            30 => [ACCESSOR, UNDEFINED],
+            38 => [UNDEFINED],
+            41 => [ACCESSOR, UNDEFINED],
+            45 => [UNDEFINED, UNDEFINED],
+            47 => [UNDEFINED],
+            49 => [UNDEFINED, UNDEFINED],
+            52 => [UNDEFINED],
         ],
     ],
     'throwable-only catches are PSR12-clean' => [
