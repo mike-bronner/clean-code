@@ -49,6 +49,15 @@ standard:
   token-visible: a sniff can flag any top-level executable statement in a
   source file that isn't part of a single OO declaration.
 
-The semantic core of the standard — the TDD cycle itself, the two-perspective
-discipline, complexity-guided test counts, and deferred DRYing — remains
-enforced by code review.
+## What remains code review
+
+Everything except those two slices. The TDD cycle itself, the two-perspective
+discipline, complexity-guided test counts, and deferred DRYing leave no trace a
+tokenizer can read, so a reviewer is the only enforcement there is. Even once
+[#128](https://github.com/mike-bronner/phpcs-rules/issues/128) lands, a sniff
+can say only that *a* test file exists — not that it was written first, nor
+that it asserts anything meaningful.
+
+How this repo applies the standard to its own sniffs — the fixture contract,
+the Pest functional style, and the contract sweep every new sniff joins — is
+documented in [CONTRIBUTING.md](../../CONTRIBUTING.md).
