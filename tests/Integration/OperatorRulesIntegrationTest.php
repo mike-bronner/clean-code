@@ -22,34 +22,41 @@ declare(strict_types=1);
  * The fixture holds one instance of each operator concern; every line below
  * carries exactly one diagnostic from exactly one sniff. Regressions this
  * pins by adding a second (or dropping the only) source:
- *   - re-stacking PSR12 on Squiz spacing (line 5/6),
- *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (13),
+ *   - re-stacking PSR12 on Squiz spacing (line 9/10),
+ *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (17),
  *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
- *     double-reports "if ( ! " (line 19), and
+ *     double-reports "if ( ! " (line 23), and
  *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
- *     operator inside a multi-condition slips through unreported (line 24).
+ *     operator inside a multi-condition slips through unreported (line 28).
+ *
+ * The fixture opens with a four-line preamble assigning every name it goes on
+ * to use, so the master ruleset's undefined-variable rule (#85) stays quiet
+ * here: this map pins operator diagnostics, and a second sniff reporting into
+ * it would mask exactly the double-reporting the test exists to catch. That
+ * preamble is why the pinned lines sit four below the fixture's own numbering
+ * before it.
  */
 it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
         // exactly-1-space spacing — Squiz supersedes PSR12, no stacking
-        5 => [
+        9 => [
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
         ],
         // concatenation spacing — ConcatenationSpacing only, no PSR12
-        6 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
+        10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
         // padding before "=" — the ignoreSpacingBeforeAssignments knob
-        7 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
+        11 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
         // dangling "." outside a condition — OperatorLineBreak's to own
-        9 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
         // dangling "||" inside the if — OneConditionPerLine only
-        13 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
+        17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
         // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
-        19 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
+        23 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
         // dangling "===" inside a multi-condition — OperatorLineBreak owns it
         // (OneConditionPerLine polices only the boolean "||")
-        24 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        28 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
     ]);
 });

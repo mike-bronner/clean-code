@@ -215,4 +215,60 @@
     <rule ref="Squiz.PHP.Eval">
         <type>error</type>
     </rule>
+
+    <!--
+        PHPMD CleanCode: UndefinedVariable (#85) —
+        docs/phpmd/cleancode-undefinedvariable.md.
+
+        PHPMD's UndefinedVariable ("a variable used has not been previously
+        defined") has no PHPCS/Slevomat equivalent; the well-known external
+        standard sirbrillig/phpcs-variable-analysis covers it. Its single
+        sniff emits six codes, only two of which are this rule — the other
+        four are separate concerns with their own open issues or no PHPMD
+        counterpart, so they are excluded here rather than shipped as a side
+        effect:
+
+        - UnusedVariable        → PHPMD UnusedLocalVariable (#118) /
+                                  UnusedFormalParameter (#120), not this rule.
+        - VariableRedeclaration → no PHPMD counterpart; redeclaring a defined
+                                  variable is the opposite of using an
+                                  undefined one.
+        - SelfOutsideClass      → a self:: scope error, not an undefined
+                                  variable.
+        - StaticOutsideClass    → a static:: scope error, not an undefined
+                                  variable.
+
+        UndefinedVariable and UndefinedUnsetVariable both stay: each fires on
+        a read of a name the scope never assigns (`echo $x;` and `unset($x);`
+        respectively), which is the defect PHPMD's rule targets. The sniff
+        carries no thresholds — PHPMD's rule has none either — so no
+        <properties> are configured; its defaults already treat superglobals,
+        $this, and `global`/`static` declarations as defined.
+
+        As with Squiz.PHP.Eval above, the severity is raised from the sniff's
+        built-in warning to an error: PHPMD fails a run on an UndefinedVariable
+        violation, and a warning would leave phpcs exiting 0, so phpmd would
+        still have to run separately for this rule.
+
+        Not a drop-in match for PHPMD, and no property makes it one. On two
+        shapes this ruleset is stricter — a read placed above its own
+        assignment, and a closure local read outside its closure — because the
+        sniff tracks statement order and closure scope where PHPMD asks only
+        whether the method assigns the name anywhere. Both extra reports are
+        true defects, so they are kept. A third shape, a name assigned on one
+        branch and read unconditionally after it, is missed by both tools and
+        stays code review. All three are pinned by
+        tests/fixtures/VariableAnalysisSniff/divergences.php and set out in
+        docs/phpmd/cleancode-undefinedvariable.md.
+
+        Detection only: a variable that was never defined has no safe
+        machine-derivable value, so there is nothing to auto-fix.
+    -->
+    <rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
+        <type>error</type>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
+        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.StaticOutsideClass"/>
+    </rule>
 </ruleset>
