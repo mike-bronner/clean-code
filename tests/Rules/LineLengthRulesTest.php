@@ -1,148 +1,77 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MikeBronner\CleanCode\Tests\Rules;
-
-use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
-use PHP_CodeSniffer\Config;
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHPUnit\Framework\TestCase;
-
 /**
  * Tests the Generic.Files.LineLength configuration in the master rules.xml:
  * warning above 100 characters, error above 120, reporting-only.
  *
- * Line numbers below refer to Fixtures/LineLengthViolations.inc, whose probe
- * lines are exactly 100 (line 3), 101 (line 5), 120 (line 7), and 121
- * (line 9) characters long.
+ * Unlike the per-sniff tests, these run the *whole* master ruleset over the
+ * fixture and then scope the assertions to the line-length sources. The
+ * fixtures are ordinary procedural files, so unrelated PSR rules they happen to
+ * trip must not mask what is being asserted here.
+ *
+ * Line numbers refer to tests/fixtures/LineLengthSniff/failing.php, whose probe
+ * lines are exactly 100 (line 3), 101 (line 5), 120 (line 7), and 121 (line 9)
+ * characters long.
  */
-class LineLengthRulesTest extends TestCase
-{
-    private const WARNING_SOURCE = 'Generic.Files.LineLength.TooLong';
 
-    private const ERROR_SOURCE = 'Generic.Files.LineLength.MaxExceeded';
+declare(strict_types=1);
 
-    public function testCompliantFileRaisesNoLineLengthViolations(): void
-    {
-        $file = $this->processFixture('LineLengthCompliant.inc');
+const LINE_LENGTH_WARNING = 'Generic.Files.LineLength.TooLong';
 
-        // Scope to line-length sources only: the fixture runs through the
-        // whole master ruleset, so unrelated PSR rules it happens to trip
-        // (e.g. PSR1 side effects) must not mask what this test asserts —
-        // that no line <=100 chars is flagged for length. Mirrors the
-        // sibling ExceptionsRulesTest/CasingConventionsRulesetTest convention.
-        $sources = array_merge(
-            ...array_values($this->sourcesByLine($file->getWarnings())),
-            ...array_values($this->sourcesByLine($file->getErrors())),
-        );
+const LINE_LENGTH_ERROR = 'Generic.Files.LineLength.MaxExceeded';
 
-        self::assertNotContains(self::WARNING_SOURCE, $sources, 'Compliant fixture must raise no line-length warning.');
-        self::assertNotContains(self::ERROR_SOURCE, $sources, 'Compliant fixture must raise no line-length error.');
-    }
+$lineLengthFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
+    fixturePath('LineLengthSniff', $fixture)
+);
 
-    public function testLineOfExactlyOneHundredCharactersIsNotFlagged(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+it('raises no line-length violations on the compliant fixture', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('passing.php');
 
-        self::assertArrayNotHasKey(3, $file->getWarnings());
-        self::assertArrayNotHasKey(3, $file->getErrors());
-    }
+    $sources = array_merge(
+        ...array_values(violationSourcesByLine($file->getWarnings())),
+        ...array_values(violationSourcesByLine($file->getErrors())),
+    );
 
-    public function testLineOfOneHundredOneCharactersRaisesWarning(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+    expect($sources)->not->toContain(LINE_LENGTH_WARNING, 'Compliant fixture must raise no line-length warning.')
+        ->and($sources)->not->toContain(LINE_LENGTH_ERROR, 'Compliant fixture must raise no line-length error.');
+});
 
-        self::assertSame([self::WARNING_SOURCE], $this->sourcesByLine($file->getWarnings())[5]);
-        self::assertArrayNotHasKey(5, $file->getErrors());
-    }
+it('does not flag a line of exactly one hundred characters', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('failing.php');
 
-    public function testLineOfExactlyOneHundredTwentyCharactersRaisesWarningNotError(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+    expect($file->getWarnings())->not->toHaveKey(3)
+        ->and($file->getErrors())->not->toHaveKey(3);
+});
 
-        self::assertSame([self::WARNING_SOURCE], $this->sourcesByLine($file->getWarnings())[7]);
-        self::assertArrayNotHasKey(7, $file->getErrors());
-    }
+it('warns on a line of one hundred and one characters', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('failing.php');
 
-    public function testLineOfOneHundredTwentyOneCharactersRaisesError(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+    expect(violationSourcesByLine($file->getWarnings())[5])->toBe([LINE_LENGTH_WARNING])
+        ->and($file->getErrors())->not->toHaveKey(5);
+});
 
-        self::assertSame([self::ERROR_SOURCE], $this->sourcesByLine($file->getErrors())[9]);
-        self::assertArrayNotHasKey(9, $file->getWarnings());
-    }
+it('warns rather than errors at exactly one hundred and twenty characters', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('failing.php');
 
-    public function testViolationsAreReportedAtExpectedLinesOnly(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+    expect(violationSourcesByLine($file->getWarnings())[7])->toBe([LINE_LENGTH_WARNING])
+        ->and($file->getErrors())->not->toHaveKey(7);
+});
 
-        self::assertSame(
-            [5 => [self::WARNING_SOURCE], 7 => [self::WARNING_SOURCE]],
-            $this->sourcesByLine($file->getWarnings())
-        );
-        self::assertSame([9 => [self::ERROR_SOURCE]], $this->sourcesByLine($file->getErrors()));
-    }
+it('errors on a line of one hundred and twenty-one characters', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('failing.php');
 
-    public function testRuleIsReportingOnly(): void
-    {
-        $file = $this->processFixture('LineLengthViolations.inc');
+    expect(violationSourcesByLine($file->getErrors())[9])->toBe([LINE_LENGTH_ERROR])
+        ->and($file->getWarnings())->not->toHaveKey(9);
+});
 
-        self::assertSame(0, $file->getFixableCount());
-    }
+it('reports violations at the expected lines only', function () use ($lineLengthFixture): void {
+    $file = $lineLengthFixture('failing.php');
 
-    private function processFixture(string $fixture): LocalFile
-    {
-        $config = $this->masterRulesetConfig();
+    expect(violationSourcesByLine($file->getWarnings()))
+        ->toBe([5 => [LINE_LENGTH_WARNING], 7 => [LINE_LENGTH_WARNING]])
+        ->and(violationSourcesByLine($file->getErrors()))->toBe([9 => [LINE_LENGTH_ERROR]]);
+});
 
-        $file = new LocalFile(__DIR__ . '/Fixtures/' . $fixture, new Ruleset($config), $config);
-        $file->process();
-
-        return $file;
-    }
-
-    private function masterRulesetConfig(): Config
-    {
-        // Pin installed_paths explicitly: the AbstractSniffUnitTest harness
-        // blanks the static Config data (via ConfigDouble), which would
-        // otherwise silently deregister the third-party standards the master
-        // ruleset references, breaking the rules.xml parse here.
-        Config::setConfigData(
-            'installed_paths',
-            ThirdPartyStandards::installedPaths(),
-            true
-        );
-
-        // The argv must be non-empty: Config falls back to parsing the live
-        // $_SERVER['argv'] as PHPCS flags when given none, which would leak
-        // unrelated PHPUnit arguments (e.g. --filter) into the shared Config.
-        $config = new Config(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
-        $config->cache = false;
-
-        return $config;
-    }
-
-    /**
-     * Collapses PHPCS's line => column => violations structure to a map of
-     * line number => list of violation source codes.
-     *
-     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
-     *
-     * @return array<int, array<int, string>>
-     */
-    private function sourcesByLine(array $messages): array
-    {
-        $sources = [];
-
-        foreach ($messages as $line => $columns) {
-            foreach ($columns as $violations) {
-                foreach ($violations as $violation) {
-                    $sources[$line][] = $violation['source'];
-                }
-            }
-        }
-
-        return $sources;
-    }
-}
+it('is reporting-only', function () use ($lineLengthFixture): void {
+    expect($lineLengthFixture('failing.php')->getFixableCount())->toBe(0);
+});

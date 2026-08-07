@@ -1,108 +1,57 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MikeBronner\CleanCode\Tests\Ruleset;
-
-use MikeBronner\CleanCode\Tests\ThirdPartyStandards;
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
-
 /**
  * Integration test for the SlevomatCodingStandard.Namespaces.UnusedUses rule
  * as configured in the master rules.xml (Use Statements: No Unused Entries,
- * issue #68). Fixtures live in Fixtures/UnusedUses/ beside this file.
+ * issue #68). Fixtures live in tests/fixtures/UnusedUsesSniff/.
  */
-class UnusedUsesTest extends TestCase
-{
-    private const SNIFF_CODE = 'SlevomatCodingStandard.Namespaces.UnusedUses';
 
-    public function testRuleIsRegisteredInMasterRuleset(): void
-    {
-        $ruleset = new Ruleset($this->createConfig());
+declare(strict_types=1);
 
-        $this->assertArrayHasKey(self::SNIFF_CODE, $ruleset->sniffCodes);
+const UNUSED_USES = 'SlevomatCodingStandard.Namespaces.UnusedUses';
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(UNUSED_USES);
+});
+
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(UNUSED_USES, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('flags each unused use individually at its own line', function (): void {
+    $errors = analyzeFixture(UNUSED_USES, 'failing.php')->getErrors();
+
+    expect(array_keys($errors))->toBe([7, 10]);
+
+    foreach ([7, 10] as $line) {
+        $lineErrors = array_merge(...array_values($errors[$line]));
+
+        expect($lineErrors)->toHaveCount(1)
+            ->and($lineErrors[0]['source'])->toBe(UNUSED_USES . '.UnusedUse')
+            ->and($lineErrors[0]['fixable'])->toBeTrue();
     }
+});
 
-    public function testCompliantFileProducesNoViolations(): void
-    {
-        $file = $this->processFixture('compliant.inc');
+/**
+ * searchAnnotations="true" keeps imports referenced only in docblocks
+ * (@param, @throws, …) from being treated as unused — those references are
+ * live, not dead code.
+ */
+it('does not treat a use referenced only in a docblock as unused', function (): void {
+    $file = analyzeFixture(UNUSED_USES, 'docblock-only.php');
 
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
 
-    public function testEachUnusedUseIsFlaggedIndividuallyAtItsOwnLine(): void
-    {
-        $file = $this->processFixture('violations.inc');
-        $errors = $file->getErrors();
+it('removes only the unused use statements when fixed', function (): void {
+    $file = analyzeFixture(UNUSED_USES, 'failing.php');
 
-        $this->assertSame([7, 10], array_keys($errors));
-
-        foreach ([7, 10] as $line) {
-            $lineErrors = array_merge(...array_values($errors[$line]));
-
-            $this->assertCount(1, $lineErrors);
-            $this->assertSame(self::SNIFF_CODE . '.UnusedUse', $lineErrors[0]['source']);
-            $this->assertTrue($lineErrors[0]['fixable']);
-        }
-    }
-
-    public function testUseReferencedOnlyInDocblockIsNotUnused(): void
-    {
-        $file = $this->processFixture('docblock-only.inc');
-
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
-
-    public function testAutoFixRemovesOnlyTheUnusedUseStatements(): void
-    {
-        $file = $this->processFixture('violations.inc');
-        $file->fixer->fixFile();
-
-        $this->assertStringEqualsFile(
-            __DIR__ . '/Fixtures/UnusedUses/violations.inc.fixed',
-            $file->fixer->getContents()
-        );
-    }
-
-    private function processFixture(string $fixture): LocalFile
-    {
-        $config = $this->createConfig();
-        $ruleset = new Ruleset($config);
-
-        // Isolate the sniff under test. A $config->sniffs restriction cannot
-        // be used here: under PHP_CODESNIFFER_IN_TESTS it makes Ruleset skip
-        // parsing rules.xml, dropping the <properties> configured there.
-        // populateTokenListeners() re-applies those properties.
-        $sniffClass = $ruleset->sniffCodes[self::SNIFF_CODE];
-        $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
-        $ruleset->populateTokenListeners();
-
-        $file = new LocalFile(__DIR__ . '/Fixtures/UnusedUses/' . $fixture, $ruleset, $config);
-        $file->process();
-
-        return $file;
-    }
-
-    private function createConfig(): ConfigDouble
-    {
-        $config = new ConfigDouble();
-        $config->cache = false;
-        $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
-
-        // ConfigDouble blanks CodeSniffer.conf, which is where Composer
-        // registers the third-party standards' installed paths — restore them
-        // (in memory only) so the ruleset can resolve their sniffs.
-        ConfigDouble::setConfigData(
-            'installed_paths',
-            ThirdPartyStandards::installedPaths(),
-            true
-        );
-
-        return $config;
-    }
-}
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('UnusedUsesSniff', 'autofixed.php')));
+});

@@ -77,6 +77,20 @@
         Naming: Casing conventions (#22) — camelCase variables, properties,
         and methods; PascalCase classes, interfaces, traits, and enums.
         SQL/URL/env casing lives in strings and is out of linter scope.
+
+        Only the variable/property sniff is referenced here. The method and
+        class-name halves of the standard — PSR1.Methods.CamelCapsMethodName
+        and Squiz.Classes.ValidClassName — arrive with the PSR12 ref above,
+        which includes PSR1 wholesale, so an explicit ref adds no coverage
+        and no configuration (#217). What it did add was ambiguity: sitting
+        in this custom-overrides-industry region, a bare re-ref reads as a
+        deliberate override of the baseline when it is not one.
+
+        Narrowing the PSR12 ref no longer silently drops these two, either:
+        CasingConventionsRulesetTest asserts the exact violation lines they
+        produce through rules.xml, so excluding either from PSR12 turns that
+        test red. The belt-and-suspenders ref further down is a different
+        case — it is documented as deliberate, and keeps its explanation.
     -->
     <rule ref="Squiz.NamingConventions.ValidVariableName">
         <!--
@@ -85,8 +99,6 @@
         -->
         <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
     </rule>
-    <rule ref="PSR1.Methods.CamelCapsMethodName"/>
-    <rule ref="Squiz.Classes.ValidClassName"/>
 
     <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
     <rule ref="Generic.Files.LineLength">
@@ -177,8 +189,25 @@
     </rule>
 
     <!--
-        PHPMD/CleanCode: UndefinedVariable (#85) —
-        docs/standards/phpmd-clean-code-undefined-variable.md.
+        PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
+
+        Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
+        which is exactly PHPMD's EvalExpression detection; no custom sniff is
+        needed. The sniff has no fixer, matching PHPMD (there is no mechanical
+        rewrite of an eval'd string into standard code).
+
+        The severity is raised from the sniff's built-in warning to an error so
+        the mapping matches PHPMD, where an EvalExpression violation fails the
+        run. A warning would leave phpcs exiting 0 on eval() usage, so phpmd
+        would still have to run separately for this rule.
+    -->
+    <rule ref="Squiz.PHP.Eval">
+        <type>error</type>
+    </rule>
+
+    <!--
+        PHPMD CleanCode: UndefinedVariable (#85) —
+        docs/phpmd/cleancode-undefinedvariable.md.
 
         PHPMD's UndefinedVariable ("a variable used has not been previously
         defined") has no PHPCS/Slevomat equivalent; the well-known external
@@ -204,6 +233,11 @@
         <properties> are configured; its defaults already treat superglobals,
         $this, and `global`/`static` declarations as defined.
 
+        As with Squiz.PHP.Eval above, the severity is raised from the sniff's
+        built-in warning to an error: PHPMD fails a run on an UndefinedVariable
+        violation, and a warning would leave phpcs exiting 0, so phpmd would
+        still have to run separately for this rule.
+
         Not a drop-in match for PHPMD, and no property makes it one. On two
         shapes this ruleset is stricter — a read placed above its own
         assignment, and a closure local read outside its closure — because the
@@ -212,13 +246,14 @@
         true defects, so they are kept. A third shape, a name assigned on one
         branch and read unconditionally after it, is missed by both tools and
         stays code review. All three are pinned by
-        tests/Ruleset/Fixtures/UndefinedVariable/divergences.inc and set out in
-        docs/standards/phpmd-clean-code-undefined-variable.md.
+        tests/fixtures/VariableAnalysisSniff/divergences.php and set out in
+        docs/phpmd/cleancode-undefinedvariable.md.
 
         Detection only: a variable that was never defined has no safe
         machine-derivable value, so there is nothing to auto-fix.
     -->
     <rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
+        <type>error</type>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
