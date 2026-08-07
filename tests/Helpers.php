@@ -70,17 +70,23 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
         return $cache[$key];
     }
 
-    // ConfigDouble blanks CodeSniffer.conf, where Composer registers
-    // Slevomat's installed path; the master ruleset references Slevomat, so
-    // restore it (in memory only) before the rules.xml parse. The explicit
-    // argv also stops Config falling back to parsing the live $_SERVER['argv']
-    // as PHPCS flags, which would leak the test runner's own arguments in.
+    // ConfigDouble blanks CodeSniffer.conf, where Composer registers the
+    // third-party standards' installed paths; the master ruleset references
+    // them, so restore the paths (in memory only) before the rules.xml parse.
+    // Every standard rules.xml depends on has to be listed — a missing entry
+    // does not fail loudly, it makes the referenced sniffs fail to resolve and
+    // takes the whole rules.xml parse down with it. The explicit argv also
+    // stops Config falling back to parsing the live $_SERVER['argv'] as PHPCS
+    // flags, which would leak the test runner's own arguments in.
     $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml']);
     $config->cache = false;
 
     Config::setConfigData(
         'installed_paths',
-        cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        implode(',', [
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        ]),
         true
     );
 
