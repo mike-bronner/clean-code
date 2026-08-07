@@ -30,6 +30,27 @@ $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
 
+/**
+ * Generic.PHP.DisallowShortOpenTag reports `<?` in one of two ways, and which
+ * one is decided by the runtime short_open_tag setting: its register() listens
+ * for T_OPEN_TAG when the setting is on, and for T_INLINE_HTML when it is off.
+ *
+ * - on  — `<?` is a real opening tag, reported as a Found *error*.
+ * - off — `<?` is inline HTML, reported as a PossibleFound *warning*, and only
+ *         when the file also holds a matching `?>` (hence the closer in
+ *         short-open-tag.php; without it the sniff stays silent entirely).
+ *
+ * PHP defaults the setting to off and CI leaves it there, but a local php.ini
+ * turning it on is common enough that assuming either way would make this
+ * fixture pass for the wrong reason on half the machines that run it. Both
+ * branches pin the same sniff on the same line, so neither is a soft assertion.
+ */
+$shortOpenTagIsOn = (bool) ini_get('short_open_tag');
+
+$shortOpenTagSource = $shortOpenTagIsOn === true
+    ? 'Generic.PHP.DisallowShortOpenTag.Found'
+    : 'Generic.PHP.DisallowShortOpenTag.PossibleFound';
+
 it('reports the expected violations', function (
     string $fixture,
     array $expectedErrors,
@@ -50,7 +71,13 @@ it('reports the expected violations', function (
     // reports the ASP tag as a warning and the script tag as an error, and
     // allViolationSourcesByLine() merges the two lists), and the next one is
     // the only place the emitting sniff is named.
-    'short open tag' => ['short-open-tag.php', [1 => 1], []],
+    // Error when short_open_tag is on, warning when it is off — see the note
+    // above $shortOpenTagIsOn. Either way it is one report on line 1.
+    'short open tag' => [
+        'short-open-tag.php',
+        $shortOpenTagIsOn === true ? [1 => 1] : [],
+        $shortOpenTagIsOn === true ? [] : [1 => 1],
+    ],
     'alternative PHP tags' => ['alternative-php-tags.php', [2 => 1], [1 => 1]],
     'trailing closing tag in a pure-PHP file' => ['closing-tag.php', [9 => 1], []],
     'code sharing the opening tag line' => ['open-tag-not-alone.php', [1 => 2], []],
@@ -90,7 +117,7 @@ it('pins the PSR opening-tag sniffs', function (string $fixture, array $expected
     // fixture here would assert nothing.
     'short open tag' => [
         'short-open-tag.php',
-        [1 => ['Generic.PHP.DisallowShortOpenTag.Found']],
+        [1 => [$shortOpenTagSource]],
     ],
     // Both codes the sniff emits. `Maybe…` is the ASP-tag branch: asp_tags was
     // removed in PHP 7, so the sniff can only report the tag as a probable one.

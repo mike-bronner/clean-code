@@ -1,7 +1,8 @@
 <?
 
-namespace Vendor\Package;
+echo 'short open tag';
 
-class ShortOpenTagExample
-{
-}
+?>
+<?php
+
+echo 'a real opening tag, so the file never reads as containing no PHP at all';
