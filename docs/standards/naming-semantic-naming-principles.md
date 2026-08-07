@@ -70,5 +70,10 @@ a subset:
   understanding what a name *means* and how it relates to names elsewhere in
   the project; both are beyond single-file token analysis.
 
-The semantic core of the standard — names that tell the truth about intent —
-remains enforced by code review.
+## What remains code review
+
+The semantic core — names that tell the truth about intent. The review
+obligation is concrete: for every identifier a change introduces or renames,
+the reviewer confirms the name states what it is for without a comment, is
+pronounceable and greppable, needs no mental translation, and reuses the
+concept-word the codebase already uses for that operation.
