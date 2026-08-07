@@ -54,12 +54,26 @@ Adjacent slices already tracked elsewhere:
   [#128](https://github.com/mike-bronner/phpcs-rules/issues/128) (opened from
   *Testing: Development Process (TDD)*), which catches test *absence* for the
   "always write unit and integration tests" bullet.
-- **Careful test naming** — the naming standards
-  ([#61](https://github.com/mike-bronner/phpcs-rules/issues/61),
-  [#22](https://github.com/mike-bronner/phpcs-rules/issues/22)) own method
-  naming; a bare prefix check adds nothing PHPUnit doesn't already require.
+- **Careful test naming** — method naming belongs to the naming standards:
+  casing is already enforced as *Naming: Casing Conventions*
+  ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)) and the wider
+  method-naming standard is tracked separately
+  ([#61](https://github.com/mike-bronner/phpcs-rules/issues/61)). A bare
+  prefix check adds nothing PHPUnit doesn't already require, and "careful"
+  naming is a judgement about whether the name describes the behaviour — not
+  a shape a sniff can read.
+
+The assessment is recorded on
+[#54](https://github.com/mike-bronner/phpcs-rules/issues/54).
+
+## What remains code review
 
 The semantic core of the standard — start-anywhere pragmatism, "Shameless
 Green", human-focused code, success-and-failure coverage per scenario, and
-keeping integration tests alongside mocks so mocks don't go stale — remains
-enforced by code review.
+keeping integration tests alongside mocks so mocks don't go stale. The review
+obligation is concrete: whenever a change adds or modifies a test, the
+reviewer confirms that each scenario the change covers has both a success and
+a failure case, that new coverage goes through the public API rather than
+reaching into a protected or private method, and that any newly mocked
+collaborator is genuinely external — with an integration test alongside it
+that would fail if the real interface drifted from the mock.
