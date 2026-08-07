@@ -1,138 +1,81 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MikeBronner\CleanCode\Tests\Ruleset;
-
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
-
 /**
  * Integration test for the Squiz.PHP.Eval rule as configured in the master
  * rules.xml, which replaces PHPMD's Design/EvalExpression rule (issue #107).
+ * Fixtures live in tests/fixtures/EvalSniff/.
  *
- * Fixtures live in Fixtures/Eval/ beside this file, following the repo's
- * fixture convention (CONTRIBUTING.md): compliant and violating code in
- * separate files, passing.inc and failing.inc. There are no
- * autofix-before.inc / autofix-after.inc files because the rule is not
- * auto-fixable — Squiz\Sniffs\PHP\EvalSniff reports through addWarning() and
- * registers no fixer, so phpcbf cannot act on it, and PHPMD offers no auto-fix
- * for an eval expression either. testEvalExpressionsAreReportedWithoutAnAutoFix
- * pins that, so the missing autofix fixtures stay an asserted fact rather than
- * an assumption.
+ * There is no autofixed.php because the rule is not auto-fixable —
+ * Squiz\Sniffs\PHP\EvalSniff reports through addWarning() and registers no
+ * fixer, so phpcbf cannot act on it, and PHPMD offers no auto-fix for an eval
+ * expression either. The fixable-count test below pins that, so the absent
+ * autofix fixture stays an asserted fact rather than an assumption.
  *
- * Two properties of the mapping are pinned here beyond plain detection. The
- * sniff reports a *warning* out of the box; rules.xml raises it to an error so
- * eval() usage fails a phpcs run the way it fails a phpmd run, so the tests
- * assert the reports land in getErrors() and that getWarnings() stays empty.
- * The rule is also report-only, which the fixable-count assertion pins.
+ * The severity override is pinned here too: the sniff reports a *warning* out
+ * of the box and rules.xml raises it to an error, so eval() fails a phpcs run
+ * the way it fails a phpmd run. That is why the tests assert the reports land
+ * in getErrors() and that getWarnings() stays empty.
  */
-class EvalExpressionTest extends TestCase
-{
-    private const SNIFF_CODE = 'Squiz.PHP.Eval';
 
-    private const VIOLATION_LINES = [12, 20, 25];
+declare(strict_types=1);
 
-    public function testRuleIsRegisteredInMasterRuleset(): void
-    {
-        $ruleset = new Ruleset($this->createConfig());
+const EVAL_SNIFF = 'Squiz.PHP.Eval';
 
-        $this->assertArrayHasKey(self::SNIFF_CODE, $ruleset->sniffCodes);
+const EVAL_VIOLATION_LINES = [12, 20, 25];
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(EVAL_SNIFF);
+});
+
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(EVAL_SNIFF, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('flags each eval expression at its own line', function (): void {
+    $errors = analyzeFixture(EVAL_SNIFF, 'failing.php')->getErrors();
+
+    expect(array_keys($errors))->toBe(EVAL_VIOLATION_LINES);
+
+    foreach (EVAL_VIOLATION_LINES as $line) {
+        $lineErrors = array_merge(...array_values($errors[$line]));
+
+        expect($lineErrors)->toHaveCount(1)
+            ->and($lineErrors[0]['source'])->toBe(EVAL_SNIFF . '.Discouraged');
     }
+});
 
-    public function testCompliantFileProducesNoViolations(): void
-    {
-        $file = $this->processFixture('passing.inc');
+it('reports eval expressions as errors rather than warnings', function (): void {
+    $file = analyzeFixture(EVAL_SNIFF, 'failing.php');
 
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
+    expect($file->getErrorCount())->toBe(count(EVAL_VIOLATION_LINES))
+        ->and($file->getWarningCount())->toBe(0)
+        ->and($file->getWarnings())->toBe([]);
+});
 
-    public function testEachEvalExpressionIsFlaggedAtItsOwnLine(): void
-    {
-        $file = $this->processFixture('failing.inc');
-        $errors = $file->getErrors();
+it('reports eval expressions without offering an auto-fix', function (): void {
+    $file = analyzeFixture(EVAL_SNIFF, 'failing.php');
 
-        $this->assertSame(self::VIOLATION_LINES, array_keys($errors));
+    // Guard against a vacuous pass: an empty report also has zero fixable
+    // violations, so pin that the violations are actually there first.
+    expect($file->getErrorCount())->toBe(count(EVAL_VIOLATION_LINES))
+        ->and($file->getFixableCount())->toBe(0)
+        ->and(violationFixableFlags($file))->toBe([false, false, false]);
+});
 
-        foreach (self::VIOLATION_LINES as $line) {
-            $lineErrors = array_merge(...array_values($errors[$line]));
+/**
+ * `eval` is a reserved word, but PHP 7.0 onwards allows it as a method name.
+ * $object->eval(...), $object?->eval(...) and Class::eval(...) are ordinary
+ * method calls, not the language construct, and the tokenizer does not emit
+ * T_EVAL for them — so the sniff must stay silent.
+ */
+it('does not flag methods named eval', function (): void {
+    $file = analyzeFixture(EVAL_SNIFF, 'boundaries.php');
 
-            $this->assertCount(1, $lineErrors);
-            $this->assertSame(self::SNIFF_CODE . '.Discouraged', $lineErrors[0]['source']);
-        }
-    }
-
-    public function testEvalExpressionsAreReportedAsErrorsRatherThanWarnings(): void
-    {
-        $file = $this->processFixture('failing.inc');
-
-        $this->assertSame(count(self::VIOLATION_LINES), $file->getErrorCount());
-        $this->assertSame(0, $file->getWarningCount());
-        $this->assertSame([], $file->getWarnings());
-    }
-
-    public function testEvalExpressionsAreReportedWithoutAnAutoFix(): void
-    {
-        $file = $this->processFixture('failing.inc');
-
-        // Guard against a vacuous pass: an empty report also has zero fixable
-        // violations, so pin that the violations are actually there first.
-        $this->assertSame(count(self::VIOLATION_LINES), $file->getErrorCount());
-        $this->assertSame(0, $file->getFixableCount());
-
-        foreach ($file->getErrors() as $columns) {
-            foreach (array_merge(...array_values($columns)) as $error) {
-                $this->assertFalse($error['fixable']);
-            }
-        }
-    }
-
-    public function testMethodsNamedEvalAreNotFlagged(): void
-    {
-        $file = $this->processFixture('boundaries.inc');
-
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
-
-    private function processFixture(string $fixture): LocalFile
-    {
-        $config = $this->createConfig();
-        $ruleset = new Ruleset($config);
-
-        // Isolate the sniff under test. A $config->sniffs restriction cannot
-        // be used here: under PHP_CODESNIFFER_IN_TESTS it makes Ruleset skip
-        // parsing rules.xml, dropping the <type> configured there.
-        // populateTokenListeners() re-applies the remaining listener map.
-        $sniffClass = $ruleset->sniffCodes[self::SNIFF_CODE];
-        $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
-        $ruleset->populateTokenListeners();
-
-        $file = new LocalFile(__DIR__ . '/Fixtures/Eval/' . $fixture, $ruleset, $config);
-        $file->process();
-
-        return $file;
-    }
-
-    private function createConfig(): ConfigDouble
-    {
-        $config = new ConfigDouble();
-        $config->cache = false;
-        $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
-
-        // ConfigDouble blanks CodeSniffer.conf, which is where Composer
-        // registers Slevomat's installed path — restore it (in memory only)
-        // so the ruleset can resolve the SlevomatCodingStandard sniffs the
-        // master ruleset references alongside this one.
-        ConfigDouble::setConfigData(
-            'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
-            true
-        );
-
-        return $config;
-    }
-}
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
