@@ -70,10 +70,10 @@ The assessment is recorded on
 
 The semantic core of the standard — start-anywhere pragmatism, "Shameless
 Green", human-focused code, success-and-failure coverage per scenario, and
-keeping integration tests alongside mocks so mocks don't go stale. The review
-obligation is concrete: whenever a change adds or modifies a test, the
-reviewer confirms that each scenario the change covers has both a success and
-a failure case, that new coverage goes through the public API rather than
-reaching into a protected or private method, and that any newly mocked
-collaborator is genuinely external — with an integration test alongside it
-that would fail if the real interface drifted from the mock.
+keeping integration tests alongside mocks so mocks don't go stale — remains
+enforced by code review. The review obligation is concrete: whenever a change
+adds or modifies a test, the reviewer confirms that each scenario the change
+covers has both a success and a failure case, that new coverage goes through
+the public API rather than reaching into a protected or private method, and
+that any newly mocked collaborator is genuinely external — with an integration
+test alongside it that would fail if the real interface drifted from the mock.
