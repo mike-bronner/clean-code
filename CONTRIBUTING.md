@@ -113,9 +113,11 @@ in and what applies the `<properties>` configured there.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** in `tests/Contract/SniffContractTest.php` —
-   one entry in `SWEPT_SNIFFS` (which feeds both the passing and failing
-   datasets, so the floor cannot be half-applied), plus an entry in
-   `autofixable sniffs` and, if its fixer is total,
+   one entry in `SWEPT_SNIFFS` if it reports errors, or in
+   `SWEPT_WARNING_SNIFFS` if its violations are warnings (the failing-fixture
+   assertion reads the matching violation list; both lists feed the passing and
+   registration datasets, so the floor cannot be half-applied). Add it to
+   `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
