@@ -29,6 +29,10 @@ calls for classes that are also type-hinted as constructor parameters
 elsewhere in the project — is **not** feasible as a PHPCS sniff: it requires
 cross-file knowledge, and a sniff sees a single file's tokens.
 
+No rule is wired into `rules.xml` for this standard. The assessment is
+recorded on [#72](https://github.com/mike-bronner/phpcs-rules/issues/72); the
+one slice that survives it is scoped on its own issue, below.
+
 ## Partial enforcement — narrow sniff slice
 
 One same-file slice **is** token-visible: a `new` expression inside a
