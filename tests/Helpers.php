@@ -266,11 +266,42 @@ function violationMessagesByLine(array $messages): array
  */
 function violationTuples(LocalFile $file): array
 {
+    return tuplesFromMessages($file->getErrors());
+}
+
+/**
+ * The warning-side counterpart of violationTuples(), for the sniffs that report
+ * warnings rather than errors.
+ *
+ * Deliberately a second function rather than widening violationTuples() to
+ * cover both: several tests here exist to pin a rule at a *particular*
+ * severity — tests/Ruleset/EvalExpressionTest.php asserts Squiz.PHP.Eval was
+ * raised from its built-in warning to an error — and a helper that flattened
+ * errors and warnings together would let a regression back to a warning pass
+ * those tests unnoticed.
+ *
+ * @return array<int, array{line: int, column: int, source: string}>
+ */
+function warningTuples(LocalFile $file): array
+{
+    return tuplesFromMessages($file->getWarnings());
+}
+
+/**
+ * Flattens one of PHP_CodeSniffer's nested line => column => messages
+ * structures into an ordered list of line/column/source tuples.
+ *
+ * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+ *
+ * @return array<int, array{line: int, column: int, source: string}>
+ */
+function tuplesFromMessages(array $messages): array
+{
     $flat = [];
 
-    foreach ($file->getErrors() as $line => $columns) {
-        foreach ($columns as $column => $messages) {
-            foreach ($messages as $message) {
+    foreach ($messages as $line => $columns) {
+        foreach ($columns as $column => $lineMessages) {
+            foreach ($lineMessages as $message) {
                 $flat[] = ['line' => $line, 'column' => $column, 'source' => $message['source']];
             }
         }
@@ -311,6 +342,10 @@ function allViolationSourcesByLine(LocalFile $file): array
 /**
  * Every `fixable` flag on a processed file's errors, so a test can assert a
  * rule is detection-only without reaching into PHPCS's nested structure.
+ *
+ * Errors only, like violationTuples(). A warning-reporting sniff therefore
+ * always yields an empty list here whatever its fixability — assert
+ * $file->getFixableCount(), which counts both, for those.
  *
  * @return array<int, bool>
  */
