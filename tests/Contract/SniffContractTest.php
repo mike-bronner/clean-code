@@ -16,7 +16,7 @@
  * both. The only axis on which coverage varies is the fixer —
  *
  *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
+ *   - Detection-only sniffs (ArrayAccessors, DisallowElse, OperatorLineBreak,
  *     DisallowStaticMembers, LineLength, Eval, VariableAnalysis) carry
  *     passing.php and failing.php but no autofixed.php, because there is no
  *     safe mechanical rewrite.
@@ -61,6 +61,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Operators.NotOperatorSpacing',
