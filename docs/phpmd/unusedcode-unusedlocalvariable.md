@@ -148,9 +148,12 @@ Its fixtures sit under `tests/fixtures/VariableAnalysisSniff/`, shared with
 `UndefinedVariable`: `passing.php` for code both rules must stay silent on,
 plus `unused-locals.php` for this rule's parity set and
 `unused-locals-divergences.php` for the shapes that belong to neither. There is
-no `autofixed.php`, because the rule is not fixable — a test runs the real
-fixer over `unused-locals.php` and asserts its output is byte-identical to the
-input, so "unfixable" is measured rather than assumed.
+no `autofixed.php`, because the rule is not fixable. That is measured by
+asserting the fixable count is zero and that every single report carries no
+fixer hook; the companion test that runs the real fixer over
+`unused-locals.php` and finds its output byte-identical adds no proof on top of
+that — the fixer exits before touching a file with nothing fixable — and stands
+only as a tokenizer round-trip check.
 
 ## Overlap with #29 (No Dead Code)
 

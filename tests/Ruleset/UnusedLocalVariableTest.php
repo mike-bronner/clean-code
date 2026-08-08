@@ -140,15 +140,25 @@ it('reports unused locals without offering an auto-fix', function (): void {
 
 /**
  * The "autofixed" half of the fixture contract, for a rule that has no
- * autofixed.php to compare against: the fixer's real output on
- * unused-locals.php *is* unused-locals.php, byte for byte.
+ * autofixed.php to compare against: running phpcbf's own Fixer over
+ * unused-locals.php returns unused-locals.php, byte for byte.
  *
- * Proven by driving the same Fixer phpcbf drives, not by trusting the fixable
- * flag the test above reads. The error count is asserted both before and after
- * the run, so a fixture that stopped tripping the sniff — or a fixer that
- * silently swallowed every diagnostic — cannot pass this vacuously.
+ * What this proves is narrower than it looks, and is recorded here so nobody
+ * reads more into it. Fixer::fixFile() (vendor/squizlabs/php_codesniffer/src/
+ * Fixer.php:142-148) returns immediately when getFixableCount() is 0, and the
+ * test above already asserts that count is 0 for this fixture — so on the
+ * question of fixability the byte-identical result is a corollary of that
+ * assertion, not independent confirmation of it, and it does not check the
+ * fixable flag the test above reads. Nor could that flag ever be wrong here:
+ * the sniff emits UnusedVariable through addWarning(), never
+ * addFixableError(), so no rules.xml property can make the count non-zero.
+ *
+ * It still earns its place as the one assertion that PHPCS reassembles this
+ * fixture from its token stream unchanged: Fixer::getContents() concatenates
+ * the token contents the tokenizer produced, so a fixture edit PHPCS could not
+ * round-trip would show up here and nowhere else in this file.
  */
-it('leaves the unused-locals fixture byte-identical when the fixer runs', function (): void {
+it('round-trips the unused-locals fixture byte-identically through the fixer', function (): void {
     $file = analyzeFixture(UNUSED_LOCAL_VARIABLE_SNIFF, 'unused-locals.php');
 
     expect($file->getErrorCount())->toBe(count(UNUSED_LOCAL_PARITY_SET));
