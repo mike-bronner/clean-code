@@ -118,6 +118,33 @@
     -->
     <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 
+    <!--
+        Conditionals: Avoid Conditionals (#12) —
+        docs/standards/conditionals-avoid-conditionals.md.
+
+        The custom CleanCode.Conditionals.AvoidConditionals sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above. It warns once
+        per if/elseif/ternary/switch, detection only — no token-based sniff can
+        judge whether a given branch was avoidable.
+
+        The one shape that does have a safe mechanical rewrite is the
+        boolean-return if (`if ($x) { return true; } return false;`), and
+        Slevomat already implements that fixer exactly, including the guard
+        this standard needs: it only rewrites when the condition itself already
+        evaluates to a boolean, so the fix never changes a method's return
+        type. No custom fixer is written for it.
+
+        The type is lowered from Slevomat's error to a warning so the whole
+        standard speaks at one severity. "Avoid where possible" is advisory —
+        it must not fail a consumer's build — while phpcbf still applies the
+        fix, since fixability is independent of message type. Applying it
+        deletes the if, so the AvoidConditionals warning on that line goes with
+        it.
+    -->
+    <rule ref="SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn">
+        <type>warning</type>
+    </rule>
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
@@ -126,6 +153,26 @@
             <property name="searchAnnotations" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        Use Statements: Sort Alphabetically (#67) —
+        docs/standards/use-statements-sort-alphabetically.md.
+
+        Three sniffs, because AlphabeticallySortedUses alone is defeatable.
+        It stops checking a file entirely as soon as it meets a group use
+        (`use App\Nested\{Alpha, Beta};`), and it reads only the first type of
+        a comma-separated use (`use App\Zulu, App\Alpha;`) — so either syntax
+        lets a plainly unsorted file exit clean. DisallowGroupUse and
+        MultipleUsesPerLine reject both syntaxes outright, which closes those
+        two bypasses and keeps the standard fail-closed.
+
+        Defaults are kept deliberately: psr12Compatible="true" orders the
+        class, function, and constant imports as three groups in that order,
+        and caseSensitive="false" compares names the way a reader scans them.
+    -->
+    <rule ref="SlevomatCodingStandard.Namespaces.AlphabeticallySortedUses"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.DisallowGroupUse"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.MultipleUsesPerLine"/>
 
     <!--
         Arrays: Operator spacing & line breaks (#35) —
@@ -175,6 +222,29 @@
     -->
 
     <!--
+        Dependency Injection (#72) —
+        docs/standards/dependency-injection.md.
+
+        The custom CleanCode.Classes.DisallowConstructorInstantiation sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. No PHPCS or Slevomat sniff
+        reports instantiation by location: Squiz.Objects.ObjectInstantiation
+        requires a new to be assigned/returned rather than used bare,
+        PSR12.Classes.ClassInstantiation and Slevomat's NewWithParentheses /
+        NewWithoutParentheses police the parentheses, and Slevomat's
+        constructor sniffs speak about property promotion. It warns once per
+        new inside the body of a __construct a class-like scope holds,
+        detection only: swapping an instantiation for an injected parameter
+        changes the class's signature and every call site. Whatever a throw
+        raises is exempt in full, however the expression is spelled.
+
+        Only that slice is enforced. Whether a collaborator warrants injection
+        at all needs the whole application's wiring, which a single-file token
+        scan cannot see, so the rest of the standard stays with code review
+        (#176 records how the slice was scoped).
+    -->
+
+    <!--
         Models: Persistence Methods (Repository Pattern) (#37) —
         docs/standards/models-persistence-methods-repository-pattern.md.
 
@@ -191,12 +261,20 @@
     <!--
         Models: Eager Loading (#74) — docs/standards/models-eager-loading.md.
 
-        The custom CleanCode.Models.RequireLazyLoadingPrevention sniff is
-        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
-        comment records that no scoping is wanted. The sniff only ever speaks
-        about a class named in its serviceProviderClasses property (default:
+        Two custom sniffs carry the token-visible slices of this standard, and
+        both are picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; this comment records that no scoping is wanted for either.
+
+        CleanCode.Models.RequireLazyLoadingPrevention only ever speaks about a
+        class named in its serviceProviderClasses property (default:
         AppServiceProvider), so it is already silent everywhere else, tests
         included.
+
+        CleanCode.Models.DisallowAlwaysOnEagerLoading (#153) only speaks about a
+        class extending a model-shaped parent, and a populated $with bloats
+        every query the same way wherever the model is declared — there is no
+        test-path idiom that makes it legitimate, unlike the factory chains that
+        keep DisallowExternalPersistenceCalls out of tests above.
     -->
 
     <!--
@@ -259,58 +337,132 @@
     </rule>
 
     <!--
+        PHPMD CleanCode: BooleanArgumentFlag (#76) —
+        docs/phpmd/cleancode-booleanargumentflag.md.
+
+        No existing PHPCS or Slevomat sniff expresses PHPMD's
+        BooleanArgumentFlag. The three nearest candidates were run against
+        tests/fixtures/DisallowBooleanArgumentFlagSniff/failing.php and each
+        reported nothing on its fifteen boolean flag arguments:
+        SlevomatCodingStandard.Functions.UselessParameterDefaultValue (a
+        default that can never be used), Squiz.PHP.DisallowBooleanStatement (a
+        boolean operator forming a whole statement), and
+        Generic.CodeAnalysis.UnusedFunctionParameter (a parameter no body
+        reads). So this is the custom CleanCode.Functions.DisallowBooleanArgumentFlag
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and
+        tests/Standards/DisallowBooleanArgumentFlagTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        No <properties> are configured. PHPMD ships this rule with both of its
+        properties empty (exceptions, ignorepattern), so nothing is exempt out
+        of the box — constructors included — and the sniff's defaults match.
+        A consuming ruleset that already tunes PHPMD's rule can paste the same
+        two values here: both are spelled and matched exactly as PHPMD spells
+        and matches them.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis below, no <type> override is
+        needed: the sniff raises errors already, so a violation fails a phpcs
+        run the way it fails a phpmd run.
+
+        Stricter than PHPMD on three shapes, and never looser. A parameter
+        declared `bool` with no default value is reported (PHPMD inspects only
+        a parameter's default value); so is a closure at file scope, and a
+        closure written inside a method the ignorepattern exempts (PHPMD
+        reaches a closure only through its enclosing method, and tests the
+        pattern against that method's name). All three are true defects and are
+        kept, pinned by tests/fixtures/DisallowBooleanArgumentFlagSniff/
+        divergences.php and configured.php, and set out in
+        docs/phpmd/cleancode-booleanargumentflag.md.
+
+        Detection only: removing a flag argument splits the callee in two and
+        rewrites every call site, which is a design change with no mechanical
+        rewrite. PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
+        PHPMD UnusedCode: UnusedLocalVariable (#118) —
+        docs/phpmd/unusedcode-unusedlocalvariable.md.
 
-        PHPMD's UndefinedVariable ("a variable used has not been previously
-        defined") has no PHPCS/Slevomat equivalent; the well-known external
-        standard sirbrillig/phpcs-variable-analysis covers it. Its single
-        sniff emits six codes, only two of which are this rule — the other
-        four are separate concerns with their own open issues or no PHPMD
-        counterpart, so they are excluded here rather than shipped as a side
-        effect:
+        Two PHPMD rules, one sniff. Neither has a PHPCS/Slevomat equivalent;
+        the well-known external standard sirbrillig/phpcs-variable-analysis
+        covers both through its single VariableAnalysis.CodeAnalysis.
+        VariableAnalysis sniff. They share this one <rule> block because a
+        sniff has a single set of properties: two blocks configuring the same
+        class would silently fight over them.
 
-        - UnusedVariable        → PHPMD UnusedLocalVariable (#118) /
-                                  UnusedFormalParameter (#120), not this rule.
-        - VariableRedeclaration → no PHPMD counterpart; redeclaring a defined
-                                  variable is the opposite of using an
-                                  undefined one.
-        - SelfOutsideClass      → a self:: scope error, not an undefined
-                                  variable.
-        - StaticOutsideClass    → a static:: scope error, not an undefined
-                                  variable.
+        The sniff emits six codes. Three are kept, one concern each:
 
-        UndefinedVariable and UndefinedUnsetVariable both stay: each fires on
-        a read of a name the scope never assigns (`echo $x;` and `unset($x);`
-        respectively), which is the defect PHPMD's rule targets. The sniff
-        carries no thresholds — PHPMD's rule has none either — so no
-        <properties> are configured; its defaults already treat superglobals,
-        $this, and `global`/`static` declarations as defined.
+        - UndefinedVariable      → #85. A read of a name the scope never
+                                   assigns (`echo $x;`).
+        - UndefinedUnsetVariable → #85. The same read inside `unset($x);`.
+        - UnusedVariable         → #118. A name assigned and never read.
+
+        The other three are excluded rather than shipped as a side effect —
+        each is a separate concern with no PHPMD counterpart:
+
+        - VariableRedeclaration → redeclaring a variable that *is* defined is
+                                  the opposite of using an undefined one.
+        - SelfOutsideClass      → a self:: scope error, not a variable.
+        - StaticOutsideClass    → a static:: scope error, not a variable.
 
         As with Squiz.PHP.Eval above, the severity is raised from the sniff's
-        built-in warning to an error: PHPMD fails a run on an UndefinedVariable
-        violation, and a warning would leave phpcs exiting 0, so phpmd would
-        still have to run separately for this rule.
+        built-in warning to an error: PHPMD fails a run on either rule, and a
+        warning would leave phpcs exiting 0, so phpmd would still have to run
+        separately for them.
 
-        Not a drop-in match for PHPMD, and no property makes it one. On two
-        shapes this ruleset is stricter — a read placed above its own
-        assignment, and a closure local read outside its closure — because the
-        sniff tracks statement order and closure scope where PHPMD asks only
-        whether the method assigns the name anywhere. Both extra reports are
-        true defects, so they are kept. A third shape, a name assigned on one
-        branch and read unconditionally after it, is missed by both tools and
-        stays code review. All three are pinned by
-        tests/fixtures/VariableAnalysisSniff/divergences.php and set out in
-        docs/phpmd/cleancode-undefinedvariable.md.
+        Detection only, for both rules. An undefined variable has no safe
+        machine-derivable value to substitute, and deleting an unused
+        assignment can drop a side effect in the expression that produced it,
+        so neither code carries a fixer hook.
 
-        Detection only: a variable that was never defined has no safe
-        machine-derivable value, so there is nothing to auto-fix.
+        The properties below exist only for UnusedLocalVariable —
+        UndefinedVariable has no thresholds, and the sniff's defaults already
+        treat superglobals, $this, and `global`/`static` declarations as
+        defined. Each is set to make the sniff's UnusedVariable code answer
+        the question PHPMD's UnusedLocalVariable asks, no more:
+
+        - allowUnusedFunctionParameters=true — PHPMD splits formal parameters
+          into its own UnusedFormalParameter rule (#120): UnusedLocalVariable
+          drops them in removeParameters(), and skips any node whose parent is
+          a FormalParameter. The sniff has no such split — one UnusedVariable
+          code covers locals and parameters alike — so parameters are silenced
+          here and #120 flips this to false when it lands.
+        - allowUnusedForeachVariables=false — matches PHPMD's own default for
+          allow-unused-foreach-variables, so an unused foreach key or value is
+          flagged. Note the sniff's default is true, hence the explicit set.
+        - allowUnusedVariablesInFileScope=true — PHPMD's rule is FunctionAware
+          and MethodAware only, so it never looks at a file's top-level scope.
+          The sniff does by default; this restores parity.
+
+        Not a drop-in match for PHPMD on either rule, and no property makes it
+        one. Every divergence is pinned by a fixture and set out in the two
+        docs above:
+
+        - UndefinedVariable is stricter on a read placed above its own
+          assignment and on a closure local read outside its closure, because
+          the sniff tracks statement order and closure scope where PHPMD asks
+          only whether the method assigns the name anywhere. Both extra
+          reports are true defects, so they are kept.
+        - UnusedVariable reports every assignment to an unused name, where
+          PHPMD reports the name once. Same defect, more lines.
+        - A name assigned on one branch and read unconditionally after it is
+          missed by both tools and stays code review.
+
+        Fixtures: tests/fixtures/VariableAnalysisSniff/divergences.php (#85)
+        and unused-locals-divergences.php (#118).
     -->
     <rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
         <type>error</type>
-        <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.StaticOutsideClass"/>
+        <properties>
+            <property name="allowUnusedFunctionParameters" value="true"/>
+            <property name="allowUnusedForeachVariables" value="false"/>
+            <property name="allowUnusedVariablesInFileScope" value="true"/>
+        </properties>
     </rule>
 </ruleset>

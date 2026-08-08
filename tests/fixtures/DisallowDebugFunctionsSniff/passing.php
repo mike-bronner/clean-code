@@ -40,3 +40,12 @@ new Dump($value);
 // Positive: a namespaced function of the same name is a different symbol.
 App\Utils\dump($value);
 namespace\dump($value);
+App\Support\print_r($value);
+namespace\debug_zval_dump($value);
+App\Support\debug_print_backtrace($value);
+
+// Positive: the PHPMD DevelopmentCodeFragment names behind an object, nullsafe,
+// or static operator are calls on some other class, not the global functions.
+$debugger->print_r($value);
+$debugger?->debug_print_backtrace($value);
+Debugger::debug_zval_dump($value);
