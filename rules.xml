@@ -118,6 +118,33 @@
     -->
     <rule ref="Generic.ControlStructures.InlineControlStructure"/>
 
+    <!--
+        Conditionals: Avoid Conditionals (#12) —
+        docs/standards/conditionals-avoid-conditionals.md.
+
+        The custom CleanCode.Conditionals.AvoidConditionals sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above. It warns once
+        per if/elseif/ternary/switch, detection only — no token-based sniff can
+        judge whether a given branch was avoidable.
+
+        The one shape that does have a safe mechanical rewrite is the
+        boolean-return if (`if ($x) { return true; } return false;`), and
+        Slevomat already implements that fixer exactly, including the guard
+        this standard needs: it only rewrites when the condition itself already
+        evaluates to a boolean, so the fix never changes a method's return
+        type. No custom fixer is written for it.
+
+        The type is lowered from Slevomat's error to a warning so the whole
+        standard speaks at one severity. "Avoid where possible" is advisory —
+        it must not fail a consumer's build — while phpcbf still applies the
+        fix, since fixability is independent of message type. Applying it
+        deletes the if, so the AvoidConditionals warning on that line goes with
+        it.
+    -->
+    <rule ref="SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn">
+        <type>warning</type>
+    </rule>
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
