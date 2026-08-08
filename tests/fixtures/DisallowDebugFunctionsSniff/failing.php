@@ -22,3 +22,11 @@ App\Utils\dump($value);
 namespace\dump($value);
 
 \var_dump($value);
+
+print_r($data);
+\print_r($data);
+print_r($data, true);
+debug_zval_dump($data);
+\debug_zval_dump($data);
+debug_print_backtrace();
+\debug_print_backtrace();
