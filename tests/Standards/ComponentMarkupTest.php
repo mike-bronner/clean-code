@@ -144,6 +144,91 @@ it('says nothing about a Livewire view with no element tag', function (): void {
 });
 
 /**
+ * Every prefix in the sniff's FRAMEWORK_ATTRIBUTE_PREFIXES list is a separate
+ * claim the standard doc makes to users, so each gets a root of its own that
+ * fires on it. One fixture per prefix, because only the *first* framework
+ * attribute on the *first* tag is ever reported — stacking them on one root
+ * would test `wire:` five times.
+ *
+ * The reported attribute name is asserted, not just the code: a test that only
+ * checked RootElementAttributes fired would pass on a sniff that matched the
+ * wrong prefix and named the wrong attribute.
+ */
+it('flags every framework-attribute prefix on a root element', function (
+    string $fixture,
+    string $attribute
+): void {
+    $file = analyzeFixture(COMPONENT_MARKUP, $fixture);
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 1, 'column' => 1, 'source' => ROOT_ELEMENT_ATTRIBUTES],
+    ])->and($file->getErrors()[1][1][0]['message'])->toContain($attribute);
+})->with([
+    'Alpine x- directive' => ['root-alpine-attribute.php', 'x-data'],
+    '@ event shorthand' => ['root-event-attribute.php', '@click'],
+    ': bind shorthand' => ['root-bound-attribute.php', ':class'],
+    '{{ }} attribute echo' => ['root-echo-attribute.php', '{{'],
+]);
+
+/**
+ * A view whose first tag is itself a `<livewire:…>` invocation has no root of
+ * its own to judge — that tag is a *child* component being rendered, and the
+ * `wire:key` on it is the very attribute MissingWireKeyInLoop and
+ * TemplateKeyMismatch require elsewhere. Reading it as a root element made the
+ * sniff contradict its own rules.
+ *
+ * The `wire:click` further down is what makes this a component view at all
+ * (see the next case), so the silence here is the first-tag guard's doing and
+ * not the component-view gate's.
+ */
+it('says nothing about a view whose first tag is a component invocation', function (): void {
+    expect(analyzeFixture(COMPONENT_MARKUP, 'child-component-first.php')->getErrors())->toBe([]);
+});
+
+/**
+ * The root-element rule belongs to a component's *own* view. This fixture is
+ * an ordinary page layout — an Alpine shell that happens to embed a Livewire
+ * widget — so its `<div x-data>` is the layout's root, not a component's.
+ *
+ * It passes the Livewire gate (it contains a `<livewire:…>` tag), which is
+ * exactly why the gate alone is not enough: the only `wire:` in the file is
+ * the `wire:key` on that embedded tag, so the view writes no Livewire
+ * directive of its own and its root is left alone.
+ */
+it('says nothing about the root of a view that merely embeds a component', function (): void {
+    expect(analyzeFixture(COMPONENT_MARKUP, 'embeds-component.php')->getErrors())->toBe([]);
+});
+
+/**
+ * Livewire's tag syntax lets a component wrap content, so a
+ * `<livewire:card-icon />` inside an open `<livewire:card>` is that card's
+ * child — not the component next to it. Reading the two as unwrapped siblings
+ * flagged both, and demanded a `<template>` wrapper around a nested child that
+ * the standard never asks for.
+ */
+it('says nothing about a component nested inside another component', function (): void {
+    expect(analyzeFixture(COMPONENT_MARKUP, 'nested-components.php')->getErrors())->toBe([]);
+});
+
+/**
+ * The paired positive for the case above: two content-wrapping components that
+ * really do sit next to each other are still reported. Without this, the
+ * nesting fixture would pass equally well against a sniff that had simply
+ * stopped looking at any component with a closing tag.
+ *
+ * Only the two `<livewire:card>` tags are flagged. Their `<livewire:card-icon>`
+ * children are each an only child of a different parent, so neither is
+ * adjacent to anything.
+ */
+it('still flags adjacent components that each wrap their own content', function (): void {
+    expect(violationTuples(analyzeFixture(COMPONENT_MARKUP, 'nested-components-adjacent.php')))
+        ->toBe([
+            ['line' => 2, 'column' => 1, 'source' => ADJACENT_COMPONENT_NOT_WRAPPED],
+            ['line' => 5, 'column' => 1, 'source' => ADJACENT_COMPONENT_NOT_WRAPPED],
+        ]);
+});
+
+/**
  * The fixtures above are `.php` files so that they satisfy the repository's
  * fixture contract, and `LocalFile` tokenises them the same way either
  * extension would. This one is a real `.blade.php`, run through the *whole*
@@ -170,4 +255,50 @@ it('flags a real .blade.php view through the master ruleset', function (): void 
         [2, ADJACENT_COMPONENT_NOT_WRAPPED],
         [3, ADJACENT_COMPONENT_NOT_WRAPPED],
     ]);
+});
+
+/**
+ * The sniff must stay linear in the size of the view.
+ *
+ * Every earlier version re-read the markup from offset 0 for each component
+ * tag — once to find the preceding `<template>` and once to count the lines
+ * before it — which made a pass quadratic. The cost fell on *well-formed*
+ * input: the view below is correctly wrapped and correctly keyed, so the work
+ * happened whether or not anything was ever reported, and a large generated
+ * view was enough to stall a lint run for minutes.
+ *
+ * A wall-clock budget is a blunt instrument, so the margin is deliberately
+ * enormous rather than tight. Measured on this fixture (8,000 components,
+ * ~750 KB): the quadratic implementation took **22.7s**, the linear one
+ * **0.11s**. Five seconds sits ~45x above the linear cost and ~4.5x below the
+ * quadratic one, so the case fails on a genuine regression to n² and does not
+ * fail on a slow or loaded runner.
+ */
+it('scans a large well-formed view in linear time', function (): void {
+    $components = 8000;
+    $view = "<div wire:poll class=\"feed\">\n";
+
+    for ($index = 0; $index < $components; $index++) {
+        $view .= "    <template wire:key=\"k{$index}\">\n"
+            . "        <livewire:item-{$index} wire:key=\"k{$index}\" />\n"
+            . "    </template>\n";
+    }
+
+    // Its own directory, because purgeStagedFixtures() removes the parent.
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-perf-', true);
+    mkdir($directory, 0700);
+
+    $path = $directory . '/large-view.blade.php';
+    stagedFixtures($path);
+    file_put_contents($path, $view . "</div>\n");
+
+    $started = microtime(true);
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+    $elapsed = (microtime(true) - $started);
+
+    // Wrapped and keyed throughout, so the only report is the root element's
+    // own wire:poll. Asserting it pins that the run really did analyse the
+    // view rather than bailing out early and finishing fast for free.
+    expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]])
+        ->and($elapsed)->toBeLessThan(5.0);
 });

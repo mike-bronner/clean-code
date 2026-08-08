@@ -22,7 +22,7 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * the deliberate trade for not spamming false positives; the rest of the
  * standard stays with code review.
  *
- * Three narrowing decisions carry that trade, and each one is what keeps a
+ * Four narrowing decisions carry that trade, and each one is what keeps a
  * whole class of false positive out:
  *
  * - **The file must be recognisably Livewire markup** (a `wire:` attribute, a
@@ -30,12 +30,27 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   Without the gate every plain Blade partial with an Alpine root would be
  *   reported, and "is this view a Livewire component?" is not otherwise
  *   answerable from one file.
+ * - **The root-element rule needs more than that gate: the view must be a
+ *   component's *own* view, not one that merely embeds a component.** A page
+ *   or layout that drops a `<livewire:notifications-bell />` into an Alpine
+ *   shell passes the gate, but its outer `<div x-data>` is the *layout's*
+ *   root, not any component's, so reading it as one is a loud false positive.
+ *   The view therefore has to carry a `wire:` attribute of its own — one
+ *   outside every `<livewire:…>` tag — before the root is judged, and a first
+ *   tag that is itself a `<livewire:…>` invocation is never read as the root
+ *   (its own required `wire:key` is not a root-element violation).
  * - **A "component" is a `<livewire:…>` tag.** `<x-…>` is Blade's component
  *   namespace, shared by ordinary Blade components that need no `wire:key` at
  *   all, so it is not read as a Livewire component here.
  * - **`@livewire('name', …)` is not analysed.** Its key is a PHP expression
  *   argument (`key($row->id)`), not an attribute, so presence/equality cannot
  *   be read off the source.
+ *
+ * Adjacency is read over *siblings*, not over every component tag in document
+ * order. Livewire's tag syntax allows a component to wrap content
+ * (`<livewire:card>…</livewire:card>`), so the tags are walked with a depth
+ * stack: a component nested inside an unclosed parent is that parent's child,
+ * never the tag "next to" it.
  *
  * All four violations are reported on the line, not a token: the analysis runs
  * over reconstructed markup rather than the token stream, so a line number is
@@ -59,15 +74,30 @@ class ComponentMarkupSniff implements Sniff
     private const ELEMENT_TAG = '/<([A-Za-z][A-Za-z0-9._:-]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/';
 
     /**
-     * An opening Livewire component tag: `<livewire:some-name …>`.
+     * A Livewire component tag, opening or closing: `<livewire:some-name …>`,
+     * `<livewire:some-name … />`, `</livewire:some-name>`. Both forms are
+     * matched by one pattern so the tags can be walked as a single stream of
+     * open/close events and given a nesting depth.
      */
-    private const COMPONENT_TAG = '/<(livewire:[A-Za-z0-9._-]+)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/i';
+    private const COMPONENT_TAG =
+        '/<(\/)?(livewire:[A-Za-z0-9._-]+)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/i';
 
     /**
-     * A `<template …>` tag sitting immediately before the offset being tested,
-     * separated by whitespace only.
+     * An opening `<template …>` tag — a candidate component wrapper.
      */
-    private const PRECEDING_TEMPLATE_TAG = '/<template((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>\s*$/i';
+    private const TEMPLATE_TAG = '/<template((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/i';
+
+    /**
+     * A `<template>` or `</template>` tag, stripped out of the gap between two
+     * sibling components before the gap is tested for adjacency.
+     */
+    private const TEMPLATE_WRAPPER = '/<\/?template(?:"[^"]*"|\'[^\']*\'|[^>"\'])*>/i';
+
+    /**
+     * A `wire:` attribute, used on markup the `<livewire:…>` tags have been
+     * removed from — so it only matches a directive the view writes itself.
+     */
+    private const OWN_WIRE_ATTRIBUTE = '/\bwire:[a-z]/i';
 
     /**
      * A `wire:key` attribute and its quoted value.
@@ -128,9 +158,11 @@ class ComponentMarkupSniff implements Sniff
             return;
         }
 
-        $this->checkRootElement($phpcsFile, $markup);
-        $this->checkLoopKeys($phpcsFile, $markup);
-        $this->checkAdjacentComponents($phpcsFile, $markup);
+        $tags = $this->componentTags($markup);
+
+        $this->checkRootElement($phpcsFile, $markup, $tags);
+        $this->checkLoopKeys($phpcsFile, $markup, $tags);
+        $this->checkAdjacentComponents($phpcsFile, $markup, $tags);
     }
 
     /**
@@ -184,10 +216,27 @@ class ComponentMarkupSniff implements Sniff
      * attribute. The root is read as the first opening element tag in the
      * view — a component view that opens with anything else is not a shape
      * this heuristic can speak about.
+     *
+     * Two guards keep this off markup that has no component root to judge:
+     * the view must be a component's own view (see isComponentView()), and the
+     * first tag must not itself be a `<livewire:…>` invocation — that tag is a
+     * *child* component being rendered, and the `wire:key` the rest of this
+     * sniff requires on it is not a root-element violation.
+     *
+     * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string}> $tags
      */
-    private function checkRootElement(File $phpcsFile, string $markup): void
+    private function checkRootElement(File $phpcsFile, string $markup, array $tags): void
     {
+        if ($this->isComponentView($markup) === false) {
+            return;
+        }
+
         if (preg_match(self::ELEMENT_TAG, $markup, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return;
+        }
+
+        if ($tags !== [] && $tags[0]['offset'] === $match[0][1]) {
             return;
         }
 
@@ -207,9 +256,32 @@ class ComponentMarkupSniff implements Sniff
     }
 
     /**
-     * Every component rendered inside a Blade loop needs its own `wire:key`.
+     * Whether the view is a Livewire component's *own* view rather than one
+     * that merely renders a component.
+     *
+     * Read from the markup with every `<livewire:…>` tag removed: what is left
+     * is the view's own markup, and a `wire:` attribute in it (`wire:click`,
+     * `wire:model`, `wire:poll`) is a component's own directive. A view whose
+     * only `wire:` is the `wire:key` on a child component tag has none, so its
+     * root belongs to a layout or page and is not judged.
      */
-    private function checkLoopKeys(File $phpcsFile, string $markup): void
+    private function isComponentView(string $markup): bool
+    {
+        $ownMarkup = (string) preg_replace(self::COMPONENT_TAG, '', $markup);
+
+        return preg_match(self::OWN_WIRE_ATTRIBUTE, $ownMarkup) === 1;
+    }
+
+    /**
+     * Every component rendered inside a Blade loop needs its own `wire:key`.
+     *
+     * Nesting is irrelevant here — a child component in a loop owes a key just
+     * as a top-level one does — so every tag is considered, at any depth.
+     *
+     * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string}> $tags
+     */
+    private function checkLoopKeys(File $phpcsFile, string $markup, array $tags): void
     {
         $regions = $this->loopRegions($markup);
 
@@ -217,7 +289,7 @@ class ComponentMarkupSniff implements Sniff
             return;
         }
 
-        foreach ($this->componentTags($markup) as $tag) {
+        foreach ($tags as $tag) {
             if ($this->isInsideLoop($tag['offset'], $regions) === false) {
                 continue;
             }
@@ -228,7 +300,7 @@ class ComponentMarkupSniff implements Sniff
 
             $phpcsFile->addErrorOnLine(
                 'Livewire component <%s> is rendered in a Blade loop without a wire:key attribute',
-                $this->lineAt($markup, $tag['offset']),
+                $tag['line'],
                 'MissingWireKeyInLoop',
                 [$tag['name']]
             );
@@ -238,60 +310,85 @@ class ComponentMarkupSniff implements Sniff
     /**
      * Components that sit next to one another must each be wrapped in a
      * `<template>` carrying the same `wire:key` as the component itself.
+     *
+     * Only true siblings are compared. Tags are grouped by the parent
+     * component they were opened inside, so a component nested in an unclosed
+     * `<livewire:card>` is that card's child and is never read as the tag next
+     * to it.
+     *
+     * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string}> $tags
      */
-    private function checkAdjacentComponents(File $phpcsFile, string $markup): void
+    private function checkAdjacentComponents(File $phpcsFile, string $markup, array $tags): void
     {
-        $tags = $this->componentTags($markup);
+        $templates = $this->templateTags($markup);
+        $siblings = [];
         $reported = [];
 
-        for ($index = 1, $total = count($tags); $index < $total; $index++) {
-            $pair = [$tags[($index - 1)], $tags[$index]];
+        foreach ($tags as $index => $tag) {
+            $siblings[$tag['parent']][] = $index;
+        }
 
-            if ($this->areAdjacent($markup, ...$pair) === false) {
-                continue;
-            }
+        foreach ($siblings as $group) {
+            for ($index = 1, $total = count($group); $index < $total; $index++) {
+                $pair = [$tags[$group[($index - 1)]], $tags[$group[$index]]];
 
-            foreach ($pair as $tag) {
-                if (isset($reported[$tag['offset']]) === true) {
+                if ($this->areAdjacent($markup, ...$pair) === false) {
                     continue;
                 }
 
-                $reported[$tag['offset']] = true;
-                $this->reportUnwrapped($phpcsFile, $markup, $tag);
+                foreach ($pair as $tag) {
+                    if (isset($reported[$tag['offset']]) === true) {
+                        continue;
+                    }
+
+                    $reported[$tag['offset']] = true;
+                    $this->reportUnwrapped($phpcsFile, $markup, $templates, $tag);
+                }
             }
         }
     }
 
     /**
-     * Whether nothing but whitespace and the components' own `<template>` and
-     * closing tags separates the two. Anything else between them — an element,
-     * text, a Blade directive — means the source does not show them as
-     * siblings, so they are left alone.
+     * Whether nothing but whitespace and the components' own `<template>` tags
+     * separates the end of one sibling's element from the start of the next.
+     * Anything else between them — an element, text, a Blade directive — means
+     * the source does not show them as siblings, so they are left alone.
      *
-     * @param array{offset: int, end: int, name: string, attributes: string} $previous
-     * @param array{offset: int, end: int, name: string, attributes: string} $current
+     * The gap starts at the *element's* end, so a wrapping component's own
+     * `</livewire:…>` closing tag is behind it rather than inside it.
+     *
+     * @param array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string} $previous
+     * @param array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string} $current
      */
     private function areAdjacent(string $markup, array $previous, array $current): bool
     {
-        $gap = substr($markup, $previous['end'], ($current['offset'] - $previous['end']));
-        $wrappers = '/<\/?(?:template|livewire:[A-Za-z0-9._-]+)(?:"[^"]*"|\'[^\']*\'|[^>"\'])*>/i';
+        $start = $previous['elementEnd'];
+        $gap = substr($markup, $start, ($current['offset'] - $start));
 
-        return trim((string) preg_replace($wrappers, '', $gap)) === '';
+        return trim((string) preg_replace(self::TEMPLATE_WRAPPER, '', $gap)) === '';
     }
 
     /**
-     * @param array{offset: int, end: int, name: string, attributes: string} $tag
+     * @param array<int, string>                                              $templates
+     * @param array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string} $tag
      */
-    private function reportUnwrapped(File $phpcsFile, string $markup, array $tag): void
-    {
-        $line = $this->lineAt($markup, $tag['offset']);
-        $before = substr($markup, 0, $tag['offset']);
+    private function reportUnwrapped(
+        File $phpcsFile,
+        string $markup,
+        array $templates,
+        array $tag
+    ): void {
+        $wrapper = $this->skipWhitespaceBackwards($markup, $tag['offset']);
 
-        if (preg_match(self::PRECEDING_TEMPLATE_TAG, $before, $match) !== 1) {
+        if (isset($templates[$wrapper]) === false) {
             $phpcsFile->addErrorOnLine(
                 'Livewire component <%s> is adjacent to another component and is not wrapped in a'
                     . ' <template wire:key="..."> tag',
-                $line,
+                $tag['line'],
                 'AdjacentComponentNotWrapped',
                 [$tag['name']]
             );
@@ -299,7 +396,7 @@ class ComponentMarkupSniff implements Sniff
             return;
         }
 
-        $key = $this->wireKey($match[1]);
+        $key = $this->wireKey($templates[$wrapper]);
 
         if ($key !== null && $key === $this->wireKey($tag['attributes'])) {
             return;
@@ -308,7 +405,7 @@ class ComponentMarkupSniff implements Sniff
         $phpcsFile->addErrorOnLine(
             'The <template> wrapping adjacent Livewire component <%s> must carry the same wire:key'
                 . ' as the component',
-            $line,
+            $tag['line'],
             'TemplateKeyMismatch',
             [$tag['name']]
         );
@@ -366,23 +463,126 @@ class ComponentMarkupSniff implements Sniff
     }
 
     /**
-     * Every Livewire component tag in the markup, in document order.
+     * Every opening Livewire component tag in the markup, in document order,
+     * each carrying the index of the component it was opened inside
+     * (`parent`, -1 at the top level) and the offset its whole element ends at
+     * (`elementEnd` — past `</livewire:…>` when it has one, otherwise its own
+     * end).
      *
-     * @return array<int, array{offset: int, end: int, name: string, attributes: string}>
+     * A component left unclosed keeps its `elementEnd` at its own tag end and
+     * stays on the stack, so every later tag becomes its child. That is the
+     * same silence the unbalanced-loop handling takes: where the source does
+     * not close the element, the sniff does not guess where it ended.
+     *
+     * @return array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string}>
      */
     private function componentTags(string $markup): array
     {
         preg_match_all(self::COMPONENT_TAG, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
 
-        return array_map(
-            static fn (array $match): array => [
-                'offset' => $match[0][1],
-                'end' => ($match[0][1] + strlen($match[0][0])),
-                'name' => $match[1][0],
-                'attributes' => $match[2][0],
-            ],
-            $matches
-        );
+        $tags = [];
+        $open = [];
+        $cursor = 0;
+        $line = 1;
+
+        foreach ($matches as $match) {
+            $offset = $match[0][1];
+            $end = ($offset + strlen($match[0][0]));
+
+            // Counted from the previous tag rather than from offset 0. The
+            // segments are disjoint, so the whole walk costs one pass over the
+            // file; asking lineAt() per tag instead made it quadratic.
+            $line += substr_count($markup, "\n", $cursor, ($offset - $cursor));
+            $cursor = $offset;
+
+            if ($match[1][0] === '/') {
+                $this->closeComponent($tags, $open, $match[2][0], $end);
+
+                continue;
+            }
+
+            $tags[] = [
+                'offset' => $offset,
+                'end' => $end,
+                'elementEnd' => $end,
+                'line' => $line,
+                'parent' => ($open === [] ? -1 : $open[(count($open) - 1)]),
+                'name' => $match[2][0],
+                'attributes' => $match[3][0],
+            ];
+
+            if (str_ends_with(rtrim($match[3][0]), '/') === false) {
+                $open[] = (count($tags) - 1);
+            }
+        }
+
+        return $tags;
+    }
+
+    /**
+     * Closes the innermost open component when a `</livewire:name>` matches
+     * it. A closing tag that names something else is a shape the source does
+     * not show cleanly, so it is ignored rather than used to pop the stack.
+     *
+     * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
+     *     name: string, attributes: string}> $tags
+     * @param array<int, int>                                                 $open
+     */
+    private function closeComponent(array &$tags, array &$open, string $name, int $end): void
+    {
+        if ($open === []) {
+            return;
+        }
+
+        $innermost = $open[(count($open) - 1)];
+
+        if (strcasecmp($tags[$innermost]['name'], $name) !== 0) {
+            return;
+        }
+
+        array_pop($open);
+        $tags[$innermost]['elementEnd'] = $end;
+    }
+
+    /**
+     * Every opening `<template …>` tag, keyed by the offset it ends at, so a
+     * component can look up the wrapper immediately before it in one array
+     * read.
+     *
+     * Collecting them once per file is what keeps the adjacency check linear:
+     * testing each component's preceding wrapper by re-matching the markup
+     * from offset 0 made the pass quadratic in file size, which a large but
+     * entirely well-formed view was enough to stall CI on.
+     *
+     * @return array<int, string>
+     */
+    private function templateTags(string $markup): array
+    {
+        preg_match_all(self::TEMPLATE_TAG, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+
+        $tags = [];
+
+        foreach ($matches as $match) {
+            $tags[($match[0][1] + strlen($match[0][0]))] = $match[1][0];
+        }
+
+        return $tags;
+    }
+
+    /**
+     * The offset the whitespace run immediately before $offset starts at.
+     *
+     * Each run is walked at most once across the whole pass — the runs are
+     * disjoint — so the wrapper lookup stays linear in the size of the file.
+     */
+    private function skipWhitespaceBackwards(string $markup, int $offset): int
+    {
+        while ($offset > 0 && ctype_space($markup[($offset - 1)]) === true) {
+            $offset--;
+        }
+
+        return $offset;
     }
 
     /**
