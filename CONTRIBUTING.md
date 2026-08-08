@@ -67,9 +67,15 @@ suffix.
 The one exception to "all fixtures are `.php`" is a sniff that reads Blade
 views (`CleanCode.Livewire.ComponentMarkup`). Its three contract fixtures stay
 `.php`, because `LocalFile` tokenises both extensions identically and the
-contract sweep resolves them by fixed name; a single extra `.blade.php` fixture
-sits beside them so the extension registered in `rules.xml` is asserted through
-the real file type rather than assumed.
+contract sweep resolves them by fixed name; two extra `.blade.php` fixtures sit
+beside them, for the two things only the real file type can assert:
+
+- `component.blade.php` — the extension registered in `rules.xml` reaches the
+  sniff, tested through the whole master ruleset rather than assumed.
+- `no-php-code.blade.php` — a view with no `<?php` tag at all, which is what
+  the `Internal.NoCodeFound` exclude-pattern in `rules.xml` exists for. Every
+  `.php` fixture carries a trailing open tag instead, because that suppression
+  deliberately does not cover `.php`.
 
 A standard implemented by **several** sniffs at once (TypeHints, the operator
 spacing pair, the naming casing conventions) has no single owning sniff, so its

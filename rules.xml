@@ -17,6 +17,29 @@
     <arg name="extensions" value="php,blade.php/php"/>
 
     <!--
+        The extensions entry above has one unavoidable side effect: a Blade view
+        is, by Blade's own design, normally all markup and directives with no
+        raw `<?php ?>` tag anywhere. Handing such a file to the PHP tokenizer
+        makes PHPCS report Internal.NoCodeFound ("No PHP code was found in this
+        file"), which exits 1 — so without this entry, installing this ruleset
+        would fail a consumer's CI on every idiomatic Blade view, whether or not
+        the view breaks any standard.
+
+        The suppression is an exclude-pattern rather than <severity>0</severity>
+        so the blast radius stops at Blade views: a plain .php file that really
+        contains no PHP still warns, which is the case the check exists for.
+
+        The trade this accepts: a .blade.php file whose PHP is written with
+        short open tags on a runtime that disallows them is silently unlinted
+        rather than reported. That is the same silence PHPCS gives any file it
+        cannot tokenise, and it is worth strictly less than a ruleset that
+        cannot be installed. Recorded in docs/standards/livewire-components.md.
+    -->
+    <rule ref="Internal.NoCodeFound">
+        <exclude-pattern>*\.blade\.php</exclude-pattern>
+    </rule>
+
+    <!--
         Pin sniff behaviour to the package's PHP floor (composer.json requires
         ^8.1) so version-gated Slevomat options (union/intersection hints,
         standalone null/true/false, …) resolve the same on every runtime.
