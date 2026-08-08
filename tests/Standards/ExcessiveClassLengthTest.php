@@ -26,13 +26,12 @@ const EXCESSIVE_CLASS_LENGTH_TOO_LONG = EXCESSIVE_CLASS_LENGTH . '.TooLong';
 /**
  * Sets the sniff's properties the way a <properties> block in a ruleset would.
  */
-function excessiveClassLength(int $minimum, bool $ignoreWhitespace = false): callable
-{
+$excessiveClassLength = static function (int $minimum, bool $ignoreWhitespace = false): callable {
     return static function (object $sniff) use ($minimum, $ignoreWhitespace): void {
         $sniff->minimum = $minimum;
         $sniff->ignoreWhitespace = $ignoreWhitespace;
     };
-}
+};
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -55,26 +54,32 @@ it('produces no violations on the compliant fixture', function (): void {
  * enum (13), and an anonymous class (24) are all out of scope however long they
  * get. Live PHPMD 2.15.0 reports Invoice and nothing else on this fixture too.
  */
-it('leaves interfaces, traits, enums, and anonymous classes alone whatever their length', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', excessiveClassLength(10));
+it(
+    'leaves interfaces, traits, enums, and anonymous classes alone whatever their length',
+    function () use ($excessiveClassLength): void {
+        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(10));
 
-    expect($file->getErrors())->toBe([]);
-});
+        expect($file->getErrors())->toBe([]);
+    }
+);
 
 /**
  * The same fixture at a threshold of 1, where silence would prove nothing:
  * exactly one class is reported, and its line and count are the ones live
  * PHPMD 2.15.0 reports for the same file.
  */
-it('reports the one real class in the compliant fixture with PHPMD\'s own count', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', excessiveClassLength(1));
+it(
+    'reports the one real class in the compliant fixture with PHPMD\'s own count',
+    function () use ($excessiveClassLength): void {
+        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(1));
 
-    expect(violationTuples($file))->toBe([
-        ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-    ])->and(violationMessagesByLine($file))->toBe([
-        59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
-    ]);
-});
+        expect(violationTuples($file))->toBe([
+            ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+        ])->and(violationMessagesByLine($file))->toBe([
+            59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
+        ]);
+    }
+);
 
 /**
  * The shipped configuration, on a class that really is 1000 lines long.
@@ -99,8 +104,8 @@ it('flags a class of exactly the shipped 1000-line threshold', function (): void
  * lines at a threshold of 10. The middle one is the whole point: "minimum"
  * names the smallest reportable length, not the largest allowed one.
  */
-it('treats the threshold as inclusive', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'boundaries.php', excessiveClassLength(10));
+it('treats the threshold as inclusive', function () use ($excessiveClassLength): void {
+    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'boundaries.php', $excessiveClassLength(10));
 
     expect(violationMessagesByLine($file))->toBe([
         22 => ['The class AtThreshold has 10 lines of code. Current threshold is 10. Avoid really long classes.'],
@@ -116,29 +121,32 @@ it('treats the threshold as inclusive', function (): void {
  * `abstract` on its own line above `class Delta` — is 5 lines rather than 4 for
  * exactly this reason. All four lines and counts match live PHPMD 2.15.0.
  */
-it('reports at the declaration modifier, not the class keyword or the attribute above it', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', excessiveClassLength(1));
+it(
+    'reports at the declaration modifier, not the class keyword or the attribute above it',
+    function () use ($excessiveClassLength): void {
+        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1));
 
-    expect(violationTuples($file))->toBe([
-        ['line' => 16, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-    ])->and(violationMessagesByLine($file))->toBe([
-        16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
-        21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
-        28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
-        35 => ['The class Delta has 5 lines of code. Current threshold is 1. Avoid really long classes.'],
-    ]);
-});
+        expect(violationTuples($file))->toBe([
+            ['line' => 16, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+            ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+            ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+            ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+        ])->and(violationMessagesByLine($file))->toBe([
+            16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
+            21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
+            28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
+            35 => ['The class Delta has 5 lines of code. Current threshold is 1. Avoid really long classes.'],
+        ]);
+    }
+);
 
 /**
  * The default metric — PDepend's `loc` — is every physical line of the class,
  * comments and blank lines included. Ledger is 20 lines with 4 of them
  * comment-only or blank, Payment is 9, and Factory is 12.
  */
-it('counts comment and blank lines when ignoreWhitespace is off', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', excessiveClassLength(1));
+it('counts comment and blank lines when ignoreWhitespace is off', function () use ($excessiveClassLength): void {
+    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', $excessiveClassLength(1));
 
     expect(violationMessagesByLine($file))->toBe([
         16 => ['The class Ledger has 20 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -158,8 +166,8 @@ it('counts comment and blank lines when ignoreWhitespace is off', function (): v
  * and the anonymous class's own method is never counted a second time on top.
  * Every number comes from a live PHPMD 2.15.0 run with ignore-whitespace=true.
  */
-it('switches to executable lines when ignoreWhitespace is on', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', excessiveClassLength(1, true));
+it('switches to executable lines when ignoreWhitespace is on', function () use ($excessiveClassLength): void {
+    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', $excessiveClassLength(1, true));
 
     expect(violationMessagesByLine($file))->toBe([
         16 => ['The class Ledger has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -175,8 +183,8 @@ it('switches to executable lines when ignoreWhitespace is on', function (): void
  * threshold of 1, so they fall silent while their concrete siblings are still
  * reported. PHPMD 2.15.0 with ignore-whitespace=true reports exactly this pair.
  */
-it('gives an abstract method no executable lines', function (): void {
-    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', excessiveClassLength(1, true));
+it('gives an abstract method no executable lines', function () use ($excessiveClassLength): void {
+    $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1, true));
 
     expect(violationMessagesByLine($file))->toBe([
         21 => ['The class Beta has 2 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -194,9 +202,9 @@ it('gives an abstract method no executable lines', function (): void {
  * report, never invent one. Rewriting PHPCS's brace pairing to close the gap
  * would be a far larger risk than the gap itself.
  */
-it('undercounts a class whose brace pairing PHP_CodeSniffer gets wrong', function (): void {
-    $physical = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'tokenizer-limits.php', excessiveClassLength(1));
-    $executable = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'tokenizer-limits.php', excessiveClassLength(1, true));
+it('undercounts a class whose brace pairing PHP_CodeSniffer gets wrong', function () use ($excessiveClassLength): void {
+    $physical = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'tokenizer-limits.php', $excessiveClassLength(1));
+    $executable = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'tokenizer-limits.php', $excessiveClassLength(1, true));
 
     $reported = static fn (int $lines): array => [
         17 => ["The class ClosureInPropertyFetch has {$lines} lines of code."
@@ -214,7 +222,7 @@ it('undercounts a class whose brace pairing PHP_CodeSniffer gets wrong', functio
  * without it the analysis dies on the missing index rather than reporting
  * nothing. A threshold of 1 is used so silence cannot come from the length.
  */
-it('stays silent on a class the tokenizer never closed', function (): void {
+it('stays silent on a class the tokenizer never closed', function () use ($excessiveClassLength): void {
     $raised = [];
 
     set_error_handler(static function (int $severity, string $message) use (&$raised): bool {
@@ -224,7 +232,7 @@ it('stays silent on a class the tokenizer never closed', function (): void {
     });
 
     try {
-        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'unterminated.php', excessiveClassLength(1));
+        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'unterminated.php', $excessiveClassLength(1));
     } finally {
         restore_error_handler();
     }

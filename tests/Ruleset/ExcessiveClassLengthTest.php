@@ -16,28 +16,19 @@
 
 declare(strict_types=1);
 
-use PHP_CodeSniffer\Sniffs\Sniff;
-
 const EXCESSIVE_CLASS_LENGTH_RULE = 'CleanCode.Classes.ExcessiveClassLength';
-
-/**
- * The sniff instance the master ruleset built, with rules.xml's <properties>
- * already applied.
- */
-function configuredExcessiveClassLengthSniff(): Sniff
-{
-    [, $ruleset] = buildRuleset();
-
-    return $ruleset->sniffs[$ruleset->sniffCodes[EXCESSIVE_CLASS_LENGTH_RULE]];
-}
 
 /**
  * PHPMD's stock codesize.xml gives ExcessiveClassLength a `minimum` of 1000 and
  * an `ignore-whitespace` of false. rules.xml has to carry the same pair, or the
- * package quietly enforces a different rule from the one it documents.
+ * package quietly enforces a different rule from the one it documents. The
+ * instance read below is the one the master ruleset built, so rules.xml's
+ * <properties> block is already applied to it.
  */
 it('ships PHPMD\'s own thresholds', function (): void {
-    $sniff = configuredExcessiveClassLengthSniff();
+    [, $ruleset] = buildRuleset();
+
+    $sniff = $ruleset->sniffs[$ruleset->sniffCodes[EXCESSIVE_CLASS_LENGTH_RULE]];
 
     expect($sniff->minimum)->toBe(1000)
         ->and($sniff->ignoreWhitespace)->toBeFalse();
