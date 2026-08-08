@@ -128,6 +128,26 @@
     </rule>
 
     <!--
+        Use Statements: Sort Alphabetically (#67) —
+        docs/standards/use-statements-sort-alphabetically.md.
+
+        Three sniffs, because AlphabeticallySortedUses alone is defeatable.
+        It stops checking a file entirely as soon as it meets a group use
+        (`use App\Nested\{Alpha, Beta};`), and it reads only the first type of
+        a comma-separated use (`use App\Zulu, App\Alpha;`) — so either syntax
+        lets a plainly unsorted file exit clean. DisallowGroupUse and
+        MultipleUsesPerLine reject both syntaxes outright, which closes those
+        two bypasses and keeps the standard fail-closed.
+
+        Defaults are kept deliberately: psr12Compatible="true" orders the
+        class, function, and constant imports as three groups in that order,
+        and caseSensitive="false" compares names the way a reader scans them.
+    -->
+    <rule ref="SlevomatCodingStandard.Namespaces.AlphabeticallySortedUses"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.DisallowGroupUse"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.MultipleUsesPerLine"/>
+
+    <!--
         Arrays: Operator spacing & line breaks (#35) —
         docs/standards/arrays-operator-spacing-and-line-breaks.md.
 

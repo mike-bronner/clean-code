@@ -71,6 +71,7 @@ what stays with code review.
 - [Policies: Secure Front- and Back-Ends](docs/standards/policies-secure-front-and-back-ends.md) — Tier 3, no rule: front-end restrictions live outside the linted token stream, and a missing back-end check is an absence a single-file sniff cannot distinguish from a guard placed in another file, so the whole standard stays with code review ([#52](https://github.com/mike-bronner/phpcs-rules/issues/52))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
 - [Use Statements: No Unused Entries](docs/standards/use-statements-no-unused-entries.md) — Tier 1, Slevomat `Namespaces.UnusedUses`, auto-fixable ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68))
+- [Use Statements: Sort Alphabetically](docs/standards/use-statements-sort-alphabetically.md) — Tier 1, Slevomat `Namespaces.AlphabeticallySortedUses` plus `DisallowGroupUse` + `MultipleUsesPerLine` to close the group-use and comma-separated bypasses, auto-fixable for flat blocks ([#67](https://github.com/mike-bronner/phpcs-rules/issues/67))
 
 ## PHPMD rule coverage
 
