@@ -208,7 +208,9 @@
         above; this comment records why it is custom rather than a wiring of an
         existing sniff, and that no scoping is wanted.
 
-        Two bundled sniffs come close and neither matches:
+        No existing PHPCS or Slevomat sniff expresses the rule: Slevomat's
+        catalogue carries nothing about calls in a loop condition, and two
+        bundled PHPCS sniffs come close without matching:
 
         - Squiz.PHP.DisallowSizeFunctionsInLoops also forbids strlen() in a
           loop condition. PHPMD's rule covers count() and sizeof() only, so
@@ -231,6 +233,12 @@
         Detection only, matching PHPMD. Hoisting count() out of a condition is
         not a safe mechanical rewrite — a loop that mutates the array as it
         iterates depends on the re-evaluation.
+
+        Three disclosed divergences from PHPMD 2.15.0, all deliberate and all
+        detailed in the doc: stricter on uppercase COUNT() and on the
+        fully-qualified \count(), and looser on PHP 8.1's first-class callable
+        count(...), which builds a Closure rather than calling anything and so
+        re-counts nothing per iteration.
     -->
 
     <!--

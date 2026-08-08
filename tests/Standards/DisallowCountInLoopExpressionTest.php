@@ -17,10 +17,11 @@
  * test below pins that, so the absent autofix fixture stays an asserted fact
  * rather than an assumption.
  *
- * Where this sniff is deliberately *stricter* than PHPMD 2.15.0 — uppercase
- * COUNT(), and the fully-qualified \count() — the divergence gets its own test
- * below, so that "stricter here" stays a decision on record rather than a
- * regression waiting to be quietly reverted.
+ * Where this sniff deliberately diverges from PHPMD 2.15.0 — stricter on
+ * uppercase COUNT() and the fully-qualified \count(), looser on the first-class
+ * callable count(...) — each divergence gets its own test below, so that the
+ * decision stays on record rather than becoming a regression waiting to be
+ * quietly reverted.
  */
 
 declare(strict_types=1);
@@ -52,6 +53,7 @@ const COUNT_IN_LOOP_VIOLATIONS = [
     [74, 60],  // while: nested inside an arrow function in the condition
     [81, 55],  // for: arrow function in the initialiser, count() in the condition
     [89, 9],   // for: closure body in the initialiser, count() in the condition
+    [96, 8],   // while: count(...$rows) — a spread argument is still a real call
 ];
 
 it('is registered in the master ruleset', function (): void {
@@ -182,22 +184,70 @@ it('still finds the condition when an arrow function precedes it in the for head
 /**
  * A same-named method or static method is a different function that happens to
  * share the short name, as is any qualified name resolving outside the global
- * namespace. PHPMD 2.15.0 reports none of them, and neither does this sniff.
+ * namespace, a method *declaration* of that name, and a class of that name being
+ * instantiated. PHPMD 2.15.0 reports none of them, and neither does this sniff.
  *
- * same-named-callables.php puts every one of those spellings — ->count(),
- * ?->sizeof(), ::count(), ::sizeof(), App\Support\count(), namespace\sizeof(),
- * the bare name with no argument list, and declarations of both names — inside
- * a real loop condition, where the sniff is already looking. That is what makes
- * it discriminating: the only thing keeping the file silent is the callable
- * check, so dropping that check reports every loop in it. The other compliant
- * fixtures survive that mutation, because none of them spells the name in a
- * condition.
+ * Every spelling in same-named-callables.php sits inside a real loop condition,
+ * because that is the only place the sniff looks: process() scans between a
+ * registered T_FOR/T_WHILE's parenthesis_opener and parenthesis_closer, so a
+ * declaration placed *beside* the loops is never visited and would pin nothing.
+ * The two declaration spellings therefore reach the condition the only way they
+ * can — through an anonymous class expression, `(new class { … })->count()` —
+ * and the class-name spelling through `(new count($items))->hasMore()`.
+ *
+ * That is what makes the file discriminating: the only thing keeping it silent
+ * is the callable check, and each member of NON_FUNCTION_CALL_PRECEDERS has a
+ * shape here that reaches it. Removing any one of T_OBJECT_OPERATOR,
+ * T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, or T_NEW reddens this
+ * test; all five were confirmed one at a time. The other compliant fixtures
+ * survive those mutations, because none of them spells the name in a condition.
  */
 it('leaves same-named methods, static calls, and qualified names alone', function (): void {
     $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'same-named-callables.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * A deliberate divergence from PHPMD 2.15.0, and the only one in the *looser*
+ * direction. PHP 8.1's first-class callable syntax names the function without
+ * invoking it: `count(...)` evaluates to a Closure, so no array is counted, and
+ * there is no re-count per iteration and no mutating array to move the loop's
+ * termination point — none of the harm the rule exists to prevent.
+ *
+ * PHPMD reports it anyway: its rule matches the AST's FunctionPostfix node
+ * without inspecting the argument list. Verified against a live PHPMD 2.15.0 —
+ * every shape in this fixture is flagged by PHPMD and silent here. That is a
+ * false positive on in-language syntax (composer.json requires php ^8.1), so it
+ * is not replicated; the divergence is recorded in
+ * docs/phpmd/design-countinloopexpression.md.
+ *
+ * first-class-callable.php isolates the check: the bare form, both function
+ * names, the form nested inside another call, the form in a `for` header's
+ * condition section, and the form with a comment between the name and the
+ * ellipsis. Dropping the first-class-callable check reports all five loops.
+ *
+ * The exemption is narrow, and failing.php line 96 is the other side of it: a
+ * real spread call, `count(...$rows)`, re-counts on every pass like any other
+ * call and stays reported. Narrowing the check to the ellipsis alone — without
+ * requiring the closing parenthesis right after it — makes that line go silent,
+ * so the two fixtures pin the boundary from both directions.
+ */
+it('ignores the first-class callable syntax, which never invokes the function', function (): void {
+    $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'first-class-callable.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('still flags a real call that spreads its arguments', function (): void {
+    $sources = violationSourcesByLine(
+        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+    );
+
+    expect($sources)->toHaveKey(96)
+        ->and($sources[96])->toBe([COUNT_IN_LOOP_SNIFF . '.Found']);
 });
 
 /**
@@ -228,9 +278,19 @@ it('flags the case and namespace spellings PHPMD misses', function (): void {
  *     parenthesis_opener but no parenthesis_closer. That is what
  *     unclosed-condition.php pins: the source has no loop condition to judge,
  *     but it does carry a count() call the sniff would reach if it defaulted
- *     the missing end or swept to the end of file. Verified by mutation —
- *     dropping the closer half, dropping the guard outright, and defaulting
- *     both bounds each make this fixture report.
+ *     the missing end. Verified by mutation: of the three ways to weaken the
+ *     guard, only *defaulting both bounds* (`?? count($tokens)` for the closer,
+ *     `?? $stackPtr` for the opener) makes this fixture report, and that is the
+ *     mutation this test catches.
+ *
+ *     Dropping the closer half, or dropping the guard outright, leaves the
+ *     fixture silent — the absent key resolves to null and `$i < null` is false
+ *     on the first evaluation, so the scan never runs and the guard is never
+ *     what stopped it. The paired isset() is still worth keeping: it is what
+ *     makes the refusal deliberate rather than an accident of loose comparison,
+ *     and it avoids the undefined-index warning the bare read would emit. But
+ *     it is a stronger guard than this fixture alone can prove, and saying
+ *     otherwise would overstate what the mutation run showed.
  *   - A bare `while` keyword gets neither bound. This one has no fixture, and
  *     deliberately so: it is a no-op the same guard already covers, and it
  *     cannot be made to assert anything. Appending any call after the bare

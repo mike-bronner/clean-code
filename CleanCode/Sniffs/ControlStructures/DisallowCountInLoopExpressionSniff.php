@@ -32,6 +32,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * it swallows a real separator and silently loses the condition section.
  * Counting brackets visits every token instead, which is also what lets a
  * count() nested inside a call in the condition still be reported.
+ *
+ * Only a real *call* counts. A same-named method, static method, declaration,
+ * or qualified name is a different function, and PHP 8.1's first-class callable
+ * `count(...)` builds a Closure rather than invoking anything — none of them
+ * re-counts an array per iteration, so none is reported.
  */
 class DisallowCountInLoopExpressionSniff implements Sniff
 {
@@ -166,6 +171,10 @@ class DisallowCountInLoopExpressionSniff implements Sniff
             return false;
         }
 
+        if ($this->isFirstClassCallable($phpcsFile, $next) === true) {
+            return false;
+        }
+
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if ($prev === false) {
@@ -178,6 +187,39 @@ class DisallowCountInLoopExpressionSniff implements Sniff
 
         return $tokens[$prev]['code'] !== T_NS_SEPARATOR
             || $this->isQualifiedName($phpcsFile, $prev) === false;
+    }
+
+    /**
+     * Whether the argument list opening at $openerPtr is PHP 8.1's first-class
+     * callable syntax — `count(...)`, whose entire argument list is the literal
+     * ellipsis. That expression builds a Closure referring to the function; it
+     * never invokes it, so nothing is counted and there is no per-iteration
+     * re-count for the rule to catch.
+     *
+     * The ellipsis has to be the whole list. `count(...$args)` spells a real
+     * call with a spread argument, re-counts on every pass like any other call,
+     * and stays reported — which is why the token after the ellipsis is checked
+     * for the closing parenthesis rather than the ellipsis being taken alone.
+     *
+     * Neither `=== false` half is fixtured, and cannot be: findNext() only runs
+     * out of tokens if the file ends inside this argument list, and an argument
+     * list left open at EOF takes the loop's own closing parenthesis with it —
+     * so process() has already returned on the missing parenthesis_closer before
+     * this method is reached. They guard the array reads beside them, in the
+     * same combined form the caller uses for its own findNext() result.
+     */
+    private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ellipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($openerPtr + 1), null, true);
+
+        if ($ellipsis === false || $tokens[$ellipsis]['code'] !== T_ELLIPSIS) {
+            return false;
+        }
+
+        $afterEllipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsis + 1), null, true);
+
+        return $afterEllipsis !== false && $tokens[$afterEllipsis]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     /**

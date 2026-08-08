@@ -89,3 +89,10 @@ for ($i = 0, $fn = function (): int {
 }; $i < count($items); $i++) {
     echo $fn();
 }
+
+// A spread argument still makes this a real call: the array is counted again on
+// every pass, exactly as it would be with a named argument. Only the bare
+// `count(...)` first-class callable is exempt.
+while (count(...$rows) > 0) {
+    array_pop($rows);
+}

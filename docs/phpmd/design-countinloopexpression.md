@@ -61,13 +61,22 @@ separately for it.
 - **Same-named methods are not flagged** — `$collection->count()`,
   `$collection?->count()`, `Collection::count(…)`, and a qualified
   `App\Support\count(…)` or `namespace\count(…)` all resolve to something other
-  than the global function. So does a declaration of a method by that name. The
-  compliant fixture pins every one of them.
+  than the global function. So does a declaration of a method by that name, and
+  so does `new count(…)`, since a class may share the short name. The compliant
+  fixture pins every one of them.
+- **First-class callables are not flagged** — `count(...)` and `sizeof(...)`
+  (PHP 8.1) build a `Closure` referring to the function rather than invoking it,
+  so no array is counted and there is no per-iteration re-count to report. The
+  exemption is narrow: `count(...$args)` is a real call with a spread argument
+  and is still flagged.
 
 ## Why a custom sniff and not an existing one
 
-Two bundled sniffs are close. Both were run against a live PHPMD 2.15.0 on the
-same probe file; neither matches.
+No existing PHPCS or Slevomat sniff expresses this rule. Slevomat's catalogue
+polices type hints, namespaces, and control-structure *syntax*; it carries no
+rule about calls in a loop condition, and nothing in it can be configured into
+one. Two bundled PHPCS sniffs are close, but neither matches — both were run
+against a live PHPMD 2.15.0 on the same probe file.
 
 | Sniff | Verdict | Divergence |
 | --- | --- | --- |
@@ -84,8 +93,13 @@ to turn it off — so the rule is implemented as a custom sniff instead.
 
 ## Divergences from PHPMD 2.15.0
 
-Both differences below were confirmed by running `phpmd … design` against a
-probe file containing each shape.
+Every difference below was confirmed by running `phpmd … design` against a probe
+file containing each shape. PHPMD's rule is `ClassAware`/`TraitAware`/`EnumAware`
+only, so it inspects loops in class, trait, and enum *methods* and reports
+nothing for a loop in a free function or at file level; the probe therefore puts
+every shape inside a class method. This sniff has no such restriction and judges
+a loop condition wherever it appears — a difference in reach, not in what counts
+as a violation.
 
 ### Stricter: the spellings PHPMD misses
 
@@ -103,6 +117,30 @@ PHP function names are case-insensitive, so `COUNT($items)` *is* `count($items)`
 in any mixture of case. A leading `\` names the same global function explicitly.
 Every one of them re-counts the array on every iteration, so all are kept and
 pinned in `tests/fixtures/DisallowCountInLoopExpressionSniff/failing.php`.
+
+### Looser: first-class callables
+
+PHPMD reports `count(...)` and `sizeof(...)` — PHP 8.1's first-class callable
+syntax — as calls in a loop condition. This sniff does not.
+
+| Shape | PHPMD 2.15.0 | This sniff |
+| --- | --- | --- |
+| `while ($sizer = count(...))` | flagged | silent |
+| `while (in_array(sizeof(...), $callables, true))` | flagged | silent |
+| `for ($i = 0; $i < 1 && count(...); $i++)` | flagged | silent |
+| `while (count(...$rows) > 0)` — a real spread call | flagged | flagged |
+
+`count(...)` builds a `Closure` that *refers* to the function; it never invokes
+it. No array is counted, nothing is re-counted per iteration, and there is no
+array whose mutation could move the loop's termination point — so none of the
+harm the rule exists to prevent is present. PHPMD matches the AST's
+`FunctionPostfix` node without inspecting the argument list, so it reports a
+call that does not happen; that is a false positive, and this sniff does not
+replicate it.
+
+The exemption is deliberately narrow: the ellipsis has to be the *whole*
+argument list. `count(...$rows)` spreads an array into a real call, re-counts on
+every pass like any other call, and stays flagged by both tools.
 
 ### Reported at a different position
 
