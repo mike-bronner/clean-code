@@ -30,6 +30,27 @@ $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
 
+/**
+ * Generic.PHP.DisallowShortOpenTag reports `<?` in one of two ways, and which
+ * one is decided by the runtime short_open_tag setting: its register() listens
+ * for T_OPEN_TAG when the setting is on, and for T_INLINE_HTML when it is off.
+ *
+ * - on  — `<?` is a real opening tag, reported as a Found *error*.
+ * - off — `<?` is inline HTML, reported as a PossibleFound *warning*, and only
+ *         when the file also holds a matching `?>` (hence the closer in
+ *         short-open-tag.php; without it the sniff stays silent entirely).
+ *
+ * PHP defaults the setting to off and CI leaves it there, but a local php.ini
+ * turning it on is common enough that assuming either way would make this
+ * fixture pass for the wrong reason on half the machines that run it. Both
+ * branches pin the same sniff on the same line, so neither is a soft assertion.
+ */
+$shortOpenTagIsOn = (bool) ini_get('short_open_tag');
+
+$shortOpenTagSource = $shortOpenTagIsOn === true
+    ? 'Generic.PHP.DisallowShortOpenTag.Found'
+    : 'Generic.PHP.DisallowShortOpenTag.PossibleFound';
+
 it('reports the expected violations', function (
     string $fixture,
     array $expectedErrors,
@@ -40,10 +61,32 @@ it('reports the expected violations', function (
     expect(violationCountsByLine($file->getErrors()))->toBe($expectedErrors, 'Errors in ' . $fixture)
         ->and(violationCountsByLine($file->getWarnings()))->toBe($expectedWarnings, 'Warnings in ' . $fixture);
 })->with([
-    'compliant class produces zero violations' => ['compliant.php', [], []],
+    // compliant.php raises no *error* from the whole ruleset. Its one warning
+    // is the guard clause on line 21: AvoidConditionals (#12) warns once per
+    // branch, guard clauses included, so "clean PSR-12 code" and "free of
+    // conditionals" are now two different claims. Recorded rather than edited
+    // away — rewriting the fixture to dodge the warning would hide the most
+    // visible consequence of adding that sniff to the master ruleset.
+    'compliant class produces no errors' => ['compliant.php', [], [21 => 1]],
     'compliant abstract class produces zero violations' => ['compliant-abstract.php', [], []],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
-    'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1, 4 => 1], [1 => 1]],
+    'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1], [1 => 1]],
+    // The four opening-tag fixtures below are additionally pinned by source in
+    // the next test. Both assertions are load-bearing: this one is the only
+    // place the error-vs-warning split is asserted (alternative-php-tags.php
+    // reports the ASP tag as a warning and the script tag as an error, and
+    // allViolationSourcesByLine() merges the two lists), and the next one is
+    // the only place the emitting sniff is named.
+    // Error when short_open_tag is on, warning when it is off — see the note
+    // above $shortOpenTagIsOn. Either way it is one report on line 1.
+    'short open tag' => [
+        'short-open-tag.php',
+        $shortOpenTagIsOn === true ? [1 => 1] : [],
+        $shortOpenTagIsOn === true ? [] : [1 => 1],
+    ],
+    'alternative PHP tags' => ['alternative-php-tags.php', [2 => 1], [1 => 1]],
+    'trailing closing tag in a pure-PHP file' => ['closing-tag.php', [9 => 1], []],
+    'code sharing the opening tag line' => ['open-tag-not-alone.php', [1 => 2], []],
     'more than one class per file' => ['multiple-classes.php', [9 => 1], []],
     'class outside a namespace' => ['no-namespace.php', [3 => 1], []],
     // 9 => 3 / 11 => 2 fold in the TypeHints property/return-hint errors the
@@ -56,6 +99,8 @@ it('reports the expected violations', function (
     'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
     'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], []],
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
+    // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
+    // alongside the two PSR-12 errors the fixture exists to trip.
     // 12 => 1 is the else branch this fixture uses to exercise PSR-12's brace
     // placement. The PHPMD ElseExpression replacement (#77) reports every else,
     // so the two standards now both speak about this fixture: PSR-12 about
@@ -64,7 +109,58 @@ it('reports the expected violations', function (
     // keeps its else because moving it would stop exercising brace placement,
     // and its `.fixed.php` counterpart is unaffected (the else sniff has no
     // fixer).
-    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], []],
+    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], [9 => 1]],
+]);
+
+/**
+ * The four opening-tag sniffs the master ruleset activates through
+ * <rule ref="PSR12"/> without naming them. No other fixture in the suite
+ * reports any of the four, so before these an <exclude> slipped into rules.xml
+ * would have disabled opening-tag enforcement silently.
+ *
+ * These assert the violation *source*, not just a per-line count: each fixture
+ * is shaped to report nothing but its own concern, so a count alone would still
+ * pass if the named sniff went away and some other sniff started reporting on
+ * the same line.
+ */
+it('pins the PSR opening-tag sniffs', function (string $fixture, array $expected) use ($integrationFixture): void {
+    $file = $integrationFixture($fixture);
+
+    expect(allViolationSourcesByLine($file))->toBe($expected, 'Violations in ' . $fixture);
+})->with([
+    // Only a bare `<?` is reported. `<?=` is valid PHP regardless of the
+    // short_open_tag ini setting, so the sniff leaves it alone — a `<?=`
+    // fixture here would assert nothing.
+    'short open tag' => [
+        'short-open-tag.php',
+        [1 => [$shortOpenTagSource]],
+    ],
+    // Both codes the sniff emits. `Maybe…` is the ASP-tag branch: asp_tags was
+    // removed in PHP 7, so the sniff can only report the tag as a probable one.
+    'alternative PHP tags' => [
+        'alternative-php-tags.php',
+        [
+            1 => ['Generic.PHP.DisallowAlternativePHPTags.MaybeASPOpenTagFound'],
+            2 => ['Generic.PHP.DisallowAlternativePHPTags.ScriptOpenTagFound'],
+        ],
+    ],
+    'trailing closing tag in a pure-PHP file' => [
+        'closing-tag.php',
+        [9 => ['PSR2.Files.ClosingTag.NotAllowed']],
+    ],
+    // Not one of the three sniffs the issue named, but the same case: an
+    // opening-tag sniff PSR12 pulls in implicitly, reachable and otherwise
+    // unpinned. Code on the opening-tag line always breaks the header-spacing
+    // rule too, so both sources are expected here.
+    'code sharing the opening tag line' => [
+        'open-tag-not-alone.php',
+        [
+            1 => [
+                'PSR12.Files.FileHeader.SpacingAfterBlock',
+                'PSR12.Files.OpenTag.NotAlone',
+            ],
+        ],
+    ],
 ]);
 
 it('produces the expected fixer output', function (string $fixture) use ($integrationFixture): void {

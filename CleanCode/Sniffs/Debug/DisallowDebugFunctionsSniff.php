@@ -24,7 +24,10 @@ class DisallowDebugFunctionsSniff implements Sniff
      */
     private const DEBUG_FUNCTIONS = [
         'dd',
+        'debug_print_backtrace',
+        'debug_zval_dump',
         'dump',
+        'print_r',
         'ray',
         'var_dump',
     ];
