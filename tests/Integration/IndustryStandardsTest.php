@@ -26,6 +26,17 @@ const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
 
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
+/**
+ * The missing-import rule (#84) reports on the two exception fixtures below.
+ * Both are namespace-less files full of fully qualified exception names, so
+ * nearly every catch and throw in them trips it. 'PSR1…' sorts before
+ * 'SlevomatCodingStandard…', which is why the one line carrying both lists the
+ * PSR1 source first.
+ */
+const INLINE_FQN = 'SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly.ReferenceViaFullyQualifiedName';
+
+const INLINE_FQN_NO_NAMESPACE = INLINE_FQN . 'WithoutNamespace';
+
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
@@ -123,17 +134,60 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
             52 => [UNDEFINED],
         ],
     ],
+    // The missing-import rule (#84) reports on both exception fixtures below,
+    // and correctly: neither declares a namespace, and both write every
+    // exception name out fully (`catch (\RuntimeException $e)`), which is the
+    // defect that rule exists to catch. In a namespace-less file its remedy is
+    // to drop the leading backslash — nothing PSR12 disagrees with, so this is
+    // not a conflict to carve out of the PSR12 reference.
+    //
+    // The reports are pinned per line rather than edited out of the fixtures,
+    // for the same reason as the one-thought-per-line entry above: both files
+    // are their sniff's own fixer output, byte-compared by
+    // tests/Contract/SniffContractTest.php, so dropping the backslashes here
+    // would mean dropping them from the matching failing.php and re-pinning
+    // every line in tests/Standards/ReferenceThrowableOnlyTest.php and
+    // tests/Standards/RequireNonCapturingCatchTest.php. Pinning each report
+    // leaves the fixtures untouched and still fails on any *new* violation.
     'throwable-only catches are PSR12-clean' => [
         fixturePath('ReferenceThrowableOnlySniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
-            79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
+            6 => [INLINE_FQN_NO_NAMESPACE],
+            13 => [INLINE_FQN_NO_NAMESPACE],
+            20 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            27 => [INLINE_FQN_NO_NAMESPACE],
+            // A namespaced exception name, so the sniff asks for a use
+            // statement here instead of just dropping the backslash.
+            34 => [INLINE_FQN],
+            41 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            49 => [INLINE_FQN_NO_NAMESPACE],
+            51 => [INLINE_FQN_NO_NAMESPACE],
+            56 => [INLINE_FQN_NO_NAMESPACE],
+            62 => [INLINE_FQN_NO_NAMESPACE],
+            65 => [INLINE_FQN_NO_NAMESPACE],
+            73 => [INLINE_FQN_NO_NAMESPACE],
+            79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace', INLINE_FQN_NO_NAMESPACE],
+            84 => [INLINE_FQN_NO_NAMESPACE],
         ],
     ],
     'non-capturing catches are PSR12-clean' => [
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            6 => [INLINE_FQN_NO_NAMESPACE],
+            13 => [INLINE_FQN_NO_NAMESPACE],
+            20 => [INLINE_FQN_NO_NAMESPACE],
+            27 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            34 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            42 => [INLINE_FQN_NO_NAMESPACE],
+            45 => [INLINE_FQN_NO_NAMESPACE],
+            53 => [INLINE_FQN_NO_NAMESPACE],
+            61 => [INLINE_FQN_NO_NAMESPACE],
+            69 => [INLINE_FQN_NO_NAMESPACE],
+            78 => [INLINE_FQN_NO_NAMESPACE],
+            88 => [INLINE_FQN_NO_NAMESPACE],
+            97 => [INLINE_FQN_NO_NAMESPACE],
         ],
     ],
 ]);
