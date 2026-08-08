@@ -10,32 +10,48 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (custom sniff, partial)
 
-The full standard **is not statically lintable**: whether a controller method
-should receive a bound model is defined by the route table (`routes/*.php`
-segments such as `{user}`), which lives in a different file, and a PHPCS sniff
-sees one file's tokens at a time. Detecting the standard's positive
-requirement — a *missing* type-hinted model parameter, even an unused one —
-would require correlating route segments with method signatures, which is
-impossible file-locally. Enforcement of the full standard is via code review
-and developer discipline.
+One slice of this standard **is statically lintable**: the *negative* shape,
+where a controller action resolves a model by hand from one of its own
+parameters. `SomeModel::find($id)` inside a public `*Controller` method, with
+`$id` a parameter of that method, is token-visible in the controller file
+alone — a controller action's scalar parameters come from route segments, so
+fetching a model with one says the parameter should have been the model
+itself. Sniff: `CleanCode.Controllers.ManualModelResolution`
+([#50](https://github.com/mike-bronner/phpcs-rules/issues/50), superseding the
+follow-up issue
+[#169](https://github.com/mike-bronner/phpcs-rules/issues/169)).
 
-### Partial enforcement — narrow token-visible slice
+- **Detection** — a static `find()` or `findOrFail()` call on a class name,
+  whose first argument is a bare variable naming one of the enclosing method's
+  parameters, inside a public method of a class whose name ends in
+  `Controller`.
+- **Warning severity, not error** — the sniff cannot read the route table and
+  cannot tell an Eloquent model from any other class carrying a static
+  `find()`, so a report is a review candidate rather than a mandated fix.
+- **Boundaries** — a literal, a property read (`$this->id`, `$request->id`) or
+  a local variable is not a route parameter and stays silent, as do
+  private/protected methods, non-`Controller` classes, relative scopes
+  (`self::`, `static::`, `parent::`), variable class names (`$model::find()`),
+  query-builder chains (`Model::where(...)->first()`) and instance-side or
+  repository calls (`Model::query()->find()`, `$repository->find()`) — the
+  last two are token-indistinguishable from any other `->find()`. Parameters
+  are read from the enclosing *named* method, so a closure that inherits the
+  route parameter through `use` is flagged correctly, at the cost of two
+  accepted false positives: a closure or arrow function whose own parameter
+  shadows the action's, and a public method of an anonymous class declared
+  inside the action. Both are pinned in
+  `tests/Standards/ManualModelResolutionTest.php`.
+- **Detection only** — replacing the lookup with a bound parameter also means
+  editing the route definition in another file, so there is no mechanical fix.
 
-One slice of the *negative* pattern is lintable inside the controller file
-alone: manual model resolution from a route parameter. Focused sniff issue:
-[#169](https://github.com/mike-bronner/phpcs-rules/issues/169).
-
-- **Detection** — inside a class whose name ends in `Controller`, a public
-  method calling `SomeModel::find($param)` or `SomeModel::findOrFail($param)`
-  where `$param` is one of the method's own parameters. Scalar
-  controller-action parameters are injected from route segments, so fetching
-  a model by one manually signals the parameter should have been a
-  type-hinted model instead.
-- **Warning severity, not error** — the sniff can't see the route definition,
-  so intentional deviations are flagged as review candidates rather than
-  mandated fixes.
+The standard's *positive* requirement is **not** statically lintable: whether
+a controller method should receive a bound model is defined by the route table
+(`routes/*.php` segments such as `{user}`), which lives in a different file,
+and a PHPCS sniff sees one file's tokens at a time. Detecting a *missing*
+type-hinted model parameter would require correlating route segments with
+method signatures, which is impossible file-locally.
 
 ## What remains code review
 

@@ -175,6 +175,17 @@
     -->
 
     <!--
+        Controllers: Route Model Binding (#50) —
+        docs/standards/controllers-route-model-binding.md.
+
+        The custom CleanCode.Controllers.ManualModelResolution sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. The sniff only ever speaks
+        inside a class whose name ends in Controller, so it is already silent
+        everywhere else, tests included.
+    -->
+
+    <!--
         Models: Persistence Methods (Repository Pattern) (#37) —
         docs/standards/models-persistence-methods-repository-pattern.md.
 
