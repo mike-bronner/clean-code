@@ -51,16 +51,23 @@ sniff, wired into the master `rules.xml`
 
 ### Codes deliberately excluded
 
-The sniff is broader than PHPMD's rule: it emits six codes. `rules.xml`
-excludes the four that are not about reading an undefined variable, so this
+The sniff is broader than PHPMD's rule: it emits six codes. Two are this rule.
+`rules.xml` excludes the three that correspond to no PHPMD rule at all, so this
 standard does not quietly deliver rules that belong elsewhere.
 
 | Excluded code | Why it is not this rule |
 |---|---|
-| `UnusedVariable` | An *unused* variable, not an undefined one. That is PHPMD's `UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)) and `UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)). |
 | `VariableRedeclaration` | Redeclaring a variable that *is* defined — the opposite case. No PHPMD counterpart. |
 | `SelfOutsideClass` | A `self::` scope error, not a variable definition. |
 | `StaticOutsideClass` | A `static::` scope error, not a variable definition. |
+
+The sixth code, `UnusedVariable`, is neither this rule's nor excluded: an
+*unused* variable is not an undefined one, and the code carries PHPMD's
+`UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118),
+[docs](unusedcode-unusedlocalvariable.md)). PHPMD's
+`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120))
+shares that same code and is silenced by the `allowUnusedFunctionParameters`
+property until it lands.
 
 ### Where the sniff and PHPMD differ
 
@@ -86,6 +93,12 @@ Both extra reports are kept: each is a real defect that evaluates to `null` at
 runtime, so the stricter behaviour is an improvement on PHPMD, not a false
 positive. Adopting this ruleset can therefore surface findings a previous
 `phpmd` run did not.
+
+The closure-scope row has a second consequence now that `UnusedVariable` is
+also enabled ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)):
+a name assigned in a closure and read outside it is undefined at the read *and*
+unused at the assignment, so `divergences.php` reports it twice — once per
+rule. PHPMD folds the closure into its enclosing method and reports neither.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/cleancode.xml/UndefinedVariable`, and
