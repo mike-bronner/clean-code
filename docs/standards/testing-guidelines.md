@@ -28,7 +28,7 @@ A token-based PHPCS sniff inspects one file's tokens in isolation at lint
 time. Where a developer *started* writing tests, whether "Shameless Green" was
 reached quickly, whether code reads well *for a human*, whether every scenario
 has both success and failure coverage, and whether a mocked interface is one
-the team "controls" — these are judgments about intent, process, and coverage
+the team "controls" — these are judgements about intent, process, and coverage
 across files, not facts recoverable from a single file's token stream.
 
 ## Partial enforcement assessment
