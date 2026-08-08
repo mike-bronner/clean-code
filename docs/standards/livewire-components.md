@@ -104,10 +104,23 @@ class of wrong report.
   </div>
   ```
 
-  So `RootElementAttributes` also requires the view to carry a `wire:`
-  attribute of its own — one outside every `<livewire:…>` tag. Above, the only
-  `wire:` is the `wire:key` on the embedded component, so the root is left
-  alone. For the same reason a first tag that *opens a component* is never read
+  So `RootElementAttributes` also requires the view to carry a directive bound
+  to a component of its own — `wire:model`, `wire:click`, `wire:submit`,
+  `wire:poll` and the like — on one of its own element tags. Above there is
+  none: `wire:key` on an embedded component is a key, not a binding, so the
+  root is left alone.
+
+  Being a Livewire *attribute* is not enough, in either direction. Livewire
+  ships directives that are at home on any page — `wire:navigate`,
+  `wire:current`, `wire:cloak`, `wire:offline`, `wire:transition`,
+  `wire:ignore` — and a layout is free to use them; none makes the layout a
+  component. Nor does a binding written *on* a component tag, since
+  `<livewire:search-box wire:model="query" />` binds the child's property, not
+  the layout's. The list of component-bound directives is therefore read as
+  proof rather than as a filter: a directive nobody listed leaves a view
+  unjudged, where the reverse would report somebody's layout.
+
+  For the same reason a first tag that *opens a component* is never read
   as a root element — neither the `<livewire:…>` invocation itself nor the
   `<template>` this standard requires around adjacent components:
 

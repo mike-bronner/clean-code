@@ -32,6 +32,18 @@ const ADJACENT_COMPONENT_NOT_WRAPPED = COMPONENT_MARKUP . '.AdjacentComponentNot
 
 const TEMPLATE_KEY_MISMATCH = COMPONENT_MARKUP . '.TemplateKeyMismatch';
 
+/**
+ * A page layout, `%s` standing in for the attribute a case puts on its link: an
+ * Alpine root that would be reported as a component root if the view were
+ * judged, and an embedded component. Whether line 1 is reported is therefore
+ * exactly the component-view gate's answer, and nothing else.
+ */
+const LAYOUT_CARRYING = '<div x-data="{ open: false }" class="app-shell">
+    <a %s href="/dashboard">Dashboard</a>
+    <livewire:notifications-bell wire:key="bell" />
+</div>
+';
+
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -216,6 +228,130 @@ it('says nothing about the root of a view that merely embeds a component', funct
 });
 
 /**
+ * The same layout, in the two shapes that still carry a `wire:` attribute of
+ * their own outside the component tag — and are still not component views.
+ *
+ * - `embeds-navigating-component.php`: a `wire:navigate` link. Livewire's
+ *   navigation, cloak, offline, transition and ignore directives are at home
+ *   on any page; only a directive bound to a component says the view is one.
+ * - `embeds-wrapped-components.php`: the `<template wire:key="...">` wrappers
+ *   this standard *requires* around adjacent components. Reading their key as
+ *   the view's own directive reported a layout for obeying the standard.
+ *
+ * Both are the shape `embeds-component.php` protects, one attribute further
+ * out. Nothing else is reported in either: the wrapped pair is adjacent,
+ * wrapped and keyed to match, and the lone bell is beside nothing.
+ */
+it('says nothing about a layout whose only wire: attribute is any view\'s', function (
+    string $fixture
+): void {
+    expect(analyzeFixture(COMPONENT_MARKUP, $fixture)->getErrors())->toBe([]);
+})->with([
+    'wire:navigate link' => 'embeds-navigating-component.php',
+    'wire:key template wrappers' => 'embeds-wrapped-components.php',
+]);
+
+/**
+ * The gate's proof set, one case per directive.
+ *
+ * Each name in OWN_WIRE_DIRECTIVE is a separate claim that seeing it means the
+ * view is a component's own, so each is exercised at the position that decides
+ * it: on the layout's own markup, where the only thing standing between the
+ * root and a report is this answer. Drop a name from the set and its case goes
+ * silent; widen the set back to any `wire:` attribute and the any-view cases
+ * below all start reporting.
+ *
+ * The list is restated here rather than read from the sniff, so that removing a
+ * directive from the constant fails a test instead of shrinking one.
+ */
+it('judges the root of a view carrying a component-bound directive', function (
+    string $attribute
+): void {
+    $path = stageSource(sprintf(LAYOUT_CARRYING, $attribute));
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]]);
+})->with([
+    'wire:model' => 'wire:model="query"',
+    'wire:click' => 'wire:click="save"',
+    'wire:submit' => 'wire:submit="save"',
+    'wire:change' => 'wire:change="save"',
+    'wire:keydown' => 'wire:keydown="save"',
+    'wire:keyup' => 'wire:keyup="save"',
+    'wire:blur' => 'wire:blur="save"',
+    'wire:focus' => 'wire:focus="save"',
+    'wire:poll' => 'wire:poll',
+    'wire:init' => 'wire:init="load"',
+    'wire:confirm' => 'wire:confirm="Are you sure?"',
+    'a modifier chain' => 'wire:model.live.debounce.500ms="query"',
+]);
+
+/**
+ * The other side of the same gate, and the regression these fixtures exist for.
+ *
+ * Every directive here is one Livewire documents for ordinary pages — a link
+ * that navigates, a shell that hides until load, a wrapper's key — so none of
+ * them makes the layout a component's own view, and its root stays unjudged.
+ * Reading any `wire:` attribute as proof reported all of them.
+ *
+ * The identical layout under the previous case *is* reported, so these are not
+ * passing against a sniff that has simply stopped looking.
+ */
+it('leaves the root of a view carrying only an any-view directive alone', function (
+    string $attribute
+): void {
+    $path = stageSource(sprintf(LAYOUT_CARRYING, $attribute));
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+
+    expect($file->getErrors())->toBe([]);
+})->with([
+    'wire:navigate' => 'wire:navigate',
+    'wire:navigate.hover' => 'wire:navigate.hover',
+    'wire:current' => 'wire:current="active"',
+    'wire:cloak' => 'wire:cloak',
+    'wire:offline' => 'wire:offline',
+    'wire:transition' => 'wire:transition',
+    'wire:ignore' => 'wire:ignore',
+    'wire:key' => 'wire:key="link"',
+]);
+
+/**
+ * A binding on the component tag itself belongs to the *child*.
+ * `<livewire:search-box wire:model="query" />` binds the child's property from
+ * its parent, so it is a directive about the child and says nothing about the
+ * view holding it — which is a page layout here, with a root of its own.
+ *
+ * The same `wire:model` on a plain element of the same layout *is* proof and
+ * *is* reported (see the case above), so this is the tag being skipped and not
+ * the directive going unrecognised.
+ */
+it('does not read a binding on a component tag as the view\'s own', function (): void {
+    $path = stageSource(
+        '<div x-data="{ open: false }" class="app-shell">' . "\n"
+            . '    <livewire:search-box wire:model="query" wire:key="search" />' . "\n"
+            . "</div>\n"
+    );
+
+    expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
+});
+
+/**
+ * A directive is an attribute, not a string that looks like one. A view quoting
+ * `wire:click` in its prose — a styleguide page, a docs partial — writes no
+ * Livewire directive at all, and its root is a layout's.
+ */
+it('does not read a wire: directive quoted in text as the view\'s own', function (): void {
+    $path = stageSource(
+        '<div x-data="{ open: false }" class="app-shell">' . "\n"
+            . '    <p>Bind a button with wire:click="save" to call the method.</p>' . "\n"
+            . '    <livewire:notifications-bell wire:key="bell" />' . "\n"
+            . "</div>\n"
+    );
+
+    expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
+});
+
+/**
  * Livewire's tag syntax lets a component wrap content, so a
  * `<livewire:card-icon />` inside an open `<livewire:card>` is that card's
  * child — not the component next to it. Reading the two as unwrapped siblings
@@ -317,4 +453,103 @@ it('scans a large well-formed view in linear time', function (): void {
     // view rather than bailing out early and finishing fast for free.
     expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]])
         ->and($elapsed)->toBeLessThan(5.0);
+});
+
+/**
+ * The same guarantee for the loop check, which the case above cannot reach.
+ *
+ * That view contains no `@foreach` at all, so it never asks which loop a
+ * component sits in — and the answer used to be found by rescanning every loop
+ * region in the file, once per component tag. A view of N keyed components in N
+ * loops is quadratic in N and reports nothing, so the cost again fell on
+ * well-formed input, and again on input a downstream consumer lints in CI.
+ *
+ * Measured on this fixture (20,000 loops, ~1.8 MB): rescanning took **17.2s**,
+ * the forward cursor **0.30s**. Five seconds sits ~17x above the linear cost
+ * and ~3.4x below the quadratic one — the same deliberately wide margin as
+ * above, for the same reason: the case must fail on a real regression to n²
+ * and not on a loaded runner.
+ */
+it('scans a large view of keyed loops in linear time', function (): void {
+    $loops = 20000;
+    $view = "<div wire:poll class=\"feed\">\n";
+
+    for ($index = 0; $index < $loops; $index++) {
+        $view .= "    @foreach (\$rows as \$row)\n"
+            . "        <livewire:card-{$index} wire:key=\"k{$index}\" />\n"
+            . "    @endforeach\n";
+    }
+
+    $path = stageSource($view . "</div>\n");
+
+    $started = microtime(true);
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+    $elapsed = (microtime(true) - $started);
+
+    // Every component in a loop is keyed, so the only report is the root's own
+    // wire:poll — which also pins that the loops were really walked rather than
+    // skipped for free.
+    expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]])
+        ->and($elapsed)->toBeLessThan(5.0);
+});
+
+/**
+ * Loop regions are collected one directive kind at a time — every `@foreach`
+ * in the file, then every `@for`, and so on — so they do not arrive in the
+ * order they appear in. Walking them with a forward cursor without sorting
+ * them first steps straight past the `@for` below, because the `@foreach`
+ * further down the file was collected ahead of it, and the keyless component
+ * inside it goes unreported.
+ *
+ * The keyed component in the second loop is the control: it proves the later
+ * region is still being read, so this is the ordering and not the loop check
+ * having stopped.
+ */
+it('flags a keyless component in a loop that a later directive kind follows', function (): void {
+    $path = stageSource(
+        "<div wire:poll class=\"feed\">\n"
+            . "    @for (\$i = 0; \$i < 3; \$i++)\n"
+            . "        <livewire:tick-item />\n"
+            . "    @endfor\n"
+            . "\n"
+            . "    @foreach (\$rows as \$row)\n"
+            . "        <livewire:row-item :row=\"\$row\" />\n"
+            . "    @endforeach\n"
+            . "</div>\n"
+    );
+
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        1 => [ROOT_ELEMENT_ATTRIBUTES],
+        3 => [MISSING_WIRE_KEY_IN_LOOP],
+        7 => [MISSING_WIRE_KEY_IN_LOOP],
+    ]);
+});
+
+/**
+ * A component in a loop nested inside another loop is still in a loop, and the
+ * regions the two produce overlap. The keyless one is reported; the keyed one
+ * beside it is not, which is what keeps this from passing against a sniff that
+ * flags every component in sight.
+ */
+it('flags a keyless component inside nested loops', function (): void {
+    $path = stageSource(
+        "<div wire:poll class=\"feed\">\n"
+            . "    @while (\$page->hasMore())\n"
+            . "        @foreach (\$rows as \$row)\n"
+            . "            <livewire:row-item :row=\"\$row\" />\n"
+            . "            <livewire:row-note wire:key=\"note\" />\n"
+            . "        @endforeach\n"
+            . "    @endwhile\n"
+            . "</div>\n"
+    );
+
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        1 => [ROOT_ELEMENT_ATTRIBUTES],
+        4 => [MISSING_WIRE_KEY_IN_LOOP, ADJACENT_COMPONENT_NOT_WRAPPED],
+        5 => [ADJACENT_COMPONENT_NOT_WRAPPED],
+    ]);
 });

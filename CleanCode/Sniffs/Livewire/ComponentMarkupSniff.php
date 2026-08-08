@@ -35,10 +35,12 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   or layout that drops a `<livewire:notifications-bell />` into an Alpine
  *   shell passes the gate, but its outer `<div x-data>` is the *layout's*
  *   root, not any component's, so reading it as one is a loud false positive.
- *   The view therefore has to carry a `wire:` attribute of its own — one
- *   outside every `<livewire:…>` tag — before the root is judged, and a first
- *   tag that opens a component is never read as the root: neither the
- *   `<livewire:…>` invocation itself nor the `<template>` this standard
+ *   The view therefore has to carry a directive that binds to a component of
+ *   its own — `wire:model`, `wire:click`, `wire:poll` and the like, on one of
+ *   its own element tags — before the root is judged. A `wire:navigate` link
+ *   or a `wire:key` on a wrapper is at home on any page and proves nothing.
+ *   And a first tag that opens a component is never read as the root: neither
+ *   the `<livewire:…>` invocation itself nor the `<template>` this standard
  *   requires around it, whose `wire:key` attributes are the ones the sniff
  *   demands elsewhere rather than root-element violations.
  * - **A "component" is a `<livewire:…>` tag.** `<x-…>` is Blade's component
@@ -96,10 +98,26 @@ class ComponentMarkupSniff implements Sniff
     private const TEMPLATE_WRAPPER = '/<\/?template(?:"[^"]*"|\'[^\']*\'|[^>"\'])*>/i';
 
     /**
-     * A `wire:` attribute, used on markup the `<livewire:…>` tags have been
-     * removed from — so it only matches a directive the view writes itself.
+     * A `wire:` directive that only makes sense on a component's *own*
+     * element, matched against one attribute name.
+     *
+     * This is a proof set, not a filter, and the direction matters. Livewire
+     * also ships directives that are at home on any view — `wire:navigate`,
+     * `wire:current`, `wire:cloak`, `wire:offline`, `wire:transition`,
+     * `wire:ignore`, and the `wire:key` this standard puts on a wrapper — and
+     * that list is open-ended, so reading "any `wire:` attribute except the
+     * ones we thought of" as proof turns every directive nobody listed into a
+     * false positive on somebody's layout. Read this way, an unlisted
+     * directive costs a silence instead, which is the trade the rest of this
+     * sniff makes too.
+     *
+     * Every name below names a member of a component class: a bound property,
+     * a method called on an event, a component polled or initialised.
+     * Livewire's event bindings accept any DOM event name, so the common ones
+     * are here and a `wire:mouseenter` view simply goes unjudged.
      */
-    private const OWN_WIRE_ATTRIBUTE = '/\bwire:[a-z]/i';
+    private const OWN_WIRE_DIRECTIVE = '/^wire:(?:blur|change|click|confirm|focus|init'
+        . '|keydown|keyup|model|poll|submit)\b/i';
 
     /**
      * A `wire:key` attribute and its quoted value.
@@ -126,6 +144,12 @@ class ComponentMarkupSniff implements Sniff
      * Attribute-name prefixes that make an attribute a Livewire, Blade, or
      * Alpine one: `wire:model`, `x-data`, `@click`, `:class`, and a bare
      * `{{ $attributes }}` echo used in attribute position.
+     *
+     * Deliberately broader than OWN_WIRE_DIRECTIVE above, because the two
+     * answer different questions. This one asks what the standard forbids on a
+     * root element — *any* Livewire attribute, `wire:navigate` as much as
+     * `wire:model`. That one asks whether the view is a component's own at
+     * all, which only a directive bound to a component can settle.
      */
     private const FRAMEWORK_ATTRIBUTE_PREFIXES = [
         'wire:',
@@ -278,17 +302,53 @@ class ComponentMarkupSniff implements Sniff
      * Whether the view is a Livewire component's *own* view rather than one
      * that merely renders a component.
      *
-     * Read from the markup with every `<livewire:…>` tag removed: what is left
-     * is the view's own markup, and a `wire:` attribute in it (`wire:click`,
-     * `wire:model`, `wire:poll`) is a component's own directive. A view whose
-     * only `wire:` is the `wire:key` on a child component tag has none, so its
-     * root belongs to a layout or page and is not judged.
+     * Read from the attribute names of the view's own element tags: a
+     * component-only `wire:` directive on one of them (`wire:click`,
+     * `wire:model`, `wire:poll` — see OWN_WIRE_DIRECTIVE) is a directive
+     * written for a component this view *is*. A layout that merely embeds one
+     * writes no such directive: what it carries is a `wire:key`, a
+     * `wire:navigate`, or a binding passed to the child tag itself, none of
+     * which is proof, so its root belongs to the layout and is left alone.
+     *
+     * That also covers the `<template wire:key="...">` wrapper this standard
+     * requires around adjacent components, without a rule of its own: the
+     * wrapper carries `wire:key` and nothing else, and `wire:key` is proof
+     * nowhere. One question decides both, so there is no second branch here
+     * to leave untested.
+     *
+     * Attribute names rather than raw markup, so that `wire:click` inside a
+     * quoted value or in the page's own prose is not read as a directive.
      */
     private function isComponentView(string $markup): bool
     {
-        $ownMarkup = (string) preg_replace(self::COMPONENT_TAG, '', $markup);
+        preg_match_all(self::ELEMENT_TAG, $markup, $matches, PREG_SET_ORDER);
 
-        return preg_match(self::OWN_WIRE_ATTRIBUTE, $ownMarkup) === 1;
+        foreach ($matches as $match) {
+            if ($this->isComponentTag($match[1]) === true) {
+                continue;
+            }
+
+            foreach ($this->attributeNames($match[2]) as $name) {
+                if (preg_match(self::OWN_WIRE_DIRECTIVE, $name) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a tag's attributes belong to the component being rendered rather
+     * than to the view rendering it.
+     *
+     * `<livewire:search-box wire:model="query" />` binds the *child's*
+     * property from its parent, so the directive is written about the child
+     * and says nothing about the view it sits in.
+     */
+    private function isComponentTag(string $name): bool
+    {
+        return stripos($name, 'livewire:') === 0;
     }
 
     /**
@@ -297,19 +357,32 @@ class ComponentMarkupSniff implements Sniff
      * Nesting is irrelevant here — a child component in a loop owes a key just
      * as a top-level one does — so every tag is considered, at any depth.
      *
+     * Both lists arrive in ascending offset order, so the regions are walked
+     * with a cursor that only ever moves forward: one pass over each. Asking
+     * every tag which of all the regions it falls in instead made the pass
+     * quadratic, the same defect templateTags() was written to undo — and
+     * loops are the cheaper half to write, since a view with N `@foreach`
+     * blocks pays it without a single component being reported.
+     *
      * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
      *     name: string, attributes: string}> $tags
      */
     private function checkLoopKeys(File $phpcsFile, string $markup, array $tags): void
     {
         $regions = $this->loopRegions($markup);
-
-        if ($regions === []) {
-            return;
-        }
+        $cursor = 0;
+        $total = count($regions);
 
         foreach ($tags as $tag) {
-            if ($this->isInsideLoop($tag['offset'], $regions) === false) {
+            while ($cursor < $total && $regions[$cursor][1] <= $tag['offset']) {
+                $cursor++;
+            }
+
+            if ($cursor === $total) {
+                return;
+            }
+
+            if ($tag['offset'] <= $regions[$cursor][0]) {
                 continue;
             }
 
@@ -431,12 +504,23 @@ class ComponentMarkupSniff implements Sniff
     }
 
     /**
-     * The offset ranges Blade loop directives enclose.
+     * The offset ranges Blade loop directives enclose, in ascending order of
+     * where they start.
      *
      * A directive left open — the loop body continues in an @include, or the
      * view is a fragment — contributes no region at all, so a component under
      * it is never reported. Where the source does not show the loop, the sniff
      * does not claim to see it.
+     *
+     * The sort is what the caller's forward cursor rests on, and it is not
+     * free: the directives are matched one kind at a time, so an `@foreach`
+     * late in the file is collected before a `@for` early in it, and a nested
+     * loop is closed — and collected — before the loop around it. A region a
+     * component sits in could otherwise be behind the cursor by the time that
+     * component is reached. Overlapping regions are left overlapping: a cursor
+     * only ever skips a region that ends before the tag in hand, and the tags
+     * arrive in ascending order, so such a region cannot contain a later one
+     * either.
      *
      * @return array<int, array{int, int}>
      */
@@ -464,21 +548,9 @@ class ComponentMarkupSniff implements Sniff
             }
         }
 
+        usort($regions, static fn (array $first, array $second): int => ($first[0] <=> $second[0]));
+
         return $regions;
-    }
-
-    /**
-     * @param array<int, array{int, int}> $regions
-     */
-    private function isInsideLoop(int $offset, array $regions): bool
-    {
-        foreach ($regions as [$start, $end]) {
-            if ($offset > $start && $offset < $end) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -605,19 +677,29 @@ class ComponentMarkupSniff implements Sniff
     }
 
     /**
-     * The first Livewire/Blade/Alpine attribute in an attribute list, or null.
+     * The attribute names in an attribute list, values dropped.
      *
-     * Quoted values are dropped before the names are read, so an interpolated
-     * value (`class="{{ $classes }}"`) is not mistaken for a framework
-     * attribute — the standard is about attributes the root element carries,
-     * not about Blade echoing into an ordinary one.
+     * Dropping the quoted values first is what keeps an interpolated one
+     * (`class="{{ $classes }}"`, `x-on:keyup="$wire.save()"`) from being read
+     * as an attribute name of its own — the standard is about attributes an
+     * element carries, not about what Blade or Alpine echoes into one.
+     *
+     * @return array<int, string>
      */
-    private function frameworkAttribute(string $attributes): ?string
+    private function attributeNames(string $attributes): array
     {
         $names = (string) preg_replace('/=\s*(?:"[^"]*"|\'[^\']*\')/', '=', $attributes);
         preg_match_all('/(?:^|\s)([^\s=<>"\'\/]+)/', $names, $matches);
 
-        foreach ($matches[1] as $name) {
+        return $matches[1];
+    }
+
+    /**
+     * The first Livewire/Blade/Alpine attribute in an attribute list, or null.
+     */
+    private function frameworkAttribute(string $attributes): ?string
+    {
+        foreach ($this->attributeNames($attributes) as $name) {
             foreach (self::FRAMEWORK_ATTRIBUTE_PREFIXES as $prefix) {
                 if (stripos($name, $prefix) === 0) {
                     return $name;
