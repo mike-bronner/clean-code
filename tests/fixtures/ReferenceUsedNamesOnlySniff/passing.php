@@ -16,9 +16,9 @@ class Ledger extends Invoice
 
     public function record(Money $amount): self
     {
-        if ($amount instanceof Money) {
-            return self::reopen();
-        }
+        assert($amount instanceof Money);
+
+        self::reopen();
 
         return static::reopen();
     }
