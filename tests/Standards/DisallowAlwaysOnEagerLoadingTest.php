@@ -135,12 +135,67 @@ it('names the query-site alternative in the warning message', function (): void 
  *   an ordinary property name and this class is not a model.
  * - lines 66-69, a populated $with on `extends Command` — a parent that is not
  *   model-shaped. This is the gate that keeps the sniff off unrelated code.
+ * - lines 72-88 and 90-93, four ordinary $with *parameters* carrying a
+ *   populated array default, on models that would otherwise be subjects.
+ *   PHPCS builds conditions from brace scopes and a function's scope opens at
+ *   its `{`, so a parameter sits in the class's scope exactly like a property,
+ *   and the conditions check alone cannot tell the two apart. Four shapes,
+ *   each differing from the others in one way that matters to the check:
+ *
+ *   - line 74, a constructor — the shape most easily mistaken for promotion,
+ *     and untyped, so nothing separates `$with` from the opening parenthesis.
+ *   - line 79, a static finder taking `$with` as its *second* parameter. The
+ *     sniff matches a parameter by its token position, so this is what fails
+ *     if it ever read the signature's first parameter instead.
+ *   - line 84, a query scope, whose first parameter is the query builder.
+ *   - line 92, an abstract method. It has no body, so PHPCS records no scope
+ *     opener or closer for it at all — the parameter list is all there is.
+ *
+ *   Dropping the sniff's isPlainParameter() call reports all four.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(EAGER_LOADING_WITH, 'passing.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * A constructor-promoted $with is a property declaration, so it is reported
+ * like the long form: the promoted parameter declares the property and gives
+ * it the same default, and it eager loads on every query for the same reason.
+ * The AC counts a $with property of any visibility, and promotion is the one
+ * spelling that cannot omit the visibility keyword.
+ *
+ * This is the other side of the parameter exclusion in passing.php, and the
+ * reason the sniff excludes a *plain* parameter rather than the parameter list
+ * as a whole. Widening that exclusion to every parameter — the obvious fix for
+ * the false positive — leaves this fixture silent, so the two files have to be
+ * read together.
+ *
+ * - line 5, `public array $with = ['author']` — the plain promotion.
+ * - line 13, `protected readonly array $with = ['post']` — extra modifiers
+ *   before the type, which move the variable further from the opening
+ *   parenthesis. Reported at its own column, so a check that measured an
+ *   offset instead of asking PHPCS for the parameter would miss it.
+ * - line 21, `private array $with = []` — promoted but empty. The default
+ *   still has to be non-empty, so promotion is not a second way to be flagged;
+ *   this is what would fire if promotion bypassed the array check.
+ */
+it('flags a constructor-promoted $with', function (): void {
+    $file = analyzeFixture(EAGER_LOADING_WITH, 'promoted.php');
+    $warnings = $file->getWarnings();
+    ksort($warnings);
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($warnings))->toBe([
+            5 => [EAGER_LOADING_WITH_WARNING],
+            13 => [EAGER_LOADING_WITH_WARNING],
+        ])
+        ->and(array_map('array_keys', $warnings))->toBe([
+            5 => [46],
+            13 => [58],
+        ]);
 });
 
 /**
