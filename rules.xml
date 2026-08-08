@@ -217,6 +217,50 @@
     </rule>
 
     <!--
+        PHPMD CleanCode: BooleanArgumentFlag (#76) —
+        docs/phpmd/cleancode-booleanargumentflag.md.
+
+        No existing PHPCS or Slevomat sniff expresses PHPMD's
+        BooleanArgumentFlag. The three nearest candidates were run against
+        tests/fixtures/DisallowBooleanArgumentFlagSniff/failing.php and each
+        reported nothing on its fifteen boolean flag arguments:
+        SlevomatCodingStandard.Functions.UselessParameterDefaultValue (a
+        default that can never be used), Squiz.PHP.DisallowBooleanStatement (a
+        boolean operator forming a whole statement), and
+        Generic.CodeAnalysis.UnusedFunctionParameter (a parameter no body
+        reads). So this is the custom CleanCode.Functions.DisallowBooleanArgumentFlag
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and
+        tests/Standards/DisallowBooleanArgumentFlagTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        No <properties> are configured. PHPMD ships this rule with both of its
+        properties empty (exceptions, ignorepattern), so nothing is exempt out
+        of the box — constructors included — and the sniff's defaults match.
+        A consuming ruleset that already tunes PHPMD's rule can paste the same
+        two values here: both are spelled and matched exactly as PHPMD spells
+        and matches them.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis below, no <type> override is
+        needed: the sniff raises errors already, so a violation fails a phpcs
+        run the way it fails a phpmd run.
+
+        Stricter than PHPMD on three shapes, and never looser. A parameter
+        declared `bool` with no default value is reported (PHPMD inspects only
+        a parameter's default value); so is a closure at file scope, and a
+        closure written inside a method the ignorepattern exempts (PHPMD
+        reaches a closure only through its enclosing method, and tests the
+        pattern against that method's name). All three are true defects and are
+        kept, pinned by tests/fixtures/DisallowBooleanArgumentFlagSniff/
+        divergences.php and configured.php, and set out in
+        docs/phpmd/cleancode-booleanargumentflag.md.
+
+        Detection only: removing a flag argument splits the callee in two and
+        rewrites every call site, which is a design change with no mechanical
+        rewrite. PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
 
