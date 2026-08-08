@@ -64,6 +64,13 @@ Anything beyond the three gets a **descriptive** name saying what it exercises â
 a `<name>.fixed.php` sibling if it has expected fixer output. Never a numeric
 suffix.
 
+The one exception to "all fixtures are `.php`" is a sniff that reads Blade
+views (`CleanCode.Livewire.ComponentMarkup`). Its three contract fixtures stay
+`.php`, because `LocalFile` tokenises both extensions identically and the
+contract sweep resolves them by fixed name; a single extra `.blade.php` fixture
+sits beside them so the extension registered in `rules.xml` is asserted through
+the real file type rather than assumed.
+
 A standard implemented by **several** sniffs at once (TypeHints, the operator
 spacing pair, the naming casing conventions) has no single owning sniff, so its
 fixtures live in `tests/fixtures/_rulesets/<Standard>/` under the same names.

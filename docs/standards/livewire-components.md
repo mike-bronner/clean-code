@@ -10,35 +10,99 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (custom sniff, best-effort)
 
-These are **Blade-template rules**. They are **not** enforced by a PHPCS sniff.
-Enforcement is via **code review and developer discipline**.
+The standard is **partly enforceable**. A Livewire component's markup lives in
+its Blade view, and PHPCS reads a `.blade.php` file as a run of `T_INLINE_HTML`
+tokens — text, not an element tree. Blade control flow (`@if`, `@include`, a
+`@foreach` over runtime data) means the *rendered* DOM shape is not decidable
+from the template at all.
 
-PHPCS tokenizes PHP; a Livewire component's markup lives in its Blade view,
-where everything between PHP tags is a single opaque `T_INLINE_HTML` blob —
-there are no element tokens to count roots with, no attribute tokens to inspect
-for `wire:key`, and Blade directives (`@if`, `@foreach`, `@include`) mean the
-*rendered* DOM shape is not even decidable from the template text. "Unique
-`wire:key`" is a runtime property of loop data, and "single root element" is a
-property of the rendered output — neither is visible to single-file token
-analysis.
+So the sniff reads the markup with regular expressions and speaks only about
+shapes that are unambiguous in the source. **Detection is heuristic and
+best-effort by design**: where the source does not show the answer, nothing is
+reported. False negatives are the deliberate trade for not spamming false
+positives; the rest of the standard stays with code review.
 
-## Partial enforcement assessment
+### Blade views are scanned
 
-No token-visible slice was found; no follow-up sniff issue is opened.
+`rules.xml` registers `blade.php` in its `extensions` argument, mapped to the
+PHP tokenizer:
 
-- **Blade views** — the markup is `T_INLINE_HTML` to PHPCS; checking root-element
-  count or `wire:key` presence would mean parsing HTML-plus-Blade with regexes
-  inside one opaque token. That is HTML parsing, not a token heuristic, and
-  Blade control flow makes any answer unreliable.
-- **Inline components** (a heredoc template returned from `render()`) were
-  considered as the one place component markup appears inside a PHP file — but
-  the heredoc body is likewise a single string token, so the same
-  parse-HTML-inside-a-string problem applies. Rejected.
-- Dedicated Blade/Livewire tooling (Blade linters, Livewire's own runtime
-  warnings for multiple root elements) is the right layer for automation here,
-  not PHPCS.
+```xml
+<arg name="extensions" value="php,blade.php/php"/>
+```
 
-Resolution: **documentation-only** — the full standard remains enforced by code
-review.
+Without that entry PHPCS's file filter skips Blade views outright. With it, a
+view's markup arrives as `T_INLINE_HTML` and its embedded PHP is tokenized like
+any other PHP — so the rest of the ruleset applies to a view's PHP as well.
+
+### Custom sniff — `CleanCode.Livewire.ComponentMarkup`
+
+One sniff, four codes ([#46](https://github.com/mike-bronner/phpcs-rules/issues/46)).
+Each code can be excluded individually where a project's markup defeats the
+heuristic behind it.
+
+| Code | Reports |
+|---|---|
+| `RootElementAttributes` | the view's first element tag carries a `wire:`, `x-`, `@`, `:`, or `{{ … }}` attribute |
+| `MissingWireKeyInLoop` | a `<livewire:…>` tag inside a Blade loop with no `wire:key` |
+| `AdjacentComponentNotWrapped` | a `<livewire:…>` tag beside another one, not wrapped in a `<template>` |
+| `TemplateKeyMismatch` | the wrapping `<template>`'s `wire:key` differs from the component's, or is absent |
+
+Violations are reported on the **line**, not a token: the analysis runs over
+reconstructed markup rather than the token stream, so a line number is the
+finest position the sniff can honestly claim.
+
+**Detection only.** Every fix needs a value a machine cannot derive — which
+attributes belong on the root, what a `wire:key` should be keyed to, where a
+`<template>` wrapper starts — so there is no auto-fix.
+
+### The three narrowings that keep false positives out
+
+Each one is a deliberate loss of coverage, and each one is what stops a whole
+class of wrong report.
+
+- **The view must be recognisably Livewire.** Nothing is reported unless the
+  file contains a `wire:` attribute, a `<livewire:…>` tag, or an `@livewire`
+  directive. "Is this view a Livewire component?" is not otherwise answerable
+  from one file, and without the gate every plain Blade partial with an Alpine
+  root would be reported.
+- **A component is a `<livewire:…>` tag.** `<x-…>` is Blade's component
+  namespace, shared with ordinary Blade components that owe no `wire:key` at
+  all, so it is not read as a Livewire component here.
+- **`@livewire('name', …)` is not analysed.** Its key is a PHP expression
+  argument (`key($row->id)`), not an attribute, so neither presence nor
+  equality can be read off the source.
+
+Two further silences follow the same principle:
+
+- **An unbalanced loop directive yields no loop.** A `@foreach` whose body
+  continues in an `@include`, or an `@endforeach` belonging to a parent view,
+  gives the sniff no region it can trust, so components under it are left
+  alone.
+- **Comments are blanked before analysis**, so commented-out markup is never
+  reported.
+
+### Rejected heuristics
+
+- **Flagging every element in a loop that lacks `wire:key`** — rejected. The
+  standard asks for a key on each *component*; a loop's `<li>`, `<td>`, and
+  `<option>` elements need none, and reporting them would bury the real
+  finding.
+- **Counting root elements** — rejected. "Single root element" is a property
+  of the *rendered* output. A view whose root is chosen by `@if`, or assembled
+  from an `@include`, has no statically knowable root count, so any answer
+  would be a guess.
+- **Checking `wire:key` uniqueness** — rejected. Uniqueness is a per-render
+  property of loop data (`wire:key="row-{{ $row->id }}"` is one literal in the
+  source and many keys at runtime). The sniff can see that a key is *present*,
+  never that the values it produces differ.
+
+## What remains code review
+
+Root-element *count*, `wire:key` *uniqueness*, adjacency that only exists after
+Blade control flow has run, and every `@livewire(…)` call site remain code
+review — as does judging whether a heuristic's silence on a given view is
+correct. Dedicated Blade/Livewire tooling and Livewire's own runtime warnings
+cover what a token-level linter cannot.

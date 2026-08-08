@@ -1,0 +1,2 @@
+@livewire('counter')
+@livewire('profile')
