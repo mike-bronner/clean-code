@@ -48,3 +48,14 @@ class StandaloneReporter
         echo 'invoked';
     }
 }
+
+class StandaloneLedger
+{
+    // A plain constructor parameter, deliberately left unpromoted: promotion
+    // would make the sniff skip it as class state. Unpromoted, it is a
+    // parameter like any other, and nothing reads it.
+    public function __construct(string $unusedReference)
+    {
+        echo 'opened';
+    }
+}

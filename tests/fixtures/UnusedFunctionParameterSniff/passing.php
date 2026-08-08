@@ -84,6 +84,25 @@ class Report
     }
 }
 
+class Ledger
+{
+    private string $reference;
+
+    // A plain constructor parameter, deliberately left unpromoted: promotion
+    // makes the sniff skip a parameter before it looks at the body at all, so
+    // only an unpromoted one proves a constructor parameter read in the body is
+    // seen as used.
+    public function __construct(string $reference)
+    {
+        $this->reference = $reference;
+    }
+
+    public function reference(): string
+    {
+        return $this->reference;
+    }
+}
+
 $doubler = static function (int $value): int {
     return $value * 2;
 };

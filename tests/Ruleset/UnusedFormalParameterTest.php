@@ -104,13 +104,14 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * The parity set: PHPMD 2.15.0, run with only UnusedFormalParameter enabled,
- * reports these same six lines on this same fixture and nothing else.
+ * reports these same seven lines on this same fixture and nothing else.
  *
- * Columns are asserted alongside the lines. The sniff attaches every report to
- * the declaration token rather than to the parameter, so a plain function lands
- * on column 1 and a method on the column of its visibility keyword — which is
- * what makes the docblock-only case (line 41) and the magic __invoke case
- * (line 46) distinguishable from a report attached to the parameter itself.
+ * Columns are asserted alongside the lines. The sniff registers on T_FUNCTION
+ * and attaches every report to that `function` keyword rather than to the
+ * parameter, so a plain function lands on column 1 and a method — indented four
+ * spaces, behind `public ` — on column 12. That is what makes the docblock-only
+ * case (line 41) and the magic __invoke case (line 46) distinguishable from a
+ * report attached to the parameter itself.
  */
 it('flags each unused parameter at its own line and column', function (): void {
     $file = analyzeFixture(UNUSED_PARAMETER_SNIFF, 'failing.php');
@@ -128,6 +129,8 @@ it('flags each unused parameter at its own line and column', function (): void {
         ['line' => 41, 'column' => 12, 'source' => UNUSED_PARAMETER_FOUND],
         // StandaloneReporter::__invoke(string $unusedInvoked)
         ['line' => 46, 'column' => 12, 'source' => UNUSED_PARAMETER_FOUND],
+        // StandaloneLedger::__construct(string $unusedReference), unpromoted
+        ['line' => 57, 'column' => 12, 'source' => UNUSED_PARAMETER_FOUND],
     ]);
 });
 
@@ -139,7 +142,7 @@ it('flags each unused parameter at its own line and column', function (): void {
 it('reports unused parameters as errors rather than warnings', function (): void {
     $file = analyzeFixture(UNUSED_PARAMETER_SNIFF, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(6)
+    expect($file->getErrorCount())->toBe(7)
         ->and($file->getWarningCount())->toBe(0)
         ->and($file->getWarnings())->toBe([]);
 });
@@ -209,9 +212,9 @@ it('splits the looser divergences into excluded and never-reported', function ()
 it('reports unused parameters without offering an auto-fix', function (): void {
     $file = analyzeFixture(UNUSED_PARAMETER_SNIFF, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(6)
+    expect($file->getErrorCount())->toBe(7)
         ->and($file->getFixableCount())->toBe(0)
-        ->and(violationFixableFlags($file))->toBe([false, false, false, false, false, false]);
+        ->and(violationFixableFlags($file))->toBe([false, false, false, false, false, false, false]);
 });
 
 /**
@@ -227,12 +230,12 @@ it('reports unused parameters without offering an auto-fix', function (): void {
 it('leaves the failing fixture byte-identical when the fixer runs', function (): void {
     $file = analyzeFixture(UNUSED_PARAMETER_SNIFF, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(6);
+    expect($file->getErrorCount())->toBe(7);
 
     $fixed = autofixedContents($file);
 
     expect($fixed)->toBe(file_get_contents(fixturePath('UnusedFunctionParameterSniff', 'failing.php')))
-        ->and($file->getErrorCount())->toBe(6);
+        ->and($file->getErrorCount())->toBe(7);
 });
 
 it('keeps the excluded codes silent through the master ruleset', function (): void {
