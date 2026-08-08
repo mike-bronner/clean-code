@@ -34,3 +34,9 @@
     <!-- A lone component is not adjacent to anything. -->
     <livewire:footer wire:key="footer" />
 </div>
+
+<?php
+
+// A real open tag, so PHPCS finds PHP code in the file. Without one it reports
+// Internal.NoCodeFound wherever the runtime has short_open_tag disabled, which
+// is a property of the install rather than of the fixture.
