@@ -271,4 +271,40 @@
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.StaticOutsideClass"/>
     </rule>
+    <!--
+        PHPMD CodeSize: TooManyFields (#98) —
+        docs/phpmd/codesize-toomanyfields.md.
+
+        No PHPCS, Slevomat, or Generic sniff counts a class's fields — the only
+        metric sniffs shipped are Generic.Metrics.CyclomaticComplexity and
+        NestingLevel — so the rule is a custom sniff,
+        CleanCode.Metrics.TooManyFields, picked up automatically via the
+        ./CleanCode/ruleset.xml ref above. As with the eager-loading sniff,
+        there is no <rule> block below it: the sniff wants no scoping, and its
+        threshold already defaults to PHPMD's 15, so repeating that number here
+        would only create a second place for it to drift. A project wanting a
+        different limit sets the property in its own ruleset:
+
+            <rule ref="CleanCode.Metrics.TooManyFields">
+                <properties>
+                    <property name="maxFields" value="10"/>
+                </properties>
+            </rule>
+
+        The sniff reports errors directly, so unlike the two mappings above it
+        needs no <type> override to fail a phpcs run the way PHPMD fails a
+        phpmd run.
+
+        Three shapes diverge from PHPMD 2.15.0, all measured against a live
+        install and all pinned by fixtures: promoted constructor properties and
+        PHP 8.4's final/asymmetric-visibility properties are counted here and
+        invisible to PDepend, and an anonymous class is counted as the class it
+        is rather than charged to whatever class encloses it. Each divergence
+        catches real fields PHPMD misses; the promoted-property one is
+        load-bearing, since this ruleset requires promotion.
+
+        Detection only: the fix is to extract a new object and re-point every
+        use of the moved fields, which is a design decision rather than a
+        mechanical rewrite.
+    -->
 </ruleset>
