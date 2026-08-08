@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Standard auto-registers with PHPCS
+        run: vendor/bin/phpcs -i | grep -q CleanCode
+
+      - name: Master ruleset loads and runs
+        run: vendor/bin/phpcs --standard=rules.xml tests/bootstrap.php
+
+      - name: Self-lint (PSR-12)
+        run: composer lint
+
+      - name: Sniff test suite (Pest)
+        run: composer test
