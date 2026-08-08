@@ -88,17 +88,35 @@ file rather than by fixing the problem:
   matching `API` path segment. Reported at the `class` keyword.
 
 Both sides are read **relative to the controller root**: only the segments
-following the first `Controllers` segment count. A project checked out at
-`/srv/api`, or a vendor package namespaced `Api\Http\Controllers\…`, would
-otherwise read as API-everything. Both segments are matched
-case-insensitively — the `API` grouping, so `API`, `Api` and `api` read alike,
-and the `Controllers` root on the same terms — because the standard is about a
-segment being present, not about how it is cased.
+following the `Controllers` segment count. A project checked out at `/srv/api`,
+or a vendor package namespaced `Api\Http\Controllers\…`, would otherwise read as
+API-everything. Both segments are matched case-insensitively — the `API`
+grouping, so `API`, `Api` and `api` read alike, and the `Controllers` root on
+the same terms — because the standard is about a segment being present, not
+about how it is cased.
+
+PHPCS reports an absolute path, so the directories above the project are part of
+what the path side sees, and this package is installed into other repositories
+whose checkout location it does not control. Two rules keep an ancestor
+directory from posing as the controller root:
+
+- The root is the `Controllers` segment **closest to the file**, not the first
+  one in the path. A checkout at `/srv/Controllers/api/my-app` anchors on the
+  application's own `app/Http/Controllers`, not on the server layout.
+- A class whose **declared namespace** carries no controller root is left alone,
+  whatever its path says — its own namespace places it outside one, and a
+  namespace cannot be changed by moving the checkout. Without this, a project
+  living under a directory named `Controllers` reports
+  `App\Http\Resources\Api\UserResource` as a controller missing its API
+  namespace.
+
+A class with **no** declared namespace is the one shape read from its path
+alone: it says nothing that could contradict its location.
 
 **Not flagged** — deliberately outside the rule:
 
-- **A class that is not a controller** — neither its namespace nor its path
-  carries a `Controllers` segment. `App\Services\API\Client` is left alone.
+- **A class that is not a controller** — its declared namespace carries no
+  `Controllers` segment. `App\Services\API\Client` is left alone.
 - **The class name** — only namespace segments are compared. An
   `ApiTokenController` in `App\Http\Controllers` is compliant.
 - **Input with no path** — linting piped source without `--stdin-path` gives

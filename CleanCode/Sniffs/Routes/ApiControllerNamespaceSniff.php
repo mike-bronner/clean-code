@@ -32,9 +32,26 @@ use PHP_CodeSniffer\Util\Tokens;
  *     `API` path segment (`UnexpectedApiNamespace`).
  *
  * "Under an API segment" is read *relative to the controller root* on both
- * sides: only the segments following the first `Controllers` segment count. A
- * project checked out at /srv/api or a vendor package namespaced `Api\…` would
+ * sides: only the segments following the `Controllers` segment count. A project
+ * checked out at /srv/api or a vendor package namespaced `Api\…` would
  * otherwise read as API-everything.
+ *
+ * Two things keep that root honest, because PHPCS hands the sniff a fully
+ * resolved *absolute* path and everything above the project is fair game:
+ *
+ *   - the root is the `Controllers` segment closest to the file, not the first
+ *     one encountered, so a checkout under /srv/Controllers/api/… anchors on
+ *     the application's own controller directory rather than on the one in the
+ *     server layout;
+ *   - a class whose declared namespace has no controller root at all is left to
+ *     the namespace. Its own namespace places it outside a controller root, and
+ *     that beats anything an ancestor directory happens to be called: without
+ *     this, a checkout under a directory named Controllers reports
+ *     App\Http\Resources\Api\UserResource as a controller missing its API
+ *     namespace.
+ *
+ * The one shape read from the path alone is a class with *no* declared
+ * namespace, which says nothing to contradict its location.
  *
  * Detection only. Reconciling the two halves means moving the file or rewriting
  * its declared namespace — and which of those is correct depends on the
@@ -86,9 +103,17 @@ class ApiControllerNamespaceSniff implements Sniff
             return;
         }
 
-        $namespaceTail = $this->segmentsBelowControllerRoot(
-            $this->namespaceSegments($phpcsFile, $stackPtr)
-        );
+        $namespaceSegments = $this->namespaceSegments($phpcsFile, $stackPtr);
+        $namespaceTail = $this->segmentsBelowControllerRoot($namespaceSegments);
+
+        // A declared namespace carrying no controller root places the class
+        // outside one, and that is the stronger statement: the path can pick up
+        // a `Controllers` segment from the checkout location, the declared
+        // namespace cannot.
+        if ($namespaceTail === null && $namespaceSegments !== []) {
+            return;
+        }
+
         $pathTail = $this->segmentsBelowControllerRoot($this->pathSegments($phpcsFile));
 
         // Neither the namespace nor the location says "controller", so this
@@ -124,8 +149,14 @@ class ApiControllerNamespaceSniff implements Sniff
     }
 
     /**
-     * The segments of $segments that follow the first `Controllers` one, or
+     * The segments of $segments that follow the *last* `Controllers` one, or
      * null when there is no `Controllers` segment at all.
+     *
+     * The last rather than the first, because the root that governs a file is
+     * the one closest to it. On the path side the segments above the project
+     * are outside its control — an application checked out at
+     * /srv/Controllers/api/my-app would otherwise anchor on the server layout
+     * and read its whole tree as API.
      *
      * Null and [] are different answers: null means "this side does not
      * describe a controller", [] means "a controller sitting directly on the
@@ -137,13 +168,10 @@ class ApiControllerNamespaceSniff implements Sniff
      */
     private function segmentsBelowControllerRoot(array $segments): ?array
     {
-        foreach ($segments as $index => $segment) {
-            if (strtolower($segment) === self::CONTROLLERS_SEGMENT) {
-                return array_map('strtolower', array_slice($segments, ($index + 1)));
-            }
-        }
+        $lowered = array_map('strtolower', $segments);
+        $roots = array_keys($lowered, self::CONTROLLERS_SEGMENT, true);
 
-        return null;
+        return $roots === [] ? null : array_slice($lowered, (end($roots) + 1));
     }
 
     /**

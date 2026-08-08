@@ -12,9 +12,14 @@
  * contract's passing.php and failing.php have fixed names *and* a fixed
  * location, and that location carries no Controllers segment — so they can
  * only ever exercise the namespace side. The path side needs fixtures whose
- * real paths carry that segment, which is where the nested app/Http/Controllers
- * tree under this directory comes from: the API/ pair for a path below the
- * controller root, and root-compliant.php for a file sitting directly on it.
+ * real paths carry that segment, which is where the nested trees under this
+ * directory come from:
+ *
+ * - app/Http/Controllers/ — the API/ pair for a path below the controller root,
+ *   and root-compliant.php for a file sitting directly on it;
+ * - Controllers/ — two checkouts that put a second, decoy Controllers segment
+ *   above the project, for the ancestor-anchoring cases.
+ *
  * They are ordinary in-repo fixtures, covered by composer lint's fixtures
  * ignore pattern like every other one, and invisible to the contract sweep,
  * which only looks for the three fixed names.
@@ -131,6 +136,38 @@ it('leaves a controller sitting directly on the controller root alone', function
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * PHPCS hands the sniff a fully resolved absolute path, so every directory
+ * above the project is part of what gets read — including whatever the checkout
+ * happens to sit under. This package is distributed for other repositories to
+ * require, so that location is not under its control.
+ *
+ * Two shapes pin the two halves of the defence, and each one is silent for a
+ * different reason:
+ *
+ * - `Controllers/api/app/Http/Controllers/root-ancestor-compliant.php`, line 18
+ *   — two `Controllers` segments in one path. The controller root is the one
+ *   closest to the file, so the tail is empty. Anchor on the first instead and
+ *   the tail becomes api/app/Http/Controllers, an API path, and this ordinary
+ *   view controller reports MissingApiNamespace.
+ * - `Controllers/my-app/app/Http/Resources/Api/UserResource.php`, line 18 — one
+ *   `Controllers` segment, and it is the ancestor. The declared namespace
+ *   carries no controller root, which places the class outside one whatever the
+ *   path says. Let the path speak anyway and the tail is
+ *   my-app/app/Http/Resources/Api: MissingApiNamespace on a resource class.
+ */
+it('does not anchor the controller root on an ancestor directory', function (string $fixture): void {
+    $file = analyzeFixture(API_CONTROLLER_NAMESPACE, $fixture);
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with([
+    'two controller roots in one path' =>
+        'Controllers/api/app/Http/Controllers/root-ancestor-compliant.php',
+    'a non-controller namespace below an ancestor root' =>
+        'Controllers/my-app/app/Http/Resources/Api/UserResource.php',
+]);
 
 /**
  * The reverse violation, at the same API path:
