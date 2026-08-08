@@ -6,6 +6,8 @@ namespace App\Billing;
 
 class Ledger
 {
+    use \App\Billing\Support\Loggable;
+
     public function make(): \stdClass
     {
         return new \stdClass();

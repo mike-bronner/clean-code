@@ -117,6 +117,7 @@ standard describes, in a position PHPMD happens not to visit.
 | `\Foo\Bar::method()` static call | silent | **flags** |
 | `\Foo\Bar` as a parameter, return, or property type | silent | **flags** |
 | `catch (\RuntimeException $e)` | silent | **flags** |
+| `use \Foo\Bar;` — a trait use in a class body | silent | **flags** |
 | `new \stdClass()` in top-level code, outside any function | silent | **flags** |
 | `new Models\Invoice()` — partially qualified | silent | silent |
 
@@ -153,6 +154,14 @@ violation reporting, the error severity, the fixer's output and totality, both
 halves of every property `rules.xml` sets, the `ignore-global` mapping, the
 namespace-less path, the divergences above, and the Throwable interaction live
 at `tests/Ruleset/MissingImportTest.php`.
+
+Each member of the class/interface/trait triad the standard names is exercised
+by name: classes throughout, the interface through `catch (\Throwable)`, and the
+trait through a class-body `use` — flagged fully qualified, silent when
+imported, and imported by the fixer. The sniff routes a trait use through the
+same code path as a `new`, so this is coverage of the path rather than of a
+separate behaviour, and it is held separately so a narrowing of that path fails
+a test instead of passing in silence.
 
 Fixtures live under `tests/fixtures/ReferenceUsedNamesOnlySniff/`:
 `passing.php`, `failing.php`, and `autofixed.php` per the CONTRIBUTING.md

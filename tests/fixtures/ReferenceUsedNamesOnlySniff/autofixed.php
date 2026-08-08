@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace App\Billing;
+use App\Billing\Support\Loggable;
 use stdClass;
 use App\Models\Invoice;
 use RuntimeException;
@@ -10,6 +11,8 @@ use Throwable;
 
 class Ledger
 {
+    use Loggable;
+
     public function make(): stdClass
     {
         return new stdClass();

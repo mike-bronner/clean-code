@@ -45,18 +45,32 @@ const THROWABLE_ONLY = 'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly
 
 /**
  * Every violation failing.php produces, in source order. PHPMD reports the
- * three `new` lines among them (11, 16, 27) and nothing else; the other four
+ * three `new` lines among them (13, 18, 29) and nothing else; the other five
  * are the documented breadth divergence, asserted here rather than described.
  */
 const FAILING_VIOLATIONS = [
-    ['line' => 9, 'column' => 29, 'source' => REFERENCE_VIA_FQN],   // \stdClass return type
-    ['line' => 11, 'column' => 20, 'source' => REFERENCE_VIA_FQN],  // new \stdClass()          (PHPMD)
-    ['line' => 14, 'column' => 32, 'source' => REFERENCE_VIA_FQN],  // \App\Models\Invoice type
-    ['line' => 16, 'column' => 20, 'source' => REFERENCE_VIA_FQN],  // new \App\Models\Invoice() (PHPMD)
-    ['line' => 21, 'column' => 16, 'source' => REFERENCE_VIA_FQN],  // \App\Models\Invoice::label()
-    ['line' => 27, 'column' => 23, 'source' => REFERENCE_VIA_FQN],  // new \RuntimeException()   (PHPMD)
-    ['line' => 28, 'column' => 18, 'source' => REFERENCE_VIA_FQN],  // catch (\Throwable)
+    ['line' => 9, 'column' => 9, 'source' => REFERENCE_VIA_FQN],    // use \App\...\Loggable trait
+    ['line' => 11, 'column' => 29, 'source' => REFERENCE_VIA_FQN],  // \stdClass return type
+    ['line' => 13, 'column' => 20, 'source' => REFERENCE_VIA_FQN],  // new \stdClass()          (PHPMD)
+    ['line' => 16, 'column' => 32, 'source' => REFERENCE_VIA_FQN],  // \App\Models\Invoice type
+    ['line' => 18, 'column' => 20, 'source' => REFERENCE_VIA_FQN],  // new \App\Models\Invoice() (PHPMD)
+    ['line' => 23, 'column' => 16, 'source' => REFERENCE_VIA_FQN],  // \App\Models\Invoice::label()
+    ['line' => 29, 'column' => 23, 'source' => REFERENCE_VIA_FQN],  // new \RuntimeException()   (PHPMD)
+    ['line' => 30, 'column' => 18, 'source' => REFERENCE_VIA_FQN],  // catch (\Throwable)
 ];
+
+/**
+ * The line in failing.php that carries the fully qualified trait use, and its
+ * compliant counterpart in passing.php. AC items 1 and 2 name class, interface
+ * and trait; class is everywhere in these fixtures and interface rides on the
+ * `catch (\Throwable)` line, so the trait needs its own named coverage.
+ *
+ * The sniff routes a class-body `use` through the same TYPE_CLASS path as `new`
+ * (ReferencedNameHelper), which is why it works — but sharing a code path is
+ * not sharing a test, and an upstream narrowing of that path would otherwise
+ * pass this suite in silence.
+ */
+const TRAIT_USE_VIOLATION = ['line' => 9, 'column' => 9, 'source' => REFERENCE_VIA_FQN];
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -66,9 +80,10 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * passing.php carries the near-miss shapes the sniff must stay silent on:
- * imported names in every position failing.php gets wrong, `self` and `static`
- * (which PHPMD skips explicitly), a fallback global function and constant, and
- * the fully qualified global function and constant rules.xml allows.
+ * imported names in every position failing.php gets wrong — the trait use among
+ * them — `self` and `static` (which PHPMD skips explicitly), a fallback global
+ * function and constant, and the fully qualified global function and constant
+ * rules.xml allows.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'passing.php');
@@ -81,6 +96,53 @@ it('flags each fully qualified reference at its own line and column', function (
     $file = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'failing.php');
 
     expect(violationTuples($file))->toBe(FAILING_VIOLATIONS);
+});
+
+/**
+ * The trait half of the class/interface/trait triad the AC names, pinned on its
+ * own so the coverage survives a reshuffle of the map above.
+ *
+ * Both sides are asserted: the fully qualified `use \App\Billing\Support\Loggable;`
+ * in failing.php is reported at its own line and column, and the imported
+ * `use Loggable;` in passing.php is not — silence there is part of the whole
+ * fixture's silence, but the trait line is the one this names.
+ *
+ * PHPMD 2.15.0 reports nothing on this line: a trait use is not an allocation
+ * expression, so it joins the static call, the type hints and the catch clause
+ * as breadth this ruleset adds. The remedy is the same one PHPMD asks for
+ * elsewhere, so the report is kept.
+ */
+it('flags a fully qualified trait use and leaves an imported one alone', function (): void {
+    $failing = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'failing.php');
+
+    expect(violationTuples($failing))->toContain(TRAIT_USE_VIOLATION);
+
+    $traitLine = trim(explode("\n", (string) file_get_contents(
+        fixturePath('ReferenceUsedNamesOnlySniff', 'failing.php')
+    ))[TRAIT_USE_VIOLATION['line'] - 1]);
+
+    expect($traitLine)->toBe('use \App\Billing\Support\Loggable;');
+
+    $passing = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'passing.php');
+
+    expect(violationTuples($passing))->toBe([]);
+});
+
+/**
+ * And the fixer handles a trait use the same way it handles a `new`: the import
+ * is added and the class-body reference is shortened. Asserted against the
+ * fixer's own output on the trait line specifically, since the byte comparison
+ * further down would also pass if autofixed.php were regenerated from a fixture
+ * that had lost the trait case.
+ */
+it('imports a fully qualified trait use when it fixes the failing fixture', function (): void {
+    $file = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'failing.php');
+
+    $fixed = autofixedContents($file);
+
+    expect($fixed)->toContain('use App\Billing\Support\Loggable;')
+        ->and($fixed)->toContain('    use Loggable;')
+        ->and($fixed)->not->toContain('use \App\Billing\Support\Loggable;');
 });
 
 /**
@@ -103,8 +165,8 @@ it('reports fully qualified references as errors rather than warnings', function
  * mapping is real by driving the property from a test the way a consuming
  * ruleset would, and asserting the exact set that drops out.
  *
- * The three surviving reports are the namespaced class, which `ignore-global`
- * never silenced in PHPMD either.
+ * The four surviving reports are the namespaced trait and class, which
+ * `ignore-global` never silenced in PHPMD either.
  */
 it('silences global-namespace classes when ignore-global is switched on', function (): void {
     $file = analyzeFixture(
@@ -116,9 +178,10 @@ it('silences global-namespace classes when ignore-global is switched on', functi
     );
 
     expect(violationTuples($file))->toBe([
-        ['line' => 14, 'column' => 32, 'source' => REFERENCE_VIA_FQN],
-        ['line' => 16, 'column' => 20, 'source' => REFERENCE_VIA_FQN],
-        ['line' => 21, 'column' => 16, 'source' => REFERENCE_VIA_FQN],
+        TRAIT_USE_VIOLATION,
+        ['line' => 16, 'column' => 32, 'source' => REFERENCE_VIA_FQN],
+        ['line' => 18, 'column' => 20, 'source' => REFERENCE_VIA_FQN],
+        ['line' => 23, 'column' => 16, 'source' => REFERENCE_VIA_FQN],
     ]);
 });
 
@@ -200,7 +263,7 @@ it('allows fully qualified global functions and constants, and would report them
     );
 
     expect(violationTuples($file))->toBe([
-        ['line' => 39, 'column' => 16, 'source' => REFERENCE_VIA_FQN],    // \strlen()
+        ['line' => 42, 'column' => 16, 'source' => REFERENCE_VIA_FQN],    // \strlen()
     ]);
 
     $constants = analyzeFixture(
@@ -212,7 +275,7 @@ it('allows fully qualified global functions and constants, and would report them
     );
 
     expect(violationTuples($constants))->toBe([
-        ['line' => 39, 'column' => 51, 'source' => REFERENCE_VIA_FQN],    // \PHP_EOL
+        ['line' => 42, 'column' => 51, 'source' => REFERENCE_VIA_FQN],    // \PHP_EOL
     ]);
 });
 

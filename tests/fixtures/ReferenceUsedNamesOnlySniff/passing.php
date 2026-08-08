@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Billing;
 
+use App\Billing\Support\Loggable;
 use App\Billing\Support\Money;
 use App\Models\Invoice;
 use RuntimeException;
@@ -11,6 +12,8 @@ use Throwable;
 
 class Ledger extends Invoice
 {
+    use Loggable;
+
     public function record(Money $amount): self
     {
         if ($amount instanceof Money) {
