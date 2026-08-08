@@ -114,11 +114,21 @@ it('flags each PHP4 style constructor at its own line', function (): void {
 });
 
 /**
- * The exact column matters as much as the line: the sniff reports at the method
- * *name* token, which is what makes a phpcs diagnostic point at the offending
- * identifier rather than at the class.
+ * The exact column is pinned alongside the line — but it is *not* the column of
+ * the method name. The sniff registers on T_FUNCTION alone
+ * (ConstructorNameSniff.php:43) and reports against that same, never-repointed
+ * $stackPtr (ConstructorNameSniff.php:91), so the diagnostic lands on the
+ * `function` keyword.
+ *
+ * On all three flagged lines the shape is `    public function <Name>()`: the
+ * keyword starts at column 12 and the identifier not until column 21. Confirmed
+ * by running vendor/bin/phpcs against this fixture, not inferred from the source.
+ *
+ * Pinned regardless of which token it is: a vendor change that repointed the
+ * report at the name token would shift every column here and redden this test,
+ * which is the signal worth holding.
  */
-it('reports at the offending method name token', function (): void {
+it('reports each violation at the function keyword token', function (): void {
     $file = analyzeFixture(CONSTRUCTOR_NAME_SNIFF, 'failing.php');
 
     expect(violationTuples($file))->toBe([
