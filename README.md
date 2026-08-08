@@ -79,4 +79,5 @@ not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
 - [CleanCode: UndefinedVariable](docs/phpmd/cleancode-undefinedvariable.md) — Tier 1, external sniff `VariableAnalysis.CodeAnalysis.VariableAnalysis` raised to error severity, report-only; stricter than PHPMD on two shapes, and one shape neither tool catches ([#85](https://github.com/mike-bronner/phpcs-rules/issues/85))
+- [CodeSize: TooManyMethods](docs/phpmd/codesize-toomanymethods.md) — Tier 2, custom sniff `CleanCode.CodeSize.TooManyMethods`, report-only; PHPMD's shipped defaults (`maxmethods` 25, `ignorepattern` `(^(set|get|is|has|with))i`) ([#80](https://github.com/mike-bronner/phpcs-rules/issues/80))
 - [Design: EvalExpression](docs/phpmd/design-evalexpression.md) — Tier 1, existing sniff `Squiz.PHP.Eval` raised to error severity, report-only ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107))
