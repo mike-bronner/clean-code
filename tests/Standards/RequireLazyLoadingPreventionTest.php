@@ -46,7 +46,8 @@ it('is registered in the master ruleset', function (): void {
  *   these, and none is expected to enable the check, which is why the
  *   sniff keys off the class name rather than `extends ServiceProvider`.
  * - lines 24-27, a model carrying a populated `$with` property. That is a
- *   violation of the *other* slice of this standard (#153) and must not be
+ *   violation of the *other* slice of this standard, owned by
+ *   CleanCode.Models.DisallowAlwaysOnEagerLoading (#153), and must not be
  *   reported by this sniff, whose subject is the provider alone.
  */
 it('produces no violations on the compliant fixture', function (): void {
