@@ -14,9 +14,11 @@ declare(strict_types=1);
  *      constructor, `new` in an ordinary method and in a named constructor,
  *      `new` in a constructor's parameter list (PHP 8.1 new-in-initializers),
  *      `new` inside a closure and an arrow function declared in a constructor
- *      body, a method whose name merely resembles `__construct`, and an
- *      abstract constructor with no body. Dropping any one of the sniff's
- *      guards reddens this file.
+ *      body, a method whose name merely resembles `__construct`, an abstract
+ *      constructor with no body, every indirect form of `throw`
+ *      (parenthesised, `match`, ternary, an exception's own arguments), and a
+ *      plain function named `__construct` at file scope. Dropping any one of
+ *      the sniff's guards reddens this file.
  */
 
 final class Mailer
@@ -116,4 +118,45 @@ final class Factory
 abstract class Base
 {
     abstract public function __construct(Mailer $mailer);
+}
+
+/**
+ * Every way of raising an exception that puts the `new` somewhere other than
+ * directly after the keyword. All of it is exception construction, so all of
+ * it stays silent.
+ */
+final class Raises
+{
+    public function __construct(int $mode, bool $flag)
+    {
+        if ($mode === 0) {
+            throw (new RuntimeException('parenthesised'));
+        }
+
+        if ($mode === 1) {
+            throw match ($mode) {
+                1 => new InvalidArgumentException('matched'),
+                default => new RuntimeException('fallback'),
+            };
+        }
+
+        if ($mode === 2) {
+            throw $flag
+                ? new InvalidArgumentException('ternary then')
+                : new RuntimeException('ternary else');
+        }
+
+        if ($mode === 3) {
+            throw new RuntimeException('wrapped', 0, new InvalidArgumentException('cause'));
+        }
+    }
+}
+
+/**
+ * A plain function may carry the name `__construct` — it is not a reserved
+ * word — but it constructs nothing and has nothing to inject into.
+ */
+function __construct(): Mailer
+{
+    return new Mailer();
 }

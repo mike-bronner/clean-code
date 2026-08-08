@@ -233,9 +233,10 @@
         PSR12.Classes.ClassInstantiation and Slevomat's NewWithParentheses /
         NewWithoutParentheses police the parentheses, and Slevomat's
         constructor sniffs speak about property promotion. It warns once per
-        new inside a __construct body, detection only: swapping an
-        instantiation for an injected parameter changes the class's signature
-        and every call site.
+        new inside the body of a __construct a class-like scope holds,
+        detection only: swapping an instantiation for an injected parameter
+        changes the class's signature and every call site. Whatever a throw
+        raises is exempt in full, however the expression is spelled.
 
         Only that slice is enforced. Whether a collaborator warrants injection
         at all needs the whole application's wiring, which a single-file token

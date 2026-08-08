@@ -112,3 +112,46 @@ interface Bodyless
 {
     public function __construct(Mailer $mailer);
 }
+
+/**
+ * The far edge of the `throw` exemption. In both constructors below the throw
+ * is an *operand* of a larger expression, so its exemption must end where the
+ * thrown expression does — the sibling `new Mailer()` is ordinary constructor
+ * code and is still reported.
+ */
+final class ThrowsMidExpression
+{
+    private Mailer $mailer;
+
+    public function __construct(bool $flag)
+    {
+        $this->mailer = $flag
+            ? throw new RuntimeException('no mailer for you')
+            : new Mailer();
+    }
+}
+
+final class ThrowsInMatchArm
+{
+    private Mailer $mailer;
+
+    public function __construct(int $mode)
+    {
+        $this->mailer = match ($mode) {
+            0 => throw new RuntimeException('unsupported'),
+            default => new Mailer(),
+        };
+    }
+}
+
+final class ThrowsCoalesced
+{
+    private Mailer $mailer;
+
+    public function __construct(?Mailer $mailer, bool $required)
+    {
+        $this->mailer = $mailer ?? ($required
+            ? throw new RuntimeException('a mailer is required')
+            : new Mailer());
+    }
+}

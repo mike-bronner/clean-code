@@ -35,8 +35,9 @@ slice is recorded on
 A constructor's job is to *receive* collaborators, not to build them, so a
 `new` expression among its statements is the clearest token-level signal of
 hard-wiring over injection. The sniff registers on `T_FUNCTION`, keeps only the
-declarations named `__construct` (case-insensitively, as PHP method names are),
-and walks the token range between that method's braces.
+declarations named `__construct` (case-insensitively, as PHP method names are)
+that a class-like scope holds directly, and walks the token range between that
+method's braces.
 
 - **Warning, not error.** Value objects, DTOs, and default collaborator
   instances are legitimately constructed inline. The sniff points at injection
@@ -49,7 +50,16 @@ and walks the token range between that method's braces.
 
 Deliberately silent on:
 
-- **`throw new …`** — raising an exception is not dependency construction.
+- **Anything a `throw` raises** — an exception is not a dependency. The whole
+  thrown expression is exempt, not just a `new` written straight after the
+  keyword, so `throw (new X())`, `throw match (…) { … => new X() }`,
+  `throw $cond ? new A() : new B()` and an exception's own arguments
+  (`throw new Wrapper(new Cause())`) are all silent. The exemption ends where
+  the thrown expression ends: in `$x = $cond ? throw new E() : new Mailer()`
+  the `new Mailer()` belongs to the ternary, not the `throw`, and is reported.
+- **A `__construct` that is not a method** — the name is legal on a plain
+  function, and PHPCS lints whatever paths it is pointed at, so the declaration
+  counts as a constructor only when a class-like scope holds it directly.
 - **`new` outside the body** — an ordinary method's `new` is far too noisy to
   flag (factories, named constructors, collections, dates), and a constructor's
   *parameter list* is exactly where an inline default collaborator belongs

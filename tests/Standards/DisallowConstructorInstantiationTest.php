@@ -23,7 +23,15 @@
  *   - drop the `__construct` name check — passing.php and shapes.php both
  *     redden (`Factory::digest()`, `__constructor()`, and the anonymous
  *     class's own `make()` start reporting)
- *   - drop the `throw new` skip — passing.php and shapes.php both redden
+ *   - drop the class-like-scope gate — passing.php reddens (the plain
+ *     `function __construct()` at file scope starts reporting)
+ *   - drop the thrown-expression jump — passing.php and shapes.php both redden
+ *   - narrow that jump back to "the token after `throw` is a `new`" —
+ *     passing.php reddens (parenthesised, `match`-ed, ternary and
+ *     argument-position throws all start reporting)
+ *   - widen it the other way, to the next `;` — shapes.php reddens, losing
+ *     lines 130, 142 and 155 (a `throw` used as an operand would swallow its
+ *     sibling branch)
  *   - drop the nested-declaration skip — passing.php and shapes.php both
  *     redden (the closure, the arrow function, and the anonymous class's
  *     method start reporting)
@@ -52,12 +60,14 @@ it('is registered in the master ruleset', function (): void {
 /**
  * passing.php carries the compliant form of the construct the sniff registers
  * on — constructors that receive their collaborators — plus every near-miss
- * shape the sniff must stay silent on: `throw new` in a constructor, `new` in
- * an ordinary method and a named constructor, `new` in the parameter list
- * (PHP 8.1 new-in-initializers), `new` inside a closure and an arrow function
- * declared in a constructor body, a `__constructor()` method whose name merely
- * resembles the real one, and an abstract constructor with no body at all.
- * Dropping any one of the sniff's guards reddens this test.
+ * shape the sniff must stay silent on: every form of `throw` in a constructor
+ * — bare, parenthesised, `match`-ed, ternary, and an exception's own
+ * arguments — `new` in an ordinary method and a named constructor, `new` in
+ * the parameter list (PHP 8.1 new-in-initializers), `new` inside a closure and
+ * an arrow function declared in a constructor body, a `__constructor()` method
+ * whose name merely resembles the real one, a plain `function __construct()`
+ * at file scope, and an abstract constructor with no body at all. Dropping any
+ * one of the sniff's guards reddens this test.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(CONSTRUCTOR_INSTANTIATION, 'passing.php');
@@ -114,6 +124,15 @@ it('marks no violation fixable', function (): void {
  *   88 — `new class {…}`: the anonymous class is instantiated here, so this
  *        one is reported; the `new Mailer()` inside its own method (line 91)
  *        is not, because a declaration scope nested in the body is jumped
+ *  130 — the else branch of `$flag ? throw new … : new Mailer()`
+ *  142 — the default arm of `match` whose other arm throws
+ *  155 — the else branch inside `?? (… ? throw new … : new Mailer())`
+ *
+ * The last three are the far edge of the `throw` exemption. The exemption
+ * covers the whole thrown expression, so it must end where that expression
+ * does: a `throw` used as an operand exempts its own branch only, never the
+ * sibling branch, and never the rest of the statement. Widening the jump to
+ * the next `;` drops all three from this list.
  *
  * Two shapes in the file are deliberately absent from the list: the
  * `throw new RuntimeException` on line 104 (raising is not dependency
@@ -132,5 +151,8 @@ it('warns on every variant constructor and instantiation shape', function (): vo
         ['line' => 78, 'column' => 36, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
         ['line' => 78, 'column' => 50, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
         ['line' => 88, 'column' => 25, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
+        ['line' => 130, 'column' => 15, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
+        ['line' => 142, 'column' => 24, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
+        ['line' => 155, 'column' => 15, 'source' => CONSTRUCTOR_INSTANTIATION . '.Found'],
     ]);
 });
