@@ -283,6 +283,31 @@ function allViolationSourcesByLine(LocalFile $file): array
 }
 
 /**
+ * Collapses a processed file's errors to line number => list of rendered
+ * messages. Sniffs that report a measured value — a line count, a threshold —
+ * carry it in the message and nowhere else, so pinning the number needs the
+ * text rather than the source code.
+ *
+ * @return array<int, array<int, string>>
+ */
+function violationMessagesByLine(LocalFile $file): array
+{
+    $map = [];
+
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $messages) {
+            foreach ($messages as $message) {
+                $map[$line][] = $message['message'];
+            }
+        }
+    }
+
+    ksort($map);
+
+    return $map;
+}
+
+/**
  * Every `fixable` flag on a processed file's errors, so a test can assert a
  * rule is detection-only without reaching into PHPCS's nested structure.
  *
