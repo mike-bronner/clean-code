@@ -51,10 +51,21 @@ it('reports every operator violation exactly once', function (): void {
         11 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
         // dangling "." outside a condition — OperatorLineBreak's to own
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        // the three "if" keywords the operator fixtures wrap their conditions
+        // in. AvoidConditionals (#12) warns once per branch across the whole
+        // ruleset, so it speaks about every conditional this fixture uses to
+        // set up an operator case. Listed rather than filtered out: the map is
+        // exhaustive on purpose, and that is what makes a *second* operator
+        // source appearing on any of these lines a failure.
+        16 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
         // dangling "||" inside the if — OneConditionPerLine only
         17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
         // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
-        23 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
+        23 => [
+            'CleanCode.Conditionals.AvoidConditionals.IfStatement',
+            'PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace',
+        ],
+        27 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
         // dangling "===" inside a multi-condition — OperatorLineBreak owns it
         // (OneConditionPerLine polices only the boolean "||")
         28 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],

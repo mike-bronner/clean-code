@@ -40,7 +40,13 @@ it('reports the expected violations', function (
     expect(violationCountsByLine($file->getErrors()))->toBe($expectedErrors, 'Errors in ' . $fixture)
         ->and(violationCountsByLine($file->getWarnings()))->toBe($expectedWarnings, 'Warnings in ' . $fixture);
 })->with([
-    'compliant class produces zero violations' => ['compliant.php', [], []],
+    // compliant.php raises no *error* from the whole ruleset. Its one warning
+    // is the guard clause on line 21: AvoidConditionals (#12) warns once per
+    // branch, guard clauses included, so "clean PSR-12 code" and "free of
+    // conditionals" are now two different claims. Recorded rather than edited
+    // away — rewriting the fixture to dodge the warning would hide the most
+    // visible consequence of adding that sniff to the master ruleset.
+    'compliant class produces no errors' => ['compliant.php', [], [21 => 1]],
     'compliant abstract class produces zero violations' => ['compliant-abstract.php', [], []],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
     'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1, 4 => 1], [1 => 1]],
@@ -56,7 +62,9 @@ it('reports the expected violations', function (
     'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
     'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], []],
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
-    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1], []],
+    // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
+    // alongside the two PSR-12 errors the fixture exists to trip.
+    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1], [9 => 1]],
 ]);
 
 it('produces the expected fixer output', function (string $fixture) use ($integrationFixture): void {
