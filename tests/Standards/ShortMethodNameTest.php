@@ -121,7 +121,7 @@ it('passes a name exactly at the minimum and fails one character shorter', funct
     );
 
     expect($atMinimum->getErrors())->toBe([])
-        ->and(array_keys($oneAbove->getErrors()))->toContain(64);
+        ->and(array_keys($oneAbove->getErrors()))->toContain(77);
 });
 
 /**
@@ -140,8 +140,8 @@ it('measures the name in bytes, as PHPMD does', function (): void {
         static fn (object $sniff): mixed => $sniff->minimum = 4
     );
 
-    expect(array_keys($atDefault->getErrors()))->not->toContain(70)
-        ->and(array_keys($raised->getErrors()))->toContain(70);
+    expect(array_keys($atDefault->getErrors()))->not->toContain(83)
+        ->and(array_keys($raised->getErrors()))->toContain(83);
 });
 
 /**
@@ -159,8 +159,13 @@ it('reports magic methods below the threshold, matching PHPMD', function (): voi
         static fn (object $sniff): mixed => $sniff->minimum = 12
     );
 
-    expect(array_keys($file->getErrors()))->toContain(52)
-        ->and(array_keys($file->getErrors()))->toContain(57);
+    // __construct (57), __get (61), __set (66) and __call (70) — every name
+    // the claim above covers, so a carve-out for any one of them is red here.
+    expect(array_keys($file->getErrors()))
+        ->toContain(57)
+        ->toContain(61)
+        ->toContain(66)
+        ->toContain(70);
 });
 
 /**
@@ -177,7 +182,7 @@ it('never reports an unnamed declaration', function (): void {
         static fn (object $sniff): mixed => $sniff->minimum = 40
     );
 
-    expect(array_keys($file->getErrors()))->not->toContain(96, 99);
+    expect(array_keys($file->getErrors()))->not->toContain(109, 112);
 });
 
 /**
@@ -296,7 +301,7 @@ it('honours a numeric string threshold from a ruleset', function (): void {
         static fn (object $sniff): mixed => $sniff->minimum = '4'
     );
 
-    expect(array_keys($file->getErrors()))->toContain(64, 70);
+    expect(array_keys($file->getErrors()))->toContain(77, 83);
 });
 
 /**

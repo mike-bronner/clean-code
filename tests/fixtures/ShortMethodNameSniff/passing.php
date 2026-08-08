@@ -49,9 +49,22 @@ class A implements I
     // Magic methods carry no carve-out here because PHPMD has none. They pass
     // for the ordinary reason instead: the shortest of them, __get, is five
     // characters, so none is ever below the default minimum.
+    //
+    // All four names the parity claim covers are declared here, and all four
+    // are asserted once the minimum is raised past them. A carve-out for any
+    // single name then turns that test red. __set and __construct were absent
+    // before, so a carve-out naming those two went unreported.
+    public function __construct()
+    {
+    }
+
     public function __get(string $k): mixed
     {
         return null;
+    }
+
+    public function __set(string $k, mixed $v): void
+    {
     }
 
     public function __call(string $k, array $args): mixed
