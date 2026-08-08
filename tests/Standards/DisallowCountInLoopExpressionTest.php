@@ -56,6 +56,29 @@ const COUNT_IN_LOOP_VIOLATIONS = [
     [96, 8],   // while: count(...$rows) — a spread argument is still a real call
 ];
 
+/**
+ * Every violation in nested-loops-in-condition.php, in file order. Exact
+ * tuples rather than a count for the same reason as above, and for one more:
+ * the flattening helper keeps repeats, so a shape reported twice shows up as
+ * two identical entries and fails this list.
+ */
+const COUNT_IN_LOOP_NESTED_VIOLATIONS = [
+    [14, 14],   // closure -> foreach body
+    [26, 14],   // closure -> nested for body
+    [37, 23],   // closure -> nested for condition
+    [48, 12],   // closure -> nested while condition
+    [61, 14],   // closure -> nested do-while condition
+    [71, 36],   // closure -> nested foreach header
+    [88, 27],   // anonymous class method -> nested for condition
+    [101, 12],  // arrow function -> closure -> nested while condition
+    [113, 27],  // match arm -> closure -> nested for condition
+    [128, 23],  // nested for condition, the same loop as the line below
+    [129, 14],  // nested for body, the same loop as the line above
+    [143, 15],  // nested for initialiser, which the nested loop itself ignores
+    [153, 32],  // nested for increment, likewise
+    [172, 9],   // outer for condition, after a nested for in the initialiser
+];
+
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -182,6 +205,80 @@ it('still finds the condition when an arrow function precedes it in the for head
 });
 
 /**
+ * A loop condition can carry a whole nested scope, and that scope can carry
+ * loops of its own. Every call in nested-loops-in-condition.php is re-evaluated
+ * each time the outer condition is tested, so all of them are violations —
+ * PHPMD flags every one, because its rule keeps the condition's `Expression`
+ * node and runs `findChildrenOfType('FunctionPostfix')` across the whole
+ * subtree. What this fixture pins is that each is flagged *once*: a nested
+ * `for`/`while` reports its own header, and the enclosing scan steps over that
+ * header rather than reporting it a second time.
+ *
+ * A nested loop owns its condition and nothing else, and four shapes here pin
+ * the difference. Its *body* (lines 26 and 129) and its header's *initialiser*
+ * and *increment* (lines 143 and 153) all still belong to the enclosing scan:
+ * the closure is called afresh on every evaluation of the outer condition, so
+ * every one of those calls re-counts, PHPMD reports all four, and the nested
+ * loop's own pass reports none of them — it ignores its own initialiser and
+ * increment by the same section rule that makes them silent at the top level.
+ * An implementation that stepped over the nested header, or over the whole
+ * nested construct, loses them.
+ *
+ * The scopes are enumerated rather than sampled, because one closure shape
+ * standing in for "any nested scope" is how this class of gap gets missed: a
+ * braced closure, an anonymous class method, an arrow function (which has no
+ * braces, so a loop reaches it only through a closure it returns), and a match
+ * arm each get their own shape.
+ *
+ * Verified against a live PHPMD 2.15.0 rather than assumed. The comparison was
+ * run on a class-wrapped copy of these shapes, because PHPMD's rule is
+ * `ClassAware`/`TraitAware`/`EnumAware` and reports nothing at file level;
+ * counts matched shape for shape, including the two-violation shape on lines
+ * 128-129. The fixture itself stays file-level, matching every other fixture
+ * here.
+ *
+ * Mutation-tested three ways, each run against this fixture. failing.php
+ * survives all three unchanged, so this fixture is the only thing standing
+ * between any of them and a green suite:
+ *
+ *   - Dropping the nested-condition skip returns seven duplicate reports
+ *     (lines 37, 48, 61, 88, 101, 113, 128) — the defect this fixture was
+ *     written for.
+ *   - Skipping the nested loop's whole *header* rather than its condition
+ *     silences lines 143 and 153, the nested initialiser and increment.
+ *   - Skipping the nested loop's whole *construct* via `scope_closer`, body
+ *     included, silences lines 26, 129, 143, and 153.
+ *
+ * Line 172 is pinned by a fourth mutation that the fixture also catches:
+ * skipping by the *enclosing* loop's bounds rather than the nested loop's own
+ * (`$tokens[$stackPtr]` for `$tokens[$i]`) silences it along with 26 and 129.
+ * It is the only shape in the suite where a nested loop sits in a `for`
+ * initialiser, so it is the only one that proves the skip leaves the enclosing
+ * header's section separators alone.
+ *
+ * Not fixtured, deliberately: a `for` header carrying no section separator, or
+ * only one. Both are parse errors PHP itself rejects, and both were run against
+ * the sniff before and after this change with identical results, so there is no
+ * new behaviour for a fixture to pin — only the same refusal to guess that
+ * unclosed-condition.php already covers.
+ */
+it('reports a nested scope in a loop condition once, never twice', function (): void {
+    $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'nested-loops-in-condition.php');
+
+    $expected = array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => COUNT_IN_LOOP_SNIFF . '.Found',
+        ],
+        COUNT_IN_LOOP_NESTED_VIOLATIONS
+    );
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
  * A same-named method or static method is a different function that happens to
  * share the short name, as is any qualified name resolving outside the global
  * namespace, a method *declaration* of that name, and a class of that name being
@@ -298,6 +395,17 @@ it('flags the case and namespace spellings PHPMD misses', function (): void {
  *     loop's condition, so the token no longer has the missing bounds the
  *     fixture would exist to exercise. Left unfixtured rather than shipped as
  *     a file that passes forever without testing anything.
+ *
+ * The nested-header skip carries the same `parenthesis_closer` guard, and it
+ * is unfixturable for a sharper reason: a nested loop whose header is left
+ * unclosed takes the *enclosing* loop's closing parenthesis with it. Checked
+ * against the tokeniser directly — in `while (fn(function () { for ($i = 0; $i
+ * < count($rows); $i++ { … } })())`, the nested `for` keeps both bounds and it
+ * is the outer `while` that loses its closer, so process() returns at the
+ * guard above and the skip is never reached. Removing the nested guard changes
+ * no fixture in this suite. It is kept for what it prevents rather than what it
+ * is shown to prevent: without it the absent key resolves to null, `$i = null`
+ * then increments to 1, and the scan restarts from the top of the file.
  */
 it('refuses a malformed loop header rather than guessing at it', function (): void {
     $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'unclosed-condition.php');

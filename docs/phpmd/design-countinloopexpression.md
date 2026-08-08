@@ -50,6 +50,21 @@ separately for it.
   middle one is the continuation test: `count()` in the initialiser runs once,
   and `count()` in the increment is not the test. PHPMD reports neither, and
   neither does this sniff.
+- **Nested scopes in the condition are part of the condition** — a condition may
+  carry a closure, an anonymous class, an arrow function, or a `match` arm, and
+  that scope may carry loops of its own. Every `count()` inside it is
+  re-evaluated each time the condition is tested, so all of them are flagged.
+  PHPMD agrees: its rule keeps the condition's `Expression` node and runs
+  `findChildrenOfType('FunctionPostfix')` over the whole subtree, which includes
+  a closure literal written in the condition. The one thing this sniff steps
+  over is a nested `for`/`while`'s own *condition* — that loop is registered in
+  its own right and reports its condition itself, so reading it twice would
+  report the same call twice. Only the condition is skipped. The nested header's
+  initialiser and increment, which the nested loop's own pass ignores by the
+  same section rule, and the nested loop's body are all still read, because the
+  enclosing condition is re-evaluated each pass and so are they. All of these
+  shapes are pinned in
+  `tests/fixtures/DisallowCountInLoopExpressionSniff/nested-loops-in-condition.php`.
 - **Reported as an error** — as with `Squiz.PHP.Eval` and `VariableAnalysis`, so
   that a violation fails a `phpcs` run the way it fails a `phpmd` run. Left as a
   warning, `phpcs` would exit `0` and the mapping would not actually replace
@@ -141,6 +156,30 @@ replicate it.
 The exemption is deliberately narrow: the ellipsis has to be the *whole*
 argument list. `count(...$rows)` spreads an array into a real call, re-counts on
 every pass like any other call, and stays flagged by both tools.
+
+### Matched: nested scopes and nested loops in a condition
+
+Not a divergence, recorded because the shapes look like one and the parity was
+measured rather than assumed. Each was run through both tools; PHPMD reports the
+loop *statement* and this sniff reports the call token, so the comparison is of
+report counts.
+
+| Shape | PHPMD 2.15.0 | This sniff |
+| --- | --- | --- |
+| `count()` in a `foreach` body in a closure in the condition | 1 | 1 |
+| `count()` in a nested `for` body in a closure in the condition | 1 | 1 |
+| `count()` in a nested `foreach` header in a closure in the condition | 1 | 1 |
+| `count()` in a closure's `return` in the condition | 1 | 1 |
+| `count()` in an `if` block in a closure in the condition | 1 | 1 |
+| Nested `for` condition in a closure in the condition | 1 | 1 |
+| Nested `while` condition in a closure in the condition | 1 | 1 |
+| Nested `do`/`while` condition in a closure in the condition | 1 | 1 |
+| `count()` in a nested `for`'s initialiser in a closure in the condition | 1 | 1 |
+| `count()` in a nested `for`'s increment in a closure in the condition | 1 | 1 |
+| Nested loop condition in an anonymous class method in the condition | 1 | 1 |
+| Nested loop condition reached through an arrow function in the condition | 1 | 1 |
+| Nested loop condition in a `match` arm in the condition | 1 | 1 |
+| Two sibling loops, one `count()` each | 2 | 2 |
 
 ### Reported at a different position
 

@@ -20,18 +20,27 @@ use PHP_CodeSniffer\Util\Tokens;
  * Only the *condition* counts. A `for` header has three sections, and PHPMD
  * looks at the middle one alone: count() in the initialiser runs once, and
  * count() in the increment is not the loop's continuation test. The section is
- * therefore tracked by depth-zero semicolons only — a semicolon nested inside a
+ * therefore bounded by depth-zero semicolons only — a semicolon nested inside a
  * closure body, an array literal, or a call's argument list is not a section
  * separator, and treating it as one would shift every later section and either
  * report the initialiser or miss the condition entirely.
  *
- * That depth counter deliberately does not consult `scope_closer`, which is the
- * obvious-looking way to jump over a nested body. An arrow function is given a
- * `scope_closer` despite having no braces, and for `fn () => 1;` in a for
- * header that pointer lands on the header's own first separator — so jumping to
- * it swallows a real separator and silently loses the condition section.
- * Counting brackets visits every token instead, which is also what lets a
- * count() nested inside a call in the condition still be reported.
+ * Within that range every token is visited, so a count() nested inside a call
+ * in the condition is still reported, and so is one inside a closure, arrow
+ * function, anonymous class, or match arm written in the condition. That is
+ * deliberate rather than incidental: PHPMD keeps the condition's Expression
+ * node and runs findChildrenOfType('FunctionPostfix') across its whole subtree,
+ * so it flags those too, and the call really does re-run on every evaluation of
+ * the condition.
+ *
+ * The one thing the scan steps over is a *nested* loop's own condition range.
+ * That loop is registered in its own right and reports its condition itself, so
+ * reading it here as well would report the same call twice. Only the condition
+ * is skipped: the nested header's initialiser and increment — which the nested
+ * loop's own pass ignores by the same section rule — and the nested body are
+ * all still read here, because a call in any of them runs on every evaluation
+ * of this condition and PHPMD reports it. See
+ * docs/phpmd/design-countinloopexpression.md for the shape-by-shape comparison.
  *
  * Only a real *call* counts. A same-named method, static method, declaration,
  * or qualified name is a different function, and PHP 8.1's first-class callable
@@ -50,11 +59,14 @@ class DisallowCountInLoopExpressionSniff implements Sniff
     ];
 
     /**
-     * The middle section of a `for` header — the continuation test. Sections
-     * are numbered from zero in header order: initialiser, condition,
-     * increment.
+     * The loop keywords that carry a condition of their own, and so are both
+     * registered and — when one turns up nested inside another loop's
+     * condition — skipped over by the scan below.
      */
-    private const FOR_CONDITION_SECTION = 1;
+    private const LOOP_TOKENS = [
+        T_FOR,
+        T_WHILE,
+    ];
 
     /**
      * Tokens that open a nesting level, so any semicolon inside them belongs
@@ -94,7 +106,7 @@ class DisallowCountInLoopExpressionSniff implements Sniff
      */
     public function register(): array
     {
-        return [T_FOR, T_WHILE];
+        return self::LOOP_TOKENS;
     }
 
     /**
@@ -107,31 +119,25 @@ class DisallowCountInLoopExpressionSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        $tokens = $phpcsFile->getTokens();
+        $condition = $this->conditionRange($phpcsFile, $stackPtr);
 
-        if (isset($tokens[$stackPtr]['parenthesis_opener'], $tokens[$stackPtr]['parenthesis_closer']) === false) {
+        if ($condition === null) {
             return;
         }
 
-        $closer = $tokens[$stackPtr]['parenthesis_closer'];
-        $isForLoop = $tokens[$stackPtr]['code'] === T_FOR;
-        $depth = 0;
-        $section = 0;
+        $tokens = $phpcsFile->getTokens();
+        [$start, $end] = $condition;
+        $claimed = $this->nestedConditions($phpcsFile, $start, $end);
 
-        for ($i = ($tokens[$stackPtr]['parenthesis_opener'] + 1); $i < $closer; $i++) {
-            $code = $tokens[$i]['code'];
+        for ($i = $start; $i < $end; $i++) {
+            // A nested loop's condition is that loop's own to report: it is
+            // registered too, and its pass covers exactly this range. Step over
+            // it, and only it — the nested header's initialiser and increment,
+            // and the nested body, are all still read here, because a call in
+            // any of them runs on every evaluation of this condition.
+            if (isset($claimed[$i]) === true) {
+                $i = $claimed[$i];
 
-            if (in_array($code, self::NESTING_OPENERS, true) === true) {
-                $depth++;
-            } elseif (in_array($code, self::NESTING_CLOSERS, true) === true) {
-                $depth--;
-            } elseif ($code === T_SEMICOLON && $depth === 0) {
-                $section++;
-
-                continue;
-            }
-
-            if ($isForLoop === true && $section !== self::FOR_CONDITION_SECTION) {
                 continue;
             }
 
@@ -146,6 +152,105 @@ class DisallowCountInLoopExpressionSniff implements Sniff
                 [$tokens[$i]['content']]
             );
         }
+    }
+
+    /**
+     * The token range a loop reports on, as [start, end) pointers.
+     *
+     * For a `while` — and so for a do-while, whose condition hangs off the
+     * trailing `while` — that is everything between the parentheses. For a
+     * `for` it is the middle section of the three: the continuation test.
+     * Returns null when there is no condition to judge, which covers a
+     * malformed header with no parenthesis bounds and a `for` whose header
+     * carries no section separator at all.
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    private function conditionRange(File $phpcsFile, int $loopPtr): ?array
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$loopPtr]['parenthesis_opener'], $tokens[$loopPtr]['parenthesis_closer']) === false) {
+            return null;
+        }
+
+        $start = ($tokens[$loopPtr]['parenthesis_opener'] + 1);
+        $closer = $tokens[$loopPtr]['parenthesis_closer'];
+
+        if ($tokens[$loopPtr]['code'] !== T_FOR) {
+            return [$start, $closer];
+        }
+
+        $separators = $this->headerSeparators($phpcsFile, $start, $closer);
+
+        if (isset($separators[0]) === false) {
+            return null;
+        }
+
+        return [($separators[0] + 1), ($separators[1] ?? $closer)];
+    }
+
+    /**
+     * The pointers of a `for` header's own section separators — the semicolons
+     * at bracket depth zero.
+     *
+     * Depth is counted rather than jumped, and deliberately does not consult
+     * `scope_closer`, which is the obvious-looking way to step over a nested
+     * body. An arrow function is given a `scope_closer` despite having no
+     * braces, and for `fn () => 1;` in a for header that pointer lands on the
+     * header's own first separator — so jumping to it swallows a real separator
+     * and silently loses the condition section.
+     *
+     * @return array<int, int>
+     */
+    private function headerSeparators(File $phpcsFile, int $start, int $end): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $separators = [];
+        $depth = 0;
+
+        for ($i = $start; $i < $end; $i++) {
+            $code = $tokens[$i]['code'];
+
+            if (in_array($code, self::NESTING_OPENERS, true) === true) {
+                $depth++;
+            } elseif (in_array($code, self::NESTING_CLOSERS, true) === true) {
+                $depth--;
+            } elseif ($code === T_SEMICOLON && $depth === 0) {
+                $separators[] = $i;
+            }
+        }
+
+        return $separators;
+    }
+
+    /**
+     * The condition ranges of every loop nested inside [start, end), keyed by
+     * the pointer each range begins at so the scan can step over one the moment
+     * it reaches it.
+     *
+     * @return array<int, int>
+     */
+    private function nestedConditions(File $phpcsFile, int $start, int $end): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ranges = [];
+
+        for ($i = $start; $i < $end; $i++) {
+            if (in_array($tokens[$i]['code'], self::LOOP_TOKENS, true) === false) {
+                continue;
+            }
+
+            $nested = $this->conditionRange($phpcsFile, $i);
+
+            if ($nested === null) {
+                continue;
+            }
+
+            $ranges[$nested[0]] = $nested[1];
+        }
+
+        return $ranges;
     }
 
     /**
