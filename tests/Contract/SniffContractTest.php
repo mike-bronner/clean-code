@@ -17,7 +17,8 @@
  *
  *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
- *     DisallowStaticMembers, LineLength, LongClassName, Eval,
+ *     DisallowStaticMembers, DisallowBooleanArgumentFlag, LineLength,
+ *     LongClassName, Eval,
  *     VariableAnalysis) carry passing.php and failing.php but no
  *     autofixed.php, because there is no safe mechanical rewrite.
  *
@@ -63,6 +64,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
+    'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Naming.LongClassName',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
@@ -84,6 +86,9 @@ const SWEPT_SNIFFS = [
  * violation list; every other assertion treats the two alike.
  */
 const SWEPT_WARNING_SNIFFS = [
+    'CleanCode.Classes.DisallowConstructorInstantiation',
+    'CleanCode.Conditionals.AvoidConditionals',
+    'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
 ];
 
