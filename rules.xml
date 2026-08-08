@@ -222,6 +222,29 @@
     -->
 
     <!--
+        Dependency Injection (#72) —
+        docs/standards/dependency-injection.md.
+
+        The custom CleanCode.Classes.DisallowConstructorInstantiation sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. No PHPCS or Slevomat sniff
+        reports instantiation by location: Squiz.Objects.ObjectInstantiation
+        requires a new to be assigned/returned rather than used bare,
+        PSR12.Classes.ClassInstantiation and Slevomat's NewWithParentheses /
+        NewWithoutParentheses police the parentheses, and Slevomat's
+        constructor sniffs speak about property promotion. It warns once per
+        new inside the body of a __construct a class-like scope holds,
+        detection only: swapping an instantiation for an injected parameter
+        changes the class's signature and every call site. Whatever a throw
+        raises is exempt in full, however the expression is spelled.
+
+        Only that slice is enforced. Whether a collaborator warrants injection
+        at all needs the whole application's wiring, which a single-file token
+        scan cannot see, so the rest of the standard stays with code review
+        (#176 records how the slice was scoped).
+    -->
+
+    <!--
         Models: Persistence Methods (Repository Pattern) (#37) —
         docs/standards/models-persistence-methods-repository-pattern.md.
 
