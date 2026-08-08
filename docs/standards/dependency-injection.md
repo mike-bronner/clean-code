@@ -16,45 +16,75 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (partial: warning-level sniff)
 
 The core of this standard is an architectural judgement: whether a given
 collaborator *should* be injected ("where possible") depends on what the class
 is — service, value object, DTO — and on how the surrounding application
-resolves it, none of which is visible to a token-based sniff reading one file
-at a time. Enforcement is via code review and developer discipline.
+resolves it. None of that is visible to a token-based sniff reading one file at
+a time, so the core stays with code review.
 
-The heuristic sketched in the tracking issue — flagging `new ClassName()`
-calls for classes that are also type-hinted as constructor parameters
-elsewhere in the project — is **not** feasible as a PHPCS sniff: it requires
-cross-file knowledge, and a sniff sees a single file's tokens.
-
-No rule is wired into `rules.xml` for this standard. The assessment is
-recorded on [#72](https://github.com/mike-bronner/phpcs-rules/issues/72); the
-one slice that survives it is scoped on its own issue, below.
-
-## Partial enforcement — narrow sniff slice
-
-One same-file slice **is** token-visible: a `new` expression inside a
-`__construct` body. A constructor's job is to receive dependencies, not build
-them, so instantiating a collaborator there is the clearest token-level signal
-of hard-wiring over injection. Focused sniff issue:
+One same-file slice **is** token-visible, and is enforced:
+`CleanCode.Classes.DisallowConstructorInstantiation`, wired into the master
+`rules.xml` via the `./CleanCode/ruleset.xml` reference. The scoping of the
+slice is recorded on
 [#176](https://github.com/mike-bronner/phpcs-rules/issues/176).
 
-- **Detection** — flag `T_NEW` tokens within `__construct` method bodies.
-- **`throw new` excluded** — raising an exception is not dependency
-  construction.
-- **Warning severity, not error** — value objects, DTOs, and default
-  collaborator instances are legitimately constructed inline, so the sniff
-  points at injection candidates rather than mandating a fix.
-- **Constructor bodies only** — `new` inside ordinary methods is far too noisy
-  (factories, named constructors, collections, dates) to flag at the token
-  level.
+### Detection — one warning per `new` in a constructor body
+
+A constructor's job is to *receive* collaborators, not to build them, so a
+`new` expression among its statements is the clearest token-level signal of
+hard-wiring over injection. The sniff registers on `T_FUNCTION`, keeps only the
+declarations named `__construct` (case-insensitively, as PHP method names are),
+and walks the token range between that method's braces.
+
+- **Warning, not error.** Value objects, DTOs, and default collaborator
+  instances are legitimately constructed inline. The sniff points at injection
+  candidates; it does not mandate a fix.
+- **Reported at the `new` keyword**, once per instantiation, under the code
+  `CleanCode.Classes.DisallowConstructorInstantiation.Found`.
+- **Detection only.** Replacing an instantiation with an injected parameter
+  rewrites the class's signature and every call site — not a mechanical fix, so
+  nothing here is auto-fixable.
+
+Deliberately silent on:
+
+- **`throw new …`** — raising an exception is not dependency construction.
+- **`new` outside the body** — an ordinary method's `new` is far too noisy to
+  flag (factories, named constructors, collections, dates), and a constructor's
+  *parameter list* is exactly where an inline default collaborator belongs
+  (`private Logger $logger = new NullLogger()`, PHP 8.1 new-in-initializers).
+- **`new` inside a closure, arrow function, or anonymous-class body declared in
+  a constructor** — that code runs later, or belongs to another type. A lazily
+  built collaborator (`$this->make = fn () => new Mailer();`) is the deferred
+  construction this standard asks for. The `new` of the anonymous class itself
+  is still reported: that instantiation does happen in the constructor.
+
+### Why a custom sniff
+
+No existing PHPCS or Slevomat sniff reports instantiation by *location*. The
+catalogues police the *shape* of a `new`: `Squiz.Objects.ObjectInstantiation`
+requires it be assigned or returned rather than used bare,
+`PSR12.Classes.ClassInstantiation` and
+[Slevomat's `ControlStructures.NewWithParentheses` / `NewWithoutParentheses`](https://github.com/slevomat/coding-standard/blob/master/doc/control-structures.md)
+prescribe the parentheses, and Slevomat's constructor sniffs
+(`Classes.RequireConstructorPropertyPromotion`, already wired in for
+[#47](https://github.com/mike-bronner/phpcs-rules/issues/47)) speak about
+promotion. None expresses "not inside a constructor body", so this half is a
+custom sniff.
+
+### What the cross-file heuristic cannot do
+
+The heuristic sketched on the tracking issue — flagging `new ClassName()` for
+classes that are also type-hinted as constructor parameters elsewhere in the
+project — is **not** feasible as a PHPCS sniff: it requires cross-file
+knowledge, and a sniff sees one file's tokens at a time.
 
 ## What remains code review
 
-Everything beyond that slice: whether a collaborator warrants injection at
-all, whether the IoC container should resolve it automatically, and whether an
-inline construction is a legitimate value object or a coupling smell. Those
-are judgements about intent and application architecture — that call stays
-with code review.
+Everything beyond the flagged slice: whether a collaborator warrants injection
+at all, whether the IoC container should resolve it automatically, and whether
+a given inline construction is a legitimate value object or a coupling smell.
+Those are judgements about intent and application architecture, so they stay
+with the reviewer — a warning from this sniff is a prompt for that
+conversation, not a verdict.
