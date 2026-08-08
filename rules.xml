@@ -217,6 +217,26 @@
     </rule>
 
     <!--
+        PHPMD Naming: LongClassName (#101) —
+        docs/phpmd/naming-longclassname.md.
+
+        No PHPCS, Generic, or Slevomat sniff measures a type name's length, so
+        the custom CleanCode.Naming.LongClassName sniff carries this rule. It is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no configuration is wanted. The sniff's defaults
+        already are PHPMD's (maximum 40, no subtracted prefixes or suffixes),
+        and it reports an error out of the box. The Squiz.PHP.Eval mapping above
+        and the VariableAnalysis one below each need a <type>error</type>
+        override because the third-party sniff they wrap warns; a custom sniff
+        chooses its own severity, so there is nothing here to raise for phpcs to
+        fail the run the way phpmd does.
+
+        Detection only, matching PHPMD: renaming a type means rewriting every
+        reference to it across the codebase, which a single-file, token-based
+        fixer cannot do safely.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
 
