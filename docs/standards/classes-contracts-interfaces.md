@@ -35,6 +35,10 @@ No partial token-based enforcement is feasible either:
   That is cross-file, semantic knowledge; a PHPCS sniff sees one file's
   tokens at a time.
 
+No subset of the standard survives that, so no partial-enforcement sniff issue
+is opened and no rule is wired into `rules.xml`. The assessment is recorded on
+[#10](https://github.com/mike-bronner/phpcs-rules/issues/10).
+
 ## What remains code review
 
 Everything. The judgement calls — does this class benefit from a contract, is
