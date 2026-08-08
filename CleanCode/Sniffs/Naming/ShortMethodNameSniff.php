@@ -45,12 +45,16 @@ use PHP_CodeSniffer\Util\Tokens;
  * updating every call site, every interface it implements and anything
  * reaching it by string, so there is no safe mechanical rewrite.
  *
- * Two shapes PHPMD cannot see are reported here: methods of an anonymous
- * class, and a function declared inside a function or method body. Both are
- * invisible to pdepend, so phpmd stays silent on them whatever the threshold.
- * Reporting them is the safe direction — this ruleset replaces phpmd for the
- * rule, so catching more than phpmd never leaves a violation unreported. Both
- * are pinned by tests/fixtures/ShortMethodNameSniff/divergences.php.
+ * One shape PHPMD cannot see is reported here: a method of an anonymous
+ * class, which pdepend builds no method node for, so phpmd stays silent on it
+ * whatever the threshold. Reporting it is the safe direction — this ruleset
+ * replaces phpmd for the rule, so catching more than phpmd never leaves a
+ * violation unreported. Pinned by
+ * tests/fixtures/ShortMethodNameSniff/divergences.php.
+ *
+ * A function declared inside a function or method body looks like the same
+ * kind of nesting but is not a divergence: pdepend does collect it and both
+ * tools report it, so it is pinned as ordinary parity in failing.php.
  */
 class ShortMethodNameSniff implements Sniff
 {
