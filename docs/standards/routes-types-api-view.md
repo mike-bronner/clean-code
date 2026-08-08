@@ -90,9 +90,10 @@ file rather than by fixing the problem:
 Both sides are read **relative to the controller root**: only the segments
 following the first `Controllers` segment count. A project checked out at
 `/srv/api`, or a vendor package namespaced `Api\Http\Controllers\…`, would
-otherwise read as API-everything. The `API` segment itself is matched
-case-insensitively, so `API`, `Api` and `api` are the same grouping — the
-standard is about the segment being present, not about how it is cased.
+otherwise read as API-everything. Both segments are matched
+case-insensitively — the `API` grouping, so `API`, `Api` and `api` read alike,
+and the `Controllers` root on the same terms — because the standard is about a
+segment being present, not about how it is cased.
 
 **Not flagged** — deliberately outside the rule:
 

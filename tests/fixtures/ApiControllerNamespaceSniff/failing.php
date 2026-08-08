@@ -30,3 +30,13 @@ namespace App\Http\Controllers\api\Reports {
     {
     }
 }
+
+// Negative: the *controller root* is matched case-insensitively too, on the
+// same terms as the API grouping above. Without that normalization this
+// namespace resolves to no controller root at all, and a misplaced API
+// controller goes unreported.
+namespace App\Http\CONTROLLERS\API {
+    class LedgerController
+    {
+    }
+}

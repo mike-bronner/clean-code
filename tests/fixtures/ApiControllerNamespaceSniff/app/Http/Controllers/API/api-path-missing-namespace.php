@@ -11,8 +11,9 @@ namespace App\Http\Controllers {
     }
 }
 
-// Negative: no namespace at all. The location alone is what identifies this as
-// a controller, and the global namespace carries no API segment either.
+// Negative: the global namespace, spelled as an unnamed block. The location
+// alone is what identifies this as a controller, and the global namespace
+// contributes no segments to compare — no API one included.
 namespace {
     class LegacyController
     {

@@ -10,12 +10,14 @@
  * namespace, and the API segment in the path of the file it sits in. That
  * second half is why this directory holds more than the two flat fixtures. The
  * contract's passing.php and failing.php have fixed names *and* a fixed
- * location, and that location carries no API path segment — so they can only
- * ever exercise the namespace side. The path side needs a fixture whose real
- * path contains app/Http/Controllers/API/, which is where the nested pair
- * under this directory comes from. They are ordinary in-repo fixtures, covered
- * by composer lint's fixtures ignore pattern like every other one, and
- * invisible to the contract sweep, which only looks for the three fixed names.
+ * location, and that location carries no Controllers segment — so they can
+ * only ever exercise the namespace side. The path side needs fixtures whose
+ * real paths carry that segment, which is where the nested app/Http/Controllers
+ * tree under this directory comes from: the API/ pair for a path below the
+ * controller root, and root-compliant.php for a file sitting directly on it.
+ * They are ordinary in-repo fixtures, covered by composer lint's fixtures
+ * ignore pattern like every other one, and invisible to the contract sweep,
+ * which only looks for the three fixed names.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -40,20 +42,21 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * Every shape in passing.php stays silent, and each one pins a different
- * reason for that silence:
+ * reason for that silence. Each line below is the `class` declaration itself —
+ * the token the sniff reports at — not the comment introducing it:
  *
- * - line 11, `App\Http\Controllers\ReportController` — the compliant view
+ * - line 12, `App\Http\Controllers\ReportController` — the compliant view
  *   controller. The sniff registers on it and finds both sides agreeing that
  *   this is not API; it is not silent for want of anything to look at.
- * - line 17, `ApiTokenController` — the class *name* names the API. Only
+ * - line 18, `ApiTokenController` — the class *name* names the API. Only
  *   namespace segments are compared, so this is left alone.
  * - line 26, `App\Http\Controllers\Reports\IndexController` — a segment below
  *   the controller root that is not API.
- * - line 34, `App\Services\API\Client` — an API segment with no controller
+ * - line 36, `App\Services\API\Client` — an API segment with no controller
  *   root above it on either side. Without the controller-root gate this reads
  *   as an API-namespaced class at a non-API path, which is the
  *   UnexpectedApiNamespace violation.
- * - line 43, `Api\Http\Controllers\WebhookController` — an Api segment
+ * - line 45, `Api\Http\Controllers\WebhookController` — an Api segment
  *   *above* the controller root. Only the segments below it count, so a
  *   vendor package rooted at Api is not every-file-is-API.
  */
@@ -77,6 +80,11 @@ it('produces no violations on the compliant fixture', function (): void {
  *   reported at all.
  * - line 29, `App\Http\Controllers\api\Reports` — the API grouping compared
  *   case-insensitively. Without that, a lowercase segment escapes.
+ * - line 39, `App\Http\CONTROLLERS\API` — the *controller root* compared
+ *   case-insensitively, which is a separate normalization from the one above
+ *   and needs its own shape. Match the root literally and this namespace has
+ *   no controller root, both sides fall to "not a controller", and the
+ *   misplaced API controller is never reported.
  *
  * The column is 5 rather than 1 because braced namespace blocks indent their
  * class declarations; the violation is reported at the `class` keyword.
@@ -88,6 +96,7 @@ it('flags every misplaced API namespace at its own line', function (): void {
         ['line' => 9, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_UNEXPECTED],
         ['line' => 21, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_UNEXPECTED],
         ['line' => 29, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_UNEXPECTED],
+        ['line' => 39, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_UNEXPECTED],
     ]);
 });
 
@@ -104,11 +113,31 @@ it('leaves a controller whose namespace matches its API path alone', function ()
 });
 
 /**
+ * The third path shape: a file directly on the controller root, no
+ * subdirectory under it. The sniff keeps "no controller root in this path" and
+ * "on the controller root, nothing below it" as different answers, and only
+ * the second one describes a view controller in the ordinary Laravel layout.
+ * Every other fixture here lands on one of the other two branches — the flat
+ * pair carries no Controllers segment, the API/ pair carries an API segment
+ * below it — so fold the bare root into "API path" and nothing else complains:
+ * app/Http/Controllers/HomeController.php starts reporting MissingApiNamespace.
+ */
+it('leaves a controller sitting directly on the controller root alone', function (): void {
+    $file = analyzeFixture(
+        API_CONTROLLER_NAMESPACE,
+        'app/Http/Controllers/root-compliant.php'
+    );
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
  * The reverse violation, at the same API path:
  *
  * - line 9, `App\Http\Controllers` — a controller namespace that simply lacks
  *   the API segment its location carries.
- * - line 17, a class in the global namespace. The location alone identifies it
+ * - line 18, a class in the global namespace. The location alone identifies it
  *   as a controller, which is the branch where the namespace side contributes
  *   no segments at all.
  */
@@ -120,7 +149,7 @@ it('flags a controller under an API path whose namespace has no API segment', fu
 
     expect(violationTuples($file))->toBe([
         ['line' => 9, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_MISSING],
-        ['line' => 17, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_MISSING],
+        ['line' => 18, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_MISSING],
     ]);
 });
 
@@ -139,7 +168,7 @@ it('marks no violation fixable', function (string $fixture, int $expected): void
     expect($file->getErrorCount())->toBe($expected)
         ->and($file->getFixableCount())->toBe(0);
 })->with([
-    ['failing.php', 3],
+    ['failing.php', 4],
     [API_PATH_FIXTURES . 'api-path-missing-namespace.php', 2],
 ]);
 
