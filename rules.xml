@@ -230,6 +230,10 @@
 
         - UnusedVariable        → PHPMD UnusedLocalVariable (#118) /
                                   UnusedFormalParameter (#120), not this rule.
+                                  UnusedFormalParameter now ships below via
+                                  Generic.CodeAnalysis.UnusedFunctionParameter,
+                                  so this exclude also stops the two sniffs
+                                  reporting the same unused parameter twice.
         - VariableRedeclaration → no PHPMD counterpart; redeclaring a defined
                                   variable is the opposite of using an
                                   undefined one.
@@ -270,5 +274,61 @@
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.StaticOutsideClass"/>
+    </rule>
+
+    <!--
+        PHPMD UnusedCode: UnusedFormalParameter (#120) —
+        docs/phpmd/unusedcode-unusedformalparameter.md.
+
+        PHPMD's UnusedFormalParameter ("a parameter is never used within the
+        body") maps onto the bundled Generic.CodeAnalysis.UnusedFunctionParameter
+        sniff, so no custom sniff is needed. The sniff carries no thresholds and
+        PHPMD's rule has none either; its one property, ignoreTypeHints, exempts
+        parameters by type hint, which PHPMD cannot do, so it is left at its
+        empty default.
+
+        The sniff never changes its verdict for an inherited signature — it
+        changes the error *code*, to FoundInExtendedClass* or
+        FoundInImplementedInterface*, whenever the enclosing class extends a
+        class or implements an interface. PHPMD instead stays silent on a
+        parameter that only exists to satisfy an inherited signature. Excluding
+        those six codes is what buys that exemption, and it is the whole reason
+        the sniff needs configuring:
+
+        - FoundInExtendedClass{,BeforeLastUsed,AfterLastUsed}
+        - FoundInImplementedInterface{,BeforeLastUsed,AfterLastUsed}
+
+        The three plain Found{,BeforeLastUsed,AfterLastUsed} codes stay: they
+        fire on a plain function, a closure, or a method of a class that
+        inherits nothing, where no signature is imposed from outside and an
+        unused parameter is simply dead.
+
+        As with Squiz.PHP.Eval and VariableAnalysis above, the severity is
+        raised from the sniff's built-in warning to an error: PHPMD fails a run
+        on an UnusedFormalParameter violation, and a warning would leave phpcs
+        exiting 0, so phpmd would still have to run separately for this rule.
+
+        Not a drop-in match for PHPMD, and no property makes it one. This
+        ruleset is stricter on closure and arrow-function parameters (PHPMD's
+        rule visits functions and methods only) and on a parameter reachable
+        only through func_get_args() (the one shape where it over-reports). It
+        is looser on an empty or comment-only body, on __unserialize(), and —
+        the cost of the excludes above — on a method that is *not* an override
+        inside a class that extends or implements something. All seven shapes
+        are pinned by tests/fixtures/UnusedFunctionParameterSniff/divergences.php
+        and set out in docs/phpmd/unusedcode-unusedformalparameter.md.
+
+        Detection only: deleting a parameter changes the signature and breaks
+        every caller, so there is nothing safe to auto-fix. PHPMD reports this
+        rule rather than rewriting the code too.
+    -->
+    <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
+        <type>error</type>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClass"/>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClassBeforeLastUsed"/>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClassAfterLastUsed"/>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterface"/>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterfaceBeforeLastUsed"/>
+        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterfaceAfterLastUsed"/>
     </rule>
 </ruleset>
