@@ -84,6 +84,7 @@ const SWEPT_SNIFFS = [
  * violation list; every other assertion treats the two alike.
  */
 const SWEPT_WARNING_SNIFFS = [
+    'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Models.RequireLazyLoadingPrevention',
 ];
 
