@@ -17,6 +17,11 @@
  * refuses the file — so a fixture that trips nothing can never be mistaken for
  * a working configuration.
  *
+ * The order itself is decided two ways, and both are pinned below: two imports
+ * of the same type are compared by name, while two imports of different types
+ * are ranked by the PSR-12 group priority — classes, then functions, then
+ * constants.
+ *
  * Sortedness is a property of the whole `use` block, not of each entry: the
  * sniff reports one diagnostic at the first out-of-order import and the fixer
  * reorders the entire block, after which every later entry is already correct.
@@ -88,6 +93,65 @@ it('flags an unsorted block once, at its first out-of-order import', function ()
 
     expect(violationFixableFlags($file))->toBe([true]);
 });
+
+/**
+ * The cross-group half of the sort. The sniff compares two imports of the same
+ * type by name, which failing.php pins, and two imports of *different* types by
+ * a PSR-12 priority table instead — classes, then functions, then constants.
+ * Every group inside these two fixtures is already sorted internally, so the
+ * priority table is the only thing left that can report either file, and
+ * between them they put each adjacent pair of the table on its violating side:
+ * classes standing after functions, and functions standing after constants.
+ * A regression that flattened the table, or reordered it, leaves both files
+ * silent — which passing.php cannot catch, being compliant in both directions.
+ */
+it('flags a group standing in the wrong PSR-12 position', function (
+    string $fixture,
+    int $line
+) use ($analyzeSortedUses): void {
+    $file = $analyzeSortedUses($fixture);
+
+    expect(violationTuples($file))->toBe([
+        ['line' => $line, 'column' => 1, 'source' => SORTED_USES . '.IncorrectlyOrderedUses'],
+    ]);
+
+    expect(violationFixableFlags($file))->toBe([true]);
+})->with([
+    ['function-group-first.php', 14],
+    ['const-group-before-function-group.php', 18],
+]);
+
+/**
+ * That same priority table also drives the fixer, so a regression in it
+ * misorders the fixed output rather than only mis-reporting. The expected order
+ * below is written out by hand on purpose: a broken table is self-consistent,
+ * so re-running the sniff over the fixed file would report nothing either way
+ * and prove only that the fixer agrees with itself.
+ */
+it('rewrites a misplaced group into PSR-12 order', function (
+    string $fixture,
+    array $expected
+) use ($analyzeSortedUses): void {
+    preg_match_all('/^use .+;$/m', autofixedContents($analyzeSortedUses($fixture)), $matches);
+
+    expect($matches[0])->toBe($expected);
+})->with([
+    ['function-group-first.php', [
+        'use App\Contracts\Notifier;',
+        'use App\Support\Clock;',
+        'use function array_map;',
+        'use function count;',
+        'use const PHP_EOL;',
+    ]],
+    ['const-group-before-function-group.php', [
+        'use App\Contracts\Notifier;',
+        'use App\Support\Clock;',
+        'use function array_map;',
+        'use function count;',
+        'use const PHP_EOL;',
+        'use const SORT_STRING;',
+    ]],
+]);
 
 it('sorts the whole block when fixed, leaving the rest untouched', function () use ($analyzeSortedUses): void {
     $file = $analyzeSortedUses('failing.php');
