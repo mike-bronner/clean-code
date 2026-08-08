@@ -77,10 +77,11 @@ The first rule prohibits a construct that is plain token content: a populated
 `CleanCode.Models.DisallowAlwaysOnEagerLoading`
 ([#153](https://github.com/mike-bronner/phpcs-rules/issues/153)).
 
-- **Detection** — a `$with` property declared directly in a class body, with a
-  default that is an array literal holding at least one element, is reported on
-  the property itself. Both array syntaxes count; an empty array, a non-array
-  default, and no default at all do not.
+- **Detection** — a `$with` property declared on a class — in the class body,
+  or promoted in its constructor — with a default that is an array literal
+  holding at least one element, is reported on the property itself. Both array
+  syntaxes count; an empty array, a non-array default, and no default at all do
+  not.
 - **Model-shaped parent required** — the class must `extend` a parent whose
   short name is `Model`, `Authenticatable`, `Pivot`, or ends in `Model`.
   `$with` is an ordinary property name any class may use, so the parent is what
@@ -95,14 +96,17 @@ The first rule prohibits a construct that is plain token content: a populated
   legitimate use exists (a tiny lookup relation genuinely needed on every
   load), so the sniff surfaces the smell without hard-blocking.
 - **Boundaries** — the property name is matched case-sensitively, because PHP
-  property names are and Eloquent reads `$with`. Only declarations made
-  directly in the matched class body count, so a local `$with` in a method and a
-  nested anonymous class's own property are both left alone — and an anonymous
-  class is never a subject in its own right, since PHPCS gives it a separate
-  token this sniff does not register for. Dynamic assignment
-  (`$this->with = …` in a constructor, `setEagerLoads()`) is invisible to a
-  property-default check and stays code review. Half-written source is passed
-  over rather than guessed at.
+  property names are and Eloquent reads `$with`. Only property declarations
+  count, so a local `$with` assigned inside a method, an ordinary `$with`
+  parameter of a method — `findWith(int $id, array $with = ['author'])` is an
+  idiomatic signature, not a defect — and a nested anonymous class's own
+  property are all left alone. An anonymous class is never a subject in its own
+  right either, since PHPCS gives it a separate token this sniff does not
+  register for. A constructor-promoted `public array $with = ['author']` *is*
+  reported: it declares the property and its default, so it eager loads exactly
+  like the long form. Dynamic assignment (`$this->with = …` in a constructor,
+  `setEagerLoads()`) is invisible to a property-default check and stays code
+  review. Half-written source is passed over rather than guessed at.
 
 ### Rejected heuristic
 
