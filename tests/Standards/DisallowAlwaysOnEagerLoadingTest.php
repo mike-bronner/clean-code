@@ -122,18 +122,18 @@ it('names the query-site alternative in the warning message', function (): void 
  *   case-sensitive and Eloquent reads $with, so this is an unrelated property.
  * - lines 35-38, `$with = self::DEFAULT_RELATIONS` — a non-array default. What
  *   the constant holds is not single-file token content.
- * - lines 40-49, `protected $with;` with no default at all, plus a local
+ * - lines 40-50, `protected $with;` with no default at all, plus a local
  *   `$with = ['owner']` inside a method. A local variable is not a property,
  *   so the sniff only counts declarations made directly in the class body.
- * - lines 51-59, a nested anonymous class declaring its own populated $with.
+ * - lines 52-60, a nested anonymous class declaring its own populated $with.
  *   Same rule from the other side: the property belongs to the inner class,
  *   not the model being processed. The sniff registers T_CLASS, and PHPCS
  *   gives an anonymous class its own T_ANON_CLASS token, so the inner class is
  *   never a subject in its own right either — a documented boundary, not an
  *   endorsement of the construct.
- * - lines 61-64, a populated $with on a class with no parent at all. $with is
+ * - lines 62-65, a populated $with on a class with no parent at all. $with is
  *   an ordinary property name and this class is not a model.
- * - lines 66-69, a populated $with on `extends Command` — a parent that is not
+ * - lines 67-70, a populated $with on `extends Command` — a parent that is not
  *   model-shaped. This is the gate that keeps the sniff off unrelated code.
  * - lines 72-88 and 90-93, four ordinary $with *parameters* carrying a
  *   populated array default, on models that would otherwise be subjects.
