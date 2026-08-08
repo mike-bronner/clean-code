@@ -26,6 +26,7 @@ class PrefixMatching
     public function doThing22(): void {}
     public function doThing23(): void {}
     public function doThing24(): void {}
+    public function doThing25(): void {}
     public function isolate(): void {}
     public function hash(): void {}
     public function within(): void {}

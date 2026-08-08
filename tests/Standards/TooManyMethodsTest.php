@@ -110,20 +110,40 @@ it('names the class and the counts in the message', function (): void {
 /**
  * PHPMD's shipped ignore pattern is a case-insensitive *prefix* match with no
  * word boundary, so it excludes far more than accessors. `prefix-matching.php`
- * declares 30 methods, six of which the pattern excludes — `isolate`, `hash`,
+ * declares 31 methods, six of which the pattern excludes — `isolate`, `hash`,
  * `within`, `withdraw` (prefixes, not whole words) and `GETdata`, `Setup`
- * (matching only because the trailing `i` folds case) — leaving 24 counted.
+ * (matching only because the trailing `i` folds case) — leaving exactly 25
+ * counted, the compliant edge of the threshold.
  *
- * Sitting six below a threshold of 25 is what makes the file discriminating in
- * both directions: drop the case folding and the two capitalised names count,
- * reaching 26; anchor the pattern to whole words and the four prefix matches
- * count, reaching 28. Either way the class reports.
+ * Sitting *on* the boundary is what makes silence discriminating down to a
+ * single name: count any one of the six and the class reaches 26 and reports.
+ * A fixture parked below the line would need two names to go wrong before
+ * anything showed, so a regression that mishandled only `GETdata` would pass.
+ *
+ * Silence alone still cannot see the other direction — a pattern that grew to
+ * swallow a `doThing*` name drops the count to 24 and stays just as quiet — so
+ * the second half pins the number itself. Lowering `maxmethods` to 0 forces the
+ * class to report and puts the count in the message, where a miscount either
+ * way is visible as a number rather than inferred from a threshold.
  */
 it('excludes case-insensitive prefix matches from the count', function (): void {
     $file = analyzeFixture(TOO_MANY_METHODS, 'prefix-matching.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
+
+    $counted = analyzeFixture(
+        TOO_MANY_METHODS,
+        'prefix-matching.php',
+        static function (object $sniff): void {
+            $sniff->maxmethods = 0;
+        }
+    );
+
+    expect(violationTuples($counted))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => TOO_MANY_METHODS_ERROR],
+    ])->and($counted->getErrors()[3][1][0]['message'])
+        ->toContain('declares 25 counted methods');
 });
 
 /**
