@@ -14,11 +14,13 @@ retroactively via `load()` after the query has already run.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 2 (custom sniff + runtime safety check)
+## Enforceability — Tier 2 (custom sniffs + runtime safety check)
 
 The standard **is enforceable**: Laravel ships a lazy-loading safety check
 that turns violations into exceptions, and whether that check is switched on
-is itself token-visible — so a sniff enforces the enforcement.
+is itself token-visible — so a sniff enforces the enforcement. The construct
+the first rule prohibits outright, a populated `$with` property, is token
+content in its own right, so a second sniff reports it directly.
 
 ### Runtime safety check
 
@@ -68,12 +70,39 @@ plain token content. Sniff: `CleanCode.Models.RequireLazyLoadingPrevention`
   method still satisfies the sniff, and an argument that disables the check in
   every environment (`preventLazyLoading(false)`) is not read.
 
-### Further token-visible slice
+### Custom sniff — no always-on eager loading
 
-- **Non-empty `$with`** — a populated `protected $with = [...];` property on a
-  model (the construct the first rule prohibits) is readable by single-file
-  token analysis. Focused sniff issue:
-  [#153](https://github.com/mike-bronner/phpcs-rules/issues/153).
+The first rule prohibits a construct that is plain token content: a populated
+`protected $with = [...];` property on a model. Sniff:
+`CleanCode.Models.DisallowAlwaysOnEagerLoading`
+([#153](https://github.com/mike-bronner/phpcs-rules/issues/153)).
+
+- **Detection** — a `$with` property declared directly in a class body, with a
+  default that is an array literal holding at least one element, is reported on
+  the property itself. Both array syntaxes count; an empty array, a non-array
+  default, and no default at all do not.
+- **Model-shaped parent required** — the class must `extend` a parent whose
+  short name is `Model`, `Authenticatable`, `Pivot`, or ends in `Model`.
+  `$with` is an ordinary property name any class may use, so the parent is what
+  keeps the sniff off unrelated code. Only the short name is compared: the FQCN
+  is not resolvable at lint time, but `extends Model` and
+  `extends \Illuminate\Database\Eloquent\Model` both put `Model` in the file's
+  tokens.
+- **Configurable parent list** — the listed names are a public sniff property
+  (`modelParentClasses`); a project whose base model is named something else
+  adds it. The `*Model` suffix matches regardless of the list.
+- **Warning severity, not error** — the standard says *avoid*, and a rare
+  legitimate use exists (a tiny lookup relation genuinely needed on every
+  load), so the sniff surfaces the smell without hard-blocking.
+- **Boundaries** — the property name is matched case-sensitively, because PHP
+  property names are and Eloquent reads `$with`. Only declarations made
+  directly in the matched class body count, so a local `$with` in a method and a
+  nested anonymous class's own property are both left alone — and an anonymous
+  class is never a subject in its own right, since PHPCS gives it a separate
+  token this sniff does not register for. Dynamic assignment
+  (`$this->with = …` in a constructor, `setEagerLoads()`) is invisible to a
+  property-default check and stays code review. Half-written source is passed
+  over rather than guessed at.
 
 ### Rejected heuristic
 
@@ -90,8 +119,10 @@ plain token content. Sniff: `CleanCode.Models.RequireLazyLoadingPrevention`
 
 The safety check turns *implicit* lazy loading into a hard failure in
 development and tests (it is disabled in production per the recommended
-config above), and the sniff keeps that check from being quietly left out.
-Judging whether a given query loads the *right* relationships at the right
-place — and preferring query-site `with()` over a later explicit `load()`
-(which the runtime check does not forbid) — remains a query-site design call
-for code review.
+config above), one sniff keeps that check from being quietly left out, and the
+other reports the always-on `$with` property the first rule prohibits. Judging
+whether a given query loads the *right* relationships at the right place — and
+preferring query-site `with()` over a later explicit `load()` (which the
+runtime check does not forbid) — remains a query-site design call for code
+review. So does eager loading configured at runtime rather than in a property
+default, which no property-default check can see.
