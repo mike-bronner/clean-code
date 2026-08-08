@@ -238,12 +238,20 @@
     <!--
         Models: Eager Loading (#74) — docs/standards/models-eager-loading.md.
 
-        The custom CleanCode.Models.RequireLazyLoadingPrevention sniff is
-        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
-        comment records that no scoping is wanted. The sniff only ever speaks
-        about a class named in its serviceProviderClasses property (default:
+        Two custom sniffs carry the token-visible slices of this standard, and
+        both are picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; this comment records that no scoping is wanted for either.
+
+        CleanCode.Models.RequireLazyLoadingPrevention only ever speaks about a
+        class named in its serviceProviderClasses property (default:
         AppServiceProvider), so it is already silent everywhere else, tests
         included.
+
+        CleanCode.Models.DisallowAlwaysOnEagerLoading (#153) only speaks about a
+        class extending a model-shaped parent, and a populated $with bloats
+        every query the same way wherever the model is declared — there is no
+        test-path idiom that makes it legitimate, unlike the factory chains that
+        keep DisallowExternalPersistenceCalls out of tests above.
     -->
 
     <!--
