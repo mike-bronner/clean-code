@@ -72,6 +72,21 @@ class UserController
         return User::find(...);
     }
 
+    public function withNamedLiteral(): ?User
+    {
+        return User::find(id: 1);
+    }
+
+    public function withNamedProperty(): ?User
+    {
+        return User::find(id: $this->userId);
+    }
+
+    public function withReorderedNamedArguments(int $id): ?User
+    {
+        return User::find(columns: ['*'], id: $id);
+    }
+
     protected function protectedAction(int $id): ?User
     {
         return User::find($id);

@@ -116,6 +116,11 @@ class ManualModelResolutionSniff implements Sniff
      * as T_ANON_CLASS and a closure as T_CLOSURE, so neither answers a
      * T_CLASS or T_FUNCTION lookup: code inside one is judged by the named
      * class and named method around it, which is what the standard is about.
+     *
+     * A plain named function declared inside a method body answers the
+     * T_FUNCTION lookup though, and it is not the action: a route never binds
+     * into it and it inherits nothing from the scope around it, so its
+     * parameters are its own. isMethod() is what separates the two.
      */
     private function controllerActionPointer(File $phpcsFile, int $stackPtr): ?int
     {
@@ -135,11 +140,38 @@ class ManualModelResolutionSniff implements Sniff
             return null;
         }
 
+        if ($this->isMethod($phpcsFile, $functionPtr) === false) {
+            return null;
+        }
+
         if ($phpcsFile->getMethodProperties($functionPtr)['scope'] !== 'public') {
             return null;
         }
 
         return $functionPtr;
+    }
+
+    /**
+     * Whether the function is declared directly in a class body rather than
+     * inside another function.
+     *
+     * The declaration's own innermost condition answers it: a method's is the
+     * class-like token it belongs to, while a function nested in a method, a
+     * closure or another function has that enclosing function as its
+     * innermost condition instead.
+     *
+     * T_CLASS and T_ANON_CLASS are the only class-like scopes reachable here,
+     * because the caller has already required a `*Controller` T_CLASS
+     * ancestor: a trait, an interface or an enum can be declared inside a
+     * method *body*, and a method of one of those is not the routed action
+     * either, so leaving them out is the answer this rule wants.
+     */
+    private function isMethod(File $phpcsFile, int $functionPtr): bool
+    {
+        $conditions = $phpcsFile->getTokens()[$functionPtr]['conditions'];
+        $scope = end($conditions);
+
+        return $scope === T_CLASS || $scope === T_ANON_CLASS;
     }
 
     /**
@@ -151,12 +183,25 @@ class ManualModelResolutionSniff implements Sniff
      * action's parameters and so cannot become a bound model. Requiring the
      * next token to close the argument is what rules those out — $this->id
      * opens with a variable too.
+     *
+     * A named argument carries the same variable behind a label, so
+     * find(id: $id) is the same manual resolution as find($id) and the label
+     * is stepped over. PHP_CodeSniffer only emits T_PARAM_NAME when the next
+     * non-empty token is the label's colon, which is why the two tokens are
+     * skipped together without re-checking the colon.
      */
     private function firstArgumentVariable(File $phpcsFile, int $openPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
 
         $argumentPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), null, true);
+
+        if ($argumentPtr !== false && $tokens[$argumentPtr]['code'] === T_PARAM_NAME) {
+            $colonPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($argumentPtr + 1), null, true);
+            $argumentPtr = $colonPtr === false
+                ? false
+                : $phpcsFile->findNext(Tokens::$emptyTokens, ($colonPtr + 1), null, true);
+        }
 
         if ($argumentPtr === false || $tokens[$argumentPtr]['code'] !== T_VARIABLE) {
             return null;

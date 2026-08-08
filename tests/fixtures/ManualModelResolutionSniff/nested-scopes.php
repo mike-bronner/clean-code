@@ -25,4 +25,24 @@ class UserController
             }
         };
     }
+
+    public function insideNestedFunction(int $id): mixed
+    {
+        function resolveUser(int $unrelated): ?User
+        {
+            return User::find($unrelated);
+        }
+
+        return resolveUser($id);
+    }
+
+    public function insideNestedFunctionInClosure(int $id): mixed
+    {
+        return collect([1, 2])->each(function (): void {
+            function resolveOtherUser(int $unrelated): ?User
+            {
+                return User::find($unrelated);
+            }
+        });
+    }
 }

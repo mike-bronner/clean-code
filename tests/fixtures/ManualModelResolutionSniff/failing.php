@@ -51,4 +51,14 @@ class UserController
             return User::findOrFail($id);
         });
     }
+
+    public function namedArgument(int $id): ?User
+    {
+        return User::find(id: $id);
+    }
+
+    public function namedArgumentWithColumns(int $id): User
+    {
+        return User::findOrFail(id: $id, columns: ['name']);
+    }
 }

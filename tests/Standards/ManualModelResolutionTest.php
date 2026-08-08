@@ -5,7 +5,8 @@
  * (Controllers: Route Model Binding, #50). Fixtures live in
  * tests/fixtures/ManualModelResolutionSniff/: the compliant action and every
  * near-miss shape in passing.php, the flagged resolutions in failing.php, the
- * two accepted false positives in nested-scopes.php, and a mid-edit file in
+ * nested scopes in nested-scopes.php — the two accepted false positives and
+ * the nested named functions that stay silent — and a mid-edit file in
  * unterminated.php. The rule is detection-only, so there is no autofixed
  * fixture — replacing a manual lookup with a bound parameter also means
  * changing the route definition in another file, which no fixer can do.
@@ -98,11 +99,22 @@ it('is registered in the master ruleset', function (): void {
  *   is silent through a later check: the sniff's "first argument is a
  *   T_VARIABLE" check is a type guard, since no other token can carry a
  *   parameter's `$name` as its content, and deleting it changes no result.
- * - lines 77 and 82, protected and private methods — a route never binds into
+ * - lines 77 and 82, `User::find(id: 1)` and `User::find(id: $this->userId)`
+ *   — the literal and the property read again, this time behind a named
+ *   argument. Stepping over the label does not weaken either check: what
+ *   follows the label still has to be a bare variable, and a bare variable
+ *   still has to name a parameter.
+ * - line 87, `User::find(columns: ['*'], id: $id)` — the accepted false
+ *   negative that comes with reading only the *first* argument. Named
+ *   arguments may be given in any order, so a resolution can be moved out of
+ *   first position; the sniff reads the first one, finds an array literal and
+ *   stops. Pinned here so the boundary the standard's doc states is the one
+ *   the sniff actually has.
+ * - lines 92 and 97, protected and private methods — a route never binds into
  *   one, so a lookup there is ordinary code.
- * - lines 90, 96 and 100, the same call in a non-`Controller` class, a plain
- *   function and a file-scope closure — outside a controller action there is
- *   no route parameter to have bound.
+ * - lines 105, 111 and 115, the same call in a non-`Controller` class, a
+ *   plain function and a file-scope closure — outside a controller action
+ *   there is no route parameter to have bound.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(MANUAL_RESOLUTION, 'passing.php');
@@ -133,6 +145,17 @@ it('produces no violations on the compliant fixture', function (): void {
  *   `use` — the parameter really is the action's, so this is a true positive
  *   and the reason parameters are read from the enclosing named method rather
  *   than from the closure.
+ * - line 57, `User::find(id: $id)` — the same resolution written with a named
+ *   argument. The label is a separate token run (T_PARAM_NAME, T_COLON) in
+ *   front of the very same variable, so it is stepped over rather than read
+ *   as the argument.
+ * - line 62, `User::findOrFail(id: $id, columns: ['name'])` — the named form
+ *   in a call that carries a second argument, so the label skip is shown to
+ *   land on the variable rather than run on to the next label. It does not
+ *   pin the comma branch of the "token after the variable ends the argument"
+ *   check: line 35 already covers that branch, and deleting `T_COMMA` from it
+ *   silences both lines together. Said outright rather than left to imply
+ *   coverage of its own.
  */
 it('flags every manual resolution at its position', function () use ($warningsByPosition): void {
     expect(analyzeFixture(MANUAL_RESOLUTION, 'failing.php')->getErrors())->toBe([])
@@ -146,6 +169,8 @@ it('flags every manual resolution at its position', function () use ($warningsBy
             40 => [22 => MANUAL_RESOLUTION_WARNING],
             45 => [33 => MANUAL_RESOLUTION_WARNING],
             51 => [26 => MANUAL_RESOLUTION_WARNING],
+            57 => [22 => MANUAL_RESOLUTION_WARNING],
+            62 => [22 => MANUAL_RESOLUTION_WARNING],
         ]);
 });
 
@@ -182,6 +207,19 @@ it('names the model, the parameter and the action in the warning', function (): 
  * needs the closure's own parameter and `use` lists resolved, which the
  * standard does not ask for. The rule reports warnings precisely so a
  * reviewer can wave a case like these through.
+ *
+ * A *named function* declared in a method body is the nested scope that is
+ * not seen through, and the absent lines say so:
+ *
+ * - line 33, `resolveUser()` declared inside the action, and line 44, one
+ *   declared inside a closure inside the action. Both tokenize as T_FUNCTION,
+ *   so both would answer the innermost-T_FUNCTION lookup and be judged as if
+ *   they were the action itself. Neither is routed to, and a named function
+ *   inherits nothing from the scope around it, so `$unrelated` can never be a
+ *   route segment. `isMethod()` is what keeps them silent: it reads the
+ *   declaration's own innermost condition, which is the enclosing function
+ *   rather than a class. Deleting that check makes both lines report, which
+ *   is the mutation this assertion catches.
  */
 it('judges nested scopes by the enclosing method', function () use ($warningsByPosition): void {
     expect(analyzeFixture(MANUAL_RESOLUTION, 'nested-scopes.php')->getErrors())->toBe([])
@@ -203,13 +241,16 @@ it('judges nested scopes by the enclosing method', function () use ($warningsByP
  * - line 15, a call running off the end of the file with its argument list
  *   still open.
  *
- * The four `=== false` guards on the sniff's findNext() results read as what
- * handles the second one, but all four are defensive only: each was deleted in
+ * The five `=== false` guards on the sniff's findNext() results read as what
+ * handles the second one, but all five are defensive only: each was deleted in
  * turn and every fixture in this directory reported exactly the same
  * violations, because PHP resolves `$tokens[false]` to `$tokens[0]`, the open
- * tag, which fails the comparison on the next line anyway. They are kept for
- * saying so outright instead of leaning on that coercion. Stated here because
- * no fixture can pin them.
+ * tag, which fails the comparison on the next line anyway. The fifth, the one
+ * on the named-argument colon, is unreachable for a second reason: PHPCS only
+ * spells a label T_PARAM_NAME when a colon follows it, so a label with no
+ * colon after it never gets that far. They are kept for saying so outright
+ * instead of leaning on either fact. Stated here because no fixture can pin
+ * them.
  *
  * Line 9 keeps the assertion honest: the file still has to report the call
  * that precedes the damage, so a sniff that fell silent on the whole file
@@ -234,7 +275,7 @@ it('handles mid-edit source without falling over', function () use ($warningsByP
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(MANUAL_RESOLUTION, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(9)
+    expect($file->getWarningCount())->toBe(11)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
