@@ -15,42 +15,128 @@ owns exactly one model, serving every view that belongs to it.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 2 (custom sniff, one slice of the standard)
 
-This is an architectural / semantic / process standard. It is **not** enforced
-by a PHPCS sniff. Enforcement is via **code review and developer discipline**.
+Part of this standard is enforced by the custom
+`CleanCode.Routes.ApiControllerNamespace` sniff, wired into the master
+`rules.xml` via the CleanCode standard
+([#66](https://github.com/mike-bronner/phpcs-rules/issues/66)). The rest stays
+with code review — see [What remains code review](#what-remains-code-review).
 
-A token-based PHPCS sniff inspects one file's tokens in isolation at lint time.
-This standard is about *where routes live* and *how controllers map to models
-and views* — decisions spread across route registration, framework
-configuration, the controller tree, and the `resources/views/` directory. No
-single file's tokens carry enough of that picture to verify it.
+### Why a custom sniff
 
-## Partial enforcement assessment
+The nearest existing rule is
+[`SlevomatCodingStandard.Files.TypeNameMatchesFileName`](https://github.com/slevomat/coding-standard/blob/master/doc/files.md),
+and it is closer than it first looks: run against
+`app/Http/Controllers/API/InvoiceController.php` declaring
+`App\Http\Controllers\InvoiceController`, it does report the mismatch. It is
+still not a substitute:
 
-No robust token-visible slice was found; no follow-up sniff issue is opened.
+- It only runs once configured with a `rootNamespaces` map of the **consuming**
+  application's directory layout (`app` → `App`). This package ships a ruleset
+  for arbitrary consumers, so hard-coding that map presumes a layout the
+  standard does not mandate — the same objection that rejected the
+  `routes/web.php` heuristic below.
+- It enforces full PSR-4 name/path agreement for **every** type, so its
+  coverage of this standard is incidental. Its diagnostic reads "class name
+  does not match filepath": it neither names this standard nor separates the
+  `API` grouping from any other directory mismatch, and it cannot be scoped to
+  controllers.
 
-- **`API` route-namespace check** (the obvious candidate: a naming-prefix sniff)
-  — in modern Laravel the `api` route namespace/prefix is applied *outside* the
-  route file, where `routes/api.php` is registered (`bootstrap/app.php` or the
-  `RouteServiceProvider`). The file a sniff would lint contains no token that
-  carries the namespace decision. Checking the controllers' *PHP* namespace
-  (`App\Http\Controllers\API\…`) instead would enforce a different rule than
-  the one written — the standard constrains the *route* namespace, not the
-  controller FQCN — and would presume a directory layout the standard does not
-  mandate. Rejected.
-- **Misplacement heuristic** — flagging `Route::prefix('api')` or
-  `->name('api.')` inside `routes/web.php` is token-visible as a string match,
-  but a fluent-chain string match cannot tell a genuine API route group from an
-  unrelated route that legitimately uses those strings, and the include-pattern
-  would hard-code the consuming app's file layout. High false-positive rate for
-  a rare failure mode that review catches trivially. Rejected.
-- **View clause and controller-per-model convention** — verifying that view
-  routes carry *no* prefix requires knowing which routes are view routes (a
-  semantic judgement), and one-controller-per-model-covering-all-its-views
-  requires a cross-file mapping between controllers, models, and
+Nothing else in the bundled or Slevomat catalogues comes closer — the remaining
+namespace rules police *syntax* (`Namespaces.NamespaceDeclaration`,
+`Namespaces.RequireOneNamespaceInFile`, `Namespaces.UnusedUses`), not the
+API/view separation this standard draws.
+
+### The sniffed rule is a proxy, not the standard itself
+
+Read this before treating a clean run as proof of compliance.
+
+The standard as written constrains the **route** namespace: where a route is
+registered, and under which prefix. In modern Laravel that decision lives
+*outside* every file a sniff lints — in `bootstrap/app.php` or the
+`RouteServiceProvider`, where `routes/api.php` is registered — so no token in
+any linted file carries it. A sniff cannot see it.
+
+What *is* token-visible, in one file, is the controller's own declared
+namespace, and the standard's separation surfaces there too: an API controller
+belongs in `App\Http\Controllers\API\…`, a view controller does not. The sniff
+enforces **that** — a recategorized, checkable sub-rule standing in for the
+written one:
+
+> A controller serving API endpoints is declared in a PHP namespace carrying an
+> `API` segment matching its `Http/Controllers/API/…` path, e.g.
+> `App\Http\Controllers\API\ReportController`. A controller serving views
+> carries no such `API` namespace segment.
+
+The substitution is deliberate and is the standard's own recategorization from
+"not statically enforceable" to "partly enforceable", not an accident of
+implementation. A codebase can satisfy the sniff and still register its API
+routes in the wrong place; the sniff narrows where that mistake can hide, it
+does not eliminate it.
+
+### What the sniff checks
+
+The check is symmetric, because either half alone is satisfiable by moving the
+file rather than by fixing the problem:
+
+- **`CleanCode.Routes.ApiControllerNamespace.MissingApiNamespace`** — the file
+  sits under an `API` path segment but its namespace has no matching `API`
+  segment. Reported at the `class` keyword.
+- **`CleanCode.Routes.ApiControllerNamespace.UnexpectedApiNamespace`** — the
+  class is declared in an `API` namespace but the file does not live under a
+  matching `API` path segment. Reported at the `class` keyword.
+
+Both sides are read **relative to the controller root**: only the segments
+following the first `Controllers` segment count. A project checked out at
+`/srv/api`, or a vendor package namespaced `Api\Http\Controllers\…`, would
+otherwise read as API-everything. The `API` segment itself is matched
+case-insensitively, so `API`, `Api` and `api` are the same grouping — the
+standard is about the segment being present, not about how it is cased.
+
+**Not flagged** — deliberately outside the rule:
+
+- **A class that is not a controller** — neither its namespace nor its path
+  carries a `Controllers` segment. `App\Services\API\Client` is left alone.
+- **The class name** — only namespace segments are compared. An
+  `ApiTokenController` in `App\Http\Controllers` is compliant.
+- **Input with no path** — linting piped source without `--stdin-path` gives
+  PHPCS the file name `STDIN`. There is no location for the namespace to
+  disagree with, so the sniff says nothing rather than guessing.
+
+### Not auto-fixable
+
+Reconciling the two halves means either moving the file or rewriting its
+declared namespace, and which of those is correct depends on the application's
+layout rather than on anything in the file. There is no safe mechanical
+rewrite, so the sniff is detection-only: it offers no fixer, and its fixture
+directory carries no `autofixed.php`.
+
+## What remains code review
+
+Two parts of the standard are not token-visible and are enforced by review and
+developer discipline:
+
+- **The route-registration wording itself** — "API routes should be within an
+  `API` route namespace", and the view half's "no namespace/prefix". This is
+  about how routes are registered, which is what the sniffed controller-
+  namespace rule stands in for rather than verifies. See
+  [The sniffed rule is a proxy](#the-sniffed-rule-is-a-proxy-not-the-standard-itself)
+  above.
+- **One controller per model, serving all of that model's views** — verifying
+  it needs a cross-file mapping between controllers, models and
   `resources/views/**`. A sniff sees one file's tokens; it cannot enumerate
-  sibling directories. Not token-visible.
+  sibling directories or decide which model a controller is "responsible for".
+  This clause has no automated coverage at all, by design.
 
-Resolution: **documentation-only** — the full standard remains enforced by code
-review.
+Two heuristics were considered for the route-registration half and rejected:
+
+- **Flagging `Route::prefix('api')` or `->name('api.')` inside
+  `routes/web.php`** — token-visible as a string match, but a fluent-chain
+  string match cannot tell a genuine API route group from an unrelated route
+  that legitimately uses those strings, and the include-pattern would hard-code
+  the consuming application's file layout. High false-positive rate for a
+  failure mode review catches trivially.
+- **Verifying that view routes carry no prefix** — requires knowing which
+  routes are view routes, which is a semantic judgement rather than a token
+  one.

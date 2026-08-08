@@ -200,6 +200,39 @@
     -->
 
     <!--
+        Routes: Types (API / View) (#66) —
+        docs/standards/routes-types-api-view.md.
+
+        The nearest existing rule is
+        SlevomatCodingStandard.Files.TypeNameMatchesFileName, which does flag
+        both halves of this check — but only as a side effect of enforcing full
+        PSR-4 name/path agreement on every type, and only once configured with
+        a rootNamespaces map of the *consuming* application's directory layout,
+        which this package cannot presume. Its diagnostic says a class name
+        does not match its filepath; it neither names this standard nor
+        separates the API grouping from any other directory mismatch, and it
+        cannot be scoped to controllers. Adopting it would make this standard's
+        coverage incidental to a much broader rule the package has not taken
+        on. Nothing else in either catalogue comes closer: the rest police
+        namespace *syntax*, not the API/view separation. It is therefore the
+        custom CleanCode.Routes.ApiControllerNamespace sniff,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. The sniff only speaks about
+        classes with a Controllers segment in their namespace or their path, so
+        it is already silent everywhere else.
+
+        The sniffed rule is a proxy: the standard constrains the *route*
+        namespace, which is registered outside any linted file, so the sniff
+        checks the controller's own namespace against its path instead. The
+        route-registration wording and the one-controller-per-model clause stay
+        with code review — the doc records both.
+
+        Detection only: reconciling a namespace with a path means moving the
+        file or renaming its namespace, and which one is right depends on the
+        application's layout rather than on anything in the file.
+    -->
+
+    <!--
         PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
 
         Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
