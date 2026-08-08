@@ -78,5 +78,6 @@ what stays with code review.
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
+- [CleanCode: DuplicatedArrayKey](docs/phpmd/cleancode-duplicatedarraykey.md) — Tier 2, custom sniff `CleanCode.Arrays.DuplicatedArrayKey`: flags an array literal that declares the same key twice, comparing the key PHP stores rather than the literal's spelling, report-only; stricter than PHPMD on four shapes, drops one PHPMD false positive, and one shape neither tool catches ([#81](https://github.com/mike-bronner/phpcs-rules/issues/81))
 - [CleanCode: UndefinedVariable](docs/phpmd/cleancode-undefinedvariable.md) — Tier 1, external sniff `VariableAnalysis.CodeAnalysis.VariableAnalysis` raised to error severity, report-only; stricter than PHPMD on two shapes, and one shape neither tool catches ([#85](https://github.com/mike-bronner/phpcs-rules/issues/85))
 - [Design: EvalExpression](docs/phpmd/design-evalexpression.md) — Tier 1, existing sniff `Squiz.PHP.Eval` raised to error severity, report-only ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107))
