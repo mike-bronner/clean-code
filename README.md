@@ -76,6 +76,7 @@ what stays with code review.
 - [Testing: Development Process (TDD)](docs/standards/testing-development-process-tdd.md) — Tier 3, not statically enforceable: test-first order and the Red/Green/Refactor cycle are facts about the process, not the tokens, so the standard stays with code review ([#57](https://github.com/mike-bronner/phpcs-rules/issues/57)); two token-visible slices are queued as focused follow-ups ([#128](https://github.com/mike-bronner/phpcs-rules/issues/128), [#129](https://github.com/mike-bronner/phpcs-rules/issues/129))
 - [Type Hints and Return Types](docs/standards/type-hints-and-return-types.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` / `ReturnTypeHint` / `PropertyTypeHint`, partly auto-fixable ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45))
 - [Use Statements: No Unused Entries](docs/standards/use-statements-no-unused-entries.md) — Tier 1, Slevomat `Namespaces.UnusedUses`, auto-fixable ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68))
+- [Use Statements: Sort Alphabetically](docs/standards/use-statements-sort-alphabetically.md) — Tier 1, Slevomat `Namespaces.AlphabeticallySortedUses` plus `DisallowGroupUse` + `MultipleUsesPerLine` to close the group-use and comma-separated bypasses, auto-fixable for flat blocks ([#67](https://github.com/mike-bronner/phpcs-rules/issues/67))
 
 ## PHPMD rule coverage
 
