@@ -186,6 +186,22 @@ it('says nothing about a view whose first tag is a component invocation', functi
 });
 
 /**
+ * The same guard, one level out: a partial that renders adjacent components
+ * opens on the `<template wire:key="...">` wrapper this very standard requires
+ * around them. Judging that wrapper as a root element reported the fixture for
+ * doing exactly what the sniff demands — `wire:key` on a `<template>` is what
+ * TemplateKeyMismatch insists on, so it can never be a root violation.
+ *
+ * The `wire:click` at the end is the view's own Livewire directive, so the gate
+ * passes for a reason independent of the wrappers and the silence here is the
+ * first-tag guard's doing. Nothing else is reported either: the two components
+ * are adjacent, wrapped, and keyed to match.
+ */
+it('says nothing about a view whose first tag wraps a component', function (): void {
+    expect(analyzeFixture(COMPONENT_MARKUP, 'template-wrapper-first.php')->getErrors())->toBe([]);
+});
+
+/**
  * The root-element rule belongs to a component's *own* view. This fixture is
  * an ordinary page layout — an Alpine shell that happens to embed a Livewire
  * widget — so its `<div x-data>` is the layout's root, not a component's.

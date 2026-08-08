@@ -37,8 +37,10 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   root, not any component's, so reading it as one is a loud false positive.
  *   The view therefore has to carry a `wire:` attribute of its own — one
  *   outside every `<livewire:…>` tag — before the root is judged, and a first
- *   tag that is itself a `<livewire:…>` invocation is never read as the root
- *   (its own required `wire:key` is not a root-element violation).
+ *   tag that opens a component is never read as the root: neither the
+ *   `<livewire:…>` invocation itself nor the `<template>` this standard
+ *   requires around it, whose `wire:key` attributes are the ones the sniff
+ *   demands elsewhere rather than root-element violations.
  * - **A "component" is a `<livewire:…>` tag.** `<x-…>` is Blade's component
  *   namespace, shared by ordinary Blade components that need no `wire:key` at
  *   all, so it is not read as a Livewire component here.
@@ -218,10 +220,8 @@ class ComponentMarkupSniff implements Sniff
      * this heuristic can speak about.
      *
      * Two guards keep this off markup that has no component root to judge:
-     * the view must be a component's own view (see isComponentView()), and the
-     * first tag must not itself be a `<livewire:…>` invocation — that tag is a
-     * *child* component being rendered, and the `wire:key` the rest of this
-     * sniff requires on it is not a root-element violation.
+     * the view must be a component's own view (see isComponentView()), and its
+     * first tag must not open a child component (see opensOnAComponent()).
      *
      * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
      *     name: string, attributes: string}> $tags
@@ -236,7 +236,7 @@ class ComponentMarkupSniff implements Sniff
             return;
         }
 
-        if ($tags !== [] && $tags[0]['offset'] === $match[0][1]) {
+        if ($tags !== [] && $this->opensOnAComponent($markup, $match[0][1], $tags[0]['offset'])) {
             return;
         }
 
@@ -253,6 +253,25 @@ class ComponentMarkupSniff implements Sniff
             'RootElementAttributes',
             [$match[1][0], $attribute]
         );
+    }
+
+    /**
+     * Whether the view's first element tag opens a component rather than a
+     * root: the `<livewire:…>` invocation itself, or only the `<template>`
+     * the standard requires around it.
+     *
+     * Neither is a component's own root element, and reporting either would
+     * contradict the sniff's own rules — the first tag's `wire:key` is the
+     * attribute MissingWireKeyInLoop requires, and the wrapper's is the one
+     * TemplateKeyMismatch requires. Read by testing whether anything but
+     * `<template>` tags and whitespace separates the start of the first
+     * element tag from the first component tag.
+     */
+    private function opensOnAComponent(string $markup, int $elementStart, int $componentStart): bool
+    {
+        $gap = substr($markup, $elementStart, ($componentStart - $elementStart));
+
+        return trim((string) preg_replace(self::TEMPLATE_WRAPPER, '', $gap)) === '';
     }
 
     /**

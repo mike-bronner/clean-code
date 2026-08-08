@@ -107,10 +107,19 @@ class of wrong report.
   So `RootElementAttributes` also requires the view to carry a `wire:`
   attribute of its own — one outside every `<livewire:…>` tag. Above, the only
   `wire:` is the `wire:key` on the embedded component, so the root is left
-  alone. For the same reason a first tag that is *itself* a `<livewire:…>`
-  invocation is never read as a root element: that tag is a child component
-  being rendered, and the `wire:key` the other two codes require on it is not a
-  root-element violation.
+  alone. For the same reason a first tag that *opens a component* is never read
+  as a root element — neither the `<livewire:…>` invocation itself nor the
+  `<template>` this standard requires around adjacent components:
+
+  ```blade
+  <template wire:key="header">
+      <livewire:panel-header wire:key="header" />
+  </template>
+  ```
+
+  Both `wire:key` attributes above are the ones `MissingWireKeyInLoop` and
+  `TemplateKeyMismatch` demand, so reading either as a root-element violation
+  would report the view for obeying the standard.
 - **A component is a `<livewire:…>` tag.** `<x-…>` is Blade's component
   namespace, shared with ordinary Blade components that owe no `wire:key` at
   all, so it is not read as a Livewire component here.
