@@ -17,8 +17,8 @@
  *
  *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
- *     DisallowStaticMembers, DisallowBooleanArgumentFlag, TooManyMethods,
- *     LineLength, Eval, VariableAnalysis) carry passing.php and failing.php
+ *     DisallowStaticMembers, DisallowBooleanArgumentFlag, LineLength, Eval,
+ *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
  *     but no autofixed.php, because there is no safe mechanical rewrite.
  *
  * — which is why the contract is expressed as separate datasets rather than one
@@ -65,6 +65,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
+    'CleanCode.Naming.ShortMethodName',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Strings.MultilineStrings',
