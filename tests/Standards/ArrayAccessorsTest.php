@@ -172,6 +172,87 @@ it('reports an unterminated chain without falling over', function (): void {
 });
 
 /**
+ * The mirror of unterminated.php: a *closer* whose opener was never typed.
+ * It carries no `bracket_opener`, so it closes nothing and cannot enclose the
+ * chain either -- the walk outward steps over it and the reads on both sides
+ * stay reported.
+ *
+ * The curly brace is the case that has to be handled rather than assumed
+ * away. Deciding a curly brace means asking whether it opens a dynamic member
+ * name, which reads back from its opener, so taking an opener-less closer for
+ * an enclosing construct raises an "Undefined array key" and PHP_CodeSniffer
+ * aborts the whole file -- every violation after the first is lost. All six
+ * reads here are asserted for that reason: an abort reports the first and
+ * nothing else, which is exactly what a count-free assertion would miss.
+ */
+it('steps over a closer whose opener was never typed', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'stray-closer.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        15 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        17 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        19 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        21 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        23 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        25 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+    ])->and($file->getErrorCount())->toBe(6, 'no Internal.Exception aborts the run');
+});
+
+/**
+ * Deciding a chain means walking outward through the constructs enclosing it.
+ * That walk once rescanned forward from the chain for every step, which is
+ * linear in the distance to the enclosing closer -- so a file of n reads cost
+ * O(n^2), each read scanning over every construct that followed it. #239.
+ *
+ * The fixtures are generated rather than committed because the shapes only
+ * separate a linear implementation from a quadratic one in the thousands, and
+ * a committed 4,000-statement file is a worse thing for this repository to
+ * carry than six lines of str_repeat().
+ *
+ * The two shapes do different jobs, and saying which is which matters:
+ *
+ * - `reads` is the discriminating one. It is the ordinary shape -- n
+ *   independent reads in one body -- and it is what the rescan actually made
+ *   quadratic: measured against the rescan it ran 0.64s at n=500 and 5.27s at
+ *   n=2,000, ~3.4x per doubling, and this assertion fails against it.
+ * - `nesting` is the depth shape #239 was filed on
+ *   (`$target[$target[...]]`). It is a pin, not a reproduction: the rescan
+ *   skipped each already-closed sibling construct whole, which made depth
+ *   alone flat (0.09s at 500, 0.12s at 2,000) well before this change. It is
+ *   asserted so that a future rewrite cannot make depth quadratic unnoticed,
+ *   and it would not have failed against the rescan.
+ *
+ * The budget is wall clock, so it is set generously: the map answers n=4,000
+ * in about a fifth of a second here, which leaves better than an order of
+ * magnitude of headroom for a loaded CI runner, while the rescan needs tens of
+ * seconds for the same file and cannot pass by being unlucky.
+ */
+it('decides enclosing constructs in linear time', function (string $shape, int $size): void {
+    $source = $shape === 'nesting'
+        ? "<?php\n\n\$out = " . str_repeat('$target[', $size) . '$key' . str_repeat(']', $size) . ";\n"
+        : "<?php\n\nfunction sink(\$row): void\n{\n"
+            . str_repeat("    \$value = \$row['key'];\n", $size)
+            . "}\n";
+
+    $path = tempnam(sys_get_temp_dir(), 'cleancode-scale-') . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs([ARRAY_ACCESSORS], $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    expect($file->getErrorCount())->toBe($size, 'every read is still reported')
+        ->and($elapsed)->toBeLessThan(3.0, "{$shape} at n={$size} took {$elapsed}s");
+})->with([
+    'n reads in one body' => ['reads', 4000],
+    'n levels of computed offset' => ['nesting', 2000],
+]);
+
+/**
  * A dynamic member name hides whether the access is a property or a method
  * call until after the closing brace: `$order->{$field}` (line 45) is a
  * read and is flagged, while `$order->{$name}()` in boundaries.php is a
