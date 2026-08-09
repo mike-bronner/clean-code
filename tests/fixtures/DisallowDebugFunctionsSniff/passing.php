@@ -1,5 +1,7 @@
 <?php
 
+use function Acme\Support\debug_zval_dump;
+
 // Positive: ordinary code calling nothing on the debug list.
 $total = array_sum($amounts);
 $label = strtoupper($name);
@@ -49,3 +51,26 @@ App\Support\debug_print_backtrace($value);
 $debugger->print_r($value);
 $debugger?->debug_print_backtrace($value);
 Debugger::debug_zval_dump($value);
+
+// Positive: the `use function` import above binds the bare name to another
+// namespace's function, so this call never reaches PHP's own — verified by
+// executing the shape, not inferred from the token stream.
+debug_zval_dump($value);
+
+// Positive: a return-by-reference declaration is still a declaration. The `&`
+// sits between the keyword and the name, which is what used to hide it.
+function &ray(mixed $value): array
+{
+    return [$value];
+}
+
+// Positive: an attribute names a class, never a function.
+#[dd(1)]
+class Marker
+{
+}
+
+// Positive: instantiation behind a leading qualifier. The separator hides the
+// `new` from a check that only reads the token directly before the name.
+new \print_r();
+new namespace\var_dump();

@@ -14,6 +14,7 @@ gone, and nothing lives beside the sniffs any more.
 rules.xml                                  # master ruleset — standards get wired in here
 CleanCode/
 ├── ruleset.xml                            # the installable CleanCode standard
+├── Helpers/<Name>.php                     # token-stream decisions shared by several sniffs
 └── Sniffs/
     └── <Category>/<Name>Sniff.php         # one sniff per file
 docs/standards/                            # one doc per clean-code standard
@@ -24,13 +25,39 @@ tests/
 ├── Helpers.php                            # the sniff-driving helper functions
 ├── fixtures/
 │   ├── <Name>Sniff/                       # per-sniff fixtures, named for the sniff class
+│   ├── <Name>/                            # per-helper fixtures, named for the helper class
 │   └── _rulesets/<Standard>/              # fixtures for standards carried by several sniffs
 ├── Contract/                              # the generic three-fixture sweep
+├── Helpers/                               # the shared classes under CleanCode/Helpers/
 ├── Standards/                             # per-sniff behaviour of the custom CleanCode sniffs
 ├── Rules/                                 # rules.xml's *configuration* of third-party sniffs
 ├── Ruleset/                               # third-party & custom sniffs as wired into rules.xml
 └── Integration/                           # whole-ruleset behaviour, with its own fixtures/
 ```
+
+`tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
+the only thing they share: the directory is a suite covering the shared classes
+under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite
+here calls.
+
+### The shared helpers
+
+`CleanCode/Helpers/` holds the decisions more than one sniff has to make about
+the token stream. `FunctionCalls::isGlobalFunctionCall()` is the first:
+"is this `T_STRING` a call to PHP's own global function, or a same-named method,
+declaration, class, attribute, or imported symbol?".
+
+**Route through it rather than hand-rolling the test again.** Every sniff that
+flags a global function call needs that answer, and before the helper existed
+each one carried its own copy: the copies drifted, and each new sniff inherited
+whichever gaps its nearest neighbour had. One implementation means a shape fixed
+once is fixed everywhere.
+
+A helper carries its own fixtures under `tests/fixtures/<Name>/` and its own
+tests under `tests/Helpers/<Name>Test.php`, driven by `parseFixture()` — it
+tokenises a fixture without running a sniff, which is what lets a test read the
+helper's verdict for every shape rather than only the ones some sniff's own name
+list would let through.
 
 ### The fixture contract
 
@@ -80,6 +107,8 @@ intentionally non-compliant fixture must not fail the PSR-12 self-lint.
 nothing about driving a sniff is stateful across a test's lifecycle. The ones
 you will reach for:
 
+- `parseFixture($directory, $fixture)` — tokenise a fixture without running any
+  sniff, for testing the shared classes under `CleanCode/Helpers/` directly.
 - `analyzeFixture($sniffCode, $fixture, $configure = null)` — run one fixture
   through a ruleset narrowed to one sniff, resolving the fixture directory from
   the sniff code. `$configure` receives the sniff instance so a test can set its
@@ -109,7 +138,10 @@ in and what applies the `<properties>` configured there.
    `CleanCode.<Category>.<Name>`. Use
    `CleanCode/Sniffs/Debug/DisallowDebugFunctionsSniff.php` as the template.
    Sniffs in the standard's `Sniffs/` directory are included automatically —
-   no per-sniff registration in `CleanCode/ruleset.xml` is needed.
+   no per-sniff registration in `CleanCode/ruleset.xml` is needed. If it flags a
+   call to a global PHP function, call
+   `FunctionCalls::isGlobalFunctionCall()` — see "The shared helpers" above —
+   instead of writing that check again.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** in `tests/Contract/SniffContractTest.php` —

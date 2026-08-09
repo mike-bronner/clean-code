@@ -28,9 +28,11 @@ it('is registered in the master ruleset', function (): void {
  * passing.php pairs ordinary debug-free code with every near-miss shape the
  * sniff must stay silent on — the debug names reached through an object
  * operator, a nullsafe operator, a double colon, a declaration, `new`, a
- * string, a property, and a namespace prefix. Each of those is one of the
- * sniff's early returns, so the fixture's silence is a verdict about them
- * rather than merely the absence of a debug call.
+ * string, a property, a namespace prefix, a return-by-reference declaration, an
+ * attribute, an instantiation behind a leading qualifier, and a `use function`
+ * import. Each of those is one of the shared FunctionCalls helper's exclusions,
+ * so the fixture's silence is a verdict about them rather than merely the
+ * absence of a debug call.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'passing.php');
@@ -56,6 +58,23 @@ it('flags every debug call at its own line', function (): void {
         30 => 1,
         31 => 1,
         32 => 1,
+    ])->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * A `use function` import binds one name. passing.php pins the quiet side —
+ * the imported debug name goes unreported — and this pins the loud side, which
+ * is where an over-eager import check would show: every other debug call in the
+ * same file stays flagged, and so does the *source* name of an aliased import,
+ * because the alias is what the import actually bound.
+ */
+it('flags every debug call an import did not bind', function (): void {
+    $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'imported-names.php');
+
+    expect(violationCountsByLine($file->getErrors()))->toBe([
+        13 => 1,
+        14 => 1,
+        15 => 1,
     ])->and($file->getWarnings())->toBe([]);
 });
 
