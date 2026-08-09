@@ -27,6 +27,21 @@ const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
 /**
+ * The DRY standard's block comparison (#134). Both exception fixtures below are
+ * built from five near-identical try/catch blocks that differ only in the type
+ * they catch, so a copy-paste detector reporting them is the two standards
+ * agreeing rather than a conflict: the fixture really is copy-pasted, and it
+ * has to stay that way to keep the exception sniffs' pinned lines stable.
+ *
+ * Every block of a repeated shape is reported, not only the later ones, so each
+ * line below is a block in its own right rather than a copy of the one above
+ * it. The non-capturing-catch fixture is a three-way group — one shape at lines
+ * 4, 18, and 51 — which is why it now carries three warnings where pairing
+ * blocks off left the first of the three silent.
+ */
+const DUPLICATE_BLOCK = 'CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found';
+
+/**
  * The missing-import rule (#84) reports on the two exception fixtures below.
  * Both are namespace-less files full of fully qualified exception names, so
  * nearly every catch and throw in them trips it. 'PSR1…' sorts before
@@ -265,12 +280,16 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
             6 => [INLINE_FQN_NO_NAMESPACE],
+            7 => [DUPLICATE_BLOCK],
             13 => [INLINE_FQN_NO_NAMESPACE],
+            14 => [DUPLICATE_BLOCK],
             20 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            21 => [DUPLICATE_BLOCK],
             27 => [INLINE_FQN_NO_NAMESPACE],
             // A namespaced exception name, so the sniff asks for a use
             // statement here instead of just dropping the backslash.
             34 => [INLINE_FQN],
+            35 => [DUPLICATE_BLOCK],
             41 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             49 => [INLINE_FQN_NO_NAMESPACE],
             51 => [INLINE_FQN_NO_NAMESPACE],
@@ -286,13 +305,16 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            4 => [DUPLICATE_BLOCK],
             6 => [INLINE_FQN_NO_NAMESPACE],
             13 => [INLINE_FQN_NO_NAMESPACE],
+            18 => [DUPLICATE_BLOCK],
             20 => [INLINE_FQN_NO_NAMESPACE],
             27 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             34 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             42 => [INLINE_FQN_NO_NAMESPACE],
             45 => [INLINE_FQN_NO_NAMESPACE],
+            51 => [DUPLICATE_BLOCK],
             53 => [INLINE_FQN_NO_NAMESPACE],
             61 => [INLINE_FQN_NO_NAMESPACE],
             69 => [INLINE_FQN_NO_NAMESPACE],

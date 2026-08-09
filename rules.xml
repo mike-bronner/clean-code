@@ -643,6 +643,40 @@
     </rule>
 
     <!--
+        Pattern: Don't Repeat Yourself (DRY) (#4, #134) —
+        docs/standards/pattern-dont-repeat-yourself-dry.md.
+
+        The custom CleanCode.Pattern.AvoidDuplicateCodeBlocks sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. It warns on
+        every run of code lines in a file that repeats another run — each block
+        reported at its own first line, naming every other block of that shape,
+        so none of them is silent for having been written first — detection
+        only, since extracting the shared logic and rewriting both call sites is
+        a design change with no mechanical rewrite.
+
+        The comparison is near-identical rather than exact: a line is summarized
+        by the types of its tokens, so renamed variables, renamed methods, and
+        changed literals still match, while a swapped operator or an extra
+        argument does not.
+
+        No bundled PHPCS or Slevomat sniff compares one block of code against
+        another; every rule either tool ships with "Duplicate" in its name
+        matches a different construct (repeated spaces, repeated assignments to
+        one variable, repeated class/property/argument names), and Slevomat's
+        Complexity.Cognitive scores each declaration alone.
+
+        No <properties> are configured: the sniff's minimumLines default of 5
+        is the length #134 specifies. A consuming ruleset can raise it to report
+        only larger copy-pastes, or lower it (the sniff floors it at 1) to see
+        shorter duplication too.
+
+        Warning severity is the sniff's own, and deliberate — no <type>
+        override. #4 tolerates duplication until an abstraction is warranted
+        ("don't abstract prematurely"), so a report is an abstraction
+        candidate, not a defect, and must not fail a consumer's build.
+    -->
+
+    <!--
         PHPMD Design: ExitExpression (#105) — docs/phpmd/design-exitexpression.md.
 
         No existing PHPCS, Slevomat or Generic sniff matches this rule.
