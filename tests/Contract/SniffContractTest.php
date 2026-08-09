@@ -23,8 +23,9 @@
  *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
  *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
  *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
- *     LineLength, ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
- *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
+ *     ShortMethodName, ShortVariable, LineLength, ConstructorName,
+ *     DiscourageGoto, Eval, NoSilencedErrors, VariableAnalysis) carry
+ *     passing.php and failing.php
  *     but no autofixed.php, because there is no safe mechanical rewrite.
  *
  * — which is why the contract is expressed as separate datasets rather than one
@@ -93,6 +94,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
+    'CleanCode.Naming.ShortVariable',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
