@@ -245,6 +245,36 @@
     -->
 
     <!--
+        Constructors: Primary + Named Constructors (#34) —
+        docs/standards/constructors-primary-named-constructors.md.
+
+        The custom CleanCode.Constructors.PrimaryConstructorDelegation sniff
+        (#184) is picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; this comment records that no scoping is wanted. It warns once
+        per named constructor — a static method returning self, static, or the
+        declaring class — whose body neither instantiates that class nor calls
+        another of its static methods, detection only: routing a body through
+        the primary constructor means deciding which parameter each local value
+        feeds, which is not a mechanical rewrite.
+
+        No PHPCS or Slevomat sniff expresses the rule. Slevomat's constructor
+        sniffs speak about property promotion, and Squiz.Objects.
+        ObjectInstantiation asks only that a new be assigned or returned —
+        neither looks at where a static factory gets its instance from.
+
+        The sniff is already silent everywhere the rule cannot apply: instance
+        methods, bodiless declarations, and enums (new on an enum is a fatal
+        error) are never inspected, so no test-path exclusion is needed. Test
+        fixtures that deliberately bypass the primary constructor live under
+        tests/fixtures/, which composer lint excludes.
+
+        Only that slice is enforced. Whether a class should offer named
+        constructors at all, and whether cross-file construction paths respect
+        the single primary constructor, need more than one file's tokens, so
+        the rest of the standard stays with code review.
+    -->
+
+    <!--
         Models: Persistence Methods (Repository Pattern) (#37) —
         docs/standards/models-persistence-methods-repository-pattern.md.
 
