@@ -470,6 +470,63 @@
     -->
 
     <!--
+        PHPMD Naming: ShortClassName (#103) —
+        docs/phpmd/naming-shortclassname.md.
+
+        No existing PHPCS or Slevomat sniff expresses this rule. Every
+        candidate was run against
+        tests/fixtures/ShortClassNameSniff/failing.php; none of them measures a
+        declaration name's length, and four reported nothing at all on its five
+        short declarations:
+
+        - Squiz.Classes.ValidClassName — a name's *casing*. Fo, Ab, Tr, En, and
+          X are all valid PascalCase.
+        - SlevomatCodingStandard.Classes.ClassLength — a class *body's* line
+          count, not its name.
+        - SlevomatCodingStandard.Classes.SuperfluousInterfaceNaming and
+          .SuperfluousTraitNaming — a redundant Interface/Trait *suffix*, the
+          opposite direction.
+
+        Two candidates do report on that fixture, and neither for its subject:
+        Generic.NamingConventions.InterfaceNameSuffix and .TraitNameSuffix
+        require an Interface/Trait suffix, a convention this ruleset does not
+        adopt. They speak only about the interface on line 7 and the trait on
+        line 11, ignoring the short class and enum entirely, and a suffixed
+        name satisfies them however little it says. PSR1.Classes.ClassDeclaration
+        (already active via the PSR12 ref above) reports the fixture too, for
+        having no namespace and several types per file — again, nothing to do
+        with name length.
+
+        So this is the custom CleanCode.Naming.ShortClassName sniff,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed, and
+        tests/Standards/ShortClassNameTest.php asserts the sniff resolves from
+        this master ruleset.
+
+        No <properties> are configured, and that is the configuration: the
+        sniff's defaults are PHPMD's shipped defaults, so nothing has to be
+        restated to reach parity. minimum defaults to 3, exactly as PHPMD's
+        naming.xml ships it. exceptions defaults to the empty string, also
+        exactly as naming.xml ships it — the Log,URL,FTP in PHPMD's property
+        description is an *example* of what a project might exempt, not a
+        default, so nothing is exempt out of the box. Restating exceptions here
+        would in fact break the parse: PHPCS turns an empty value="" into null,
+        and the sniff's property is a typed string.
+
+        A consuming ruleset that already tunes PHPMD's rule can paste both
+        values in here; each is spelled and matched exactly as PHPMD spells and
+        matches it.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis below, no <type> override is
+        needed: the sniff raises errors already, so a short class name fails a
+        phpcs run the way it fails a phpmd run.
+
+        Detection only, matching PHPMD. Renaming a type rewrites every
+        reference to it and, under PSR-4, the file it lives in — a refactor
+        rather than a mechanical rewrite.
+    -->
+
+    <!--
         PHPMD Naming: BooleanGetMethodName (#116) —
         docs/phpmd/naming-booleangetmethodname.md.
 
