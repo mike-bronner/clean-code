@@ -470,6 +470,59 @@
     -->
 
     <!--
+        PHPMD CodeSize: ExcessiveParameterList (#95) —
+        docs/phpmd/codesize-excessiveparameterlist.md.
+
+        No existing PHPCS, Slevomat, or PHPCSUtils sniff counts *declared*
+        parameters. Generic.Metrics.CyclomaticComplexity and
+        Generic.Metrics.NestingLevel are the only bundled metric sniffs and
+        neither looks at a parameter list, while PHPCSUtils' PassedParameters
+        counts the arguments at a *call site* rather than the parameters in a
+        declaration. So this is the custom
+        CleanCode.Functions.ExcessiveParameterList sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above — no per-sniff
+        registration is needed, and
+        tests/Standards/ExcessiveParameterListTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        The sniff lives under Functions/ rather than a CodeSize/ category
+        because the categories here are semantic: the sibling
+        CleanCode.Functions.DisallowBooleanArgumentFlag replicates a rule from
+        PHPMD's *CleanCode* ruleset and sits in Functions/ too. Only the doc
+        filename tracks PHPMD's ruleset name.
+
+        No <properties> are configured. PHPMD ships this rule with minimum=10
+        (read from PHPMD 2.15.0's own rulesets/codesize.xml, not from
+        phpmd.org), and the sniff's default matches, so a consuming ruleset
+        that already tunes PHPMD's rule can paste the same property here — it
+        is spelled and compared exactly as PHPMD spells and compares it.
+
+        The comparison is INCLUSIVE, which is the one thing worth knowing
+        before changing anything here. PHPMD's rule body is
+        `if ($count < $threshold) { return; }`, so a declaration with exactly
+        `minimum` parameters is reported: at the default, ten parameters
+        violate and nine do not. phpmd.org's prose ("reducing the number of
+        parameters to less than 10") and #95's acceptance criteria ("≤10 → no
+        violation") both read like a strict `>`; a live PHPMD 2.15.0 run
+        disagrees with them, and the tool is what this package replaces.
+        tests/fixtures/ExcessiveParameterListSniff/boundaries.php pins it.
+
+        As with DisallowBooleanArgumentFlag above, no <type> override is
+        needed: the sniff raises errors already, so a violation fails a phpcs
+        run the way it fails a phpmd run.
+
+        Stricter than PHPMD on exactly one shape, and never looser: a method of
+        an anonymous class, which PDepend never surfaces to a MethodAware rule
+        and PHPMD therefore cannot see. Reproducing that gap would mean writing
+        code to suppress a true defect, so the extra report is kept and pinned
+        by tests/fixtures/ExcessiveParameterListSniff/divergences.php.
+
+        Detection only: collapsing a parameter list into an object means
+        introducing that object and rewriting every call site, which is a
+        design change with no mechanical rewrite. PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessivePublicCount (#96) —
         docs/phpmd/codesize-excessivepubliccount.md.
 
