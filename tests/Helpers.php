@@ -212,6 +212,22 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
 }
 
 /**
+ * Processes a fixture through a ruleset narrowed to one sniff, with a single
+ * public property set the way a consuming ruleset's <properties> would set it.
+ * The shorthand for the common case of exercising one configurable threshold.
+ */
+function analyzeFixtureWithProperty(
+    string $sniffCode,
+    string $fixture,
+    string $property,
+    mixed $value
+): LocalFile {
+    return analyzeFixture($sniffCode, $fixture, static function (object $sniff) use ($property, $value): void {
+        $sniff->{$property} = $value;
+    });
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, with that
  * sniff's properties set the way a *consuming ruleset* sets them — through
  * Ruleset::setSniffProperty(), with string values, exactly as parsing a
@@ -494,6 +510,28 @@ function allViolationSourcesByLine(LocalFile $file): array
     });
 
     return $map;
+}
+
+/**
+ * Every violation message on a processed file's errors, in line order, so a
+ * test can assert what a message *says* — the metric a threshold sniff counted,
+ * the name it resolved — rather than only that it was raised.
+ *
+ * @return array<int, string>
+ */
+function violationMessages(LocalFile $file): array
+{
+    $messages = [];
+
+    foreach ($file->getErrors() as $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $messages[] = $violation['message'];
+            }
+        }
+    }
+
+    return $messages;
 }
 
 /**
