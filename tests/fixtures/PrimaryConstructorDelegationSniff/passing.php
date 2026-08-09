@@ -10,9 +10,12 @@ declare(strict_types=1);
  *   1. Every accepted delegation form: `new self(...)`, `new static(...)`,
  *      `new <DeclaringClass>(...)`, its root-qualified spelling, a call to
  *      another named constructor, and a call to a plain static helper that is
- *      not itself a named constructor — the breadth #184 settled on. Nullable,
- *      union and root-qualified return types are included, because those are
- *      the shapes a `tryFrom()` and a fully-written type carry.
+ *      not itself a named constructor — the breadth #184 settled on. The
+ *      own-name and root-qualified spellings appear on the `::` side too, so
+ *      the segment check that rejects `Money\Amount` cannot pass by rejecting
+ *      every own-name match that has a token after it. Nullable, union and
+ *      root-qualified return types are included, because those are the shapes
+ *      a `tryFrom()` and a fully-written type carry.
  *   2. Every near-miss the sniff must stay silent on: an instance-level wither
  *      returning `self`, a static method returning anything else, an abstract
  *      declaration, an interface signature, an enum's named constructor (which
@@ -69,6 +72,16 @@ final class Money
     public static function fromRootInstance(int $cents): self
     {
         return new \Money($cents);
+    }
+
+    public static function fromOwnNameFactory(int $cents): self
+    {
+        return Money::fromCents($cents);
+    }
+
+    public static function fromRootNameFactory(int $cents): self
+    {
+        return \Money::fromCents($cents);
     }
 
     /**

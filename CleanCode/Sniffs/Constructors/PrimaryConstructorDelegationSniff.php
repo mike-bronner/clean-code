@@ -68,9 +68,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * - The class reference must carry **no namespace segment** — `self`,
  *   `static`, the bare class name, or the root-qualified spelling of that name
  *   in a file declaring no namespace, where the two are one class. A name with
- *   a segment in it cannot be resolved from one file: in a file declaring
- *   `Money`, `new \Other\Money()` names a different class far more often than
- *   the same one, and under `namespace App` so does `new \Money()`.
+ *   a segment in it cannot be resolved from one file, wherever this class's
+ *   name sits in it: in a file declaring `Money`, `new \Other\Money()` names a
+ *   different class far more often than the same one, `new Money\Amount()` and
+ *   `new \Money\Amount()` name one that merely sits under a namespace spelled
+ *   the same, and under `namespace App` so does `new \Money()`.
  * - A named constructor calling **itself** does not delegate. Without a `new`
  *   anywhere in the recursion it never reaches a constructor at all.
  *
@@ -354,12 +356,22 @@ class PrimaryConstructorDelegationSniff implements Sniff
      * the class's own name carrying no namespace segment.
      *
      * `parent` is not among them — it builds the superclass, whose constructor
-     * is a different one. Neither is a name with a segment in it: a separator
-     * with another name before it makes the match the tail of
-     * `new \Other\Money()`, a class the sniff cannot resolve from one file. A
-     * separator with nothing before it is the root-qualified spelling of this
-     * same class — but only where the file declares no namespace, since
-     * `new \Money()` under `namespace App` builds the global class instead.
+     * is a different one. Neither is a name with a segment in it, on **either**
+     * side of the match, since a qualified name can wear this class's name in
+     * any of its positions:
+     *
+     * - A separator *after* the match makes it the head of the qualified name:
+     *   `new Money\Amount()` in a file declaring `Money` builds `Money\Amount`,
+     *   a different class that merely sits under a namespace spelled the same.
+     *   Its root-qualified twin `new \Money\Amount()` reads the same way.
+     * - A separator *before* the match, with another name before that, makes it
+     *   the tail: `new \Other\Money()`, again a class the sniff cannot resolve
+     *   from one file.
+     *
+     * A separator before it with nothing before that is the root-qualified
+     * spelling of this same class — but only where the file declares no
+     * namespace, since `new \Money()` under `namespace App` builds the global
+     * class instead.
      */
     private function namesDeclaringClass(File $phpcsFile, int $pointer, ?string $className): bool
     {
@@ -375,6 +387,12 @@ class PrimaryConstructorDelegationSniff implements Sniff
         }
 
         if (strtolower($tokens[$pointer]['content']) !== strtolower($className)) {
+            return false;
+        }
+
+        $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), null, true);
+
+        if ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_NS_SEPARATOR) {
             return false;
         }
 

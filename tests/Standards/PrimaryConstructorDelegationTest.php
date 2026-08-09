@@ -51,9 +51,16 @@ it('is registered in the master ruleset', function (): void {
  * because `new` on an enum is a fatal error. Dropping the bodiless guard
  * reports the abstract declaration and the interface signature.
  *
- * One more reddens it on its own: `fromRootInstance()` on line 69 delegates
+ * One more reddens it on its own: `fromRootInstance()` on line 72 delegates
  * with `new \Money(...)`, the root-qualified spelling of the class this file
  * declares. Reading a leading separator as a foreign class reports it.
+ *
+ * So do the two beside it, `fromOwnNameFactory()` on line 77 and
+ * `fromRootNameFactory()` on line 82: the own-name and root-qualified
+ * spellings delegating through `::` rather than `new`. They hold the segment
+ * check honest from the other direction — rejecting a matched own name
+ * whenever *any* token follows it, rather than only a namespace separator,
+ * reports both.
  *
  * Three entries are boundaries this fixture documents rather than pins, each
  * pinned elsewhere or not pinnable at all:
@@ -136,27 +143,43 @@ it('names the method in the warning message', function (): void {
 });
 
 /**
- * Eight shapes that mention the declaring class without delegating to it, all
+ * Twelve shapes that mention the declaring class without delegating to it, all
  * still reported. Each pins one condition of the detection, and a sniff that
  * loosened any of them would fall silent on that line:
  *
- * - line 37, `self::class` — a constant fetch, which is why an opening
+ * - line 46, `self::class` — a constant fetch, which is why an opening
  *   parenthesis has to follow the callee.
- * - line 42, `parent::open()` and line 47, `new parent()` — the superclass's
+ * - line 51, `parent::open()` and line 56, `new parent()` — the superclass's
  *   constructor is a different one, so `parent` is not among the names that
  *   count.
- * - lines 52 and 57, `new \Other\Ticket()` and `\Other\Ticket::open()` — a
+ * - lines 61 and 66, `new \Other\Ticket()` and `\Other\Ticket::open()` — a
  *   name carrying a namespace segment, on each side of the detection. In a
  *   file declaring `Ticket` it names a different class far more often than
  *   this one, and a single-file scan cannot resolve which. The separator alone
  *   is not what disqualifies it: a root-qualified `\Ticket` in this same file
- *   would be the declaring class, as passing.php line 69 pins.
- * - line 62, `self::open()` inside `open()` — recursion with no `new` anywhere
+ *   would be the declaring class, as passing.php line 72 pins.
+ * - lines 71 and 76, `new Ticket\Sub()` and `new \Ticket\Sub()` — the same
+ *   qualified-name defect with this class's name in the *head* segment rather
+ *   than the tail. Both build a class that merely lives under a namespace
+ *   spelled like this one. These two are what pin the forward segment check:
+ *   dropping it — checking only what precedes the match, never what follows
+ *   it — reads both as delegation and silences exactly these two lines.
+ *   `\Other\Ticket` above cannot pin it, because `Other` never matches
+ *   `Ticket`, so the backward check is the only one that shape exercises.
+ * - lines 81 and 86, `Ticket\Sub::open()` and `\Ticket\Sub::open()` — the `::`
+ *   counterpart of the two above, and a no-regression pin rather than a second
+ *   pin of the same check. They are reported for a different reason: the token
+ *   before `::` is the qualified name's *tail* (`Sub`), which never matches
+ *   `Ticket`, so head-segment collision cannot reach this side and both stay
+ *   reported with the forward check dropped. They hold that reasoning still
+ *   true against a future rewrite that resolved a qualified name from its head
+ *   instead.
+ * - line 91, `self::open()` inside `open()` — recursion with no `new` anywhere
  *   in it never reaches a constructor, which is why the callee has to be a
  *   *different* method.
- * - line 67, `Ticket::REGISTRY` — a class constant, the own-name spelling of
- *   the line-37 case.
- * - line 79, `new self()` inside an anonymous class declared in the body.
+ * - line 96, `Ticket::REGISTRY` — a class constant, the own-name spelling of
+ *   the line-46 case.
+ * - line 108, `new self()` inside an anonymous class declared in the body.
  *   `self` there names the anonymous class, so the enclosing named constructor
  *   still bypasses its own primary constructor — the one nested scope the body
  *   scan jumps over rather than walking into.
@@ -166,14 +189,18 @@ it('rejects shapes that only resemble delegation', function (): void {
 
     expect($file->getErrors())->toBe([])
         ->and(violationSourcesByLine($file->getWarnings()))->toBe([
-            37 => [DELEGATION_WARNING],
-            42 => [DELEGATION_WARNING],
-            47 => [DELEGATION_WARNING],
-            52 => [DELEGATION_WARNING],
-            57 => [DELEGATION_WARNING],
-            62 => [DELEGATION_WARNING],
-            67 => [DELEGATION_WARNING],
-            79 => [DELEGATION_WARNING],
+            46 => [DELEGATION_WARNING],
+            51 => [DELEGATION_WARNING],
+            56 => [DELEGATION_WARNING],
+            61 => [DELEGATION_WARNING],
+            66 => [DELEGATION_WARNING],
+            71 => [DELEGATION_WARNING],
+            76 => [DELEGATION_WARNING],
+            81 => [DELEGATION_WARNING],
+            86 => [DELEGATION_WARNING],
+            91 => [DELEGATION_WARNING],
+            96 => [DELEGATION_WARNING],
+            108 => [DELEGATION_WARNING],
         ]);
 });
 
@@ -211,7 +238,7 @@ it('inspects trait-declared named constructors, and discloses the consumer-typed
 /**
  * The root-qualified spelling of the declaring class's own name is that class
  * where the file declares no namespace, and a different one inside a
- * namespace. This fixture holds the second half; passing.php line 64/69 and
+ * namespace. This fixture holds the second half; passing.php line 67/72 and
  * failing.php line 64 hold the first.
  *
  * Two lines pin it, one on each side of the detection, and both flip if a

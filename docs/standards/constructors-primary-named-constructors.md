@@ -75,10 +75,12 @@ than staying silent:
 - The class reference must carry **no namespace segment** — `self`, `static`,
   the bare class name, or the root-qualified spelling of that name in a file
   declaring no namespace, where the two are one class. A name with a segment
-  in it cannot be resolved from a single file: `new \Other\Money()` in a file
-  declaring `Money` names a different class far more often than the same one,
-  and under `namespace App` so does `new \Money()`. The return type is read
-  the same way, so `zero(): \Money` on a class `Money` is the named
+  in it cannot be resolved from a single file, wherever this class's name sits
+  in it: `new \Other\Money()` in a file declaring `Money` names a different
+  class far more often than the same one, `new Money\Amount()` and
+  `new \Money\Amount()` name one that merely sits under a namespace spelled
+  the same, and under `namespace App` so does `new \Money()`. The return type
+  is read the same way, so `zero(): \Money` on a class `Money` is the named
   constructor it looks like.
 - A named constructor calling **itself** does not delegate: without a `new`
   anywhere in the recursion it never reaches a constructor.

@@ -17,6 +17,15 @@ declare(strict_types=1);
  *     namespace segment, on both sides of the detection, which the sniff
  *     cannot resolve to this class. The leading separator alone is not the
  *     disqualifier: a root-qualified `\Ticket` here would be this class.
+ *   - `new Ticket\Sub()` and `new \Ticket\Sub()` — the same defect with this
+ *     class's name in the *head* position instead of the tail. `Ticket\Sub` is
+ *     a class under a namespace that happens to be spelled like this class,
+ *     not this class, so matching the first segment and stopping there would
+ *     read both as delegation.
+ *   - `Ticket\Sub::open()` and `\Ticket\Sub::open()` — the `::` counterpart,
+ *     already out of reach of that defect because the token before `::` is the
+ *     name's tail (`Sub`), which matches nothing here. Held so a rewrite that
+ *     resolved a qualified name from its head would have to keep them silent.
  *   - `self::open()` inside `open()` — recursion with no `new` in it never
  *     reaches a constructor.
  *   - `Ticket::REGISTRY` — a class constant, again not a call.
@@ -57,6 +66,26 @@ class Ticket extends BaseTicket
     public static function fromNamespacedFactory(string $reference): self
     {
         return \Other\Ticket::open($reference);
+    }
+
+    public static function fromSegmentHead(string $reference): self
+    {
+        return new Ticket\Sub($reference);
+    }
+
+    public static function fromRootSegmentHead(string $reference): self
+    {
+        return new \Ticket\Sub($reference);
+    }
+
+    public static function fromSegmentHeadFactory(string $reference): self
+    {
+        return Ticket\Sub::open($reference);
+    }
+
+    public static function fromRootSegmentHeadFactory(string $reference): self
+    {
+        return \Ticket\Sub::open($reference);
     }
 
     public static function open(string $reference): self
