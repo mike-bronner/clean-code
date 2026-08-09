@@ -16,8 +16,9 @@
  * both. The only axis on which coverage varies is the fixer —
  *
  *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ArrayAccessors, DisallowElse, DuplicatedArrayKey,
- *     OperatorLineBreak, DisallowStaticMembers, DisallowCountInLoopExpression,
+ *   - Detection-only sniffs (ApiControllerNamespace, ArrayAccessors,
+ *     DisallowElse, DuplicatedArrayKey, OperatorLineBreak,
+ *     DisallowStaticMembers, DisallowCountInLoopExpression,
  *     DisallowExitExpression, DisallowBooleanArgumentFlag,
  *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
  *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
@@ -94,6 +95,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
+    'CleanCode.Routes.ApiControllerNamespace',
     'CleanCode.Strings.MultilineStrings',
     'CleanCode.WhiteSpace.BlankLines',
     'Generic.ControlStructures.InlineControlStructure',

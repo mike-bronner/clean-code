@@ -15,6 +15,7 @@
 declare(strict_types=1);
 
 use PHP_CodeSniffer\Config;
+use PHP_CodeSniffer\Files\DummyFile;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -191,6 +192,26 @@ function analyzeWithSniffs(array $sniffCodes, string $path, ?callable $configure
     }
 
     $file = new LocalFile($path, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
+ * Processes source through a ruleset narrowed to the given sniff codes, as
+ * piped input with no path — PHPCS reports the file name as STDIN.
+ *
+ * A sniff that reads the file's location has to say nothing when there is no
+ * location to read, and that behaviour cannot be reached through a fixture on
+ * disk: every fixture has a path.
+ *
+ * @param array<int, string> $sniffCodes
+ */
+function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
+{
+    [$config, $ruleset] = buildRuleset($sniffCodes);
+
+    $file = new DummyFile($source, $ruleset, $config);
     $file->process();
 
     return $file;
@@ -584,6 +605,27 @@ function stageFixtureOutsideTests(string $path, string $subdirectory = ''): stri
 
     $staged = $directory . '/' . basename($path);
     copy($path, $staged);
+
+    return $staged;
+}
+
+/**
+ * Writes $source to a file named $filename in a directory outside the
+ * repository and returns the path, so a test can compare a sniff's verdict on
+ * the same bytes at a real path and with no path at all.
+ */
+function stageSourceOutsideTests(string $source, string $filename): string
+{
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    stagedFixtures($directory);
+
+    $staged = $directory . '/' . $filename;
+    file_put_contents($staged, $source);
 
     return $staged;
 }
