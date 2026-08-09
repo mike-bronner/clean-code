@@ -100,6 +100,27 @@
         <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
     </rule>
 
+    <!--
+        Naming: Semantic naming principles (#18/#136) —
+        docs/standards/naming-semantic-naming-principles.md.
+
+        The custom CleanCode.Naming.DisallowMagicNumbers sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping and no severity change are wanted.
+
+        It carries the one token-visible slice of a Tier 3 standard: "Use
+        Searchable Names" calls out numeric constants, and a bare literal
+        outside a declaration site is decidable from a single file's tokens.
+        The rest of the standard stays with code review.
+
+        The sniff reports warnings from its own addWarning() call rather than
+        being lowered here, because advisory is the rule's nature and not a
+        local policy choice: some literals really are self-evident in context,
+        so it must never fail a consumer's build. Detection only — naming a
+        number is a judgement about what it means, so there is nothing safe to
+        rewrite mechanically.
+    -->
+
     <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
     <rule ref="Generic.Files.LineLength">
         <properties>
@@ -312,6 +333,82 @@
     </rule>
 
     <!--
+        Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
+
+        The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
+        one token-visible slice of an otherwise Tier 3 standard: "only test
+        public methods" has a single standard workaround, and that workaround is
+        Reflection. It is picked up automatically via the ./CleanCode/ruleset.xml
+        ref above; this comment records that no scoping is wanted here.
+
+        No <exclude-pattern>, deliberately, and this is the inverse of the
+        DisallowExternalPersistenceCalls block above: the sniff is *only*
+        meaningful inside test paths, and it decides that itself from its
+        testFilePatterns property rather than from a ruleset path filter. A
+        consuming project whose tests live somewhere else retunes that property;
+        with a path filter here it would have to override this ruleset instead.
+
+        One existing sniff covers part of it and is still not enough.
+        SlevomatCodingStandard.PHP.ForbiddenClasses, configured with
+        ReflectionMethod and ReflectionProperty, was run against
+        tests/fixtures/NoReflectionAccessSniff/failing.php: it reported 4 of the
+        17 lines the custom sniff reports (3, 4, 5, 23) and missed the other 13.
+
+        - It has no test-path awareness at all, so it would report the same
+          Reflection in production code, which this standard does not forbid.
+        - It compares class names case-sensitively, so `new REFLECTIONPROPERTY()`
+          (line 6) escapes it even though PHP class names are case-insensitive.
+        - It speaks only about class *usage*, so the whole member half —
+          setAccessible(), getMethod(), getProperty(), invoke(), invokeArgs(),
+          12 of the 17 lines — is invisible to it.
+
+        Generic.PHP.ForbiddenFunctions, configured with those five member names,
+        reported nothing at all on the same fixture: it matches global function
+        calls, not method calls. No other PHPCS or Slevomat sniff mentions
+        Reflection.
+
+        Warnings, not errors, and detection only. The standard is advisory, the
+        member half matches on member name rather than on receiver type (which a
+        single-file token scan cannot resolve), and replacing a Reflection call
+        with coverage through the public API is a redesign of the test with no
+        mechanical rewrite. Legitimate Reflection in a test takes the ordinary
+        per-line phpcs:ignore.
+    -->
+
+    <!--
+        PHPMD Naming: ShortMethodName (#111) —
+        docs/phpmd/naming-shortmethodname.md.
+
+        No PHPCS, Generic, Squiz or Slevomat sniff measures declaration-name
+        length: none of the twelve NamingConventions sniffs php_codesniffer
+        ships looks at how long a name is — they judge casing, affixes, or
+        whether a method name matches its class — and Slevomat ships no
+        name-length rule either. The custom CleanCode.Naming.ShortMethodName sniff
+        covers it, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and this comment records
+        that no scoping is wanted either.
+
+        The sniff reports errors directly, so unlike the Squiz.PHP.Eval and
+        VariableAnalysis mappings below there is no severity to raise: phpcs
+        already exits non-zero on a violation, the way phpmd does.
+
+        PHPMD's two properties are carried over under their own names and
+        defaults (minimum=3, exceptions=""), so a phpmd.xml configuration
+        transfers unchanged:
+
+            <rule ref="CleanCode.Naming.ShortMethodName">
+                <properties>
+                    <property name="minimum" value="4"/>
+                    <property name="exceptions" value="id,to"/>
+                </properties>
+            </rule>
+
+        Detection only, matching PHPMD: renaming a function or method means
+        updating every call site and every interface it satisfies, so there is
+        no safe mechanical rewrite.
+    -->
+
+    <!--
         PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
 
         Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
@@ -455,6 +552,44 @@
             <property name="allowUnusedFunctionParameters" value="true"/>
             <property name="allowUnusedForeachVariables" value="false"/>
             <property name="allowUnusedVariablesInFileScope" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
+        PHPMD CodeSize: TooManyMethods (#80) —
+        docs/phpmd/codesize-toomanymethods.md.
+
+        No PHPCS, Slevomat, or Squiz sniff counts methods per class — the
+        nearest neighbours count lines (Slevomat's ClassLength, FileLength,
+        FunctionLength) or score branching inside one method
+        (Generic.Metrics.CyclomaticComplexity) — so this is the custom
+        CleanCode.CodeSize.TooManyMethods sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above. This block only pins the
+        thresholds.
+
+        Both properties are set to PHPMD 2.15.0's shipped defaults rather than
+        left implicit, so a consumer reading this file sees what it is running
+        under. The values are asserted against the sniff *through this file* in
+        tests/Standards/TooManyMethodsTest.php, so a typo here turns that test
+        red instead of silently relaxing the rule.
+
+        ignorepattern is (^(set|get|is|has|with))i, which is the value every
+        PHPMD 2.x codesize.xml ships. phpmd.org's rule page still prints the
+        pre-2.x (^(set|get))i; following the page instead would count is/has/
+        with accessors that PHPMD does not, and report classes PHPMD passes.
+
+        The sniff reports errors, not warnings, for the reason Squiz.PHP.Eval
+        and VariableAnalysis above are raised to error: PHPMD fails a run on
+        this violation, and a warning would leave phpcs exiting 0, so phpmd
+        would still have to run separately for this rule.
+
+        Detection only, matching PHPMD: splitting a class is a decision about
+        where each behaviour belongs, which no mechanical rewrite can make.
+    -->
+    <rule ref="CleanCode.CodeSize.TooManyMethods">
+        <properties>
+            <property name="maxmethods" value="25"/>
+            <property name="ignorepattern" value="(^(set|get|is|has|with))i"/>
         </properties>
     </rule>
 </ruleset>
