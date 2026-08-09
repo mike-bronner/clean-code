@@ -1063,6 +1063,74 @@
     </rule>
 
     <!--
+        PHPMD CleanCode: MissingImport (#84) —
+        docs/phpmd/cleancode-missingimport.md.
+
+        PHPMD's MissingImport ("import all external classes through use
+        statements; avoid inline fully-qualified class names") maps onto
+        SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly. The sniff
+        already reports errors, not warnings, so unlike Squiz.PHP.Eval and
+        VariableAnalysis above it needs no <type> override to match PHPMD
+        failing a run.
+
+        Two properties are set; every other default is left alone.
+
+        allowFullyQualifiedGlobalFunctions="true" and
+        allowFullyQualifiedGlobalConstants="true" narrow the sniff toward
+        PHPMD's scope. MissingImport inspects allocation expressions only, so
+        it has no opinion on functions or constants at all, while Slevomat by
+        default demands `use function strlen;` for a written-out `\strlen()`.
+        Writing the leading backslash on a global function or constant is a
+        deliberate idiom (it skips the namespace fallback lookup), so reporting
+        it would fight a common intentional shape and add nothing to the
+        mapping. References to *namespaced* functions and constants are still
+        reported: those are genuinely importable.
+
+        allowWhenNoNamespace is deliberately left at its default true, which
+        reads as "run even when the file declares no namespace" — its false
+        branch is an early return that skips such files wholesale. True is what
+        parity needs, because PHPMD flags `new \stdClass()` in a function or
+        method whether or not the file declares a namespace. A namespace-less
+        file reports the sniff's ReferenceViaFullyQualifiedNameWithoutNamespace
+        code instead, whose remedy is to drop the leading backslash rather than
+        add a use statement — a use statement buys nothing in the global
+        namespace, but both tools agree the inline name is the defect.
+
+        allowFullyQualifiedGlobalClasses is PHPMD's `ignore-global` property
+        and is deliberately left at its shared default (Slevomat false =
+        PHPMD false), so `new \stdClass()` is reported by both tools.
+
+        allowFullyQualifiedExceptions is deliberately left false. Setting it
+        true would silence every name ending in "Exception", `\Throwable`, and
+        global names ending in "Error" — including `new \RuntimeException()`,
+        which PHPMD does report. It is the one property that would break parity
+        in the direction that matters, since a missed report is a reason to
+        keep running phpmd. The cost is that the SlevomatCodingStandard.
+        Exceptions.ReferenceThrowableOnly rule wired in for #63 rewrites
+        `catch (\Exception $e)` to the fully qualified `\Throwable`, which this
+        sniff then asks to be imported. The two agree on a compliant form
+        (`use Throwable;` plus `catch (Throwable $e)`) and phpcbf reaches it in
+        one run; tests/Ruleset/MissingImportTest.php pins that.
+
+        searchAnnotations is left at its default false, and the deprecated
+        SlevomatCodingStandard.Namespaces.FullyQualifiedClassNameInAnnotation
+        sniff is not referenced. Both police fully-qualified names in doc
+        blocks, which PHPMD's rule never reads — it walks the parsed AST's
+        allocation expressions. Enabling either would report code PHPMD passes.
+        (The searchAnnotations="true" on UnusedUses above is the opposite
+        direction: there it stops live docblock references being called dead.)
+
+        Auto-fixable, unlike most of the PHPMD mappings here: the fixer inserts
+        the missing use statement and shortens the reference in place.
+    -->
+    <rule ref="SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly">
+        <properties>
+            <property name="allowFullyQualifiedGlobalFunctions" value="true"/>
+            <property name="allowFullyQualifiedGlobalConstants" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
         PHPMD CodeSize: ExcessiveClassLength (#93) —
         docs/phpmd/codesize-excessiveclasslength.md.
 
