@@ -1,0 +1,417 @@
+<?php
+
+/**
+ * Declarations PHPMD's CodeSize ExcessiveMethodLength rule reports at its own
+ * default threshold of 100 lines, with ignore-whitespace left off.
+ *
+ * Cross-checked against a live PHPMD 2.15.0 run; see
+ * docs/phpmd/codesize-excessivemethodlength.md.
+ */
+
+class ExcessivelyLongMethods
+{
+
+    public function exactlyAtTheThreshold(): void
+    {
+        $value1 = 1;
+        $value2 = 2;
+        $value3 = 3;
+        $value4 = 4;
+        $value5 = 5;
+        $value6 = 6;
+        $value7 = 7;
+        $value8 = 8;
+        $value9 = 9;
+        $value10 = 10;
+        $value11 = 11;
+        $value12 = 12;
+        $value13 = 13;
+        $value14 = 14;
+        $value15 = 15;
+        $value16 = 16;
+        $value17 = 17;
+        $value18 = 18;
+        $value19 = 19;
+        $value20 = 20;
+        $value21 = 21;
+        $value22 = 22;
+        $value23 = 23;
+        $value24 = 24;
+        $value25 = 25;
+        $value26 = 26;
+        $value27 = 27;
+        $value28 = 28;
+        $value29 = 29;
+        $value30 = 30;
+        $value31 = 31;
+        $value32 = 32;
+        $value33 = 33;
+        $value34 = 34;
+        $value35 = 35;
+        $value36 = 36;
+        $value37 = 37;
+        $value38 = 38;
+        $value39 = 39;
+        $value40 = 40;
+        $value41 = 41;
+        $value42 = 42;
+        $value43 = 43;
+        $value44 = 44;
+        $value45 = 45;
+        $value46 = 46;
+        $value47 = 47;
+        $value48 = 48;
+        $value49 = 49;
+        $value50 = 50;
+        $value51 = 51;
+        $value52 = 52;
+        $value53 = 53;
+        $value54 = 54;
+        $value55 = 55;
+        $value56 = 56;
+        $value57 = 57;
+        $value58 = 58;
+        $value59 = 59;
+        $value60 = 60;
+        $value61 = 61;
+        $value62 = 62;
+        $value63 = 63;
+        $value64 = 64;
+        $value65 = 65;
+        $value66 = 66;
+        $value67 = 67;
+        $value68 = 68;
+        $value69 = 69;
+        $value70 = 70;
+        $value71 = 71;
+        $value72 = 72;
+        $value73 = 73;
+        $value74 = 74;
+        $value75 = 75;
+        $value76 = 76;
+        $value77 = 77;
+        $value78 = 78;
+        $value79 = 79;
+        $value80 = 80;
+        $value81 = 81;
+        $value82 = 82;
+        $value83 = 83;
+        $value84 = 84;
+        $value85 = 85;
+        $value86 = 86;
+        $value87 = 87;
+        $value88 = 88;
+        $value89 = 89;
+        $value90 = 90;
+        $value91 = 91;
+        $value92 = 92;
+        $value93 = 93;
+        $value94 = 94;
+        $value95 = 95;
+        $value96 = 96;
+        $value97 = 97;
+    }
+
+    public
+    static
+    function modifiersOnTheirOwnLines(): void
+    {
+        $value1 = 1;
+        $value2 = 2;
+        $value3 = 3;
+        $value4 = 4;
+        $value5 = 5;
+        $value6 = 6;
+        $value7 = 7;
+        $value8 = 8;
+        $value9 = 9;
+        $value10 = 10;
+        $value11 = 11;
+        $value12 = 12;
+        $value13 = 13;
+        $value14 = 14;
+        $value15 = 15;
+        $value16 = 16;
+        $value17 = 17;
+        $value18 = 18;
+        $value19 = 19;
+        $value20 = 20;
+        $value21 = 21;
+        $value22 = 22;
+        $value23 = 23;
+        $value24 = 24;
+        $value25 = 25;
+        $value26 = 26;
+        $value27 = 27;
+        $value28 = 28;
+        $value29 = 29;
+        $value30 = 30;
+        $value31 = 31;
+        $value32 = 32;
+        $value33 = 33;
+        $value34 = 34;
+        $value35 = 35;
+        $value36 = 36;
+        $value37 = 37;
+        $value38 = 38;
+        $value39 = 39;
+        $value40 = 40;
+        $value41 = 41;
+        $value42 = 42;
+        $value43 = 43;
+        $value44 = 44;
+        $value45 = 45;
+        $value46 = 46;
+        $value47 = 47;
+        $value48 = 48;
+        $value49 = 49;
+        $value50 = 50;
+        $value51 = 51;
+        $value52 = 52;
+        $value53 = 53;
+        $value54 = 54;
+        $value55 = 55;
+        $value56 = 56;
+        $value57 = 57;
+        $value58 = 58;
+        $value59 = 59;
+        $value60 = 60;
+        $value61 = 61;
+        $value62 = 62;
+        $value63 = 63;
+        $value64 = 64;
+        $value65 = 65;
+        $value66 = 66;
+        $value67 = 67;
+        $value68 = 68;
+        $value69 = 69;
+        $value70 = 70;
+        $value71 = 71;
+        $value72 = 72;
+        $value73 = 73;
+        $value74 = 74;
+        $value75 = 75;
+        $value76 = 76;
+        $value77 = 77;
+        $value78 = 78;
+        $value79 = 79;
+        $value80 = 80;
+        $value81 = 81;
+        $value82 = 82;
+        $value83 = 83;
+        $value84 = 84;
+        $value85 = 85;
+        $value86 = 86;
+        $value87 = 87;
+        $value88 = 88;
+        $value89 = 89;
+        $value90 = 90;
+        $value91 = 91;
+        $value92 = 92;
+        $value93 = 93;
+        $value94 = 94;
+        $value95 = 95;
+    }
+
+    public function padOutWithBlanksAndComments(): void
+    {
+        $value1 = 1;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value2 = 2;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value3 = 3;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value4 = 4;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value5 = 5;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value6 = 6;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value7 = 7;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value8 = 8;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value9 = 9;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value10 = 10;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value11 = 11;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value12 = 12;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value13 = 13;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value14 = 14;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value15 = 15;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value16 = 16;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value17 = 17;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value18 = 18;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value19 = 19;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value20 = 20;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value21 = 21;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value22 = 22;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value23 = 23;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value24 = 24;
+
+        // A comment line, which counts towards loc and not towards eloc.
+
+        $value25 = 25;
+    }
+}
+
+function standaloneFunctionThatRunsLong(): void
+{
+    $value1 = 1;
+    $value2 = 2;
+    $value3 = 3;
+    $value4 = 4;
+    $value5 = 5;
+    $value6 = 6;
+    $value7 = 7;
+    $value8 = 8;
+    $value9 = 9;
+    $value10 = 10;
+    $value11 = 11;
+    $value12 = 12;
+    $value13 = 13;
+    $value14 = 14;
+    $value15 = 15;
+    $value16 = 16;
+    $value17 = 17;
+    $value18 = 18;
+    $value19 = 19;
+    $value20 = 20;
+    $value21 = 21;
+    $value22 = 22;
+    $value23 = 23;
+    $value24 = 24;
+    $value25 = 25;
+    $value26 = 26;
+    $value27 = 27;
+    $value28 = 28;
+    $value29 = 29;
+    $value30 = 30;
+    $value31 = 31;
+    $value32 = 32;
+    $value33 = 33;
+    $value34 = 34;
+    $value35 = 35;
+    $value36 = 36;
+    $value37 = 37;
+    $value38 = 38;
+    $value39 = 39;
+    $value40 = 40;
+    $value41 = 41;
+    $value42 = 42;
+    $value43 = 43;
+    $value44 = 44;
+    $value45 = 45;
+    $value46 = 46;
+    $value47 = 47;
+    $value48 = 48;
+    $value49 = 49;
+    $value50 = 50;
+    $value51 = 51;
+    $value52 = 52;
+    $value53 = 53;
+    $value54 = 54;
+    $value55 = 55;
+    $value56 = 56;
+    $value57 = 57;
+    $value58 = 58;
+    $value59 = 59;
+    $value60 = 60;
+    $value61 = 61;
+    $value62 = 62;
+    $value63 = 63;
+    $value64 = 64;
+    $value65 = 65;
+    $value66 = 66;
+    $value67 = 67;
+    $value68 = 68;
+    $value69 = 69;
+    $value70 = 70;
+    $value71 = 71;
+    $value72 = 72;
+    $value73 = 73;
+    $value74 = 74;
+    $value75 = 75;
+    $value76 = 76;
+    $value77 = 77;
+    $value78 = 78;
+    $value79 = 79;
+    $value80 = 80;
+    $value81 = 81;
+    $value82 = 82;
+    $value83 = 83;
+    $value84 = 84;
+    $value85 = 85;
+    $value86 = 86;
+    $value87 = 87;
+    $value88 = 88;
+    $value89 = 89;
+    $value90 = 90;
+    $value91 = 91;
+    $value92 = 92;
+    $value93 = 93;
+    $value94 = 94;
+    $value95 = 95;
+    $value96 = 96;
+    $value97 = 97;
+}
