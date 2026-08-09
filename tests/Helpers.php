@@ -340,61 +340,88 @@ function violationFixableFlags(LocalFile $file): array
 
 /**
  * Copies a fixture to a directory outside the repository and returns the new
- * path. rules.xml scopes CleanCode.Models.DisallowExternalPersistenceCalls out
- * of test paths, and the exclusion is decided from the file's path alone — so
- * this is what lets that sniff see its own fixtures at all.
+ * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
+ * scoping from the file's path alone — so this is what lets either of them see
+ * its own fixtures at all.
+ *
+ * $subdirectory nests the copy below the staging root, so a path-scoped sniff
+ * can be driven against a path that matches its rule and against one that does
+ * not. CleanCode.Models.DisallowExternalPersistenceCalls needs only "anywhere
+ * outside tests/" and passes nothing; CleanCode.Files.NoProceduralCode is
+ * restricted to src/ and app/, so its tests stage into (and outside) those.
  */
-function stageFixtureOutsideTests(string $path): string
+function stageFixtureOutsideTests(string $path, string $subdirectory = ''): string
 {
-    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
+    $root = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
+    $directory = $subdirectory === '' ? $root : $root . '/' . $subdirectory;
 
-    if (mkdir($directory, 0700) === false) {
+    if (mkdir($directory, 0700, true) === false) {
         throw new RuntimeException("could not stage a fixture in {$directory}");
     }
 
+    stagedFixtures($root);
+
     $staged = $directory . '/' . basename($path);
-    stagedFixtures($staged);
     copy($path, $staged);
 
     return $staged;
 }
 
 /**
- * Tracks staged fixture paths, and returns them for cleanup when called with
- * no argument.
+ * Tracks the staging roots created so far, and returns them for cleanup when
+ * called with no argument.
  *
  * @return array<int, string>
  */
 function stagedFixtures(?string $add = null): array
 {
-    static $paths = [];
+    static $roots = [];
 
     if ($add !== null) {
-        $paths[] = $add;
+        $roots[] = $add;
 
-        return $paths;
+        return $roots;
     }
 
-    $tracked = $paths;
-    $paths = [];
+    $tracked = $roots;
+    $roots = [];
 
     return $tracked;
 }
 
 /**
- * Removes every fixture staged outside the repository so far.
+ * Removes every fixture staged outside the repository so far, roots and all.
  */
 function purgeStagedFixtures(): void
 {
-    foreach (stagedFixtures() as $path) {
-        if (is_file($path) === true) {
-            unlink($path);
+    foreach (stagedFixtures() as $root) {
+        removeStagedDirectory($root);
+    }
+}
+
+/**
+ * Removes a staging root and everything below it. Recursive because a staged
+ * fixture may sit in a nested directory the sniff's path scoping requires.
+ */
+function removeStagedDirectory(string $directory): void
+{
+    if (is_dir($directory) === false) {
+        return;
+    }
+
+    foreach (array_diff((array) scandir($directory), ['.', '..']) as $entry) {
+        $path = $directory . '/' . $entry;
+
+        if (is_dir($path) === true) {
+            removeStagedDirectory($path);
+
+            continue;
         }
 
-        if (is_dir(dirname($path)) === true) {
-            rmdir(dirname($path));
-        }
+        unlink($path);
     }
+
+    rmdir($directory);
 }
 
 /**

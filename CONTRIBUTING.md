@@ -120,6 +120,13 @@ in and what applies the `<properties>` configured there.
    `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
+
+   A sniff **scoped by path** in `rules.xml` is the one exception: the sweep
+   processes each fixture where it lives, under `tests/`, and PHPCS decides
+   path scoping from the file's path alone, so the failing fixture would report
+   nothing. Leave it out of the datasets, record why in the sweep's docblock
+   beside the sniffs already listed there, and drive its fixtures from
+   `stageFixtureOutsideTests()` in its own test file instead.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and
