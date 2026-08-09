@@ -335,6 +335,24 @@
     -->
 
     <!--
+        Models: Organization (member ordering) (#75) —
+        docs/standards/models-organization.md.
+
+        The custom CleanCode.Models.MemberOrdering sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted. Like the two Models sniffs above it,
+        it only speaks about a class extending a model-shaped parent, and a
+        model declared under tests/ reads the same way as one under app/.
+
+        Nothing shipped covers this. SlevomatCodingStandard.Classes.ClassStructure
+        orders groups of members and has no notion of alphabetical order;
+        SlevomatCodingStandard.Classes.TraitUseDeclaration reports only multiple
+        traits per declaration, never their order, and is unscoped where this
+        standard addresses models. Neither is referenced here, and the sniff's
+        docblock records the full evaluation.
+    -->
+
+    <!--
         Testing: Development Process (TDD) (#57), classes-only slice (#129) —
         docs/standards/testing-development-process-tdd.md.
 

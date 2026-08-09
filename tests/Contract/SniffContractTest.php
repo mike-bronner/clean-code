@@ -20,7 +20,8 @@
  *     OperatorLineBreak, DisallowStaticMembers, DisallowExitExpression,
  *     DisallowBooleanArgumentFlag, TooManyPublicMethods,
  *     ExcessiveMethodLength, ExcessiveParameterList, ExcessiveClassComplexity,
- *     ExcessivePublicCount, BooleanGetMethodName, ShortClassName, LineLength,
+ *     ExcessivePublicCount, MemberOrdering, BooleanGetMethodName,
+ *     ShortClassName, LineLength,
  *     ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
  *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
  *     but no autofixed.php, because there is no safe mechanical rewrite.
@@ -82,6 +83,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
     'CleanCode.Metrics.ExcessiveClassComplexity',
+    'CleanCode.Models.MemberOrdering',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Naming.BooleanGetMethodName',
     'CleanCode.Naming.ShortClassName',
