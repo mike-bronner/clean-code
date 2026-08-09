@@ -185,6 +185,51 @@ it('honors the exceptions list, case-sensitively', function (): void {
 });
 
 /**
+ * The name is measured in *bytes*, not characters — the sniff's one load-bearing
+ * design decision, and PHPMD's own, since PHPMD compares with `strlen()` too.
+ * The two counts disagree on any non-ASCII identifier, which is legal PHP
+ * (`[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*`), so this fixture straddles the
+ * shipped `minimum` of 3 in both directions at once:
+ *
+ * | Line | Name  | Bytes | Characters | Byte verdict | Character verdict |
+ * | ---- | ----- | ----- | ---------- | ------------ | ----------------- |
+ * | 3    | `Aé`  | 3     | 2          | passes       | would be reported |
+ * | 7    | `類`  | 3     | 1          | passes       | would be reported |
+ * | 11   | `Δ`   | 2     | 1          | reported     | would be reported |
+ * | 15   | `Ünï` | 5     | 3          | passes       | passes            |
+ *
+ * Only line 11 is reported, which is what pins the decision: swapping
+ * `strlen()` for `mb_strlen()` in the sniff adds lines 3 and 7 and turns this
+ * test red. Lines 3 and 7 are the discriminators — a name at exactly the
+ * threshold in bytes but under it in characters. Line 11 is the other half of
+ * the pair: it proves a multibyte name is measured rather than skipped, so the
+ * silence on lines 3 and 7 is a verdict and not an exemption. Line 15 clears
+ * both counts and holds the passing side.
+ *
+ * Byte-counting can only ever report a subset of what character-counting
+ * reports, because a UTF-8 name is never fewer bytes than characters — so the
+ * reverse discriminator (reported by bytes, silent by characters) does not
+ * exist and no fixture can cover it.
+ *
+ * A live PHPMD 2.15.0 run over this same fixture reports line 11 and nothing
+ * else, with the same message text, so the byte semantics are parity with the
+ * tool this sniff replaces rather than a local choice.
+ *
+ * The message assertion is the second half: the offending name is rendered
+ * through the byte path intact, not truncated mid-sequence into mojibake.
+ */
+it('measures a name in bytes, not characters', function (): void {
+    $file = analyzeFixture(SHORT_CLASS_NAME, 'multibyte.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 11, 'column' => 1, 'source' => SHORT_CLASS_NAME_ERROR],
+        ])
+        ->and($file->getErrors()[11][1][0]['message'])
+        ->toBe('Avoid classes with short names like Δ. Configured minimum length is 3.');
+});
+
+/**
  * A `class` keyword with no name after it — what PHPCS hands a sniff for a
  * file caught mid-edit. There is no name to measure, so the sniff passes over
  * the file rather than reporting a nameless violation: without the guard,

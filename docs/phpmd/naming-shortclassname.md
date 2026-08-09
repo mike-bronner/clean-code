@@ -63,6 +63,14 @@ to run separately for it.
   (`strlen()`, as PHPMD's own rule does) and reported when it is shorter than
   `minimum`. A name of exactly `minimum` bytes passes: the property is a
   reporting threshold, and PHPMD returns early on `strlen($name) >= $threshold`.
+- **Bytes, not characters** — the two counts only agree on ASCII. A non-ASCII
+  identifier is legal PHP, and under the shipped `minimum` of 3 a name like `Aé`
+  (3 bytes, 2 characters) or `類` (3 bytes, 1 character) passes, while `Δ`
+  (2 bytes) is reported. Byte counting is what PHPMD does, so this is parity and
+  not a local choice — `tests/fixtures/ShortClassNameSniff/multibyte.php` pins
+  it, and a live PHPMD run over that fixture agrees (see the table below). Note
+  a byte count can only ever report a subset of what a character count would:
+  a UTF-8 name is never fewer bytes than characters.
 - **Four keywords, not two** — classes, interfaces, traits, and enums are all
   reported. PHPMD's rule class declares `ClassAware`, `InterfaceAware`,
   `TraitAware`, and `EnumAware`, so it speaks about all four despite the rule
@@ -142,6 +150,7 @@ same lines and the same message text as the sniff on every one:
 | `exceptions.php`, shipped defaults | silent | silent |
 | `exceptions.php`, `minimum=4` | lines 3, 7, 11, 19 | lines 3, 7, 11, 19 |
 | `exceptions.php`, `minimum=4` + `exceptions="Log, URL , FTP"` | line 19 | line 19 |
+| `multibyte.php`, shipped defaults | line 11 | line 11 |
 
 The one file the two tools treat differently is a **half-written declaration** —
 `nameless.php`, a `class` keyword with nothing after it. PHPCS tokenizes a file
