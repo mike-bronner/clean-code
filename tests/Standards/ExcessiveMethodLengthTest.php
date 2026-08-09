@@ -15,10 +15,11 @@
  *   loc  (ignore-whitespace false)  failing 100/100/100/100 at lines 14, 115,
  *                                   216, 318; passing 99/6/6/6/6/1/1 at lines
  *                                   29, 129, 136, 143, 150, 160, 165;
- *                                   configured 15/4/9/14 at lines 13, 29, 34, 45
+ *                                   configured 15/4/9/14/7 at lines 13, 29, 34,
+ *                                   45, 70
  *   eloc (ignore-whitespace true)   failing 99/97/27/99; passing 98/5/5/5/5,
  *                                   the two bodiless declarations dropping to
- *                                   zero; configured 10/3/7/13
+ *                                   zero; configured 10/3/7/13/4
  *
  * The sniff reproduces all of it exactly — same lines, same counts, same
  * silences — which is the whole point: `phpmd` no longer has to run for this
@@ -197,6 +198,41 @@ it('treats a declaration of exactly minimum lines as too long', function (): voi
     expect(violationTuples($file))->toBe([
         ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
     ]);
+});
+
+/**
+ * A comment written between two modifiers does not stop the span at the second
+ * one. anchorsAtTheFirstModifier() puts `public` on line 70, a comment on 71 and
+ * `static function` on 72, so the declaration measures seven lines counted from
+ * `public` and five counted from `static`.
+ *
+ * The threshold is placed at six to sit between those two numbers, which makes
+ * the test two-sided: a walk that stopped at the comment would score the
+ * declaration five and drop line 70 from the report entirely — and if it did
+ * report, it would report line 72. Both the line and the verdict move, and the
+ * looser thresholds used elsewhere in this file cannot see either, because a
+ * two-line miscount does not change the verdict at 14 or 15.
+ *
+ * Live PHPMD 2.15.0 at `minimum = 1` measures the same seven lines and anchors
+ * the report on line 70, so this is parity and not a choice of our own.
+ */
+it('starts the span at the first modifier when a comment sits between two', function (): void {
+    $file = analyzeFixture(
+        EXCESSIVE_METHOD_LENGTH,
+        'configured.php',
+        static function (object $sniff): void {
+            $sniff->minimum = 6;
+        }
+    );
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
+        ['line' => 34, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
+        ['line' => 45, 'column' => 1, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
+        ['line' => 70, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
+    ]);
+
+    expect($file->getErrors()[70][5][0]['message'])->toContain('has 7 lines of code');
 });
 
 /**

@@ -96,7 +96,11 @@ The two metrics come from PDepend's `NodeLocAnalyzer::visitMethod()`:
 Both exclude the docblock and any attributes above the declaration, because
 those sit outside PDepend's node. Both *include* the modifiers: the node starts
 at `public`, `final`, `static` and so on, so a modifier written on its own line
-lengthens the measured span and is where the violation is reported.
+lengthens the measured span and is where the violation is reported. A comment
+written *between* two modifiers does not move that start: PDepend keeps the node
+on the first modifier, so `public`, a comment, then `static function` still
+measures and reports from `public` (`configured.php` line 70, confirmed against
+the live run below).
 
 ## Scope
 
@@ -158,7 +162,7 @@ sniff reproduces all of it: same lines, same counts, same silences.
 | --- | --- | --- |
 | `failing.php` lines 14, 115, 216, 318 | 100, 100, 100, 100 | 99, 97, 27, 99 |
 | `passing.php` lines 29, 129, 136, 143, 150, 160, 165 | 99, 6, 6, 6, 6, 1, 1 | 98, 5, 5, 5, 5, — , — |
-| `configured.php` lines 13, 29, 34, 45 | 15, 4, 9, 14 | 10, 3, 7, 13 |
+| `configured.php` lines 13, 29, 34, 45, 70 | 15, 4, 9, 14, 7 | 10, 3, 7, 13, 4 |
 
 The two dashes are the bodiless declarations, which score zero and so fall below
 even a threshold of 1. The file-scope closure on line 168 of `passing.php` and

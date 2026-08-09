@@ -56,3 +56,22 @@ function configuredStandalone(): void
     $value10 = 10;
     $value11 = 11;
 }
+
+/**
+ * A declaration whose modifiers are split over several lines with a comment
+ * written between two of them. PDepend starts the node at the first modifier
+ * whatever follows it, so the span is measured from `public` on line 70 and not
+ * from `static` on line 72. Live PHPMD 2.15.0 reports this declaration at line
+ * 70 and measures it at 7 lines, 4 of them executable.
+ */
+class CommentBetweenModifiers
+{
+
+    public
+    /* Static because the callers hold no instance of this class. */
+    static function anchorsAtTheFirstModifier(): void
+    {
+        $first = 1;
+        $second = 2;
+    }
+}
