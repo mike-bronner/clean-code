@@ -86,9 +86,9 @@ const SWEPT_SNIFFS = [
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.Conditionals.AvoidConditionals',
-    'CleanCode.Functions.AvoidDuplicateFunctionBodies',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
+    'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
 ];
 
 dataset('every swept sniff', array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS));

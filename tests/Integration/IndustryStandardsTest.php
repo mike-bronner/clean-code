@@ -26,6 +26,15 @@ const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
 
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
+/**
+ * The DRY standard's block comparison (#134). Both exception fixtures below are
+ * built from five near-identical try/catch blocks that differ only in the type
+ * they catch, so a copy-paste detector reporting them is the two standards
+ * agreeing rather than a conflict: the fixture really is copy-pasted, and it
+ * has to stay that way to keep the exception sniffs' pinned lines stable.
+ */
+const DUPLICATE_BLOCK = 'CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found';
+
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
@@ -223,6 +232,8 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('ReferenceThrowableOnlySniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            21 => [DUPLICATE_BLOCK],
+            35 => [DUPLICATE_BLOCK],
             79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
         ],
     ],
@@ -230,6 +241,8 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            18 => [DUPLICATE_BLOCK],
+            51 => [DUPLICATE_BLOCK],
         ],
     ],
 ]);

@@ -12,42 +12,48 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 2 (custom sniff)
 
-The textual side of this standard **is statically lintable**: a copy-pasted
-function body is token-visible. No bundled PHPCS or Slevomat sniff compares one
-declaration's body against another's. Every rule either tool ships with
-"Duplicate" in its name was evaluated and matches a different construct —
-Slevomat's `Whitespaces.DuplicateSpaces` (repeated space characters) and
-`Variables.DuplicateAssignmentToVariable` (two assignments to one variable),
-and PHPCS's `Generic.Classes.DuplicateClassName`,
-`Squiz.Classes.DuplicateProperty`, and
-`Generic.Functions.FunctionDuplicateArgument` (repeated *names*, not repeated
-bodies). Slevomat's one whole-declaration metric, `Complexity.Cognitive`,
-scores each declaration on its own and never compares two. The standard's
-textual half is therefore enforced by the custom
-`CleanCode.Functions.AvoidDuplicateFunctionBodies` sniff, wired into the master
+The textual side of this standard **is statically lintable**: a copy-pasted run
+of lines is token-visible. No bundled PHPCS or Slevomat sniff compares one block
+of code against another. Every rule either tool ships with "Duplicate" in its
+name was evaluated and matches a different construct — Slevomat's
+`Whitespaces.DuplicateSpaces` (repeated space characters) and
+`Variables.DuplicateAssignmentToVariable` (two assignments to one variable), and
+PHPCS's `Generic.Classes.DuplicateClassName`, `Squiz.Classes.DuplicateProperty`,
+and `Generic.Functions.FunctionDuplicateArgument` (repeated *names*, not
+repeated code). Slevomat's one whole-declaration metric,
+`Complexity.Cognitive`, scores each declaration on its own and never compares
+two. The standard's textual half is therefore enforced by the custom
+`CleanCode.Pattern.AvoidDuplicateCodeBlocks` sniff, wired into the master
 `rules.xml` via the CleanCode standard
 ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
 
-- **Detection** — two or more function or method bodies in one file whose
-  normalized token streams are identical are reported as duplication
-  candidates, under `CleanCode.Functions.AvoidDuplicateFunctionBodies.Found`.
-  The warning sits on each copy and names the original's declaration and line,
-  so a group of three identical bodies produces two warnings, not three.
-- **Normalization** — comments and whitespace are stripped, so reformatting or
-  re-commenting a copy does not hide it, and only the tokens *between* the
-  braces are read, so the signature plays no part: two bodies match even when
-  their names, visibility, parameter types, and return types differ.
-- **Exact match only** — every surviving token contributes its type *and* its
-  content, so a renamed variable, a changed literal, or a swapped operator
-  makes two bodies different. Near-miss clone detection is deliberately out of
-  scope: at the token level it is noise-prone, and this standard's remedy
-  (extract the shared logic) only applies where the logic really is shared.
-- **Configurable threshold** — `minimumStatements` is a sniff property, so
-  projects can tune sensitivity. It defaults to **3** and is floored at 1. A
-  statement is a `;` terminator anywhere in the body, except the two separators
-  inside a `for (…;…;…)` header. Below the threshold a body is never compared,
-  which is what keeps boilerplate accessors, empty stubs, and one-line
-  delegations quiet.
+- **Detection** — a run of code lines in one file that repeats an earlier run is
+  reported as a duplication candidate, under
+  `CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found`. The warning sits on the
+  first line of the copy and names both the line the copy ends at and the line
+  the original starts at.
+- **Blocks, not bodies** — the comparison slides a window over the file's code
+  lines, so a duplicate is found wherever it sits: twice inside one method,
+  across two methods, or spanning a declaration boundary. A duplicated method
+  body is simply the case where the window fills a body.
+- **Near-identical, not exact** — each line is summarized by the *types* of its
+  tokens. Token content is dropped, so a renamed variable, a renamed method or
+  class, and a changed literal all still match. Token types are kept, so code
+  that differs in structure does not: a swapped operator (`+` is T_PLUS, `-` is
+  T_MINUS), a different keyword, an extra argument, or an added statement are
+  genuinely different blocks, and "extract the shared logic" is not the remedy
+  for them.
+- **Code lines only** — blank lines, comment-only lines, inline HTML, and lines
+  holding nothing but a brace, bracket, or `);` are not counted. PSR-12 gives
+  braces lines of their own, and counting them would let three lines of logic
+  clear a five-line threshold.
+- **Configurable threshold** — `minimumLines` is a sniff property, so projects
+  can tune sensitivity. It defaults to **5**, the length the standard's own
+  guidance calls out, and is floored at 1.
+- **Non-overlapping copies only** — a copy is reported once it stands a whole
+  window clear of what it repeats, and grows only as far as it can without
+  reaching back into it. A long column of same-shaped statements is one run of
+  similar lines, not a block repeating itself.
 - **Warning severity, not error** — the standard explicitly tolerates
   duplication until an abstraction is warranted ("don't abstract
   prematurely"), so the sniff points at abstraction candidates rather than
@@ -57,20 +63,17 @@ textual half is therefore enforced by the custom
 - **Same-file scope** — a PHPCS sniff sees one file's tokens at a time.
   Project-wide copy/paste detection is the domain of a dedicated copy/paste
   detector such as `phpcpd`, not a PHPCS sniff.
-- **Named declarations only, outermost first** — closures and arrow functions
-  are anonymous callbacks and are not compared. A declaration nested inside
-  another declaration's body — a method of an anonymous class returned from a
-  method, say — is skipped too, because its tokens already form part of the
-  enclosing body's stream: comparing both would report one duplication twice,
-  and the enclosing report is the actionable one. The cost is a deliberate
-  blind spot, pinned by
-  `tests/fixtures/AvoidDuplicateFunctionBodiesSniff/nested-declarations.php`:
-  identical inner declarations inside two *differing* outer bodies go
-  unreported.
+
+A consequence worth stating plainly: repetitive code that was never copy-pasted
+still matches. Enough consecutive same-shaped statements — a long run of
+property assignments, a file of near-identical accessors — will clear the
+threshold. That is the standard pointing at an abstraction candidate, which is
+what a warning is for; a project that disagrees raises `minimumLines`.
 
 Behaviour tests covering the compliant fixture's near misses, the exact
-line/column of every report, the statement-threshold boundaries, and the
-nesting rule live at `tests/Standards/AvoidDuplicateFunctionBodiesTest.php`.
+line/column of every report, both threshold boundaries, the overlap rule, and
+the open-tag guard live at
+`tests/Standards/AvoidDuplicateCodeBlocksTest.php`.
 
 ## What remains code review
 

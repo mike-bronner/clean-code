@@ -14,8 +14,8 @@ The trigger pattern of this standard **is statically lintable**: sequential
 conditions with the same result surface in the token stream as adjacent
 branches whose bodies are token-identical after normalization (comments and
 whitespace stripped) — the same normalized-block comparison
-`CleanCode.Functions.AvoidDuplicateFunctionBodies` already applies to whole
-function bodies for the DRY standard
+`CleanCode.Pattern.AvoidDuplicateCodeBlocks` already applies to runs of code
+lines for the DRY standard
 ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
 Two combination patterns are behavior-preserving and safe to flag. Focused
 sniff issue:
