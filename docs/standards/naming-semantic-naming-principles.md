@@ -54,12 +54,14 @@ a subset:
   calls out, and it is detectable by pure single-file token analysis
   (`T_LNUMBER` / `T_DNUMBER` outside declaration sites). Focused sniff issue:
   [#136](https://github.com/mike-bronner/phpcs-rules/issues/136).
-- **Searchable names — short identifiers** — *already tracked.* Single-letter
-  and too-short names are covered by the PHPMD rules already in the backlog:
-  [#106](https://github.com/mike-bronner/phpcs-rules/issues/106)
-  (Naming: ShortVariable),
-  [#111](https://github.com/mike-bronner/phpcs-rules/issues/111)
-  (Naming: ShortMethodName), and
+- **Searchable names — short identifiers** — *already tracked.* Too-short
+  method and function names are enforced by
+  `CleanCode.Naming.ShortMethodName` — see
+  [PHPMD Naming: ShortMethodName](../phpmd/naming-shortmethodname.md)
+  ([#111](https://github.com/mike-bronner/phpcs-rules/issues/111)). The other
+  two short-identifier shapes are covered by the PHPMD rules still in the
+  backlog: [#106](https://github.com/mike-bronner/phpcs-rules/issues/106)
+  (Naming: ShortVariable) and
   [#103](https://github.com/mike-bronner/phpcs-rules/issues/103)
   (Naming: ShortClassName). No new issue opened — it would duplicate those.
 - **Pronounceable names** — *no reliable heuristic.* Consonant-cluster or
