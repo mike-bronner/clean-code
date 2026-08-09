@@ -289,6 +289,39 @@
     -->
 
     <!--
+        PHPMD Naming: ShortMethodName (#111) —
+        docs/phpmd/naming-shortmethodname.md.
+
+        No PHPCS, Generic, Squiz or Slevomat sniff measures declaration-name
+        length: none of the twelve NamingConventions sniffs php_codesniffer
+        ships looks at how long a name is — they judge casing, affixes, or
+        whether a method name matches its class — and Slevomat ships no
+        name-length rule either. The custom CleanCode.Naming.ShortMethodName sniff
+        covers it, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and this comment records
+        that no scoping is wanted either.
+
+        The sniff reports errors directly, so unlike the Squiz.PHP.Eval and
+        VariableAnalysis mappings below there is no severity to raise: phpcs
+        already exits non-zero on a violation, the way phpmd does.
+
+        PHPMD's two properties are carried over under their own names and
+        defaults (minimum=3, exceptions=""), so a phpmd.xml configuration
+        transfers unchanged:
+
+            <rule ref="CleanCode.Naming.ShortMethodName">
+                <properties>
+                    <property name="minimum" value="4"/>
+                    <property name="exceptions" value="id,to"/>
+                </properties>
+            </rule>
+
+        Detection only, matching PHPMD: renaming a function or method means
+        updating every call site and every interface it satisfies, so there is
+        no safe mechanical rewrite.
+    -->
+
+    <!--
         PHPMD Design: EvalExpression (#107) — docs/phpmd/design-evalexpression.md.
 
         Squiz.PHP.Eval listens for T_EVAL and reports every eval() expression,
@@ -432,6 +465,44 @@
             <property name="allowUnusedFunctionParameters" value="true"/>
             <property name="allowUnusedForeachVariables" value="false"/>
             <property name="allowUnusedVariablesInFileScope" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
+        PHPMD CodeSize: TooManyMethods (#80) —
+        docs/phpmd/codesize-toomanymethods.md.
+
+        No PHPCS, Slevomat, or Squiz sniff counts methods per class — the
+        nearest neighbours count lines (Slevomat's ClassLength, FileLength,
+        FunctionLength) or score branching inside one method
+        (Generic.Metrics.CyclomaticComplexity) — so this is the custom
+        CleanCode.CodeSize.TooManyMethods sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above. This block only pins the
+        thresholds.
+
+        Both properties are set to PHPMD 2.15.0's shipped defaults rather than
+        left implicit, so a consumer reading this file sees what it is running
+        under. The values are asserted against the sniff *through this file* in
+        tests/Standards/TooManyMethodsTest.php, so a typo here turns that test
+        red instead of silently relaxing the rule.
+
+        ignorepattern is (^(set|get|is|has|with))i, which is the value every
+        PHPMD 2.x codesize.xml ships. phpmd.org's rule page still prints the
+        pre-2.x (^(set|get))i; following the page instead would count is/has/
+        with accessors that PHPMD does not, and report classes PHPMD passes.
+
+        The sniff reports errors, not warnings, for the reason Squiz.PHP.Eval
+        and VariableAnalysis above are raised to error: PHPMD fails a run on
+        this violation, and a warning would leave phpcs exiting 0, so phpmd
+        would still have to run separately for this rule.
+
+        Detection only, matching PHPMD: splitting a class is a decision about
+        where each behaviour belongs, which no mechanical rewrite can make.
+    -->
+    <rule ref="CleanCode.CodeSize.TooManyMethods">
+        <properties>
+            <property name="maxmethods" value="25"/>
+            <property name="ignorepattern" value="(^(set|get|is|has|with))i"/>
         </properties>
     </rule>
 </ruleset>
