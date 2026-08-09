@@ -35,3 +35,10 @@ $mapper = array_map(...);
 // Negative: nested calls each report at their own token, so one line carries
 // two warnings.
 $trimmed = array_map('trim', array_filter($rows));
+
+// Negative: namespace\array_filter() resolves against the namespace in force
+// where it is written. This file declares none, so that is the global
+// namespace and the call is the native function — the same one \array_filter()
+// names. namespaced.php holds the same spelling inside a declared namespace,
+// where it is a different symbol and stays silent.
+$relative = namespace\array_filter($rows);

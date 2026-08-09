@@ -66,6 +66,8 @@ $property = $object->array_filter;
 new array_reduce($rows);
 
 // Positive: a namespaced function of the same name is a different symbol.
+// This file declares no namespace, so namespace\array_filter() would be the
+// global function here rather than a different symbol — it lives in
+// failing.php, and namespaced.php carries the namespace-relative negative.
 App\Support\array_map($rows);
-namespace\array_filter($rows);
 App\Support\array_reduce($rows);
