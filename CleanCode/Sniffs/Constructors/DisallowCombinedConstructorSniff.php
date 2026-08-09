@@ -46,6 +46,19 @@ use PHP_CodeSniffer\Util\Tokens;
  * Reported at the *parameter variable* for the first two signals — the thing
  * being switched on — and at the function name for the third.
  *
+ * Two invariants hold across every token walk below, and each is
+ * mutation-tested in the test file rather than assumed:
+ *
+ * - **Comment tolerance.** Every adjacency test skips `Tokens::$emptyTokens`,
+ *   never `T_WHITESPACE` alone, so a comment interleaved between two tokens
+ *   that must be adjacent cannot flip a verdict — in either direction. A
+ *   comment before an `instanceof`, before a predicate's call parentheses, or
+ *   before an argument reader's parentheses still reports; a comment after an
+ *   object operator, or between a ternary `?` and its `:`, still does not.
+ * - **Argument totality.** A parameter counts as a type predicate's subject
+ *   only when it is the bare, undecorated first argument — see
+ *   {@see self::isBareFirstArgument()}.
+ *
  * Deliberately **not** reported, and why:
  *
  * - **Guard clauses.** A branch whose first statement is a `throw` is
@@ -67,10 +80,15 @@ use PHP_CodeSniffer\Util\Tokens;
  *   either, so the declaration's immediately enclosing scope must be class-like.
  * - **Bodiless constructors.** An abstract or interface declaration has no body
  *   to walk, and a promotion-only constructor has no statements in it.
- * - **Nested declarations.** A closure, arrow function, or anonymous class
- *   declared in the body runs on its own terms — `func_get_args()` inside a
- *   closure reads the *closure's* arguments — so every nested declaration scope
- *   is jumped rather than walked into.
+ * - **Nested declarations.** A named function, closure, arrow function, or
+ *   anonymous class declared in the body runs on its own terms —
+ *   `func_get_args()` inside a closure reads the *closure's* arguments — so
+ *   every nested declaration scope is jumped rather than walked into.
+ * - **Named-argument predicate calls.** `is_a(object: $source, class: $c)`
+ *   addresses its subject by name rather than by position, and resolving that
+ *   needs a per-predicate table of parameter names. Staying silent costs a
+ *   missed warning on an exotic spelling rather than a wrong one on a common
+ *   spelling — see {@see self::isBareFirstArgument()}.
  *
  * See docs/standards/constructors-primary-named-constructors.md.
  */
@@ -342,8 +360,9 @@ class DisallowCombinedConstructorSniff implements Sniff
      * "Direct argument" is exact twice over: the innermost parenthesis pair
      * around the variable must be the predicate's own call parentheses, so
      * `is_string(trim($value))` tests a derived value rather than the parameter;
-     * and the variable must sit in the *first* argument, the only one any of
-     * these predicates takes as its subject. The two-argument spellings
+     * and the variable must be the whole of the *first* argument, the only one
+     * any of these predicates takes as its subject — see
+     * {@see self::isBareFirstArgument()}. The two-argument spellings
      * `is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
      * test `$value` alone — the class name they compare it against is a value
      * the call reads, never a parameter whose own type is being switched on.
@@ -360,7 +379,7 @@ class DisallowCombinedConstructorSniff implements Sniff
     private function typeTestOrigin(File $phpcsFile, int $pointer): ?int
     {
         $tokens = $phpcsFile->getTokens();
-        $next = $phpcsFile->findNext(T_WHITESPACE, $pointer + 1, null, true);
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
         if ($next !== false && $tokens[$next]['code'] === T_INSTANCEOF) {
             return $pointer;
@@ -374,43 +393,46 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $openers = array_keys($nesting);
         $opener = (int) end($openers);
-        $callee = $phpcsFile->findPrevious(T_WHITESPACE, $opener - 1, null, true);
+        $callCloser = (int) $nesting[$opener];
+        $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
         $isPredicate = $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
             && $this->isPlainFunctionCall($phpcsFile, $callee)
-            && $this->isFirstArgument($phpcsFile, $opener, $pointer);
+            && $this->isBareFirstArgument($phpcsFile, $opener, $callCloser, $pointer);
 
-        return $isPredicate ? (int) $nesting[$opener] : null;
+        return $isPredicate ? $callCloser : null;
     }
 
     /**
-     * Whether this token sits in the first argument of the call opening at
-     * $opener — that is, no argument separator stands between the two.
+     * Whether this token is the *whole* of the first argument of the call
+     * opening at $opener — the bare parameter itself, undecorated.
      *
-     * A comma inside a nested group separates that group's own items, so groups
-     * are jumped whole rather than scanned into.
+     * Totality is the point, not mere precedence. Confirming that no argument
+     * separator *precedes* the token says nothing about what the call actually
+     * tests: `is_string($obj->prop)`, `is_string($items[$key])` and
+     * `is_a(class: $class, object: $source)` all put a parameter in the first
+     * argument's span without that parameter being the subject. So the token
+     * must be flanked by the call's own punctuation on both sides — the opening
+     * parenthesis in front of it, and either the argument separator or the
+     * call's closing parenthesis behind it. Any other neighbour means the
+     * subject is a derived value, a subscript, or another argument entirely.
+     *
+     * A named-argument call therefore reports nothing at all: `object:` in front
+     * of the subject is not the opening parenthesis. That is deliberate —
+     * resolving a named argument needs a per-predicate table of parameter names,
+     * and staying silent on an exotic spelling costs a missed warning rather
+     * than a wrong one.
      */
-    private function isFirstArgument(File $phpcsFile, int $opener, int $pointer): bool
+    private function isBareFirstArgument(File $phpcsFile, int $opener, int $closer, int $pointer): bool
     {
-        $tokens = $phpcsFile->getTokens();
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-        for ($next = $opener + 1; $next < $pointer; $next++) {
-            if ($tokens[$next]['code'] === T_COMMA) {
-                return false;
-            }
-
-            foreach (['parenthesis_closer', 'bracket_closer'] as $key) {
-                if (isset($tokens[$next][$key]) && $tokens[$next][$key] > $next) {
-                    $next = (int) $tokens[$next][$key];
-
-                    break;
-                }
-            }
-        }
-
-        return true;
+        return $before === $opener
+            && $after !== false
+            && ($after === $closer || $phpcsFile->getTokens()[$after]['code'] === T_COMMA);
     }
 
     /**
@@ -425,7 +447,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             return false;
         }
 
-        $next = $phpcsFile->findNext(T_WHITESPACE, $pointer + 1, null, true);
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
         return $next !== false
             && $tokens[$next]['code'] === T_OPEN_PARENTHESIS
@@ -438,7 +460,7 @@ class DisallowCombinedConstructorSniff implements Sniff
      */
     private function isPlainFunctionCall(File $phpcsFile, int $pointer): bool
     {
-        $previous = $phpcsFile->findPrevious(T_WHITESPACE, $pointer - 1, null, true);
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
 
         return $previous === false
             || !in_array($phpcsFile->getTokens()[$previous]['code'], self::NAME_QUALIFIERS, true);
@@ -505,7 +527,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             // `?:` supplies a default for one expression rather than selecting
             // between two, so it is not a branch.
             if ($code === T_INLINE_THEN) {
-                $following = $phpcsFile->findNext(T_WHITESPACE, $next + 1, null, true);
+                $following = $phpcsFile->findNext(Tokens::$emptyTokens, $next + 1, null, true);
 
                 return $following !== false && $tokens[$following]['code'] === T_INLINE_ELSE ? null : $next;
             }

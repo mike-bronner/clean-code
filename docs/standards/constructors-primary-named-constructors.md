@@ -59,8 +59,11 @@ and a `switch`'s `case` labels.
 A predicate tests its *first* argument and nothing else, so
 `is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
 report `$value` alone — the class name they compare it against is a value the
-call reads, not a parameter whose own type is switched on. A predicate applied
-to a derived value (`is_string(trim($value))`) is not a signal either.
+call reads, not a parameter whose own type is switched on. The parameter also
+has to be the *whole* of that first argument: a predicate applied to a derived
+value is not a signal, whether the value is derived by a call
+(`is_string(trim($value))`), a property read (`is_string($holder->prop)`), or a
+subscript (`is_string($items[$key])`).
 
 **Warning severity, not error.** Branching in a constructor is a design smell,
 not always a defect; the sniff points at split-into-named-constructors
@@ -95,9 +98,14 @@ Deliberately silent on:
   constructs nothing.
 - **Bodiless constructors** — abstract and interface declarations, and
   promotion-only bodies with no statements in them.
-- **Nested declarations** — a closure, arrow function, or anonymous class
-  declared in the body runs on its own terms; `func_get_args()` inside a
-  closure reads the *closure's* arguments.
+- **Nested declarations** — a named function, closure, arrow function, or
+  anonymous class declared in the body runs on its own terms;
+  `func_get_args()` inside a closure reads the *closure's* arguments.
+- **Named-argument predicate calls** — `is_a(object: $source, class: $c)`
+  addresses its subject by name rather than by position. Resolving that needs a
+  per-predicate table of parameter names, so the sniff stays silent: a missed
+  warning on an exotic spelling costs less than a wrong one on a common
+  spelling.
 
 **Considered and rejected:** a naming-prefix check on named constructors
 (`from*`, `create*`, `make*`, …). PHP has no canonical prefix vocabulary —

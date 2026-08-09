@@ -9,8 +9,8 @@ declare(strict_types=1);
  * token walk that only ever handled the one spelling it was written against —
  * every branching form the signals can sit in, every declaration form a
  * constructor can take, the argument readers in the places a body can put them,
- * every way a parameter can qualify as a mode flag, and the predicates that
- * take a second argument alongside the value they test.
+ * every way a parameter can qualify as a mode flag, the predicates that take a
+ * second argument, and a comment wherever the walk needs two adjacent tokens.
  */
 
 final class Mailer
@@ -198,5 +198,54 @@ final class MultiArgumentPredicates
         }
 
         $this->child = is_subclass_of($source, $expectedClass) ? new Mailer() : new NullLogger();
+    }
+}
+
+/**
+ * A comment standing between two tokens the walk needs adjacent. Every
+ * adjacency test skips comments as well as whitespace, so each signal still
+ * fires: a comment before an `instanceof`, before a predicate's call
+ * parentheses, and before an argument reader's parentheses. A test that skipped
+ * whitespace alone would miss all three. passing.php carries the same class of
+ * case in the other direction, where a comment must not *create* a report.
+ */
+final class CommentedSignals
+{
+    public function __construct(object $handler, mixed $source)
+    {
+        if ($handler /* still a type test */ instanceof Mailer) {
+            $this->handler = $handler;
+        } else {
+            $this->handler = new NullLogger();
+        }
+
+        if (is_string /* still a predicate call */ ($source)) {
+            $this->source = $source;
+        } else {
+            $this->source = '';
+        }
+
+        if (func_num_args /* still the argument reader */ () > 1) {
+            $this->extra = true;
+        }
+    }
+}
+
+/**
+ * The nullable and explicit-union spellings of a `bool` type hint. Both
+ * normalize to plain `bool` — the leading `?` is stripped, an explicit `null`
+ * member is dropped — so both are flags, and neither carries a `true`/`false`
+ * default that could qualify it by the other leg instead. A union wider than
+ * that is not a flag, and passing.php pins `bool|string`.
+ */
+final class NullableModeFlags
+{
+    public function __construct(?bool $queued, bool|null $eager)
+    {
+        $this->transport = $queued ? new Mailer() : new NullLogger();
+
+        if ($eager) {
+            $this->warm = new Mailer();
+        }
     }
 }

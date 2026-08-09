@@ -19,48 +19,89 @@
  * result of each mutation is recorded here rather than assumed — each number
  * below was produced by disabling that guard and re-running the fixtures, not
  * derived. Counts are warnings per fixture, against the baseline
- * passing 0 / failing 4 / shapes 26:
+ * passing 0 / failing 4 / shapes 31; a fixture whose count the mutation leaves
+ * unchanged is omitted from its line.
+ *
+ * Scope of the walk:
  *
  *   - drop the `__construct` name check — passing 13 (the named constructor,
  *     the ordinary method, the `__constructor()` lookalike and the file-scope
  *     function all start reporting)
  *   - drop the class-like-scope gate — passing 3 (the file-scope
  *     `function __construct()` starts reporting)
- *   - drop the nested-declaration skip — passing 7 (the closure, the arrow
- *     function and the anonymous class's method start reporting)
- *   - drop the guard-clause exemption for mode flags and type tests —
- *     passing 14 (every guard shape carrying those two signals starts
- *     reporting)
- *   - drop the guard-clause exemption for the argument readers — passing 3
- *     (the braced, brace-less and ternary guards of GuardedArgumentCount)
- *   - report `?:` as a branch — passing 1 (the elvis default over a mode flag)
+ *   - drop the nested-declaration skip — passing 10 (the nested named function,
+ *     the closure, the arrow function and the anonymous class's method all
+ *     start reporting)
+ *   - drop `T_FUNCTION` alone from the nested-declaration list — passing 3
+ *     (only the nested named function starts reporting, which is what pins
+ *     that entry separately from its three siblings)
+ *
+ * What counts as a signal:
+ *
  *   - drop the "flag or type test" requirement, reporting any parameter in a
- *     condition — passing 10, shapes 28 (`$retries > 3`, `$mode`, the loop
- *     headers, and both `$expectedClass` arguments)
- *   - take the outermost enclosing parenthesis for a predicate call instead of
- *     the innermost — failing 3, shapes 22 (every predicate applied directly to
- *     a parameter stops being recognised)
- *   - drop the first-argument check on a predicate call — shapes 28 (the
- *     `$expectedClass` of `is_a()` and of `is_subclass_of()` are both reported
- *     as if they were the tested subject)
- *   - scan forward from the parameter rather than from the predicate call's
- *     closing parenthesis — shapes 25 (the `is_subclass_of()` ternary stops
- *     reporting: the comma between the two arguments ends the scan first)
- *   - drop the `true`/`false`-default leg of the flag test — shapes 24 (both
+ *     condition — passing 16, shapes 33
+ *   - drop the `bool`-type leg of the flag test — failing 3, shapes 17
+ *   - drop the `true`/`false`-default leg of the flag test — shapes 29 (both
  *     DefaultedModeFlags parameters stop reporting)
- *   - drop the `bool`-type leg of the flag test — failing 3, shapes 14
- *   - drop the member/static/`new` qualifier check on a name — passing 2
- *     (`$request->func_num_args()` and `Reflector::func_get_args()`)
+ *   - drop the leading-`?` strip in type normalization — shapes 30 (`?bool`
+ *     stops being a flag)
+ *   - drop the explicit `null` union member from type normalization —
+ *     shapes 30 (`bool|null` stops being a flag)
+ *   - accept any union *containing* `bool` rather than exactly `bool` —
+ *     passing 1 (`bool|string` starts reporting)
+ *   - drop the variadic exclusion — passing 1 (`bool ...$flags`)
+ *   - drop `instanceof` detection — shapes 29
+ *   - drop the member/static/`new` qualifier check on a name — passing 4
+ *     (`$request->func_num_args()`, `Reflector::func_get_args()`, and the two
+ *     comment-separated member calls)
+ *   - take the outermost enclosing parenthesis for a predicate call instead of
+ *     the innermost — failing 3, shapes 26 (every predicate applied directly to
+ *     a parameter stops being recognised)
+ *   - scan forward from the parameter rather than from the predicate call's
+ *     closing parenthesis — shapes 30 (the `is_subclass_of()` ternary stops
+ *     reporting: the comma between the two arguments ends the scan first)
+ *
+ * Argument totality — that the parameter is the *whole* first argument, each
+ * half of the test pinned on its own:
+ *
+ *   - drop the bare-first-argument check entirely — passing 5, shapes 33
+ *   - drop only its "the opening parenthesis precedes it" clause — passing 2,
+ *     shapes 33 (the two named arguments start reporting)
+ *   - drop only its "a separator or the closer follows it" clause — passing 2
+ *     (the property read and the subscripted array start reporting)
+ *
+ * Comment tolerance — every adjacency test skips `Tokens::$emptyTokens`, and
+ * reverting any one of the five to `T_WHITESPACE` alone flips a verdict:
+ *
+ *   - the `instanceof` lookahead — shapes 30 (false negative)
+ *   - the predicate-callee lookback — shapes 30 (false negative)
+ *   - the argument-reader lookahead — shapes 30 (false negative)
+ *   - the name-qualifier lookback — passing 2 (false positives: the member
+ *     calls named `is_a` and `func_num_args` are read as the global functions)
+ *   - the elvis lookahead — passing 1 (false positive: the elvis default is
+ *     read as a branch)
+ *
+ * Guard clauses:
+ *
+ *   - drop the exemption for mode flags and type tests — passing 14 (every
+ *     guard shape carrying those two signals starts reporting)
+ *   - drop the exemption for the argument readers — passing 3 (the braced,
+ *     brace-less and ternary guards of GuardedArgumentCount)
+ *   - stop treating an all-throwing `switch` as a guard — passing 1; treat
+ *     every `switch` as one regardless of its cases — shapes 29
+ *   - stop treating an all-throwing `match` as a guard — passing 1; treat
+ *     every `match` as one regardless of its arms — shapes 30
  *   - drop the brace-less fallback to the condition's closing parenthesis —
  *     passing 3 (both brace-less guards and the brace-less argument-reader
  *     guard start reporting)
- *   - stop requiring every `switch` case to throw — passing 1
- *   - stop requiring every `match` arm to throw — passing 1
- *   - drop `case`-label detection — shapes 25 (`case is_iterable($extra):`)
- *   - drop the match-arm selector — shapes 24 (both arm-condition signals)
- *   - drop `instanceof` detection — shapes 25
- *   - drop the parenthesised-condition scan — passing 2, failing 2, shapes 13
- *   - drop the variadic exclusion — passing 1 (`bool ...$flags`)
+ *
+ * Where an expression ends:
+ *
+ *   - report `?:` as a branch — passing 2 (the elvis default over a mode flag,
+ *     and its comment-separated spelling)
+ *   - drop `case`-label detection — shapes 30 (`case is_iterable($extra):`)
+ *   - drop the match-arm selector — shapes 29 (both arm-condition signals)
+ *   - drop the parenthesised-condition scan — passing 2, failing 2, shapes 15
  *   - drop the bracket jump, or any one of the five expression terminators
  *     (`;`, `,`, array `=>`, `{`, `:`) — passing 1 each, one boundary per
  *     statement of the ExpressionEnds fixture
@@ -93,10 +134,14 @@ it('is registered in the master ruleset', function (): void {
  * on: guard clauses in each branching form and for each of the three signals,
  * coalesce defaults over a mode flag,
  * a non-boolean parameter in a condition, a predicate applied to a derived
- * value, all three signals in a named constructor, an ordinary method, a
- * closure, an arrow function and an anonymous class, member and static calls
- * named like the argument readers, a variadic flag, every bodiless constructor
- * shape, and a statement per expression boundary the forward scan must respect.
+ * value — through a property read, a subscript, and a named argument as well as
+ * a nested call — a `bool|string` union that is not a flag, all three signals in
+ * a named constructor, an ordinary method, a nested named function, a closure,
+ * an arrow function and an anonymous class, member calls named like a predicate
+ * and like the argument readers with a comment splitting the object operator,
+ * static calls named like the argument readers, a variadic flag, every bodiless
+ * constructor shape, and a statement per expression boundary the forward scan
+ * must respect.
  * Dropping any one of the sniff's guards reddens this test.
  */
 it('produces no violations on the compliant fixture', function (): void {
@@ -178,6 +223,13 @@ it('marks no violation fixable', function (): void {
  *  194, 200    — `is_a()` and `is_subclass_of()`, the two predicates that take a
  *                second argument. Only the subject reports; the class name it is
  *                compared against never does, in either the `if` or the ternary
+ *  216,222,228 — a comment standing where the walk needs adjacency: before an
+ *                `instanceof`, before a predicate's call parentheses, and before
+ *                an argument reader's parentheses. Each still fires, because
+ *                every adjacency test skips comments as well as whitespace
+ *  245, 247    — `?bool` and `bool|null`, the two spellings that normalize to
+ *                plain `bool`, neither carrying a `true`/`false` default that
+ *                could qualify it by the other leg instead
  */
 it('warns on every branching, declaration, and argument-reader shape', function (): void {
     $file = analyzeFixture(COMBINED_CONSTRUCTOR, 'shapes.php');
@@ -209,5 +261,10 @@ it('warns on every branching, declaration, and argument-reader shape', function 
         ['line' => 178, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 194, 'column' => 18, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
         ['line' => 200, 'column' => 39, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+        ['line' => 216, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+        ['line' => 222, 'column' => 53, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+        ['line' => 228, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ArgumentCount'],
+        ['line' => 245, 'column' => 28, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 247, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
     ]);
 });

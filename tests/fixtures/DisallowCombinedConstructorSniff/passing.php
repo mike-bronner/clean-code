@@ -14,13 +14,17 @@ declare(strict_types=1);
  *      each branching form (braced, brace-less, alternative syntax, ternary,
  *      `match`, `switch`) and for each of the three signals — the argument
  *      readers included — coalesce defaults (`??` and the elvis `?:`) over a
- *      mode flag, a non-boolean parameter in a condition, a type predicate
- *      applied to a *derived* value rather than the parameter, all three
- *      signals inside a named constructor and inside an ordinary method, all
- *      three inside a closure and an arrow function declared in a constructor
- *      body, a `__constructor()` lookalike, a plain `function __construct()`
- *      at file scope, member calls that merely share a name with the argument
- *      readers, and every bodiless constructor shape.
+ *      mode flag, a non-boolean parameter in a condition, a `bool|string`
+ *      union too wide to be a flag, a type predicate applied to a *derived*
+ *      value rather than the parameter — through a nested call, a property
+ *      read, a subscript, and a named argument — all three signals inside a
+ *      named constructor and inside an ordinary method, all three inside a
+ *      named function, a closure and an arrow function declared in a
+ *      constructor body, a `__constructor()` lookalike, a plain
+ *      `function __construct()` at file scope, member and static calls that
+ *      merely share a name with a predicate or with the argument readers —
+ *      including with a comment splitting the object operator from the name —
+ *      and every bodiless constructor shape.
  *
  * Dropping any one of the sniff's guards reddens this file.
  */
@@ -324,12 +328,25 @@ final class OtherMethods
 /**
  * Nested declarations run on their own terms: a closure's `func_get_args()`
  * reads the closure's arguments, not the constructor's, and an arrow function's
- * body executes when it is called rather than during construction.
+ * body executes when it is called rather than during construction. A named
+ * function declared in the body is the fourth such declaration, and is skipped
+ * on the same grounds as the other three.
  */
 final class NestsDeclarations
 {
     public function __construct(bool $lazy, mixed $value)
     {
+        function makeTransport(bool $lazy, mixed $value): object
+        {
+            $arguments = func_get_args();
+
+            if ($lazy) {
+                return new Mailer();
+            }
+
+            return is_string($value) ? new Mailer() : new NullLogger();
+        }
+
         $this->build = static function (bool $lazy, mixed $value) {
             $arguments = func_get_args();
 
@@ -397,4 +414,80 @@ function __construct(bool $draft, mixed $value)
     $count = func_num_args();
 
     return $draft || is_string($value) ? new Mailer() : new NullLogger();
+}
+
+/**
+ * A comment standing where the walk needs adjacency, in the direction where a
+ * comment must not *create* a report: a method that merely shares a name with a
+ * predicate, a method that shares a name with an argument reader, and an elvis
+ * default whose `?` and `:` are separated. An adjacency test that skipped
+ * whitespace alone would read past the comment and report all three — shapes.php
+ * carries the same class of case in the direction where the signal is real.
+ */
+final class CommentedLookalikes
+{
+    public function __construct(object $request, mixed $value, bool $verbose)
+    {
+        $this->handler = $this-> /* a method, not the predicate */ is_a($value, self::class)
+            ? new Mailer()
+            : new NullLogger();
+
+        $this->count = $request-> /* a method, not the reader */ func_num_args();
+
+        $this->verbose = $verbose ? /* still an elvis default */ : false;
+    }
+
+    private function is_a(mixed $value, string $class): bool
+    {
+        return $value instanceof $class;
+    }
+}
+
+/**
+ * A type predicate whose first argument is not the bare parameter. Each spelling
+ * puts a parameter inside the first argument's span without that parameter being
+ * what the call tests: a property read and a subscript both test a *derived*
+ * value, the subscript's key is not tested at all, and a named-argument call
+ * addresses its subject by name rather than by position. Confirming only that no
+ * comma precedes the parameter would report every one of them.
+ */
+final class DecoratedPredicateArguments
+{
+    public function __construct(mixed $holder, mixed $key, array $items, mixed $source, string $expectedClass)
+    {
+        if (is_string($holder->prop)) {
+            $this->prop = $holder->prop;
+        } else {
+            $this->prop = '';
+        }
+
+        if (is_string($items[$key])) {
+            $this->item = $items[$key];
+        } else {
+            $this->item = '';
+        }
+
+        if (is_a(class: $expectedClass, object: $source)) {
+            $this->source = $source;
+        } else {
+            $this->source = new NullLogger();
+        }
+    }
+}
+
+/**
+ * A union wider than plain `bool` carries a value, not a branch selector, so it
+ * is not a mode flag however it is branched on. shapes.php pins the two
+ * spellings that *do* normalize to plain `bool`, `?bool` and `bool|null`.
+ */
+final class WideUnionParameter
+{
+    public function __construct(bool|string $mode)
+    {
+        if ($mode) {
+            $this->mode = $mode;
+        } else {
+            $this->mode = 'default';
+        }
+    }
 }
