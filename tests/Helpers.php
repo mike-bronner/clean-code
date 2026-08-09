@@ -47,6 +47,28 @@ function sniffFixtureDirectory(string $sniffCode): string
 }
 
 /**
+ * Puts the third-party standards' installed paths back into PHPCS's config.
+ *
+ * ConfigDouble blanks CodeSniffer.conf, where Composer registers them, and
+ * every ruleset built here references at least one of those standards. Every
+ * standard a ruleset depends on has to be listed — a missing entry does not
+ * fail loudly, it makes the referenced sniffs fail to resolve and takes the
+ * whole ruleset parse down with it. In memory only; CodeSniffer.conf on disk
+ * is never written.
+ */
+function restoreInstalledPaths(): void
+{
+    Config::setConfigData(
+        'installed_paths',
+        implode(',', [
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        ]),
+        true
+    );
+}
+
+/**
  * A freshly built master ruleset plus the config it was built from.
  *
  * Results are memoised per cache key so rules.xml is parsed once per distinct
@@ -70,25 +92,14 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
         return $cache[$key];
     }
 
-    // ConfigDouble blanks CodeSniffer.conf, where Composer registers the
-    // third-party standards' installed paths; the master ruleset references
-    // them, so restore the paths (in memory only) before the rules.xml parse.
-    // Every standard rules.xml depends on has to be listed — a missing entry
-    // does not fail loudly, it makes the referenced sniffs fail to resolve and
-    // takes the whole rules.xml parse down with it. The explicit argv also
-    // stops Config falling back to parsing the live $_SERVER['argv'] as PHPCS
-    // flags, which would leak the test runner's own arguments in.
+    // restoreInstalledPaths() puts back what ConfigDouble blanks, and has to
+    // run before the rules.xml parse. The explicit argv stops Config falling
+    // back to parsing the live $_SERVER['argv'] as PHPCS flags, which would
+    // leak the test runner's own arguments in.
     $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml']);
     $config->cache = false;
 
-    Config::setConfigData(
-        'installed_paths',
-        implode(',', [
-            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
-        ]),
-        true
-    );
+    restoreInstalledPaths();
 
     $ruleset = new Ruleset($config);
 
@@ -119,6 +130,40 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
 function analyzeWithMasterRuleset(string $path): LocalFile
 {
     [$config, $ruleset] = buildRuleset();
+
+    $file = new LocalFile($path, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
+ * Processes a file through a whole third-party standard, by name, outside the
+ * master ruleset.
+ *
+ * rules.xml references vendor sniffs one at a time, never a whole category, so
+ * narrowing the master ruleset can only ever report on the sniffs already
+ * wired in — it cannot answer "does anything in this vendor standard cover
+ * this?", which is the question a new custom sniff has to settle before it is
+ * written, and the one a vendor upgrade can quietly change the answer to.
+ *
+ * Memoised per standard, each ruleset built immediately after its own
+ * ConfigDouble, for the reason given on buildRuleset().
+ */
+function analyzeWithStandard(string $standard, string $path): LocalFile
+{
+    static $cache = [];
+
+    if (isset($cache[$standard]) === false) {
+        $config = new ConfigDouble(['--standard=' . $standard]);
+        $config->cache = false;
+
+        restoreInstalledPaths();
+
+        $cache[$standard] = [$config, new Ruleset($config)];
+    }
+
+    [$config, $ruleset] = $cache[$standard];
 
     $file = new LocalFile($path, $ruleset, $config);
     $file->process();
@@ -167,6 +212,49 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
 }
 
 /**
+ * Processes a fixture through a ruleset narrowed to one sniff, with that
+ * sniff's properties set the way a *consuming ruleset* sets them — through
+ * Ruleset::setSniffProperty(), with string values, exactly as parsing a
+ * `<property>` element does.
+ *
+ * The `$configure` callback analyzeFixture() takes is the other half of this
+ * pair, and the two are not interchangeable. That callback assigns to the
+ * property directly, so it always hands over a correctly typed PHP value; the
+ * XML path first trims the value and turns an empty string into `null`, which
+ * is what decides whether an empty `<property>` element configures a sniff or
+ * aborts the whole ruleset parse with a TypeError. Reach for this one when the
+ * assertion is about how a consumer's ruleset reaches the sniff, and for
+ * `$configure` when it is about what the sniff does with a value it already
+ * holds.
+ *
+ * Always builds a fresh ruleset, so a configured sniff can never leak into a
+ * later test through buildRuleset()'s memoisation.
+ *
+ * @param array<string, string> $properties Property name => value, as written in XML.
+ */
+function analyzeFixtureWithRulesetProperties(
+    string $sniffCode,
+    string $fixture,
+    array $properties
+): LocalFile {
+    [$config, $ruleset] = buildRuleset([$sniffCode], true);
+    $sniffClass = $ruleset->sniffCodes[$sniffCode];
+
+    foreach ($properties as $name => $value) {
+        $ruleset->setSniffProperty($sniffClass, $name, ['scope' => 'sniff', 'value' => $value]);
+    }
+
+    $file = new LocalFile(
+        fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
+        $ruleset,
+        $config
+    );
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to a *group* of sniffs that
  * together implement one configured standard, from tests/fixtures/_rulesets/.
  *
@@ -175,6 +263,75 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
 function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fixture): LocalFile
 {
     return analyzeWithSniffs($sniffCodes, fixturePath('_rulesets/' . $directory, $fixture));
+}
+
+/**
+ * Processes a fixture through a *consumer* ruleset — one that references
+ * rules.xml and then overrides a sniff's properties in XML, exactly as a
+ * consuming project's own ruleset does.
+ *
+ * Distinct from analyzeFixture()'s $configure callback, and deliberately so.
+ * The callback assigns the property directly, so it hands over whatever PHP
+ * type the test wrote; PHPCS's XML path always hands over a *string*, because
+ * Ruleset::setSniffProperty() ends in `$sniffObject->$name = $value;` with no
+ * cast. A sniff whose threshold property carries a native `int` type therefore
+ * passes every callback-driven test and still dies with an uncaught TypeError
+ * the moment a real consumer configures it. Only this route exercises that.
+ *
+ * @param array<string, string> $properties Property name => value, as written in XML.
+ */
+function analyzeWithConfiguredRuleset(
+    string $sniffCode,
+    string $fixture,
+    array $properties
+): LocalFile {
+    $lines = [];
+
+    foreach ($properties as $name => $value) {
+        $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+    }
+
+    $standard = sys_get_temp_dir() . '/' . uniqid('cleancode-ruleset-', true) . '.xml';
+    file_put_contents($standard, implode("\n", [
+        '<?xml version="1.0"?>',
+        '<ruleset name="Consumer">',
+        '    <description>Consumer ruleset built by the test suite.</description>',
+        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="' . $sniffCode . '">',
+        '        <properties>',
+        implode("\n", $lines),
+        '        </properties>',
+        '    </rule>',
+        '</ruleset>',
+        '',
+    ]));
+
+    // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
+    // third-party standards rules.xml references have to be restored in memory
+    // before the parse or the whole ruleset fails to resolve.
+    $config = new ConfigDouble(['--standard=' . $standard]);
+    $config->cache = false;
+
+    Config::setConfigData(
+        'installed_paths',
+        implode(',', [
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        ]),
+        true
+    );
+
+    $ruleset = new Ruleset($config);
+    unlink($standard);
+
+    $class = $ruleset->sniffCodes[$sniffCode];
+    $ruleset->sniffs = [$class => $ruleset->sniffs[$class]];
+    $ruleset->populateTokenListeners();
+
+    $file = new LocalFile(fixturePath(sniffFixtureDirectory($sniffCode), $fixture), $ruleset, $config);
+    $file->process();
+
+    return $file;
 }
 
 /**
@@ -340,61 +497,88 @@ function violationFixableFlags(LocalFile $file): array
 
 /**
  * Copies a fixture to a directory outside the repository and returns the new
- * path. rules.xml scopes CleanCode.Models.DisallowExternalPersistenceCalls out
- * of test paths, and the exclusion is decided from the file's path alone — so
- * this is what lets that sniff see its own fixtures at all.
+ * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
+ * scoping from the file's path alone — so this is what lets either of them see
+ * its own fixtures at all.
+ *
+ * $subdirectory nests the copy below the staging root, so a path-scoped sniff
+ * can be driven against a path that matches its rule and against one that does
+ * not. CleanCode.Models.DisallowExternalPersistenceCalls needs only "anywhere
+ * outside tests/" and passes nothing; CleanCode.Files.NoProceduralCode is
+ * restricted to src/ and app/, so its tests stage into (and outside) those.
  */
-function stageFixtureOutsideTests(string $path): string
+function stageFixtureOutsideTests(string $path, string $subdirectory = ''): string
 {
-    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
+    $root = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
+    $directory = $subdirectory === '' ? $root : $root . '/' . $subdirectory;
 
-    if (mkdir($directory, 0700) === false) {
+    if (mkdir($directory, 0700, true) === false) {
         throw new RuntimeException("could not stage a fixture in {$directory}");
     }
 
+    stagedFixtures($root);
+
     $staged = $directory . '/' . basename($path);
-    stagedFixtures($staged);
     copy($path, $staged);
 
     return $staged;
 }
 
 /**
- * Tracks staged fixture paths, and returns them for cleanup when called with
- * no argument.
+ * Tracks the staging roots created so far, and returns them for cleanup when
+ * called with no argument.
  *
  * @return array<int, string>
  */
 function stagedFixtures(?string $add = null): array
 {
-    static $paths = [];
+    static $roots = [];
 
     if ($add !== null) {
-        $paths[] = $add;
+        $roots[] = $add;
 
-        return $paths;
+        return $roots;
     }
 
-    $tracked = $paths;
-    $paths = [];
+    $tracked = $roots;
+    $roots = [];
 
     return $tracked;
 }
 
 /**
- * Removes every fixture staged outside the repository so far.
+ * Removes every fixture staged outside the repository so far, roots and all.
  */
 function purgeStagedFixtures(): void
 {
-    foreach (stagedFixtures() as $path) {
-        if (is_file($path) === true) {
-            unlink($path);
+    foreach (stagedFixtures() as $root) {
+        removeStagedDirectory($root);
+    }
+}
+
+/**
+ * Removes a staging root and everything below it. Recursive because a staged
+ * fixture may sit in a nested directory the sniff's path scoping requires.
+ */
+function removeStagedDirectory(string $directory): void
+{
+    if (is_dir($directory) === false) {
+        return;
+    }
+
+    foreach (array_diff((array) scandir($directory), ['.', '..']) as $entry) {
+        $path = $directory . '/' . $entry;
+
+        if (is_dir($path) === true) {
+            removeStagedDirectory($path);
+
+            continue;
         }
 
-        if (is_dir(dirname($path)) === true) {
-            rmdir(dirname($path));
-        }
+        unlink($path);
     }
+
+    rmdir($directory);
 }
 
 /**
