@@ -7,6 +7,8 @@ namespace App;
 
 use function Acme\Support\probeImported;
 use function Acme\Support\probeSource as probeAliased;
+use function Acme\Support\probeListedFirst, Acme\Support\probeListedLast;
+use function Acme\Support\probeListedAliased as probeListedAlias, Acme\Support\probeListedTrailing;
 use function Acme\Group\{probeGrouped, probeRenamed as probeGroupAlias};
 use Acme\Mixed\{function probeMixed, const PROBE_CONSTANT};
 
@@ -16,6 +18,13 @@ probeAliased($value);
 probeGrouped($value);
 probeGroupAlias($value);
 probeMixed($value);
+
+// Negative: a comma-separated list binds every name it holds, not just the
+// last — including the alias when an entry before the last one carries `as`.
+probeListedFirst($value);
+probeListedLast($value);
+probeListedAlias($value);
+probeListedTrailing($value);
 
 // Negative: member access — the name belongs to some object or class.
 $service->probeMethod($value);

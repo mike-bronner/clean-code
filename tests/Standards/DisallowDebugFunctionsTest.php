@@ -62,11 +62,12 @@ it('flags every debug call at its own line', function (): void {
 });
 
 /**
- * A `use function` import binds one name. passing.php pins the quiet side —
- * the imported debug name goes unreported — and this pins the loud side, which
- * is where an over-eager import check would show: every other debug call in the
- * same file stays flagged, and so does the *source* name of an aliased import,
- * because the alias is what the import actually bound.
+ * A `use function` import binds only the names it lists. passing.php pins the
+ * quiet side — every listed name goes unreported, the first of a two-name list
+ * as much as the last — and this pins the loud side, which is where an
+ * over-eager import check would show: every other debug call in the same file
+ * stays flagged, and so does the *source* name of an aliased import, because
+ * the alias is what the import actually bound.
  */
 it('flags every debug call an import did not bind', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'imported-names.php');

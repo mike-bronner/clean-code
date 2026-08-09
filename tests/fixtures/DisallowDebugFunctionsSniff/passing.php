@@ -1,6 +1,6 @@
 <?php
 
-use function Acme\Support\debug_zval_dump;
+use function Acme\Support\debug_zval_dump, Acme\Support\debug_print_backtrace;
 
 // Positive: ordinary code calling nothing on the debug list.
 $total = array_sum($amounts);
@@ -54,8 +54,10 @@ Debugger::debug_zval_dump($value);
 
 // Positive: the `use function` import above binds the bare name to another
 // namespace's function, so this call never reaches PHP's own — verified by
-// executing the shape, not inferred from the token stream.
+// executing the shape, not inferred from the token stream. It lists two names,
+// and PHP binds both: the first as much as the last.
 debug_zval_dump($value);
+debug_print_backtrace($value);
 
 // Positive: a return-by-reference declaration is still a declaration. The `&`
 // sits between the keyword and the name, which is what used to hide it.

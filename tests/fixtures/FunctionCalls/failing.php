@@ -31,6 +31,16 @@ $callback = function () use ($value) {
     return probeInsideClosure($value);
 };
 
+// Positive: and it still imports nothing when a comma inside the statement is
+// followed by the `function` keyword — that is a nested closure, not an import
+// entry. Reading a capture list as a list of import entries would take this
+// name for an imported one and go quiet on both calls to it.
+$handlers = function () use ($value) {
+    return [1, function () { return probeInsideCapture($value); }];
+};
+
+probeInsideCapture($value);
+
 // Positive: a trait `use` inside a class body imports no function either.
 class Consumer
 {

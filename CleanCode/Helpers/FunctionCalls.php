@@ -252,10 +252,10 @@ final class FunctionCalls
     /**
      * Every name a `use function` import binds, grouped by namespace block.
      *
-     * Covers the plain form, the aliased form, group use, and the mixed group
-     * use that carries `function` on the individual entry. Imports of classes
-     * and constants are deliberately absent: neither takes part in resolving a
-     * function call, so neither may suppress one.
+     * Covers the plain form, the comma-separated list, the aliased form, group
+     * use, and the mixed group use that carries `function` on the individual
+     * entry. Imports of classes and constants are deliberately absent: neither
+     * takes part in resolving a function call, so neither may suppress one.
      *
      * @param array<int, int|null> $declarations
      *
@@ -298,23 +298,38 @@ final class FunctionCalls
      * a class or constant import, a trait use, or a closure's captured
      * variables, none of which lead with the `function` keyword.
      *
+     * Both spellings bind more than one name at a time — `use function A\b,
+     * A\c;` as much as `use function A\{b, c};` — so both are read as a comma
+     * separated list. Reading either as a single entry keeps only its last
+     * name, and every earlier one is then left looking like a call to PHP's
+     * own function.
+     *
      * @return array<int, string>
      */
     private static function importedFunctionNames(File $phpcsFile, int $usePtr, int $endPtr): array
     {
         $groupOpener = $phpcsFile->findNext(T_OPEN_USE_GROUP, ($usePtr + 1), $endPtr);
-        $isFunctionGroup = self::isFunctionKeyword($phpcsFile, ($usePtr + 1), $endPtr);
+        $isFunctionUse = self::isFunctionKeyword($phpcsFile, ($usePtr + 1), $endPtr);
 
-        if ($groupOpener === false) {
-            return $isFunctionGroup === true
-                ? [self::boundName($phpcsFile, ($usePtr + 1), $endPtr)]
-                : [];
+        // The `function` keyword leads the whole statement in the no-group
+        // form, so one that does not carry it binds nothing however many names
+        // it lists — a trait use, a class import, or a closure's captured
+        // variables, whose own commas must never be read as import entries.
+        if (
+            $groupOpener === false
+            && $isFunctionUse === false
+        ) {
+            return [];
         }
+
+        $entries = $groupOpener === false
+            ? self::commaEntries($phpcsFile, ($usePtr + 1), $endPtr)
+            : self::groupEntries($phpcsFile, $groupOpener, $endPtr);
 
         $names = [];
 
-        foreach (self::groupEntries($phpcsFile, $groupOpener, $endPtr) as [$start, $end]) {
-            if ($isFunctionGroup === false && self::isFunctionKeyword($phpcsFile, $start, $end) === false) {
+        foreach ($entries as [$start, $end]) {
+            if ($isFunctionUse === false && self::isFunctionKeyword($phpcsFile, $start, $end) === false) {
                 continue;
             }
 
@@ -353,9 +368,8 @@ final class FunctionCalls
     }
 
     /**
-     * The comma-separated entries of a group use, each as a [start, end)
-     * pointer pair. Group-use bodies hold no nesting, so splitting on every
-     * comma between the braces is exact.
+     * The comma-separated entries between a group use's braces, each as a
+     * [start, end) pointer pair.
      *
      * @return array<int, array{int, int}>
      */
@@ -364,12 +378,25 @@ final class FunctionCalls
         $closer = $phpcsFile->findNext(T_CLOSE_USE_GROUP, ($groupOpener + 1), $endPtr);
         $closer = $closer === false ? $endPtr : $closer;
 
-        $entries = [];
-        $start = ($groupOpener + 1);
+        return self::commaEntries($phpcsFile, ($groupOpener + 1), $closer);
+    }
 
-        while ($start < $closer) {
-            $comma = $phpcsFile->findNext(T_COMMA, $start, $closer);
-            $entryEnd = $comma === false ? $closer : $comma;
+    /**
+     * A comma-separated list spanning $start..$end, each entry as a
+     * [start, end) pointer pair. A `use` statement's entries hold no nesting of
+     * their own — neither a group body nor a plain list may contain a further
+     * comma-bearing construct — so splitting on every comma in the span is
+     * exact.
+     *
+     * @return array<int, array{int, int}>
+     */
+    private static function commaEntries(File $phpcsFile, int $start, int $end): array
+    {
+        $entries = [];
+
+        while ($start < $end) {
+            $comma = $phpcsFile->findNext(T_COMMA, $start, $end);
+            $entryEnd = $comma === false ? $end : $comma;
             $entries[] = [$start, $entryEnd];
             $start = ($entryEnd + 1);
         }

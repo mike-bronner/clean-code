@@ -28,6 +28,11 @@ it('rejects every shape that is not a call to a global function', function (): v
         'probeImported' => [false, false],
         'probeSource' => [false],
         'probeAliased' => [false, false],
+        'probeListedFirst' => [false, false],
+        'probeListedLast' => [false, false],
+        'probeListedAliased' => [false],
+        'probeListedAlias' => [false, false],
+        'probeListedTrailing' => [false, false],
         'probeGrouped' => [false, false],
         'probeRenamed' => [false],
         'probeGroupAlias' => [false, false],
@@ -78,9 +83,31 @@ it('accepts a call that reaches PHP own global function', function (): void {
         'probeBare' => [true],
         // A leading separator qualifies the global namespace.
         'probeFullyQualified' => [true],
-        // A closure captures variables with `use`; it imports nothing.
+        // A closure captures variables with `use`; it imports nothing, not even
+        // when a nested closure puts `function` straight after one of the
+        // statement's commas.
         'probeInsideClosure' => [true],
+        'probeInsideCapture' => [true, true],
         // A class body's `use` pulls in a trait, not a function.
         'probeInsideMethod' => [true],
+    ]);
+});
+
+/**
+ * The braced `namespace A { … }` form takes its own path through the block
+ * lookup: a braced declaration carries a scope closer, so its block ends at
+ * that brace rather than running on to the next declaration. The unbraced
+ * fixtures cannot reach that path — PHP forbids mixing the two forms in one
+ * file — and getting it wrong leaks an import's suppression across a namespace
+ * boundary, which is the one thing block scoping exists to stop.
+ */
+it('scopes an import to its own braced namespace block', function (): void {
+    $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'braced-namespaces.php'), 'probe');
+
+    expect($verdicts)->toBe([
+        // The import statement, the call it redirects in the same block, then
+        // the same call in a sibling block and in the global block — neither of
+        // which the import reaches, so both are calls to PHP's own function.
+        'probeBracedImport' => [false, false, true, true],
     ]);
 });
