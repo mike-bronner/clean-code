@@ -339,6 +339,45 @@
     -->
 
     <!--
+        PHPMD CodeSize: ExcessiveClassComplexity (#87) —
+        docs/phpmd/codesize-excessiveclasscomplexity.md.
+
+        No existing PHPCS or Slevomat sniff expresses this rule. The metric is
+        Weighted Method Count — the sum of the cyclomatic complexity of every
+        method a class declares — and the nearest candidates all measure a
+        single function instead, so none of them can reach a class-level total:
+        Generic.Metrics.CyclomaticComplexity and
+        Generic.Metrics.NestingLevel report per function, and
+        SlevomatCodingStandard.Complexity.Cognitive reports a different metric
+        (cognitive complexity), again per function. So this is the custom
+        CleanCode.Metrics.ExcessiveClassComplexity sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above — no per-sniff
+        registration is needed, and
+        tests/Standards/ExcessiveClassComplexityTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        One property, `maximum`, spelled as PHPMD spells it and defaulting to
+        the 50 PHPMD's codesize.xml ships, so an existing PHPMD configuration
+        for this rule transfers verbatim. Nothing is configured here, because
+        the default already matches.
+
+        Note that PHPMD reports a class whose count is at or ABOVE the maximum,
+        not strictly above it — its Rule\Design\WeightedMethodCount compares
+        `$actual >= $threshold`. The sniff matches that, so a class measuring
+        exactly 50 is reported by both tools. Reading "maximum" as a tolerated
+        value would make this ruleset looser than PHPMD at exactly that count,
+        which is the one thing the mapping must not be.
+
+        As with DisallowBooleanArgumentFlag above, no <type> override is
+        needed: the sniff raises errors already, so an over-complex class fails
+        a phpcs run the way it fails a phpmd run.
+
+        Detection only, matching PHPMD. Splitting a class up moves methods
+        between files and rewrites every call site; there is no mechanical
+        rewrite, and PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
         PHPMD UnusedCode: UnusedLocalVariable (#118) —
