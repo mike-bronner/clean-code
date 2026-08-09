@@ -26,6 +26,17 @@ const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
 
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
+/**
+ * The missing-import rule (#84) reports on the two exception fixtures below.
+ * Both are namespace-less files full of fully qualified exception names, so
+ * nearly every catch and throw in them trips it. 'PSR1…' sorts before
+ * 'SlevomatCodingStandard…', which is why the one line carrying both lists the
+ * PSR1 source first.
+ */
+const INLINE_FQN = 'SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly.ReferenceViaFullyQualifiedName';
+
+const INLINE_FQN_NO_NAMESPACE = INLINE_FQN . 'WithoutNamespace';
+
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
@@ -61,13 +72,16 @@ it('reports the expected violations', function (
     expect(violationCountsByLine($file->getErrors()))->toBe($expectedErrors, 'Errors in ' . $fixture)
         ->and(violationCountsByLine($file->getWarnings()))->toBe($expectedWarnings, 'Warnings in ' . $fixture);
 })->with([
-    // compliant.php raises no *error* from the whole ruleset. Its one warning
-    // is the guard clause on line 21: AvoidConditionals (#12) warns once per
-    // branch, guard clauses included, so "clean PSR-12 code" and "free of
-    // conditionals" are now two different claims. Recorded rather than edited
-    // away — rewriting the fixture to dodge the warning would hide the most
-    // visible consequence of adding that sniff to the master ruleset.
-    'compliant class produces no errors' => ['compliant.php', [], [21 => 1]],
+    // compliant.php raises no *error* from the whole ruleset. Its warnings are
+    // the guard clause on line 21 — AvoidConditionals (#12) warns once per
+    // branch, guard clauses included — and the `2` and `3` of the `[1, 2, 3]`
+    // literal on line 25, which DisallowMagicNumbers (#136) reads as two
+    // unnamed numbers (`1` is on that sniff's shipped ignore list). So "clean
+    // PSR-12 code", "free of conditionals", and "free of magic numbers" are
+    // now three different claims. Recorded rather than edited away — rewriting
+    // the fixture to dodge the warnings would hide the most visible
+    // consequence of adding those sniffs to the master ruleset.
+    'compliant class produces no errors' => ['compliant.php', [], [21 => 1, 25 => 2]],
     'compliant abstract class produces zero violations' => ['compliant-abstract.php', [], []],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
     'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1], [1 => 1]],
@@ -97,7 +111,11 @@ it('reports the expected violations', function (
     // with absoluteLineLimit=120 a line past 120 chars is an error, not a
     // warning. Fixture line 7 is 124 chars.
     'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
-    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], []],
+    // The line-10 warning is DisallowMagicNumbers (#136) on that fixture's
+    // `$tabbed = 2;`, sitting alongside the indentation error the line exists
+    // to trip. Line 9 assigns `1`, which is on the sniff's ignore list, so the
+    // two visually identical lines report differently.
+    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], [10 => 1]],
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
     // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
     // alongside the two PSR-12 errors the fixture exists to trip.
@@ -227,17 +245,60 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
             52 => [UNDEFINED],
         ],
     ],
+    // The missing-import rule (#84) reports on both exception fixtures below,
+    // and correctly: neither declares a namespace, and both write every
+    // exception name out fully (`catch (\RuntimeException $e)`), which is the
+    // defect that rule exists to catch. In a namespace-less file its remedy is
+    // to drop the leading backslash — nothing PSR12 disagrees with, so this is
+    // not a conflict to carve out of the PSR12 reference.
+    //
+    // The reports are pinned per line rather than edited out of the fixtures,
+    // for the same reason as the one-thought-per-line entry above: both files
+    // are their sniff's own fixer output, byte-compared by
+    // tests/Contract/SniffContractTest.php, so dropping the backslashes here
+    // would mean dropping them from the matching failing.php and re-pinning
+    // every line in tests/Standards/ReferenceThrowableOnlyTest.php and
+    // tests/Standards/RequireNonCapturingCatchTest.php. Pinning each report
+    // leaves the fixtures untouched and still fails on any *new* violation.
     'throwable-only catches are PSR12-clean' => [
         fixturePath('ReferenceThrowableOnlySniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
-            79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
+            6 => [INLINE_FQN_NO_NAMESPACE],
+            13 => [INLINE_FQN_NO_NAMESPACE],
+            20 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            27 => [INLINE_FQN_NO_NAMESPACE],
+            // A namespaced exception name, so the sniff asks for a use
+            // statement here instead of just dropping the backslash.
+            34 => [INLINE_FQN],
+            41 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            49 => [INLINE_FQN_NO_NAMESPACE],
+            51 => [INLINE_FQN_NO_NAMESPACE],
+            56 => [INLINE_FQN_NO_NAMESPACE],
+            62 => [INLINE_FQN_NO_NAMESPACE],
+            65 => [INLINE_FQN_NO_NAMESPACE],
+            73 => [INLINE_FQN_NO_NAMESPACE],
+            79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace', INLINE_FQN_NO_NAMESPACE],
+            84 => [INLINE_FQN_NO_NAMESPACE],
         ],
     ],
     'non-capturing catches are PSR12-clean' => [
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            6 => [INLINE_FQN_NO_NAMESPACE],
+            13 => [INLINE_FQN_NO_NAMESPACE],
+            20 => [INLINE_FQN_NO_NAMESPACE],
+            27 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            34 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
+            42 => [INLINE_FQN_NO_NAMESPACE],
+            45 => [INLINE_FQN_NO_NAMESPACE],
+            53 => [INLINE_FQN_NO_NAMESPACE],
+            61 => [INLINE_FQN_NO_NAMESPACE],
+            69 => [INLINE_FQN_NO_NAMESPACE],
+            78 => [INLINE_FQN_NO_NAMESPACE],
+            88 => [INLINE_FQN_NO_NAMESPACE],
+            97 => [INLINE_FQN_NO_NAMESPACE],
         ],
     ],
 ]);
