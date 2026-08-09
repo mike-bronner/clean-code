@@ -38,7 +38,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *              same formula, so a chain nests rather than sums flat.
  * - `while`:   `B(cond) + N(body) + 1`
  * - `do while`:`B(cond) + N(body) + 1`
- * - `for`:     `1 + B(init; cond; step) + N(body)`
+ * - `for`:     `1 + B(cond) + N(body)`, where `cond` is the *middle* clause
+ *              alone: PDepend sums only the children of the loop that are
+ *              expressions, and the init and update clauses are not, so a
+ *              boolean operator in either is not counted.
  * - `foreach`: `B(expr) + 1 + N(body)`
  * - `switch`:  `B(expr) + the sum of N(range) over every `case` *and* `default`
  *              label. A `switch` with no labels therefore scores 0 and zeroes
@@ -47,14 +50,23 @@ use PHP_CodeSniffer\Util\Tokens;
  * - `try`:     the sum of `N(range)` over the `try` block, every `catch` block,
  *              and the `finally` block. Nothing is added for the construct.
  * - `? :`:     `B(cond) + B(then) + B(else) + 2`, where the short form `?:`
- *              doubles `B(cond)` instead of reading a `then` branch.
+ *              doubles `B(cond)` instead of reading a `then` branch, and `cond`
+ *              is the first *child node* of the expression holding the ternary
+ *              rather than everything to the left of the `?` (see
+ *              `ternaryComplexity()`).
  * - `return`:  `B(expr)`, or 1 when that is 0. This makes `return $a && $b &&
  *              $c;` score 2 while the identical expression assigned to a
  *              variable scores 1 — a PDepend quirk, not a mistake here, pinned
  *              by keywordXorAndReturnChain() in failing.php.
  *
- * Not counted at all: `match` and its arms, `??`, `??=`, `?->`, `!`, `goto`,
- * `throw`, `yield`, and `break`/`continue`. `xor` *is* counted, unlike in
+ * Not counted at all: `??`, `??=`, `?->`, `!`, `goto`, `throw`, `yield`, and
+ * `break`/`continue`. A `match` adds nothing for itself either, and a boolean
+ * operator in an arm body is not counted — but an arm body is still an ordinary
+ * expression in the enclosing sequence, so a *ternary* written in one multiplies
+ * into the callable exactly as it would anywhere else. A live PHPMD run scores
+ * `match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` as 2, not 1, and
+ * matchArmTernaryMultiplies() and matchArmBooleanIsUncounted() in passing.php
+ * pin the two halves. `xor` *is* counted, unlike in
  * cyclomatic complexity where PDepend ignores it — ExcessiveClassComplexitySniff
  * in this same directory excludes `xor` for that reason, and the two sniffs
  * disagreeing here is deliberate (keywordXorAndReturnChain() in failing.php
@@ -164,11 +176,71 @@ class NPathComplexitySniff implements Sniff
     ];
 
     /**
+     * The value at which a measurement stops accumulating.
+     *
+     * PDepend does this arithmetic in bcmath through its own MathUtil, so its
+     * `npath` metric is an arbitrary-precision string and never overflows. This
+     * sniff works in `int`, which under `declare(strict_types=1)` cannot hold an
+     * overflowed product: PHP promotes it to `float`, and returning a `float`
+     * from an `int`-typed method raises a TypeError that PHP_CodeSniffer does
+     * not catch — Runner only catches `\Exception`, and TypeError is an
+     * `\Error` — so one deeply-branching callable would abort the whole run
+     * rather than being reported. Every add and multiply below therefore
+     * saturates here instead of overflowing.
+     *
+     * A callable at this scale is definitionally past any usable threshold, so
+     * nothing is lost by stopping the count: the report says "at least" and the
+     * verdict is unchanged. The saturation test in
+     * tests/Standards/NPathComplexityTest.php drives a real callable past it.
+     */
+    private const CEILING = PHP_INT_MAX;
+
+    /**
+     * Where the else-branch starting at each `:` ends, for the callable being
+     * measured. Filled by expressionEnd() and cleared for every callable, so a
+     * pointer from one file can never be read back against another.
+     *
+     * @var array<int, int>
+     */
+    private array $branchEnds = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_FUNCTION];
+    }
+
+    /**
+     * $left + $right, stopping at the ceiling rather than overflowing.
+     *
+     * Both operands are counts, so neither is ever negative and the guard only
+     * has to look at the upper end.
+     */
+    private function add(int $left, int $right): int
+    {
+        if ($left > (self::CEILING - $right)) {
+            return self::CEILING;
+        }
+
+        return ($left + $right);
+    }
+
+    /**
+     * $left * $right, stopping at the ceiling rather than overflowing.
+     */
+    private function multiply(int $left, int $right): int
+    {
+        if ($left === 0 || $right === 0) {
+            return 0;
+        }
+
+        if ($left > intdiv(self::CEILING, $right)) {
+            return self::CEILING;
+        }
+
+        return ($left * $right);
     }
 
     /**
@@ -185,6 +257,11 @@ class NPathComplexitySniff implements Sniff
             return;
         }
 
+        // A measurement that hit the ceiling is a lower bound, not the exact
+        // count, and says so rather than reporting the ceiling as if it were
+        // the real value.
+        $measured = $npath === self::CEILING ? ('at least ' . self::CEILING) : (string) $npath;
+
         $phpcsFile->addError(
             'The %s %s() has an NPath complexity of %s, at or above the '
                 . 'configured minimum of %s; break it into smaller pieces (see '
@@ -194,7 +271,7 @@ class NPathComplexitySniff implements Sniff
             [
                 $this->callableKind($phpcsFile, $stackPtr),
                 (string) $phpcsFile->getDeclarationName($stackPtr),
-                $npath,
+                $measured,
                 $minimum,
             ]
         );
@@ -256,6 +333,9 @@ class NPathComplexitySniff implements Sniff
             return 1;
         }
 
+        // Token offsets are per file, so the memo from the previous callable
+        // must not be read against this one.
+        $this->branchEnds = [];
         $ptr = ($opener + 1);
 
         return $this->blockComplexity($phpcsFile, $tokens, $ptr, $closer);
@@ -278,7 +358,10 @@ class NPathComplexitySniff implements Sniff
         $npath = 1;
 
         while ($ptr < $end) {
-            $npath *= $this->statementComplexity($phpcsFile, $tokens, $ptr, $end);
+            $npath = $this->multiply(
+                $npath,
+                $this->statementComplexity($phpcsFile, $tokens, $ptr, $end)
+            );
         }
 
         return $npath;
@@ -375,18 +458,18 @@ class NPathComplexitySniff implements Sniff
     private function ifComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $npath = $this->conditionComplexity($phpcsFile, $tokens, $ptr);
-        $npath += $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end);
+        $npath = $this->add($npath, $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end));
 
         $chain = $this->nextChainLink($phpcsFile, $tokens, $ptr, $end);
 
         if ($chain === null) {
-            return ($npath + 1);
+            return $this->add($npath, 1);
         }
 
         $ptr = $chain;
 
         if ($tokens[$chain]['code'] === T_ELSEIF) {
-            return ($npath + $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
+            return $this->add($npath, $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
         }
 
         // `else if` written with a space is one construct to PDepend, scored
@@ -399,10 +482,10 @@ class NPathComplexitySniff implements Sniff
         if ($inner !== false && $tokens[$inner]['code'] === T_IF) {
             $ptr = $inner;
 
-            return ($npath + $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
+            return $this->add($npath, $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
         }
 
-        return ($npath + $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end));
+        return $this->add($npath, $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end));
     }
 
     /**
@@ -437,20 +520,76 @@ class NPathComplexitySniff implements Sniff
     }
 
     /**
-     * `B(cond) + N(body) + 1` for `while` and `do … while`, `1 + B(init; cond;
-     * step) + N(body)` for `for`, and `B(expr) + 1 + N(body)` for `foreach`.
+     * `B(cond) + N(body) + 1` for `while`, `1 + B(cond) + N(body)` for `for`,
+     * and `B(expr) + 1 + N(body)` for `foreach` — the same arithmetic, differing
+     * only in where the constant 1 comes from, so they share one implementation.
      *
-     * The three differ only in where the constant 1 comes from, so they share
-     * one implementation.
+     * A `for` differs in what counts as its condition. PDepend's
+     * visitForStatement sums only the children that are expressions, and the
+     * init and update clauses are ASTForInit and ASTForUpdate nodes rather than
+     * expressions, so a boolean operator in either one is not counted — only the
+     * middle clause is. A live PHPMD run agrees: `for ($i = ($a && $b); …)` and
+     * `for (…; …; $i++, $a = ($a || $b))` both score the same as the same loop
+     * with no operator at all. forIgnoresInitAndUpdateClauses() and
+     * forCountsItsConditionClause() in passing.php carry the same two operators
+     * in different clauses and pin the pair.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function loopComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
-        $condition = $this->conditionComplexity($phpcsFile, $tokens, $ptr);
+        $condition = $tokens[$ptr]['code'] === T_FOR
+            ? $this->forConditionComplexity($phpcsFile, $tokens, $ptr)
+            : $this->conditionComplexity($phpcsFile, $tokens, $ptr);
         $body = $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end);
 
-        return ($condition + $body + 1);
+        return $this->add($this->add($condition, $body), 1);
+    }
+
+    /**
+     * The boolean complexity of a `for`'s middle clause alone.
+     *
+     * The clause is delimited by the two semicolons that sit directly inside the
+     * loop's own parentheses; a semicolon nested in a closure body or a
+     * parenthesised group belongs to something else and is skipped. A `for`
+     * missing either semicolon — `for (;;)` has both, but a malformed one may
+     * not — has no condition to read and scores 0.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function forConditionComplexity(File $phpcsFile, array $tokens, int $ptr): int
+    {
+        $opener = $tokens[$ptr]['parenthesis_opener'] ?? null;
+        $closer = $tokens[$ptr]['parenthesis_closer'] ?? null;
+
+        if ($opener === null || $closer === null) {
+            return 0;
+        }
+
+        $semicolons = [];
+        $cursor = $opener;
+
+        while (++$cursor < $closer) {
+            $skip = $this->closerFor($tokens, $cursor);
+
+            if ($skip !== null) {
+                $cursor = $skip;
+
+                continue;
+            }
+
+            if ($tokens[$cursor]['code'] === T_SEMICOLON) {
+                $semicolons[] = $cursor;
+            }
+        }
+
+        if (count($semicolons) < 2) {
+            return 0;
+        }
+
+        $conditionPtr = ($semicolons[0] + 1);
+
+        return $this->expressionComplexity($phpcsFile, $tokens, $conditionPtr, $semicolons[1]);
     }
 
     /**
@@ -465,14 +604,14 @@ class NPathComplexitySniff implements Sniff
         $while = $phpcsFile->findNext(T_WHILE, $ptr, $end);
 
         if ($while === false) {
-            return ($body + 1);
+            return $this->add($body, 1);
         }
 
         $condition = $this->conditionComplexity($phpcsFile, $tokens, $while);
         $closer = $tokens[$while]['parenthesis_closer'] ?? $while;
         $ptr = ($closer + 1);
 
-        return ($condition + $body + 1);
+        return $this->add($this->add($condition, $body), 1);
     }
 
     /**
@@ -503,7 +642,10 @@ class NPathComplexitySniff implements Sniff
         foreach ($labels as $index => $label) {
             $bodyEnd = $labels[($index + 1)] ?? $closer;
             $bodyPtr = ($this->labelBodyStart($phpcsFile, $tokens, $label, $bodyEnd) + 1);
-            $npath += $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $bodyEnd);
+            $npath = $this->add(
+                $npath,
+                $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $bodyEnd)
+            );
         }
 
         $ptr = ($closer + 1);
@@ -576,7 +718,7 @@ class NPathComplexitySniff implements Sniff
             }
 
             $ptr = $next;
-            $npath += $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end);
+            $npath = $this->add($npath, $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end));
         }
     }
 
@@ -667,9 +809,25 @@ class NPathComplexitySniff implements Sniff
      * The short form `?:` has no `then` branch; PDepend doubles the condition's
      * complexity in its place, which for the common `$a ?: $b` still yields 2.
      *
-     * The condition is everything from the start of the enclosing expression up
-     * to the `?`, which is how PDepend reads it — the condition is the first
-     * child of the ternary's *parent* node, not a child of the ternary.
+     * PDepend reads the condition as `$node->getParent()->getChild(0)` — the
+     * *first child node* of the expression holding the ternary, not everything
+     * to the left of the `?`. The difference is visible whenever an operator
+     * separates the two: in `$a && $b ? 1 : 0` the first child is `$a`, so the
+     * `&&` is no part of the condition, while in `($a && $b) ? 1 : 0` the first
+     * child is the whole parenthesised group and the `&&` is counted inside it.
+     * Both are confirmed against a live PHPMD run, which scores an `if` around
+     * the first 5 and around the second 6, and the
+     * ternaryConditionStopsAtTheFirstOperator() /
+     * ternaryConditionIncludesAParenthesisedGroup() pair in passing.php pins
+     * both.
+     *
+     * Counting to the `?` instead would count that `&&` twice in every `if`,
+     * `while`, `for`, and `switch` condition — once in the enclosing walk and
+     * again here. The double count in `return ($a && $b) ? 1 : 2;` is a
+     * different thing and is real: there the first child *is* the parenthesised
+     * group, so PDepend genuinely reads it twice
+     * (returnTernaryCountsItsConditionTwice() in passing.php, against
+     * assignedTernaryCountsItsConditionOnce() beside it).
      *
      * @param array<int, array<string, mixed>> $tokens
      */
@@ -678,14 +836,19 @@ class NPathComplexitySniff implements Sniff
         $thenPtr = $ptr;
         $start = $this->expressionStart($tokens, $thenPtr);
         $condPtr = $start;
-        $condition = $this->expressionComplexity($phpcsFile, $tokens, $condPtr, $thenPtr);
+        $condition = $this->expressionComplexity(
+            $phpcsFile,
+            $tokens,
+            $condPtr,
+            $this->conditionNodeEnd($tokens, $start, $thenPtr)
+        );
 
         $elsePtr = $this->ternaryElse($phpcsFile, $tokens, $thenPtr, $end);
 
         if ($elsePtr === null) {
             $ptr = ($thenPtr + 1);
 
-            return ($condition + 2);
+            return $this->add($condition, 2);
         }
 
         $branchPtr = ($thenPtr + 1);
@@ -698,10 +861,64 @@ class NPathComplexitySniff implements Sniff
         $ptr = $stop;
 
         if ($isShort === true) {
-            return (($condition * 2) + $otherwise + 2);
+            return $this->add($this->add($this->multiply($condition, 2), $otherwise), 2);
         }
 
-        return ($condition + $then + $otherwise + 2);
+        return $this->add($this->add($this->add($condition, $then), $otherwise), 2);
+    }
+
+    /**
+     * Where the ternary condition beginning at $start ends: after the first
+     * child node of the expression holding the ternary.
+     *
+     * A node runs to the first binary operator outside any group, because an
+     * operator is what separates one child of the parent from the next. Groups
+     * are stepped over whole, so an operator inside parentheses, an argument
+     * list, or a subscript stays part of the node it belongs to — `strlen($a &&
+     * $b) ? …` and `$a[$b && $c] ? …` both keep their operator, and `$a + ($b &&
+     * $c) ? …` does not, all three matching a live PHPMD run.
+     *
+     * A leading `!` or `-` is deliberately not a boundary: PHP_CodeSniffer's
+     * operator sets exclude T_BOOLEAN_NOT, and a unary minus reads as a binary
+     * T_MINUS but can only appear here in front of the node's own first token,
+     * where stopping would leave an empty node and score the same 0.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function conditionNodeEnd(array $tokens, int $start, int $thenPtr): int
+    {
+        $ptr = ($start - 1);
+
+        while (++$ptr < $thenPtr) {
+            $skip = $this->closerFor($tokens, $ptr);
+
+            if ($skip !== null) {
+                $ptr = $skip;
+
+                continue;
+            }
+
+            if ($ptr > $start && $this->separatesNodes($tokens[$ptr]['code']) === true) {
+                return $ptr;
+            }
+        }
+
+        return $thenPtr;
+    }
+
+    /**
+     * Whether this token is a binary operator, and so separates one child of an
+     * expression from the next.
+     *
+     * @param int|string $code
+     */
+    private function separatesNodes($code): bool
+    {
+        return isset(Tokens::$operators[$code]) === true
+            || isset(Tokens::$comparisonTokens[$code]) === true
+            || isset(Tokens::$booleanOperators[$code]) === true
+            || $code === T_STRING_CONCAT
+            || $code === T_INSTANCEOF;
     }
 
     /**
@@ -806,11 +1023,32 @@ class NPathComplexitySniff implements Sniff
      * Where the else-branch starting after $elsePtr ends: the first separator at
      * the ternary's own nesting level.
      *
+     * Every `:` this scan steps over on its way shares the terminator it lands
+     * on, because no separator lies between them, so one scan records the answer
+     * for all of them. Without that, a chain of ternaries — `$a ?: $b ?: $c ?:
+     * …`, which needs no parentheses and is ordinary valid PHP — costs a full
+     * scan to the end of the statement at every link, making the sniff quadratic
+     * in the length of the chain; a file of a few thousand links then stalls the
+     * whole run. The linearity test in tests/Standards/NPathComplexityTest.php
+     * holds it to a budget that quadratic growth cannot meet.
+     *
+     * Recording the terminator rather than truncating the scan keeps the
+     * measurement exactly as it was: a chained ternary nests to the right, and a
+     * live PHPMD run scores `$a ? 1 : $b ? 2 : $c ? 3 : 4` as 6 rather than the
+     * 8 that reading each link as a separate statement would give.
+     *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function expressionEnd(File $phpcsFile, array $tokens, int $elsePtr, int $end): int
     {
+        if (isset($this->branchEnds[$elsePtr]) === true) {
+            // A terminator at or past the caller's limit is out of its reach,
+            // and the scan below would have run out at $end instead.
+            return min($this->branchEnds[$elsePtr], $end);
+        }
+
         $ptr = $elsePtr;
+        $stepped = [];
 
         while (++$ptr < $end) {
             $code = $tokens[$ptr]['code'];
@@ -828,10 +1066,21 @@ class NPathComplexitySniff implements Sniff
             }
 
             if (in_array($code, self::BRANCH_TERMINATORS, true) === true) {
+                foreach ($stepped as $position) {
+                    $this->branchEnds[$position] = $ptr;
+                }
+
+                $this->branchEnds[$elsePtr] = $ptr;
+
                 return $ptr;
             }
+
+            $stepped[] = $ptr;
         }
 
+        // Nothing is recorded when the scan runs out at $end: that answer is the
+        // caller's limit rather than a terminator, and says nothing about where
+        // a scan with a later limit would stop.
         return $end;
     }
 
@@ -873,14 +1122,17 @@ class NPathComplexitySniff implements Sniff
             $code = $tokens[$ptr]['code'];
 
             if (in_array($code, self::BOOLEAN_TOKENS, true) === true) {
-                $sum++;
+                $sum = $this->add($sum, 1);
                 $ptr++;
 
                 continue;
             }
 
             if ($code === T_INLINE_THEN) {
-                $sum += $this->ternaryComplexity($phpcsFile, $tokens, $ptr, $end);
+                $sum = $this->add(
+                    $sum,
+                    $this->ternaryComplexity($phpcsFile, $tokens, $ptr, $end)
+                );
 
                 continue;
             }

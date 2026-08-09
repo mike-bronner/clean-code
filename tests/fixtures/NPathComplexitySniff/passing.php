@@ -258,3 +258,186 @@ function nestedNamedFunction(int $a): void
         echo 1;
     }
 }
+
+/**
+ * 2. A `for` scores `1 + B(cond) + N(body)`, and only its *middle* clause is the
+ * condition: PDepend's visitForStatement sums the children that are expressions,
+ * and the init and update clauses are ASTForInit and ASTForUpdate nodes instead.
+ * Both clauses here carry a boolean operator and neither is counted, so this
+ * measures the same 2 it would with no operator at all. Counting them would make
+ * it 4.
+ */
+function forIgnoresInitAndUpdateClauses(int $a, bool $b, bool $c): void
+{
+    for ($i = ($b && $c); $i < 10; $i++, $a = ($b || $c)) {
+        echo 1;
+    }
+}
+
+/**
+ * 4. The other half of the pair above: the same two boolean operators, moved
+ * into the middle clause, where they *are* counted — `1 + 2 + 1`. The two
+ * callables carry the same operators and differ only in which clause holds
+ * them, so a `for` that read all three clauses alike would score both 4, and one
+ * that read none of them would score both 2. Only reading the middle clause
+ * alone produces 2 here and 4 there.
+ */
+function forCountsItsConditionClause(bool $b, bool $c): void
+{
+    for ($i = 0; $i < 10 && ($b || $c); $i++) {
+        echo 1;
+    }
+}
+
+/**
+ * 3: `B(cond)` of 1, the body, and 1 for the loop. A standalone `while` is
+ * measured by the shared loop formula, not by the `do … while` one — doWhileLoop()
+ * above only ever reaches the latter, so without this the `while` dispatch is
+ * never exercised.
+ */
+function standaloneWhileLoop(int $a, bool $b): void
+{
+    while ($a > 0 && $b) {
+        $a--;
+    }
+}
+
+/**
+ * 4. The short ternary `?:` has no `then` branch, and PDepend doubles its
+ * condition in that branch's place: `(1 * 2) + 0 + 2`. The full-ternary formula
+ * applied to the same expression would give 3, so the doubling is what this
+ * number pins. Every other ternary in these fixtures is the full form.
+ */
+function shortTernaryDoublesItsCondition(bool $a, bool $b, int $c): int
+{
+    $value = ($a && $b) ?: $c;
+
+    return $value;
+}
+
+/**
+ * 5. `||`, `and`, and `or` each score 1, exactly as `&&` and `xor` do — the
+ * three of the five boolean tokens that no other fixture counts live. Only their
+ * text appears in uncountedConstructs(), inside a string and a heredoc, which
+ * proves the opposite point. Three operators, plus the body and the missing
+ * `else`, is 5.
+ */
+function logicalKeywordOperators(bool $a, bool $b, bool $c, bool $d): void
+{
+    if ($a || $b and $c or $d) {
+        echo 1;
+    }
+}
+
+/**
+ * 3. `throw`, `yield`, and `continue` are scored by nothing of their own, so the
+ * only thing counted here is the `foreach` around them: `B(expr) + 1 + N(body)`,
+ * where the body holds an `if` worth 2. Giving any of the three a score of its
+ * own would move this off 3.
+ */
+function throwYieldAndContinue(array $items): iterable
+{
+    foreach ($items as $item) {
+        if ($item === null) {
+            continue;
+        }
+
+        yield $item;
+    }
+
+    throw new \RuntimeException('exhausted');
+}
+
+/**
+ * 2. A `match` adds nothing for itself and its arms are not a branch, but the
+ * arm *bodies* are still ordinary expressions in the enclosing sequence — so a
+ * ternary written in an arm multiplies into the callable exactly as it would
+ * anywhere else. A live PHPMD run scores this 2, not 1.
+ *
+ * This is the arm shape uncountedConstructs() cannot express: its arms hold
+ * nothing scoreable, so it cannot tell "the arms were skipped" from "there was
+ * nothing in them to count".
+ */
+function matchArmTernaryMultiplies(int $a, bool $b): string
+{
+    $value = match ($a) {
+        1 => $b ? 'x' : 'y',
+        default => 'z',
+    };
+
+    return $value;
+}
+
+/**
+ * 1, and the counterpart to the callable above. A boolean operator in an arm
+ * body is *not* counted, because boolean operators are only summed inside a
+ * construct's own condition or a `return`, never at statement level. So the two
+ * arm shapes genuinely differ, and neither is "the match was skipped".
+ */
+function matchArmBooleanIsUncounted(int $a, bool $b, bool $c): bool
+{
+    $value = match ($a) {
+        1 => $b && $c,
+        default => false,
+    };
+
+    return $value;
+}
+
+/**
+ * 5. PDepend reads a ternary's condition as the first *child node* of the
+ * expression holding it, not as everything to the left of the `?`. Here that
+ * first child is `$a`, so the `&&` belongs to the enclosing `if` condition alone
+ * and is counted once: `B(cond)` is 1 for the operator plus 2 for the ternary,
+ * and the `if` adds its body and the missing `else`.
+ *
+ * Counting the condition up to the `?` would count that `&&` twice and make this
+ * 6 — which is what the callable below legitimately measures.
+ */
+function ternaryConditionStopsAtTheFirstOperator(bool $a, bool $b): int
+{
+    if ($a && $b ? 1 : 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * 6, and the only thing changed from the callable above is a pair of
+ * parentheses. Now the first child node *is* the whole `($a && $b)` group, so
+ * the operator is genuinely inside the ternary's condition as well as in the
+ * enclosing walk, and PDepend counts it twice. A live PHPMD run reports 5 for
+ * the callable above and 6 for this one.
+ */
+function ternaryConditionIncludesAParenthesisedGroup(bool $a, bool $b): int
+{
+    if (($a && $b) ? 1 : 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * 4. The `return` quirk, pinned at last: `return` multiplies its whole
+ * expression's boolean complexity into the sequence, and the parenthesised group
+ * is also the ternary's own condition, so the `&&` is counted once by each — 1
+ * for the return expression plus 3 for the ternary.
+ */
+function returnTernaryCountsItsConditionTwice(bool $a, bool $b): int
+{
+    return ($a && $b) ? 1 : 2;
+}
+
+/**
+ * 3, and the contrast that makes the quirk above visible: the identical ternary
+ * assigned to a variable is counted once, because an assignment is not a
+ * `return` and nothing sums its boolean operators a second time.
+ */
+function assignedTernaryCountsItsConditionOnce(bool $a, bool $b): int
+{
+    $value = ($a && $b) ? 1 : 2;
+
+    return $value;
+}

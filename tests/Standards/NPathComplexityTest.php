@@ -88,6 +88,31 @@ it('produces no violations on the compliant fixture', function (): void {
  * - 2 on nestedNamedFunction() and 2 on nestedInner() — a nested *named*
  *   function is its own artifact, measured separately and excluded from the
  *   callable around it.
+ * - 2 on forIgnoresInitAndUpdateClauses() against 4 on
+ *   forCountsItsConditionClause() — a `for` reads only its middle clause. The
+ *   two carry the same two boolean operators in different clauses, so reading
+ *   all three clauses would score both 4 and reading none would score both 2.
+ * - 3 on standaloneWhileLoop() — a `while` of its own, which doWhileLoop() never
+ *   reaches because the `while` of a `do … while` is consumed with the loop.
+ * - 4 on shortTernaryDoublesItsCondition() — the `?:` formula doubles the
+ *   condition where the full form would score the same expression 3.
+ * - 5 on logicalKeywordOperators() — `||`, `and`, and `or` each score 1, the
+ *   three boolean tokens no other callable counts live.
+ * - 3 on throwYieldAndContinue() — `throw`, `yield`, and `continue` score
+ *   nothing, so only the `foreach` around them counts.
+ * - 2 on matchArmTernaryMultiplies() against 1 on matchArmBooleanIsUncounted() —
+ *   a `match` adds nothing itself, but an arm body is still an ordinary
+ *   expression, so a ternary in one multiplies while a boolean operator in one
+ *   does not. uncountedConstructs() cannot show this: its arms hold nothing
+ *   scoreable, so it cannot separate "skipped" from "empty".
+ * - 5 on ternaryConditionStopsAtTheFirstOperator() against 6 on
+ *   ternaryConditionIncludesAParenthesisedGroup() — a ternary's condition is the
+ *   first *child node* of the expression holding it, not everything left of the
+ *   `?`. The two differ by one pair of parentheses, which is what moves the
+ *   `&&` into the condition and gets it counted twice.
+ * - 4 on returnTernaryCountsItsConditionTwice() against 3 on
+ *   assignedTernaryCountsItsConditionOnce() — the `return` quirk, and the
+ *   assignment that isolates it.
  *
  * labellessSwitch() is absent on purpose: it measures 0, and 0 is below a
  * minimum of 1, so it is reported at no threshold at all. The silence test
@@ -110,6 +135,18 @@ it('measures each counting rule exactly as PHPMD does', function (): void {
         'alternativeSyntax' => 4,
         'nestedNamedFunction' => 2,
         'nestedInner' => 2,
+        'forIgnoresInitAndUpdateClauses' => 2,
+        'forCountsItsConditionClause' => 4,
+        'standaloneWhileLoop' => 3,
+        'shortTernaryDoublesItsCondition' => 4,
+        'logicalKeywordOperators' => 5,
+        'throwYieldAndContinue' => 3,
+        'matchArmTernaryMultiplies' => 2,
+        'matchArmBooleanIsUncounted' => 1,
+        'ternaryConditionStopsAtTheFirstOperator' => 5,
+        'ternaryConditionIncludesAParenthesisedGroup' => 6,
+        'returnTernaryCountsItsConditionTwice' => 4,
+        'assignedTernaryCountsItsConditionOnce' => 3,
     ]);
 });
 
@@ -257,4 +294,101 @@ it('reports without offering a fix', function (): void {
     $file = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');
 
     expect(violationFixableFlags($file))->not->toContain(true);
+});
+
+/**
+ * The message calls a class member a "method" and a free function a "function",
+ * the way PHPMD's own message does. measuredComplexities() reads the two through
+ * a non-capturing alternation and so cannot tell them apart, which is why the
+ * whole message is asserted here instead — the sibling
+ * ExcessiveMethodLengthTest does the same for the same reason.
+ *
+ * failing.php holds only free functions, so the method half comes from
+ * passing.php's abstract method at a minimum of 1.
+ */
+it('names the callable kind the way PHPMD does', function (): void {
+    $functions = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');
+    $methods = analyzeFixture(NPATH_COMPLEXITY, 'passing.php', function ($sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    expect(violationMessages($functions))->toContain(
+        'The function multipliesSequentialBranches() has an NPath complexity of 256, at or '
+            . 'above the configured minimum of 200; break it into smaller pieces (see '
+            . 'docs/phpmd/codesize-npathcomplexity.md)'
+    )->and(violationMessages($methods))->toContain(
+        'The method abstractMethod() has an NPath complexity of 1, at or above the configured '
+            . 'minimum of 1; break it into smaller pieces (see '
+            . 'docs/phpmd/codesize-npathcomplexity.md)'
+    );
+});
+
+/**
+ * NPath multiplies, so a flat run of independent `if`s doubles the measurement
+ * per branch and passes PHP_INT_MAX at 63 of them — a few kilobytes of
+ * unremarkable code, well within what a generator or a long-lived legacy method
+ * produces without anyone trying.
+ *
+ * Before the arithmetic saturated, that was not a large number in a report but a
+ * crash: the product silently became a `float`, and returning a `float` from an
+ * `int`-typed method under `declare(strict_types=1)` raises a TypeError, which
+ * PHP_CodeSniffer does not catch — Runner catches `\Exception`, and TypeError is
+ * an `\Error`. One such callable therefore aborted the entire run, taking every
+ * other file and every other sniff with it.
+ *
+ * 70 branches is comfortably past the boundary. The assertion is deliberately in
+ * two parts: reaching the expectation at all proves no TypeError escaped, and
+ * the message proves the measurement stopped at the ceiling and *says* it is a
+ * lower bound rather than reporting the ceiling as an exact count.
+ */
+it('saturates instead of overflowing on an astronomically branching callable', function (): void {
+    $fixture = stageGeneratedFixture('overflow.php', sequentialBranchFixture(70));
+
+    $file = analyzeWithSniffs([NPATH_COMPLEXITY], $fixture);
+
+    expect(violationMessages($file))->toBe([
+        'The function manyBranches() has an NPath complexity of at least ' . PHP_INT_MAX
+            . ', at or above the configured minimum of 200; break it into smaller pieces '
+            . '(see docs/phpmd/codesize-npathcomplexity.md)',
+    ]);
+});
+
+/**
+ * A chain of short ternaries — `$a ?: $a ?: $a …` — is left-associative, needs no
+ * parentheses, and is valid PHP that any linter will happily be handed. Finding
+ * where one link's else-branch ends used to mean scanning to the end of the
+ * whole statement, at every link, which is O(n) work n times over.
+ *
+ * Measured in this harness at 4800 links: 0.34s per phpcs run before the scan
+ * memoised its result and 0.30s after is *not* the interesting comparison — the
+ * growth is. At 800 / 1600 / 3200 links the unmemoised walk ran 0.22s / 0.65s /
+ * 2.39s, the ~3.7x per doubling that names it quadratic, while the memoised one
+ * ran 0.29s / 0.30s / 0.34s and stayed flat. A file with a few thousand links
+ * therefore stalled a run for a meaningful multiple of a CI budget, and nothing
+ * in this tree bounded it.
+ *
+ * An asymptotic fix has no observable but time, so the budget sits well above
+ * the measured cost rather than near it, exactly as the sibling nesting-scale
+ * test in MappingArrayCandidateTest does.
+ *
+ * The measurement assertion is what stops the stopwatch from passing vacuously:
+ * a file the sniff silently gave up on would also be fast. It is load-bearing in
+ * a second way. A chain nests to the right, so each link adds 2 and the whole
+ * chain is 2n — 9600 here, confirmed against a live PHPMD run at 100 links,
+ * which reports 200. Truncating the scan at the next `?` instead of memoising
+ * its result would also make the walk linear, but it would read each link as its
+ * own statement and *multiply* them into 2 ** 4800. This number is what holds
+ * the fix to one that keeps the measurement PHPMD's.
+ */
+it('stays linear on a long chain of ternaries', function (): void {
+    $fixture = stageGeneratedFixture('ternaries.php', ternaryChainFixture(4800));
+
+    buildRuleset([NPATH_COMPLEXITY]);
+
+    $started = hrtime(true);
+    $file = analyzeWithSniffs([NPATH_COMPLEXITY], $fixture);
+    $elapsed = ((hrtime(true) - $started) / 1e9);
+
+    expect(measuredComplexities($file))->toBe(['chainedTernaries' => 9600])
+        ->and($elapsed)->toBeLessThan(2.0);
 });

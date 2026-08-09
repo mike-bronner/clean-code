@@ -783,6 +783,56 @@ function nestedChainFixture(int $depth): array
 }
 
 /**
+ * Source for one callable holding a left-associative chain of $links short
+ * ternaries — `$a ?: $a ?: $a …` — which needs no parentheses and is ordinary
+ * valid PHP.
+ *
+ * Generated rather than committed for the same reason as nestedChainFixture():
+ * the length is the whole point, and it is what the NPath sniff's linearity test
+ * measures against. Each link is a place the sniff has to find the end of an
+ * else-branch, so a scan that runs to the end of the statement every time makes
+ * the walk quadratic in $links.
+ */
+function ternaryChainFixture(int $links): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function chainedTernaries($a)', '{'];
+    $lines[] = '    $value = $a' . str_repeat(' ?: $a', $links) . ';';
+    $lines[] = '';
+    $lines[] = '    return $value;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Source for one callable holding $branches sequential independent `if`s.
+ *
+ * NPath multiplies statements in sequence and each of these is worth 2, so the
+ * measurement is 2 ** $branches — which passes PHP_INT_MAX at 63 branches from
+ * a few kilobytes of entirely ordinary code. That is what the NPath sniff's
+ * saturation test drives, and generating it keeps the arithmetic legible where
+ * sixty-odd committed fixture blocks would not be.
+ */
+function sequentialBranchFixture(int $branches): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function manyBranches(int $a): int', '{'];
+
+    for ($branch = 0; $branch < $branches; $branch++) {
+        $lines[] = '    if ($a === ' . $branch . ') {';
+        $lines[] = '        $a++;';
+        $lines[] = '    }';
+        $lines[] = '';
+    }
+
+    $lines[] = '    return $a;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
  * Collapses the sniff's messages into `callable name => measured NPath`, which
  * is what every measurement assertion above reads.
  *

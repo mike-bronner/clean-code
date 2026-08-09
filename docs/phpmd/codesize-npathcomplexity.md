@@ -42,14 +42,25 @@ the NPath of a statement range.
 | `elseif` | same formula as `if`, so a chain nests rather than summing flat |
 | `while` | `B(cond) + N(body) + 1` |
 | `do … while` | `B(cond) + N(body) + 1` |
-| `for` | `1 + B(init; cond; step) + N(body)` |
+| `for` | `1 + B(cond) + N(body)`, where `cond` is the **middle clause alone** — PDepend sums only the loop's expression children, and the init and update clauses are not expressions, so a boolean operator in either is not counted |
 | `foreach` | `B(expr) + 1 + N(body)` |
 | `switch` | `B(expr)` plus `N(range)` for every `case` **and** `default` label |
 | `try` | the sum of `N(range)` over the `try` block, every `catch`, and the `finally` |
 | `? :` | `B(cond) + B(then) + B(else) + 2`; the short `?:` doubles `B(cond)` in place of the missing branch |
 | `return` | `B(expr)`, or 1 when that is 0 |
 
-Worth nothing at all: `match` and its arms, `??`, `??=`, `?->`, `!`, `goto`,
+A ternary's `B(cond)` is the first **child node** of the expression holding it,
+not everything to the left of the `?`. So `$a && $b ? 1 : 0` does not count the
+`&&` as part of the condition (the first child is `$a`), while
+`($a && $b) ? 1 : 0` does (the first child is the whole parenthesised group) —
+a live PHPMD run scores an `if` around the first 5 and around the second 6.
+
+A `match` adds nothing for itself, and a boolean operator in an arm body is not
+counted — but an arm body is still an ordinary expression in the enclosing
+sequence, so a **ternary** in an arm multiplies into the callable like any other.
+`match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` measures 2, not 1.
+
+Worth nothing at all: `??`, `??=`, `?->`, `!`, `goto`,
 `throw`, `yield`, `break`, and `continue`.
 
 ### Three results that surprise
