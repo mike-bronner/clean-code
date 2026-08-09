@@ -275,12 +275,27 @@ it('flags a file that is nothing but markup', function () use ($sourceRun): void
  * The empty fixture is 0 bytes, so it also pins that a file with no tokens at
  * all does not fall over — the sniff never fires there, since none of its
  * registered tokens exists.
+ *
+ * The warning half is filtered to this sniff rather than asserted empty,
+ * because PHP_CodeSniffer raises `Internal.NoCodeFound` on a file holding no
+ * PHP whenever the runtime has `short_open_tag` off. That is a property of the
+ * PHP the suite runs on — it appears on CI and not on a developer machine with
+ * the setting on — and says nothing about the sniff. The errors half stays
+ * absolute: the sniff reports errors only, so an unfiltered empty-errors
+ * assertion is still the strict one.
  */
 it('leaves a file with no code alone', function (string $fixture) use ($sourceRun): void {
     $file = $sourceRun($fixture);
+    $warnings = [];
+
+    foreach (violationSourcesByLine($file->getWarnings()) as $sources) {
+        $warnings = array_merge($warnings, $sources);
+    }
+
+    $ours = array_filter($warnings, static fn (string $source): bool => str_starts_with($source, PROCEDURAL));
 
     expect($file->getErrors())->toBe([])
-        ->and($file->getWarnings())->toBe([]);
+        ->and(array_values($ours))->toBe([]);
 })->with(['empty.php', 'comments-only.php']);
 
 /**
