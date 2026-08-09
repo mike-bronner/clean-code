@@ -15,6 +15,7 @@
 declare(strict_types=1);
 
 use PHP_CodeSniffer\Config;
+use PHP_CodeSniffer\Files\DummyFile;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -197,6 +198,26 @@ function analyzeWithSniffs(array $sniffCodes, string $path, ?callable $configure
 }
 
 /**
+ * Processes source through a ruleset narrowed to the given sniff codes, as
+ * piped input with no path — PHPCS reports the file name as STDIN.
+ *
+ * A sniff that reads the file's location has to say nothing when there is no
+ * location to read, and that behaviour cannot be reached through a fixture on
+ * disk: every fixture has a path.
+ *
+ * @param array<int, string> $sniffCodes
+ */
+function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
+{
+    [$config, $ruleset] = buildRuleset($sniffCodes);
+
+    $file = new DummyFile($source, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, resolving the
  * fixture directory from the sniff code.
  *
@@ -209,6 +230,22 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
         fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
         $configure
     );
+}
+
+/**
+ * Processes a fixture through a ruleset narrowed to one sniff, with a single
+ * public property set the way a consuming ruleset's <properties> would set it.
+ * The shorthand for the common case of exercising one configurable threshold.
+ */
+function analyzeFixtureWithProperty(
+    string $sniffCode,
+    string $fixture,
+    string $property,
+    mixed $value
+): LocalFile {
+    return analyzeFixture($sniffCode, $fixture, static function (object $sniff) use ($property, $value): void {
+        $sniff->{$property} = $value;
+    });
 }
 
 /**
@@ -497,6 +534,28 @@ function allViolationSourcesByLine(LocalFile $file): array
 }
 
 /**
+ * Every violation message on a processed file's errors, in line order, so a
+ * test can assert what a message *says* — the metric a threshold sniff counted,
+ * the name it resolved — rather than only that it was raised.
+ *
+ * @return array<int, string>
+ */
+function violationMessages(LocalFile $file): array
+{
+    $messages = [];
+
+    foreach ($file->getErrors() as $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $messages[] = $violation['message'];
+            }
+        }
+    }
+
+    return $messages;
+}
+
+/**
  * Every `fixable` flag on a processed file's errors, so a test can assert a
  * rule is detection-only without reaching into PHPCS's nested structure.
  *
@@ -546,6 +605,27 @@ function stageFixtureOutsideTests(string $path, string $subdirectory = ''): stri
 
     $staged = $directory . '/' . basename($path);
     copy($path, $staged);
+
+    return $staged;
+}
+
+/**
+ * Writes $source to a file named $filename in a directory outside the
+ * repository and returns the path, so a test can compare a sniff's verdict on
+ * the same bytes at a real path and with no path at all.
+ */
+function stageSourceOutsideTests(string $source, string $filename): string
+{
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    stagedFixtures($directory);
+
+    $staged = $directory . '/' . $filename;
+    file_put_contents($staged, $source);
 
     return $staged;
 }
