@@ -21,10 +21,10 @@
  *     DisallowBooleanArgumentFlag, TooManyPublicMethods,
  *     ExcessiveMethodLength, ExcessiveParameterList, ExcessiveClassComplexity,
  *     ExcessivePublicCount, MemberOrdering, BooleanGetMethodName,
- *     ShortClassName, LineLength,
- *     ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
- *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
- *     but no autofixed.php, because there is no safe mechanical rewrite.
+ *     ShortClassName, LineLength, ConstructorName, DiscourageGoto, Eval,
+ *     NoSilencedErrors, VariableAnalysis, ShortMethodName) carry passing.php
+ *     and failing.php but no autofixed.php, because there is no safe
+ *     mechanical rewrite.
  *
  * — which is why the contract is expressed as separate datasets rather than one
  * list. An autofixed.php is never a substitute for a passing.php: it is the
@@ -83,8 +83,8 @@ const SWEPT_SNIFFS = [
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
     'CleanCode.Metrics.ExcessiveClassComplexity',
-    'CleanCode.Models.MemberOrdering',
     'CleanCode.Metrics.ExcessivePublicCount',
+    'CleanCode.Models.MemberOrdering',
     'CleanCode.Naming.BooleanGetMethodName',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
@@ -125,7 +125,11 @@ dataset('error-reporting sniffs', SWEPT_SNIFFS);
 
 dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 
-dataset('autofixable sniffs', [
+/**
+ * Every sniff that ships a fixer, and so carries autofixed.php on top of the
+ * floor.
+ */
+const AUTOFIXABLE_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Operators.NotOperatorSpacing',
@@ -136,7 +140,9 @@ dataset('autofixable sniffs', [
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
     'SlevomatCodingStandard.Namespaces.UnusedUses',
-]);
+];
+
+dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
 /**
  * Every autofixable sniff except CleanCode.Conditionals.OneConditionPerLine,
@@ -146,7 +152,7 @@ dataset('autofixable sniffs', [
  * autofixed.php therefore legitimately retains one non-fixable error, pinned
  * exactly in tests/Standards/OneConditionPerLineTest.php.
  */
-dataset('sniffs whose fixer resolves every violation', [
+const TOTAL_FIXER_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
@@ -156,6 +162,27 @@ dataset('sniffs whose fixer resolves every violation', [
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
     'SlevomatCodingStandard.Namespaces.UnusedUses',
+];
+
+dataset('sniffs whose fixer resolves every violation', TOTAL_FIXER_SNIFFS);
+
+/**
+ * Every list above is kept in strict alphabetical order, so an added sniff has
+ * exactly one place to go and a reader can scan for one. Nothing else enforces
+ * that: the lists are data, and every assertion over them holds whatever order
+ * they are in, so a misfiled entry rides through a fully green suite. This is
+ * the only thing that catches it.
+ */
+it('keeps every sniff list in alphabetical order', function (array $sniffCodes): void {
+    $sorted = $sniffCodes;
+    sort($sorted, SORT_STRING);
+
+    expect($sniffCodes)->toBe($sorted);
+})->with([
+    'error-reporting' => [SWEPT_SNIFFS],
+    'warning-reporting' => [SWEPT_WARNING_SNIFFS],
+    'autofixable' => [AUTOFIXABLE_SNIFFS],
+    'total fixer' => [TOTAL_FIXER_SNIFFS],
 ]);
 
 it('resolves every sniff through the master ruleset', function (string $sniffCode): void {

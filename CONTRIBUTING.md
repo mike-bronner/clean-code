@@ -134,7 +134,9 @@ in and what applies the `<properties>` configured there.
    registration datasets, so the floor cannot be half-applied). Add it to
    `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
-   generic passing/failing/autofix/idempotence coverage.
+   generic passing/failing/autofix/idempotence coverage. Every one of those
+   lists is kept in alphabetical order, enforced by `it keeps every sniff list
+   in alphabetical order` — file each entry in its sorted position.
 
    A sniff **scoped by path** in `rules.xml` is the one exception: the sweep
    processes each fixture where it lives, under `tests/`, and PHPCS decides
