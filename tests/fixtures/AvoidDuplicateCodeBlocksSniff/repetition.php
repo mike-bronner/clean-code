@@ -12,7 +12,7 @@ namespace MikeBronner\CleanCode\Tests\Fixtures;
  *
  * seedCounters() holds nine such lines and is silent. seedLabels() holds twelve,
  * of a different shape — integer and string literals are different token types
- * — and one report covers the five lines that stand clear of the first five.
+ * — and both the first five and the five standing clear of them are reported.
  *
  * Twelve rather than ten, so the report's extent pins the second half of the
  * same rule: a matched block grows only as far as it can without reaching back

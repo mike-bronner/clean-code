@@ -54,15 +54,19 @@ use PHP_CodeSniffer\Util\Tokens;
  * - **Same file only.** A PHPCS sniff sees one file's tokens at a time.
  *   Project-wide copy/paste detection is the domain of a dedicated detector
  *   such as `phpcpd`.
- * - **Non-overlapping copies only.** Two windows that share code lines are one
+ * - **Non-overlapping blocks only.** Two windows that share code lines are one
  *   run of similar lines, not two blocks, so a long column of same-shaped
  *   statements is not reported against a shifted copy of itself. A repeat is
- *   reported only once its distance from the original is at least the window
- *   length, and a matched block is then extended only as far as it can grow
- *   without touching the original.
- * - **One warning per copy.** A block that repeats a run longer than the
- *   window is reported once, at its first code line, with the run's real
- *   length — not once per window inside it.
+ *   reported only once it stands a whole window clear of the block it repeats,
+ *   and is then extended only as far as it can grow without touching it.
+ * - **One warning per participating location.** Duplication is a property the
+ *   blocks share, not something the later one did to the earlier, so every
+ *   block of a repeated shape is reported at its own first code line and names
+ *   the others. A reader with the cursor on any one of them sees the whole set;
+ *   none of them is silent because it happened to be written first.
+ * - **One warning per block, not per window.** A block that repeats a run
+ *   longer than the window is reported once, with the run's real length — not
+ *   once per window inside it.
  *
  * Cost. Summarizing the file is one walk of its tokens. Each window key is
  * built from at most $minimumLines interned line ids, and the greedy extension
@@ -164,19 +168,55 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         [$lineShapes, $anchors] = $this->summarizeCodeLines($tokens);
 
         foreach ($this->findRepeatedBlocks($lineShapes, $minimumLines) as $block) {
-            $phpcsFile->addWarning(
-                'This block of code, through line %d, repeats the block starting on line %d,'
-                    . ' ignoring variable, literal, and identifier names. Extract the shared logic'
-                    . ' once the duplication has earned an abstraction (see'
-                    . ' docs/standards/pattern-dont-repeat-yourself-dry.md).',
-                $anchors[$block['start']],
-                'Found',
-                [
-                    $tokens[$anchors[($block['start'] + $block['length']) - 1]]['line'],
-                    $tokens[$anchors[$block['origin']]]['line'],
-                ]
-            );
+            foreach ($block['starts'] as $position => $start) {
+                $others = $block['starts'];
+                unset($others[$position]);
+
+                $phpcsFile->addWarning(
+                    'This block of code, through line %d, is near-identical to %s, ignoring'
+                        . ' variable, literal, and identifier names. Extract the shared logic'
+                        . ' once the duplication has earned an abstraction (see'
+                        . ' docs/standards/pattern-dont-repeat-yourself-dry.md).',
+                    $anchors[$start],
+                    'Found',
+                    [
+                        $tokens[$anchors[($start + $block['length']) - 1]]['line'],
+                        $this->describeBlocks($tokens, $anchors, $others),
+                    ]
+                );
+            }
         }
+    }
+
+    /**
+     * The clause naming where the other blocks of a repeated shape start, as
+     * "the block starting on line 21" or "the blocks starting on lines 21 and
+     * 42" — composed here rather than left to a `%s` list so both the singular
+     * and the plural read as English.
+     *
+     * $starts arrives in file order and is kept that way: the walk records a
+     * group's first block before any of its repeats and appends the rest as it
+     * reaches them, so the lines a warning names read down the file.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $anchors
+     * @param array<int, int>                  $starts
+     */
+    private function describeBlocks(array $tokens, array $anchors, array $starts): string
+    {
+        $lines = [];
+
+        foreach ($starts as $start) {
+            $lines[] = $tokens[$anchors[$start]]['line'];
+        }
+
+        $last = array_pop($lines);
+
+        if ($lines === []) {
+            return 'the block starting on line ' . $last;
+        }
+
+        return 'the blocks starting on lines ' . implode(', ', $lines) . ' and ' . $last;
     }
 
     /**
@@ -236,27 +276,36 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
     }
 
     /**
-     * Every repeated block, as {start, origin, length} in code-line indices:
-     * the copy starts at `start`, repeats the block starting at `origin`, and
-     * both run for `length` code lines.
+     * Every repeated shape in the file, as {starts, length} in code-line
+     * indices: each entry of `starts` is one block of that shape, in the order
+     * they appear, and every one of them runs for `length` code lines.
+     *
+     * Blocks are grouped by shape rather than paired off, because the report
+     * has to name *every* other location a block is near-identical to — a third
+     * copy is not a second, separate finding about the first two.
      *
      * A window is remembered the first time its shape is seen; a later window
-     * with the same shape is a copy of it. Two guards keep one duplication from
+     * with the same shape joins its group. Two guards keep one duplication from
      * becoming a cascade of reports:
      *
-     * - A copy closer to its original than the window length overlaps it, which
-     *   makes it one run of same-shaped lines rather than two blocks.
-     * - Once a copy is found it is extended line by line, as far as it can grow
-     *   without reaching back into its original, and the scan then resumes past
-     *   the block — so the windows inside it are not reported again.
+     * - A block closer to the first of its shape than the window length
+     *   overlaps it, which makes it one run of same-shaped lines rather than
+     *   two blocks.
+     * - Once a repeat is found it is extended line by line, as far as it can
+     *   grow without reaching back into the block it repeats, and the scan then
+     *   resumes past it — so the windows inside it are not reported again.
+     *
+     * A group's length is the extent *all* its blocks share: a later block that
+     * stops matching sooner shortens the group rather than splitting it, so the
+     * one span the warning names holds for every location it names.
      *
      * @param array<int, int> $lineShapes
      *
-     * @return array<int, array{start: int, origin: int, length: int}>
+     * @return array<int, array{starts: array<int, int>, length: int}>
      */
     private function findRepeatedBlocks(array $lineShapes, int $minimumLines): array
     {
-        $blocks = [];
+        $groups = [];
         $firstSeenAt = [];
         $windowCount = (count($lineShapes) - $minimumLines) + 1;
 
@@ -276,20 +325,24 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
             }
 
             $length = $this->measureBlock($lineShapes, $index, $origin, $minimumLines);
-            $blocks[] = ['start' => $index, 'origin' => $origin, 'length' => $length];
+            $groups[$window] ??= ['starts' => [$origin], 'length' => $length];
+            $groups[$window]['starts'][] = $index;
+            $groups[$window]['length'] = min($groups[$window]['length'], $length);
             $index += ($length - 1);
         }
 
-        return $blocks;
+        return array_values($groups);
     }
 
     /**
-     * How far a copy found at $index keeps matching its original at $origin,
-     * in code lines, starting from the window that matched.
+     * How far the block at $index keeps matching the earlier one at $origin, in
+     * code lines, starting from the window that matched. Pairwise, because that
+     * is what a match is measured against; the group then reports the extent
+     * all of its blocks share.
      *
      * Growth stops at the end of the file, at the first line that differs, and
-     * at the point where the original would run into the copy — a block and the
-     * block it repeats never share a line.
+     * at the point where the earlier block would run into the later one — two
+     * blocks of a shape never share a line.
      *
      * @param array<int, int> $lineShapes
      */

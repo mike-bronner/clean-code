@@ -27,11 +27,15 @@ two. The standard's textual half is therefore enforced by the custom
 `rules.xml` via the CleanCode standard
 ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
 
-- **Detection** — a run of code lines in one file that repeats an earlier run is
+- **Detection** — a run of code lines in one file that repeats another run is
   reported as a duplication candidate, under
-  `CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found`. The warning sits on the
-  first line of the copy and names both the line the copy ends at and the line
-  the original starts at.
+  `CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found`.
+- **One warning per location** — every block of a repeated shape is reported at
+  its own first line, and each warning names the line its block ends at plus the
+  first line of every other block of that shape. Duplication is something the
+  blocks share, so none of them is left silent for having been written first,
+  and with three or more the set is discoverable from whichever one the reader
+  is looking at.
 - **Blocks, not bodies** — the comparison slides a window over the file's code
   lines, so a duplicate is found wherever it sits: twice inside one method,
   across two methods, or spanning a declaration boundary. A duplicated method
@@ -50,8 +54,8 @@ two. The standard's textual half is therefore enforced by the custom
 - **Configurable threshold** — `minimumLines` is a sniff property, so projects
   can tune sensitivity. It defaults to **5**, the length the standard's own
   guidance calls out, and is floored at 1.
-- **Non-overlapping copies only** — a copy is reported once it stands a whole
-  window clear of what it repeats, and grows only as far as it can without
+- **Non-overlapping blocks only** — a repeat is reported once it stands a whole
+  window clear of the block it repeats, and grows only as far as it can without
   reaching back into it. A long column of same-shaped statements is one run of
   similar lines, not a block repeating itself.
 - **Warning severity, not error** — the standard explicitly tolerates

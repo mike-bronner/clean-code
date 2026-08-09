@@ -32,6 +32,12 @@ const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVaria
  * they catch, so a copy-paste detector reporting them is the two standards
  * agreeing rather than a conflict: the fixture really is copy-pasted, and it
  * has to stay that way to keep the exception sniffs' pinned lines stable.
+ *
+ * Every block of a repeated shape is reported, not only the later ones, so each
+ * line below is a block in its own right rather than a copy of the one above
+ * it. The non-capturing-catch fixture is a three-way group — one shape at lines
+ * 4, 18, and 51 — which is why it now carries three warnings where pairing
+ * blocks off left the first of the three silent.
  */
 const DUPLICATE_BLOCK = 'CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found';
 
@@ -232,6 +238,8 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('ReferenceThrowableOnlySniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            7 => [DUPLICATE_BLOCK],
+            14 => [DUPLICATE_BLOCK],
             21 => [DUPLICATE_BLOCK],
             35 => [DUPLICATE_BLOCK],
             79 => ['PSR1.Classes.ClassDeclaration.MissingNamespace'],
@@ -241,6 +249,7 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
+            4 => [DUPLICATE_BLOCK],
             18 => [DUPLICATE_BLOCK],
             51 => [DUPLICATE_BLOCK],
         ],

@@ -5,7 +5,7 @@
 /**
  * One duplicated block, three PHP open tags around it — a short echo tag, then
  * two plain ones. The scan runs once, from the first tag whichever kind it is,
- * so the pair is reported once.
+ * so the pair is found once and each of its two blocks warns once.
  *
  * The short tag comes first deliberately. It is what makes the guard's two
  * halves separable: dropping the guard reports the pair three times, leaving

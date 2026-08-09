@@ -49,45 +49,56 @@ it('produces no violations on the compliant fixture', function (): void {
 });
 
 /**
- * The two shapes the standard is about, one warning each, reported at the
- * first line of the copy.
+ * The two shapes the standard is about, reported at the first line of *both*
+ * blocks — the one that repeats and the one it repeats.
  *
- * Line 31 is the sub-declaration case and the reason this sniff compares
- * blocks rather than bodies: both copies sit inside one method, so no
- * whole-body comparison could ever see them. Line 62 is the whole-body case,
- * which block comparison still covers — the run simply happens to start at the
- * signature, because two same-shaped signatures are two same-shaped lines.
+ * Lines 21/31 are the sub-declaration case and the reason this sniff compares
+ * blocks rather than bodies: both blocks sit inside one method, so no
+ * whole-body comparison could ever see them. Lines 52/62 are the whole-body
+ * case, which block comparison still covers — the run simply happens to start
+ * at the signature, because two same-shaped signatures are two same-shaped
+ * lines.
  *
- * Both copies rename variables and change literals, so comparing token content
- * would silence this test entirely.
+ * Both later blocks rename variables and change literals, so comparing token
+ * content would silence this test entirely.
+ *
+ * Reporting only the later block of each pair drops lines 21 and 52 and
+ * reddens this: a developer sitting on the first block would get no signal at
+ * all that their code is duplicated further down the file.
  */
-it('warns once per copied block, at the first line of the copy', function (): void {
+it('warns at every block of a repeated shape, at its first line', function (): void {
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'failing.php');
 
     expect(warningTuples($file))->toBe([
+        ['line' => 21, 'column' => 9, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 31, 'column' => 9, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 52, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 62, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ]);
 });
 
 /**
- * The warning sits on the copy, so it has to say where the original is or a
- * reader has nothing to compare against.
+ * Each warning names its own block's extent and where the other block starts,
+ * in both directions — a reader on either one has somewhere to look.
  */
-it('names the line the copied block repeats', function (): void {
+it('names the other block from both sides of a pair', function (): void {
     $messages = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'failing.php')->getWarnings();
 
-    expect($messages[31][9][0]['message'])
-        ->toContain('through line 37, repeats the block starting on line 21')
+    expect($messages[21][9][0]['message'])
+        ->toContain('through line 27, is near-identical to the block starting on line 31')
+        ->and($messages[31][9][0]['message'])
+        ->toContain('through line 37, is near-identical to the block starting on line 21')
+        ->and($messages[52][5][0]['message'])
+        ->toContain('through line 59, is near-identical to the block starting on line 62')
         ->and($messages[62][5][0]['message'])
-        ->toContain('through line 69, repeats the block starting on line 52');
+        ->toContain('through line 69, is near-identical to the block starting on line 52');
 });
 
 it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'failing.php');
 
     expect($file->getErrorCount())->toBe(0)
-        ->and($file->getWarningCount())->toBe(2);
+        ->and($file->getWarningCount())->toBe(4);
 });
 
 /**
@@ -100,7 +111,7 @@ it('reports the failing fixture as warnings, never errors', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(2)
+    expect($file->getWarningCount())->toBe(4)
         ->and($file->getFixableCount())->toBe(0);
 });
 
@@ -116,13 +127,14 @@ it('compares only blocks at or above the default line threshold', function (): v
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'boundaries.php');
 
     expect(warningTuples($file))->toBe([
+        ['line' => 17, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 25, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ]);
 });
 
 /**
- * Lowering the threshold to four brings the four-line pair in, at line 45,
- * without disturbing the five-line one. The property is what decides, not a
+ * Lowering the threshold to four brings the four-line pair in, at lines 38 and
+ * 45, without disturbing the five-line one. The property is what decides, not a
  * constant baked into the walk.
  */
 it('honours a lowered line threshold', function (): void {
@@ -135,7 +147,9 @@ it('honours a lowered line threshold', function (): void {
     );
 
     expect(warningTuples($file))->toBe([
+        ['line' => 17, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 25, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 38, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 45, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ]);
 });
@@ -167,10 +181,11 @@ it('floors the line threshold at one', function (): void {
     );
 
     expect(warningTuples($file))->toBe([
+        ['line' => 16, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 18, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ])
         ->and($file->getWarnings()[18][1][0]['message'])
-        ->toContain('through line 18, repeats the block starting on line 16');
+        ->toContain('through line 18, is near-identical to the block starting on line 16');
 });
 
 /**
@@ -190,6 +205,7 @@ it('reports more, not less, on a mistyped threshold', function (): void {
     );
 
     expect(warningTuples($file))->toBe([
+        ['line' => 16, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 18, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ]);
 });
@@ -199,18 +215,19 @@ it('reports more, not less, on a mistyped threshold', function (): void {
  * first one, whichever kind it is, so every later tag must be ignored.
  * multiple-open-tags.php opens on a short echo tag and carries two plain ones
  * after it, around a single duplicated pair. Each half of that rule is
- * separately pinned here: dropping the guard reports line 30 three times,
- * dropping T_OPEN_TAG_WITH_ECHO from the guard's lookback reports it twice,
- * and dropping it from register() reports nothing at all.
+ * separately pinned here: dropping the guard reports the pair three times over,
+ * dropping T_OPEN_TAG_WITH_ECHO from the guard's lookback reports it twice, and
+ * dropping it from register() reports nothing at all.
  */
 it('scans the file once however many open tags it carries', function (): void {
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'multiple-open-tags.php');
 
     expect(warningTuples($file))->toBe([
+        ['line' => 20, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 30, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ])
         ->and($file->getWarnings()[30][1][0]['message'])
-        ->toContain('through line 34, repeats the block starting on line 20');
+        ->toContain('through line 34, is near-identical to the block starting on line 20');
 });
 
 /**
@@ -219,19 +236,85 @@ it('scans the file once however many open tags it carries', function (): void {
  *
  * seedCounters()'s nine lines stay silent because no five of them stand five
  * clear of another five; dropping the overlap guard reports them. seedLabels()
- * has twelve, so lines 47-51 do stand clear of 42-46 and are reported — but
- * only through line 51, because a sixth line would put the original at 42-47
- * and overlap the copy. Dropping the growth guard runs the same report on to
- * line 53.
+ * has twelve, so lines 47-51 do stand clear of 42-46, and both blocks are
+ * reported — but each only five lines long, because a sixth would put the
+ * earlier block at 42-47 and overlap the later one. Dropping the growth guard
+ * runs the report on to line 53.
  */
 it('does not report a run of similar lines against itself', function (): void {
     $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'repetition.php');
 
     expect(warningTuples($file))->toBe([
+        ['line' => 42, 'column' => 9, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
         ['line' => 47, 'column' => 9, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
     ])
         ->and($file->getWarnings()[47][9][0]['message'])
-        ->toContain('through line 51, repeats the block starting on line 42');
+        ->toContain('through line 51, is near-identical to the block starting on line 42');
+});
+
+/**
+ * Three blocks of one shape, which is where pairing blocks off stops being
+ * enough: the report has to reach every location, and each location has to
+ * name every other one.
+ *
+ * three-copies.php holds three six-line methods of identical shape, renamed
+ * throughout. All three are reported, and each names the other two — so the
+ * set is discoverable from whichever one the reader happens to be looking at.
+ *
+ * Pairing each copy back to the first block it matched reddens this twice
+ * over: line 22 would carry no warning at all, and lines 32 and 42 would each
+ * name only line 22, never each other.
+ */
+it('reports every block of a shape that repeats more than once', function (): void {
+    $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'three-copies.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 22, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 32, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 42, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+    ]);
+});
+
+/**
+ * Each of the three names the other two, and only the other two — never
+ * itself, and in the order they appear rather than the order they were
+ * matched. The plural is written as plural, so the message reads as English
+ * whether it carries one other location or several.
+ */
+it('names every other block of a shape that repeats more than once', function (): void {
+    $messages = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'three-copies.php')->getWarnings();
+
+    expect($messages[22][5][0]['message'])
+        ->toContain('through line 29, is near-identical to the blocks starting on lines 32 and 42')
+        ->and($messages[32][5][0]['message'])
+        ->toContain('through line 39, is near-identical to the blocks starting on lines 22 and 42')
+        ->and($messages[42][5][0]['message'])
+        ->toContain('through line 49, is near-identical to the blocks starting on lines 22 and 32');
+});
+
+/**
+ * The extent a group reports is the span every one of its blocks shares, not
+ * the span the first pair happened to reach.
+ *
+ * shared-extent.php's first two blocks match for six code lines; the third
+ * returns a wrapped array and matches for only the five the window covers. All
+ * three are reported through their fifth line.
+ *
+ * Keeping the first measured extent instead of narrowing to the shared one
+ * reddens this on every line: each block would be reported through line six,
+ * and the third would be claiming a line it does not share.
+ */
+it('reports a group through the extent all of its blocks share', function (): void {
+    $messages = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'shared-extent.php')->getWarnings();
+
+    expect(tuplesFromMessages($messages))->toBe([
+        ['line' => 21, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 31, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 41, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+    ])
+        ->and($messages[21][5][0]['message'])->toContain('through line 26, is near-identical')
+        ->and($messages[31][5][0]['message'])->toContain('through line 36, is near-identical')
+        ->and($messages[41][5][0]['message'])->toContain('through line 46, is near-identical');
 });
 
 /**
