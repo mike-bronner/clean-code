@@ -100,6 +100,27 @@
         <exclude name="Squiz.NamingConventions.ValidVariableName.PrivateNoUnderscore"/>
     </rule>
 
+    <!--
+        Naming: Semantic naming principles (#18/#136) —
+        docs/standards/naming-semantic-naming-principles.md.
+
+        The custom CleanCode.Naming.DisallowMagicNumbers sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping and no severity change are wanted.
+
+        It carries the one token-visible slice of a Tier 3 standard: "Use
+        Searchable Names" calls out numeric constants, and a bare literal
+        outside a declaration site is decidable from a single file's tokens.
+        The rest of the standard stays with code review.
+
+        The sniff reports warnings from its own addWarning() call rather than
+        being lowered here, because advisory is the rule's nature and not a
+        local policy choice: some literals really are self-evident in context,
+        so it must never fail a consumer's build. Detection only — naming a
+        number is a judgement about what it means, so there is nothing safe to
+        rewrite mechanically.
+    -->
+
     <!-- Line Length (#3): lines should be <=100 characters (warning) and must be <=120 (error). -->
     <rule ref="Generic.Files.LineLength">
         <properties>
