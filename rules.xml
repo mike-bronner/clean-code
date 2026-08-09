@@ -299,6 +299,40 @@
     -->
 
     <!--
+        Testing: Development Process (TDD) (#57), classes-only slice (#129) —
+        docs/standards/testing-development-process-tdd.md.
+
+        The custom CleanCode.Files.NoProceduralCode sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this block only
+        scopes it. Nothing shipped already covers the case: PSR12 above bundles
+        PSR1 wholesale, and PSR1.Files.SideEffects forbids only *mixing* a
+        declaration with side effects, so a file that is nothing but procedural
+        code declares no symbol and passes it silently. Slevomat's whole
+        standard reports nothing on a purely procedural file either.
+
+        Both halves are asserted rather than asserted-in-prose, in
+        tests/Standards/NoProceduralCodeTest.php — composer.json floats
+        Slevomat on ^8.15, so the Slevomat half is a claim a vendor upgrade can
+        change without anyone touching this file.
+
+        Scoped with <include-pattern> rather than a list of exclusions, because
+        the standard is an allow-list: source directories only. Entry points
+        (public/index.php, artisan), config files (a top-level return []),
+        route files, and pre-Laravel-9-style migrations (return new class …)
+        are legitimately procedural, and all of them live outside src/ and
+        app/. A consuming project that keeps its classes elsewhere adds its own
+        <include-pattern> for that path.
+
+        Detection only: wrapping loose statements in a class decides which
+        class, which method, and which visibility, so there is no mechanical
+        rewrite.
+    -->
+    <rule ref="CleanCode.Files.NoProceduralCode">
+        <include-pattern>*/src/*</include-pattern>
+        <include-pattern>*/app/*</include-pattern>
+    </rule>
+
+    <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the

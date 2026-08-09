@@ -37,13 +37,20 @@
  * feeds every severity-neutral assertion — registration and both halves of the
  * passing fixture — so neither list can be added to and forgotten there.
  *
- * Two sniffs are deliberately absent from every dataset:
+ * Three sniffs are deliberately absent from every dataset. A path-scoped sniff
+ * cannot be swept: the sweep processes each fixture where it lives, under
+ * tests/, and PHPCS decides path scoping from the file's path alone — so the
+ * failing fixture reports nothing whatever the sniff does, and the passing
+ * assertion would hold against a sniff that had fallen silent altogether.
+ * Both such sniffs stage their fixtures outside the repository instead, and
+ * pin the scoping itself in their own file.
  *
  *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
- *     out of test paths, so processing its fixtures where they live reports
- *     nothing whatever the sniff does. It is covered in
- *     tests/Standards/DisallowExternalPersistenceCallsTest.php, which stages
- *     each fixture outside the repository first.
+ *     out of test paths. It is covered in
+ *     tests/Standards/DisallowExternalPersistenceCallsTest.php.
+ *   - CleanCode.Files.NoProceduralCode — rules.xml scopes it *into* source
+ *     paths (src/, app/) with <include-pattern>. It is covered in
+ *     tests/Standards/NoProceduralCodeTest.php.
  *   - The naming casing conventions — a composite standard carried by three
  *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
  *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
