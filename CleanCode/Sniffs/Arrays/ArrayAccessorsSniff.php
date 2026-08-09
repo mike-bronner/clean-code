@@ -63,7 +63,7 @@ use PHP_CodeSniffer\Util\Tokens;
  * rather than T_OPEN_SHORT_ARRAY. That label is the only thing separating an
  * index (a read) from a pattern (a write), so the pattern's write target is
  * reported as though it were an offset read. It is recorded in
- * tokenizer-limits.inc rather than worked around: the mislabelling happens
+ * tokenizer-limits.php rather than worked around: the mislabelling happens
  * before any sniff runs, and reconstructing the distinction would mean
  * re-deriving it from token data already known to be wrong.
  *
