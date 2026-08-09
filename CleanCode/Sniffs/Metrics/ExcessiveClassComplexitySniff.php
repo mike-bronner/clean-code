@@ -25,7 +25,9 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * - Counted: `if`, `elseif` (`else if` too — it is `else` followed by `if`),
  *   `while` (the `while` of a `do … while` included, see below), `for`,
  *   `foreach`, `case`, `catch`, `&&`, `||`, `and`, `or`, and the `?` of a
- *   ternary (`?:` included).
+ *   ternary (`?:` included). The keyword spellings `and` and `or` are pinned by
+ *   KeywordBooleanOperators in passing.php; every other counted boolean in the
+ *   fixtures is written in the symbol form.
  * - Not counted: `else`, `default`, `finally`, `xor`, `??`, `??=`, `?->`,
  *   `match` and its arms, `goto`.
  *
@@ -46,7 +48,8 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   inside a method is its own artifact, so its body is skipped.
  * - A closure or arrow function written inside a method is *not* its own
  *   artifact: its decision points belong to the enclosing method, which is what
- *   PDepend does by walking the method's whole subtree.
+ *   PDepend does by walking the method's whole subtree (InlineFunctionBodies in
+ *   passing.php).
  * - An abstract method counts 1, the same as an empty concrete one.
  * - Only the body is measured. A ternary or boolean operator in a parameter
  *   default or a property default is outside every method body, and PDepend
@@ -100,7 +103,9 @@ class ExcessiveClassComplexitySniff implements Sniff
      * the whole body is skipped over.
      *
      * T_CLOSURE and T_FN are absent on purpose: a closure and an arrow function
-     * are part of the enclosing method for this metric.
+     * are part of the enclosing method for this metric. Adding either here
+     * lowers InlineFunctionBodies in passing.php below the 3 both tools measure,
+     * which is what stops that omission from being silently reversible.
      *
      * These two are the whole list because they are the only nested
      * declarations a method body can hold. PHP rejects a `class`, `interface`,

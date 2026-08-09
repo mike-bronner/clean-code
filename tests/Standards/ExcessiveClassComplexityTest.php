@@ -66,6 +66,14 @@ it('produces no violations on the compliant fixture', function (): void {
  * - AbstractMethods, 4: three methods with no body and one with an empty one,
  *   each worth 1. This is the only fixture reaching the sniff's bodyless-method
  *   path.
+ * - KeywordBooleanOperators, 8: two `if`s, two `and`s and three `or`s. The
+ *   keyword spellings are counted nowhere else in this suite — every other
+ *   boolean count is written `&&` or `||` — so dropping T_LOGICAL_AND or
+ *   T_LOGICAL_OR from the counted list moves this and nothing else.
+ * - InlineFunctionBodies, 3: a closure's `&&` and an arrow function's ternary,
+ *   both belonging to the method that holds them rather than to an artifact of
+ *   their own. Skipping over either declaration lowers this, and counting the
+ *   `function` or `fn` keyword itself raises it.
  *
  * Every number below was measured against a live PHPMD 2.15.0 run over the same
  * fixture at the same maximum, not derived from the sniff.
@@ -81,13 +89,17 @@ it('measures each class in the compliant fixture exactly', function (): void {
 
     // AbstractMethods is reported at column 10, where its `class` keyword
     // begins: the report lands on the keyword, not on the start of the line.
-    expect($errors[15][1][0]['message'])
+    expect($errors[20][1][0]['message'])
         ->toContain('Class AtOneBelowTheMaximum has a weighted method count of 49,')
-        ->and($errors[77][1][0]['message'])
+        ->and($errors[82][1][0]['message'])
         ->toContain('Class UncountedConstructs has a weighted method count of 4,')
-        ->and($errors[159][10][0]['message'])
+        ->and($errors[164][10][0]['message'])
         ->toContain('Class AbstractMethods has a weighted method count of 4,')
-        ->and(array_keys($errors))->toBe([15, 77, 159]);
+        ->and($errors[181][1][0]['message'])
+        ->toContain('Class KeywordBooleanOperators has a weighted method count of 8,')
+        ->and($errors[209][1][0]['message'])
+        ->toContain('Class InlineFunctionBodies has a weighted method count of 3,')
+        ->and(array_keys($errors))->toBe([20, 82, 164, 181, 209]);
 });
 
 it('flags each over-threshold class at its declaration', function (): void {

@@ -11,6 +11,11 @@ namespace App\Fixtures;
 // stay silent on — and UncountedConstructs is stuffed with the constructs
 // PDepend deliberately does not score, so a sniff that counted any of them
 // would push it over on its own.
+//
+// KeywordBooleanOperators and InlineFunctionBodies are small on purpose. Their
+// job is not the threshold but the measurement: each pins a counting rule the
+// classes above never reach, so the exact-count assertion in
+// tests/Standards/ExcessiveClassComplexityTest.php moves if that rule breaks.
 
 class AtOneBelowTheMaximum
 {
@@ -170,5 +175,61 @@ abstract class AbstractMethods
 
     public function fourth(): void
     {
+    }
+}
+
+class KeywordBooleanOperators
+{
+    /**
+     * `and` and `or` — the keyword spellings — score exactly as `&&` and `||`
+     * do, which no other fixture in this suite exercises: every boolean count
+     * elsewhere is written in the symbol form.
+     *
+     * 8: 1 for the method, plus 7 decision points — two `if`s, two `and`s, and
+     * three `or`s. `xor`, the third keyword operator, is worth nothing and is
+     * pinned by UncountedConstructs above.
+     *
+     * Measured at 8 by a live PHPMD 2.15.0 run over this file, not derived from
+     * the sniff.
+     */
+    public function keywordOperators(bool $a, bool $b): bool
+    {
+        if ($a and $b) {
+            return true;
+        }
+
+        if ($a or $b) {
+            return false;
+        }
+
+        return ($a and $b) or ($a or $b);
+    }
+}
+
+class InlineFunctionBodies
+{
+    /**
+     * A closure and an arrow function are not artifacts of their own for this
+     * metric: PDepend walks the enclosing method's whole subtree, so their
+     * decision points are the method's. A sniff that skipped over either — the
+     * plausible-looking edit, given a named function and an anonymous class
+     * both *are* skipped — would measure this class 2 or 1 instead of 3.
+     *
+     * 3: 1 for the method, plus the `&&` inside the closure and the `?` of the
+     * arrow function's ternary. Neither the `function` keyword nor the `fn`
+     * keyword adds anything itself.
+     *
+     * Measured at 3 by a live PHPMD 2.15.0 run over this file, not derived from
+     * the sniff.
+     */
+    public function inlineFunctions(array $items): array
+    {
+        $keep = function (int $item): bool {
+            return $item > 0 && $item < 10;
+        };
+
+        $double = fn (int $item): int => $item > 0 ? $item * 2 : 0;
+
+        return array_map($double, array_filter($items, $keep));
     }
 }

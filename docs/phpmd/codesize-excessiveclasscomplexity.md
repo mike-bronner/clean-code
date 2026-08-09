@@ -153,7 +153,10 @@ Also all verified against the live tools:
   reaches the enclosing class's total.
 - **A closure or arrow function does not.** Its decision points belong to the
   method it is written in, which is what PDepend does by walking the method's
-  whole subtree.
+  whole subtree. `InlineFunctionBodies` in
+  `tests/fixtures/ExcessiveClassComplexitySniff/passing.php` holds one of each
+  and measures 3 in both tools — 2 if either one were skipped over, 1 if both
+  were.
 - **Only method bodies are measured.** A ternary or boolean operator in a
   parameter default or a property default is outside every method body and
   counts for neither tool.
