@@ -151,6 +151,15 @@ Also all verified against the live tools:
 - **A nested declaration owns its own complexity.** A named function or a
   class-like declared inside a method is a separate artifact, so its body never
   reaches the enclosing class's total.
+- **An anonymous class's constructor arguments are not part of that body.**
+  They are ordinary expressions in the method that writes them, so PHP
+  evaluates them there and PDepend scores them there — only the anonymous
+  class's body is skipped. `AnonymousClassArguments` in
+  `tests/fixtures/ExcessiveClassComplexitySniff/passing.php` measures 5 in both
+  tools: a ternary and an `&&` in an argument list, plus a second method
+  proving the same holds for an anonymous class nested in another one's
+  arguments. Skipping from the `class` keyword instead of from the opening
+  brace drops it to 2.
 - **A closure or arrow function does not.** Its decision points belong to the
   method it is written in, which is what PDepend does by walking the method's
   whole subtree. `InlineFunctionBodies` in
@@ -158,8 +167,10 @@ Also all verified against the live tools:
   and measures 3 in both tools — 2 if either one were skipped over, 1 if both
   were.
 - **Only method bodies are measured.** A ternary or boolean operator in a
-  parameter default or a property default is outside every method body and
-  counts for neither tool.
+  parameter default, a property default, or a constant default is outside every
+  method body and counts for neither tool. `MemberDefaults` in the same fixture
+  holds one of each and measures 3 in both tools — the value of its two methods
+  alone.
 
 ## Divergences from PHPMD
 

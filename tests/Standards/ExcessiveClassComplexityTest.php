@@ -36,7 +36,9 @@ it('is registered in the master ruleset', function (): void {
  * passing.php carries the near miss the threshold has to stay silent on —
  * AtOneBelowTheMaximum measures exactly 49 against a maximum of 50 — next to
  * UncountedConstructs, which holds well over fifty of the constructs PDepend
- * does not score, and AbstractMethods, whose methods have no body at all.
+ * does not score, and AbstractMethods, whose methods have no body at all. Each
+ * smaller class after them pins one counting rule the near miss never reaches;
+ * the measurement test below names them one by one.
  *
  * Silence alone is a weak verdict here: no single uncounted construct appears
  * fifty times, so counting one of them would raise UncountedConstructs' measure
@@ -60,7 +62,7 @@ it('produces no violations on the compliant fixture', function (): void {
  *
  * - AtOneBelowTheMaximum, 49, from a varied method plus a boolean chain. Adding
  *   a construct to the counted list, or dropping one from it, moves this.
- * - UncountedConstructs, 4. It holds 24 `??`, 21 `match` arms, 5 `?->`, 3
+ * - UncountedConstructs, 4. It holds 23 `??`, 21 `match` arms, 5 `?->`, 3
  *   `xor`, an `??=`, a `finally`, a bare `default`, a `goto`, and two `else`
  *   branches, so counting any one of those kinds moves this number.
  * - AbstractMethods, 4: three methods with no body and one with an empty one,
@@ -74,6 +76,22 @@ it('produces no violations on the compliant fixture', function (): void {
  *   both belonging to the method that holds them rather than to an artifact of
  *   their own. Skipping over either declaration lowers this, and counting the
  *   `function` or `fn` keyword itself raises it.
+ * - AnonymousClassArguments, 5: make() is 3 — itself plus the ternary and the
+ *   `&&` in an anonymous class's constructor arguments — and nest() is 2, the
+ *   same rule one level down. Skipping an anonymous class from its `class`
+ *   keyword rather than from its opening brace swallows those arguments and
+ *   drops this to 2; failing to skip its body at all raises it instead.
+ * - MemberDefaults, 3: a constructor and a measure() with one ternary. Its
+ *   property, constant, and parameter defaults each hold a decision operator
+ *   and each score nothing, so measuring a method from its `function` keyword
+ *   instead of its opening brace, or scanning the class body outside its
+ *   methods, raises this number.
+ * - BareBlocks, 2: an `if` inside a bare block — the one brace a method can
+ *   hold that owns nothing, and the only fixture reaching the ownerless branch
+ *   of the sniff's brace test. Unlike the entries above, no mutation of that
+ *   branch moves this number: a bare block's brace carries no scope closer, so
+ *   a skip has nothing to skip to and the walk continues either way. The branch
+ *   suppresses an undefined-key warning; this number pins the measurement.
  *
  * Every number below was measured against a live PHPMD 2.15.0 run over the same
  * fixture at the same maximum, not derived from the sniff.
@@ -99,7 +117,13 @@ it('measures each class in the compliant fixture exactly', function (): void {
         ->toContain('Class KeywordBooleanOperators has a weighted method count of 8,')
         ->and($errors[209][1][0]['message'])
         ->toContain('Class InlineFunctionBodies has a weighted method count of 3,')
-        ->and(array_keys($errors))->toBe([20, 82, 164, 181, 209]);
+        ->and($errors[237][1][0]['message'])
+        ->toContain('Class AnonymousClassArguments has a weighted method count of 5,')
+        ->and($errors[289][1][0]['message'])
+        ->toContain('Class MemberDefaults has a weighted method count of 3,')
+        ->and($errors[327][1][0]['message'])
+        ->toContain('Class BareBlocks has a weighted method count of 2,')
+        ->and(array_keys($errors))->toBe([20, 82, 164, 181, 209, 237, 289, 327]);
 });
 
 it('flags each over-threshold class at its declaration', function (): void {

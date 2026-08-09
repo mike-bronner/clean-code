@@ -46,14 +46,18 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   SomeTrait;` count towards the trait, not towards the using class (PDepend
  *   scores the using class 0), and a named function or a class-like declared
  *   inside a method is its own artifact, so its body is skipped.
+ * - Only the *body* of a nested anonymous class is skipped. Its constructor
+ *   arguments are ordinary expressions in the enclosing method — PHP evaluates
+ *   them there and PDepend scores them there (AnonymousClassArguments in
+ *   passing.php).
  * - A closure or arrow function written inside a method is *not* its own
  *   artifact: its decision points belong to the enclosing method, which is what
  *   PDepend does by walking the method's whole subtree (InlineFunctionBodies in
  *   passing.php).
  * - An abstract method counts 1, the same as an empty concrete one.
  * - Only the body is measured. A ternary or boolean operator in a parameter
- *   default or a property default is outside every method body, and PDepend
- *   does not count it either.
+ *   default, a property default, or a constant default is outside every method
+ *   body, and PDepend does not count it either (MemberDefaults in passing.php).
  *
  * The report is attached to the class declaration, because the measurement
  * describes the whole class rather than any one line inside it. Detection only:
@@ -95,34 +99,6 @@ class ExcessiveClassComplexitySniff implements Sniff
         T_LOGICAL_AND,
         T_LOGICAL_OR,
         T_WHILE,
-    ];
-
-    /**
-     * Declarations that own their complexity rather than lending it to the
-     * method they are written in. PDepend measures each as its own artifact, so
-     * the whole body is skipped over.
-     *
-     * T_CLOSURE and T_FN are absent on purpose: a closure and an arrow function
-     * are part of the enclosing method for this metric. Adding either here
-     * lowers InlineFunctionBodies in passing.php below the 3 both tools measure,
-     * which is what stops that omission from being silently reversible.
-     *
-     * These two are the whole list because they are the only nested
-     * declarations a method body can hold. PHP rejects a `class`, `interface`,
-     * `trait`, or `enum` declaration written inside a method outright ("Class
-     * declarations may not be nested"), and one written inside a *named
-     * function* nested in a method is already behind the T_FUNCTION skip.
-     *
-     * T_ANON_CLASS earns its place separately from T_FUNCTION: an anonymous
-     * class holds constant and property defaults as well as methods, and a
-     * `public bool $flags = self::YES && …;` sits outside every method it
-     * declares, so skipping its methods alone would leave it counted.
-     *
-     * @var array<int, int|string>
-     */
-    private const NESTED_DECLARATION_TOKENS = [
-        T_ANON_CLASS,
-        T_FUNCTION,
     ];
 
     /**
@@ -228,10 +204,10 @@ class ExcessiveClassComplexitySniff implements Sniff
         while (++$ptr < $closer) {
             $code = $tokens[$ptr]['code'];
 
-            if (in_array($code, self::NESTED_DECLARATION_TOKENS, true) === true) {
-                // Resume after the nested declaration. A declaration the
-                // tokenizer never closed leaves $ptr where it is, and the loop's
-                // own increment moves past it, so this cannot spin.
+            if ($this->opensSkippedBody($tokens, $ptr) === true) {
+                // Resume after the skipped body. A declaration the tokenizer
+                // never closed leaves $ptr where it is, and the loop's own
+                // increment moves past it, so this cannot spin.
                 $ptr = $tokens[$ptr]['scope_closer'] ?? $ptr;
 
                 continue;
@@ -243,5 +219,62 @@ class ExcessiveClassComplexitySniff implements Sniff
         }
 
         return $complexity;
+    }
+
+    /**
+     * Whether the token at $ptr starts a body belonging to a nested declaration
+     * rather than to the method being measured. PDepend measures each such
+     * declaration as its own artifact, so its body is skipped over.
+     *
+     * The two declarations a method body can hold are skipped from different
+     * tokens, because different things sit in front of their braces:
+     *
+     * - A nested named function is skipped from its `function` keyword. What
+     *   precedes its brace is its own parameter list, and a decision point in a
+     *   parameter default scores in neither tool — MemberDefaults in
+     *   passing.php pins that for a plain method, and a live PDepend run scores
+     *   a nested function's own parameter default the same 0.
+     * - An anonymous class is skipped from its opening brace instead, so the
+     *   walk still passes through the constructor arguments between `new class`
+     *   and that brace. Those are ordinary expressions in the enclosing method:
+     *   PHP evaluates them there and PDepend scores them there
+     *   (AnonymousClassArguments in passing.php). Only the body — methods,
+     *   property and constant defaults — belongs to the anonymous class, which
+     *   is why skipping the methods alone would not be enough either.
+     *
+     * Keying the anonymous-class case on the brace rather than on T_ANON_CLASS
+     * also nests for free: an anonymous class inside another one's argument
+     * list is walked, not jumped over with the outer expression.
+     *
+     * T_CLOSURE and T_FN are absent on purpose: a closure and an arrow function
+     * are part of the enclosing method for this metric. Returning true for
+     * either here lowers InlineFunctionBodies in passing.php below the 3 both
+     * tools measure, which is what stops that omission from being silently
+     * reversible. PHP rejects a `class`, `interface`, `trait`, or `enum`
+     * declaration written inside a method outright ("Class declarations may not
+     * be nested"), and one written inside a nested named function is already
+     * behind the T_FUNCTION skip, so nothing else can appear.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function opensSkippedBody(array $tokens, int $ptr): bool
+    {
+        if ($tokens[$ptr]['code'] === T_FUNCTION) {
+            return true;
+        }
+
+        if ($tokens[$ptr]['code'] !== T_OPEN_CURLY_BRACKET) {
+            return false;
+        }
+
+        // A bare block's brace owns nothing, and PHPCS records no scope closer
+        // for it either. The null check is there to keep the lookup below from
+        // raising an undefined-key warning on that shape, not to decide a
+        // measurement: a brace with no closer has nothing to skip to, so the
+        // walk carries on through the block whichever way this returns.
+        // BareBlocks in passing.php is the fixture that reaches it.
+        $owner = $tokens[$ptr]['scope_condition'] ?? null;
+
+        return $owner !== null && $tokens[$owner]['code'] === T_ANON_CLASS;
     }
 }
