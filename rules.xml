@@ -243,6 +243,42 @@
     -->
 
     <!--
+        PHPMD CleanCode: DuplicatedArrayKey (#81) —
+        docs/phpmd/cleancode-duplicatedarraykey.md.
+
+        No existing PHPCS, Generic, Squiz, or Slevomat sniff compares array
+        keys for equality. Squiz.Arrays.ArrayDeclaration is the only bundled
+        sniff that looks at keys at all, and every code it emits is about
+        layout — whether a key is present (KeySpecified, NoKeySpecified) and
+        how keys, arrows, and commas are spaced and aligned — never about two
+        keys naming the same slot. So this is the custom
+        CleanCode.Arrays.DuplicatedArrayKey sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/DuplicatedArrayKeyTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        Reported as an error, so phpcs exits non-zero on a duplicate key. A
+        warning would leave phpmd to run separately for this rule, which is
+        the one thing #81 exists to stop. Custom CleanCode sniffs report
+        errors by default, so no <type> tag is needed here.
+
+        Not a drop-in match for PHPMD. On four shapes this sniff is stricter —
+        a non-decimal integer base, a float key, a negated literal, and an
+        array outside a method or function — because it resolves each key to
+        the value PHP stores it under where PHPMD compares key literals as
+        source text and only inspects methods and functions. It also drops one
+        PHPMD false positive: '01' is a string key, not the octal literal 01.
+        All five are pinned by
+        tests/fixtures/DuplicatedArrayKeySniff/divergences.php and set out in
+        docs/phpmd/cleancode-duplicatedarraykey.md.
+
+        Detection only: the overridden entry's value can carry a side effect,
+        and which of the two entries is the mistake is a judgement about
+        intent, so there is no safe mechanical rewrite. PHPMD reports rather
+        than rewrites for the same reason.
+    -->
+
+    <!--
         Dependency Injection (#72) —
         docs/standards/dependency-injection.md.
 
@@ -493,6 +529,46 @@
         rewrites every call site, which is a design change with no mechanical
         rewrite. PHPMD offers no fix either.
     -->
+
+    <!--
+        PHPMD CleanCode: ErrorControlOperator (#82) —
+        docs/phpmd/cleancode-errorcontroloperator.md.
+
+        Generic.PHP.NoSilencedErrors registers on T_ASPERAND and reports every
+        error-control operator, which is exactly PHPMD's ErrorControlOperator
+        detection; no custom sniff is needed. Working from the token means the
+        `@` characters that are not the operator — an address in a string, a
+        docblock tag, a PHP 8 attribute — are never seen, so the mapping needs
+        no exclusions to stay free of false positives.
+
+        error="true" is the sniff's own severity switch, and it changes the
+        message code with the type: a violation is reported as an *error* under
+        the `.Forbidden` code rather than as a warning under `.Discouraged`.
+        The error severity is what makes the mapping replace PHPMD, where an
+        ErrorControlOperator violation fails the run — left a warning, phpcs
+        would exit 0 on suppressed errors and phpmd would still have to run
+        separately. Squiz.PHP.Eval above needs a <type>error</type> override to
+        say the same thing only because that sniff has no such property; where
+        one exists, the sniff's own switch is used so the message text agrees
+        with the severity.
+
+        Not auto-fixable, matching PHPMD. The sniff registers no fixer, and
+        stripping an `@` changes runtime behaviour — the suppressed diagnostic
+        starts surfacing, which is the point of the rule but not something a
+        formatter may decide.
+
+        Stricter than PHPMD on one shape, and never looser: PHPMD's rule is
+        MethodAware/FunctionAware, so an `@` at a file's top level is never
+        inspected, while the sniff reports it. Suppression hides the same
+        errors wherever it is written, so the extra report is kept, pinned by
+        tests/fixtures/NoSilencedErrorsSniff/divergences.php and set out in the
+        doc above.
+    -->
+    <rule ref="Generic.PHP.NoSilencedErrors">
+        <properties>
+            <property name="error" value="true"/>
+        </properties>
+    </rule>
 
     <!--
         PHPMD CodeSize: TooManyPublicMethods (#83) —
@@ -922,6 +998,96 @@
             <property name="allowUnusedForeachVariables" value="false"/>
             <property name="allowUnusedVariablesInFileScope" value="true"/>
         </properties>
+    </rule>
+
+    <!--
+        PHPMD Design: GotoStatement (#109) — docs/phpmd/design-gotostatement.md.
+
+        Generic.PHP.DiscourageGoto listens for T_GOTO and T_GOTO_LABEL and
+        reports every occurrence, which covers PHPMD's GotoStatement detection;
+        no custom sniff is needed. No Slevomat sniff disallows goto — it shows
+        up there only as a cognitive-complexity increment
+        (Complexity.Cognitive) and in control-structure spacing. Every other
+        PHPCS sniff that touches T_GOTO reads it for some other purpose
+        (spacing, unreachable code, switch-case ends); this is the only sniff
+        in either standard that reports the construct itself. The sniff
+        emits a single code, Found, so the rule is referenced by that code
+        rather than by sniff name — that is what lets the <message> override
+        below apply, since PHPCS resolves a message override per code.
+
+        As with Squiz.PHP.Eval and VariableAnalysis above, the severity is
+        raised from the sniff's built-in warning to an error: PHPMD fails a run
+        on a GotoStatement violation, and a warning would leave phpcs exiting 0,
+        so phpmd would still have to run separately for this rule.
+
+        The message is overridden for the same reason. The stock text calls goto
+        "discouraged", which contradicts the error severity set here and offers
+        no remedy; this ruleset disallows it, and the replacement is standard
+        control structures and separate methods — PHPMD's own guidance.
+
+        Stricter than PHPMD on two shapes, both deliberate. PHPMD's rule is
+        MethodAware/FunctionAware, so it sees neither a goto at file scope nor
+        any target label; the sniff reports both. Every violation PHPMD raises
+        is therefore also raised here, and the extra reports are true positives
+        — a label exists only as a goto target. Both divergences are pinned by
+        tests/Ruleset/GotoStatementTest.php and set out in
+        docs/phpmd/design-gotostatement.md.
+
+        Detection only: the rewrite of a goto into a loop, an early return, or
+        an extracted method depends on what the jump means, so there is nothing
+        to auto-fix. PHPMD offers no auto-fix either.
+    -->
+    <rule ref="Generic.PHP.DiscourageGoto.Found">
+        <message>Use of the goto construct is disallowed; replace it with standard control structures and separate methods.</message>
+        <type>error</type>
+    </rule>
+
+    <!--
+        PHPMD Naming: ConstructorWithNameAsEnclosingClass (#113) —
+        docs/phpmd/naming-constructorwithnameasenclosingclass.md.
+
+        Generic.NamingConventions.ConstructorName bans PHP4-style constructors
+        (a method whose name matches its enclosing class), which is PHPMD's
+        rule. Both tools compare the two names case-insensitively, so a method
+        differing only in case is flagged by each.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis above, this sniff needs no
+        <type>error</type>: it already reports through addError(), so phpcs
+        exits non-zero on a violation and phpmd does not have to run for this
+        rule. The test pins that, so a vendor change to warning severity surfaces
+        as a failure rather than as a silent hole in the mapping.
+
+        The sniff emits two codes; only OldStyle is this rule:
+
+        - OldStyle     → a PHP4-style constructor *declaration*. PHPMD's rule.
+        - OldStyleCall → a PHP4-style *call* to a parent constructor
+                         (parent::ParentName()). PHPMD's rule only ever inspects
+                         a method's own declared name against its enclosing
+                         class, so a call site has no counterpart in it. Excluded
+                         rather than shipped as a side effect, matching how the
+                         VariableAnalysis block above treats its extra codes.
+
+        PHPMD exposes no properties or thresholds for this rule, so there is
+        nothing to tune; no <properties> are configured.
+
+        Not a drop-in match, and no property makes it one. Three shapes diverge,
+        all pinned by fixtures and set out in the doc:
+
+        - A namespaced class — this ruleset is stricter. PHPMD skips every class
+          outside the global namespace; the sniff does not. The extra report is a
+          true defect (PHP never treated a same-named method in a namespaced
+          class as a constructor, so the code reads as one and is not one), so it
+          is kept.
+        - An enum, and a class declaring both __construct and a same-named
+          method — PHPMD is stricter, and wrongly so. Neither shape is a PHP4
+          constructor in any PHP version, so the sniff's silence is kept too.
+
+        Detection only, matching PHPMD: renaming a PHP4 constructor to
+        __construct is only safe once every call site and every subclass is
+        known, which a single-file sniff cannot establish.
+    -->
+    <rule ref="Generic.NamingConventions.ConstructorName">
+        <exclude name="Generic.NamingConventions.ConstructorName.OldStyleCall"/>
     </rule>
 
     <!--

@@ -16,14 +16,14 @@
  * both. The only axis on which coverage varies is the fixer —
  *
  *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
- *     DisallowStaticMembers, DisallowExitExpression,
+ *   - Detection-only sniffs (ArrayAccessors, DuplicatedArrayKey,
+ *     OperatorLineBreak, DisallowStaticMembers, DisallowExitExpression,
  *     DisallowBooleanArgumentFlag, TooManyPublicMethods,
- *     ExcessiveMethodLength, ExcessiveParameterList,
- *     ExcessiveClassComplexity, ExcessivePublicCount, BooleanGetMethodName,
- *     ShortClassName, LineLength, Eval, VariableAnalysis, ShortMethodName)
- *     carry passing.php and failing.php but no autofixed.php, because there
- *     is no safe mechanical rewrite.
+ *     ExcessiveMethodLength, ExcessiveParameterList, ExcessiveClassComplexity,
+ *     ExcessivePublicCount, BooleanGetMethodName, ShortClassName, LineLength,
+ *     ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
+ *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
+ *     but no autofixed.php, because there is no safe mechanical rewrite.
  *
  * — which is why the contract is expressed as separate datasets rather than one
  * list. An autofixed.php is never a substitute for a passing.php: it is the
@@ -70,6 +70,7 @@ declare(strict_types=1);
  */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
+    'CleanCode.Arrays.DuplicatedArrayKey',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
@@ -91,6 +92,9 @@ const SWEPT_SNIFFS = [
     'CleanCode.WhiteSpace.BlankLines',
     'Generic.ControlStructures.InlineControlStructure',
     'Generic.Files.LineLength',
+    'Generic.NamingConventions.ConstructorName',
+    'Generic.PHP.DiscourageGoto',
+    'Generic.PHP.NoSilencedErrors',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
