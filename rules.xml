@@ -245,6 +245,38 @@
     -->
 
     <!--
+        Constructors: Primary + Named Constructors (#34), combined-constructor
+        slice — docs/standards/constructors-primary-named-constructors.md.
+
+        The custom CleanCode.Constructors.DisallowCombinedConstructor sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. No PHPCS or Slevomat sniff
+        reports a constructor that branches on how it was called:
+        SlevomatCodingStandard.Functions.FunctionLength and Generic's
+        cyclomatic-complexity metrics count statements and paths without
+        caring which method they sit in or what the branch tests, and
+        Slevomat's constructor sniffs speak about property promotion. The
+        closest neighbour is the custom
+        CleanCode.Functions.DisallowBooleanArgumentFlag, which reports a
+        boolean flag in *any* declaration's parameter list; this one reports
+        what a __construct body does with a construction-mode signal, so a
+        constructor taking a flag and never branching on it is that sniff's
+        finding alone, and a type switch or func_get_args() carries no flag
+        parameter for it to see.
+
+        Three signals, three codes (ModeFlag, TypeSwitch, ArgumentCount), all
+        warnings: branching in a constructor is a design smell rather than a
+        defect. Detection only — splitting a constructor into named
+        constructors rewrites the class's construction API and every call
+        site. Guard clauses and coalesce defaults are exempt.
+
+        The rest of the standard — whether a class should offer named
+        constructors at all, and whether cross-file construction paths respect
+        the single primary constructor — needs more than one file's tokens and
+        stays with code review; #184 covers the named-constructor side.
+    -->
+
+    <!--
         Models: Persistence Methods (Repository Pattern) (#37) —
         docs/standards/models-persistence-methods-repository-pattern.md.
 

@@ -37,22 +37,59 @@ sniff issue.
 
 ### Slice 2 — combined-constructor detection ([#193](https://github.com/mike-bronner/phpcs-rules/issues/193))
 
+Implemented by `CleanCode.Constructors.DisallowCombinedConstructor`.
+
 A primary constructor that merges multiple construction scenarios into one
 body is the standard's other violation shape, and its mode-switching signals
-are token-visible inside `__construct`:
+are token-visible inside `__construct`. Each signal reports under its own code,
+so a consuming ruleset can tune the three independently:
 
-- **Mode-flag branching** — a `bool` parameter (or one defaulting to
-  `true`/`false`) used in the condition of an `if`, `switch`, `match`, or
-  ternary that selects between initialization paths.
-- **Parameter-type switching** — a parameter tested with `instanceof` or a
-  type predicate (`is_string()`, `is_array()`, …) in a branching condition;
-  the constructor accepts "either X or Y" and branches on which arrived.
-- **Poor-man's overloading** — `func_num_args()` / `func_get_args()` in the
-  constructor body.
-- **Warning severity, not error** — branching in a constructor is a design
-  smell, not always a defect; the sniff points at split-into-named-constructors
-  candidates. Guard clauses (branches that only throw) and coalesce defaults
-  (`$x ?? new Default()`) stay out.
+| Code | Signal |
+|---|---|
+| `ModeFlag` | a `bool` parameter (or one defaulting to `true`/`false`) used in the condition of an `if`, `elseif`, `switch`, `match`, or ternary that selects between initialization paths |
+| `TypeSwitch` | a parameter tested with `instanceof` or a type predicate (`is_string()`, `is_array()`, `gettype()`, …) in a branching condition — the constructor accepts "either X or Y" and branches on which arrived |
+| `ArgumentCount` | `func_num_args()` / `func_get_args()` anywhere in the constructor body |
+
+A construct's "condition" is read the way that construct spells it: the
+parenthesised expression of an `if`, `elseif`, `switch`, or `match`; the
+expression in front of a ternary `?`; and — for the two dispatch idioms that
+put the test in the branch rather than in the head — a `match` arm's condition
+and a `switch`'s `case` labels.
+
+**Warning severity, not error.** Branching in a constructor is a design smell,
+not always a defect; the sniff points at split-into-named-constructors
+candidates. It is detection-only: splitting a constructor rewrites the class's
+construction API and every call site, which is not a mechanical rewrite.
+
+**Why a custom sniff.** No existing PHPCS or Slevomat sniff reports a
+constructor that branches on *how it was called*.
+`SlevomatCodingStandard.Functions.FunctionLength` and the bundled
+cyclomatic-complexity metrics count statements and paths without caring which
+method they sit in or what the branch tests; Slevomat's constructor sniffs speak
+about property promotion. The closest neighbour is this package's own
+`CleanCode.Functions.DisallowBooleanArgumentFlag`, which reports a boolean flag
+in *any* declaration's parameter list — a different finding: a constructor that
+takes a flag and never branches on it is that sniff's alone, and a type switch
+or a `func_get_args()` carries no flag parameter for it to see.
+
+Deliberately silent on:
+
+- **Guard clauses** — a branch whose first statement is a `throw` validates a
+  precondition rather than selecting an initialization path, so its condition
+  is exempt whatever signal it carries. A `switch` or `match` qualifies when
+  every one of its branches throws.
+- **Coalesce defaults** — `$this->x = $x ?? new Default();` carries no
+  branching token at all, and the elvis `?:` supplies a default for one
+  expression rather than selecting between two. `is_null()` is left out of the
+  predicate list on the same grounds.
+- **Anything but `__construct`** — named constructors and ordinary methods
+  belong to slice 1, and a `function __construct()` that is not a class member
+  constructs nothing.
+- **Bodiless constructors** — abstract and interface declarations, and
+  promotion-only bodies with no statements in them.
+- **Nested declarations** — a closure, arrow function, or anonymous class
+  declared in the body runs on its own terms; `func_get_args()` inside a
+  closure reads the *closure's* arguments.
 
 **Considered and rejected:** a naming-prefix check on named constructors
 (`from*`, `create*`, `make*`, …). PHP has no canonical prefix vocabulary —
