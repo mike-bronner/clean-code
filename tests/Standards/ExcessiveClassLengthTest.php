@@ -75,7 +75,7 @@ it(
 
         expect(violationTuples($file))->toBe([
             ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ])->and(violationMessagesByLine($file))->toBe([
+        ])->and(violationMessagesByLine($file->getErrors()))->toBe([
             59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
         ]);
     }
@@ -94,7 +94,7 @@ it('flags a class of exactly the shipped 1000-line threshold', function (): void
 
     expect(violationTuples($file))->toBe([
         ['line' => 11, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-    ])->and(violationMessagesByLine($file))->toBe([
+    ])->and(violationMessagesByLine($file->getErrors()))->toBe([
         11 => ['The class Colossus has 1000 lines of code. Current threshold is 1000. Avoid really long classes.'],
     ]);
 });
@@ -107,7 +107,7 @@ it('flags a class of exactly the shipped 1000-line threshold', function (): void
 it('treats the threshold as inclusive', function () use ($excessiveClassLength): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'boundaries.php', $excessiveClassLength(10));
 
-    expect(violationMessagesByLine($file))->toBe([
+    expect(violationMessagesByLine($file->getErrors()))->toBe([
         22 => ['The class AtThreshold has 10 lines of code. Current threshold is 10. Avoid really long classes.'],
         33 => ['The class OneOverThreshold has 11 lines of code. Current threshold is 10. Avoid really long classes.'],
     ]);
@@ -131,7 +131,7 @@ it(
             ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ])->and(violationMessagesByLine($file))->toBe([
+        ])->and(violationMessagesByLine($file->getErrors()))->toBe([
             16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
             21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
             28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -148,7 +148,7 @@ it(
 it('counts comment and blank lines when ignoreWhitespace is off', function () use ($excessiveClassLength): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', $excessiveClassLength(1));
 
-    expect(violationMessagesByLine($file))->toBe([
+    expect(violationMessagesByLine($file->getErrors()))->toBe([
         16 => ['The class Ledger has 20 lines of code. Current threshold is 1. Avoid really long classes.'],
         37 => ['The class Payment has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
         47 => ['The class Factory has 12 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -169,7 +169,7 @@ it('counts comment and blank lines when ignoreWhitespace is off', function () us
 it('switches to executable lines when ignoreWhitespace is on', function () use ($excessiveClassLength): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', $excessiveClassLength(1, true));
 
-    expect(violationMessagesByLine($file))->toBe([
+    expect(violationMessagesByLine($file->getErrors()))->toBe([
         16 => ['The class Ledger has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
         37 => ['The class Payment has 3 lines of code. Current threshold is 1. Avoid really long classes.'],
         47 => ['The class Factory has 8 lines of code. Current threshold is 1. Avoid really long classes.'],
@@ -186,7 +186,7 @@ it('switches to executable lines when ignoreWhitespace is on', function () use (
 it('gives an abstract method no executable lines', function () use ($excessiveClassLength): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1, true));
 
-    expect(violationMessagesByLine($file))->toBe([
+    expect(violationMessagesByLine($file->getErrors()))->toBe([
         21 => ['The class Beta has 2 lines of code. Current threshold is 1. Avoid really long classes.'],
         28 => ['The class Gamma has 2 lines of code. Current threshold is 1. Avoid really long classes.'],
     ]);
@@ -211,8 +211,8 @@ it('undercounts a class whose brace pairing PHP_CodeSniffer gets wrong', functio
             . ' Current threshold is 1. Avoid really long classes.'],
     ];
 
-    expect(violationMessagesByLine($physical))->toBe($reported(9))
-        ->and(violationMessagesByLine($executable))->toBe($reported(2));
+    expect(violationMessagesByLine($physical->getErrors()))->toBe($reported(9))
+        ->and(violationMessagesByLine($executable->getErrors()))->toBe($reported(2));
 });
 
 /**
