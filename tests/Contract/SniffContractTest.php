@@ -18,7 +18,9 @@
  *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
  *     DisallowStaticMembers, DisallowBooleanArgumentFlag,
- *     ExcessiveMethodLength, LineLength, Eval, VariableAnalysis) carry
+ *     ExcessiveMethodLength, ExcessiveParameterList, ExcessivePublicCount,
+ *     BooleanGetMethodName, ShortClassName, LineLength, Eval,
+ *     VariableAnalysis, ShortMethodName) carry
  *     passing.php and failing.php but no autofixed.php, because there is no
  *     safe mechanical rewrite.
  *
@@ -38,13 +40,20 @@
  * feeds every severity-neutral assertion — registration and both halves of the
  * passing fixture — so neither list can be added to and forgotten there.
  *
- * Two sniffs are deliberately absent from every dataset:
+ * Three sniffs are deliberately absent from every dataset. A path-scoped sniff
+ * cannot be swept: the sweep processes each fixture where it lives, under
+ * tests/, and PHPCS decides path scoping from the file's path alone — so the
+ * failing fixture reports nothing whatever the sniff does, and the passing
+ * assertion would hold against a sniff that had fallen silent altogether.
+ * Both such sniffs stage their fixtures outside the repository instead, and
+ * pin the scoping itself in their own file.
  *
  *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
- *     out of test paths, so processing its fixtures where they live reports
- *     nothing whatever the sniff does. It is covered in
- *     tests/Standards/DisallowExternalPersistenceCallsTest.php, which stages
- *     each fixture outside the repository first.
+ *     out of test paths. It is covered in
+ *     tests/Standards/DisallowExternalPersistenceCallsTest.php.
+ *   - CleanCode.Files.NoProceduralCode — rules.xml scopes it *into* source
+ *     paths (src/, app/) with <include-pattern>. It is covered in
+ *     tests/Standards/NoProceduralCodeTest.php.
  *   - The naming casing conventions — a composite standard carried by three
  *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
  *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
@@ -62,10 +71,16 @@ const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.CodeSize.TooManyMethods',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
+    'CleanCode.Functions.ExcessiveParameterList',
+    'CleanCode.Metrics.ExcessivePublicCount',
+    'CleanCode.Naming.BooleanGetMethodName',
+    'CleanCode.Naming.ShortClassName',
+    'CleanCode.Naming.ShortMethodName',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Strings.MultilineStrings',
@@ -90,6 +105,8 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
+    'CleanCode.Naming.DisallowMagicNumbers',
+    'CleanCode.Testing.NoReflectionAccess',
 ];
 
 dataset('every swept sniff', array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS));
