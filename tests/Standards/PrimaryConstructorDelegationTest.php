@@ -51,17 +51,21 @@ it('is registered in the master ruleset', function (): void {
  * because `new` on an enum is a fatal error. Dropping the bodiless guard
  * reports the abstract declaration and the interface signature.
  *
+ * One more reddens it on its own: `fromRootInstance()` on line 69 delegates
+ * with `new \Money(...)`, the root-qualified spelling of the class this file
+ * declares. Reading a leading separator as a foreign class reports it.
+ *
  * Three entries are boundaries this fixture documents rather than pins, each
  * pinned elsewhere or not pinnable at all:
  *
- * - `?self` on `tryFromString()` and `self|null` on `fromMixed()`. Reading a
- *   nullable spelling as "not a named constructor" leaves them uninspected,
- *   which is silence either way; the reporting side is what pins it, on
- *   failing.php lines 52 and 57.
+ * - `?self` on `tryFromString()`, `self|null` on `fromMixed()`, and `\Money`
+ *   on `fromRoot()`. Reading any of those spellings as "not a named
+ *   constructor" leaves the method uninspected, which is silence either way;
+ *   the reporting side is what pins them, on failing.php lines 54, 59 and 64.
  * - the plain `function make(): self` at file scope. It carries no conditions
  *   at all, so no owner check can find it a class name.
  * - the anonymous class's `new self()`. Its behaviour is pinned — the
- *   reporting half is failing.php line 74 — but the `$className !== null`
+ *   reporting half is failing.php line 81 — but the `$className !== null`
  *   guards beside it only keep `strtolower(null)` from deprecating and change
  *   no result, so no fixture can assert them.
  *
@@ -76,26 +80,28 @@ it('produces no violations on the compliant fixture', function (): void {
 });
 
 /**
- * The six bypassing named constructors, each on its `function` keyword:
- * `unserialize()` (34), reflection (39), a deserializer's output returned raw
- * (47), the same `unserialize()` behind the two nullable return-type spellings,
- * `?self` (52) and `self|null` (57), and one on an **anonymous** class (74),
- * which has no name for the sniff to compare against — only `self`/`static`
- * can reach its primary constructor, and this method uses neither. The
- * compliant `fromAttributes()` on line 29 is not reported, so a sniff that
- * flagged every static method would not match this either.
+ * The seven bypassing named constructors, each on its `function` keyword:
+ * `unserialize()` (36), reflection (41), a deserializer's output returned raw
+ * (49), the same `unserialize()` behind each of the three return-type
+ * spellings that a narrower gate would miss — `?self` (54), `self|null` (59)
+ * and the root-qualified `\Snapshot` (64) — and one on an **anonymous** class
+ * (81), which has no name for the sniff to compare against, so only
+ * `self`/`static` can reach its primary constructor and this method uses
+ * neither. The compliant `fromAttributes()` on line 31 is not reported, so a
+ * sniff that flagged every static method would not match this either.
  */
 it('flags every named constructor that bypasses the primary constructor', function (): void {
     $file = analyzeFixture(DELEGATION, 'failing.php');
 
     expect($file->getErrors())->toBe([])
         ->and(violationSourcesByLine($file->getWarnings()))->toBe([
-            34 => [DELEGATION_WARNING],
-            39 => [DELEGATION_WARNING],
-            47 => [DELEGATION_WARNING],
-            52 => [DELEGATION_WARNING],
-            57 => [DELEGATION_WARNING],
-            74 => [DELEGATION_WARNING],
+            36 => [DELEGATION_WARNING],
+            41 => [DELEGATION_WARNING],
+            49 => [DELEGATION_WARNING],
+            54 => [DELEGATION_WARNING],
+            59 => [DELEGATION_WARNING],
+            64 => [DELEGATION_WARNING],
+            81 => [DELEGATION_WARNING],
         ]);
 });
 
@@ -109,12 +115,13 @@ it('reports on the function keyword', function (): void {
     $tuples = warningTuples(analyzeFixture(DELEGATION, 'failing.php'));
 
     expect($tuples)->toBe([
-        ['line' => 34, 'column' => 19, 'source' => DELEGATION_WARNING],
-        ['line' => 39, 'column' => 19, 'source' => DELEGATION_WARNING],
-        ['line' => 47, 'column' => 19, 'source' => DELEGATION_WARNING],
-        ['line' => 52, 'column' => 19, 'source' => DELEGATION_WARNING],
-        ['line' => 57, 'column' => 19, 'source' => DELEGATION_WARNING],
-        ['line' => 74, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 36, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 41, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 49, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 54, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 59, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 64, 'column' => 19, 'source' => DELEGATION_WARNING],
+        ['line' => 81, 'column' => 19, 'source' => DELEGATION_WARNING],
     ]);
 });
 
@@ -125,7 +132,7 @@ it('reports on the function keyword', function (): void {
 it('names the method in the warning message', function (): void {
     $warnings = analyzeFixture(DELEGATION, 'failing.php')->getWarnings();
 
-    expect($warnings[34][19][0]['message'])->toContain('fromSerialized()');
+    expect($warnings[36][19][0]['message'])->toContain('fromSerialized()');
 });
 
 /**
@@ -133,21 +140,23 @@ it('names the method in the warning message', function (): void {
  * still reported. Each pins one condition of the detection, and a sniff that
  * loosened any of them would fall silent on that line:
  *
- * - line 36, `self::class` — a constant fetch, which is why an opening
+ * - line 37, `self::class` — a constant fetch, which is why an opening
  *   parenthesis has to follow the callee.
- * - line 41, `parent::open()` and line 46, `new parent()` — the superclass's
+ * - line 42, `parent::open()` and line 47, `new parent()` — the superclass's
  *   constructor is a different one, so `parent` is not among the names that
  *   count.
- * - lines 51 and 56, `new \Other\Ticket()` and `\Other\Ticket::open()` — a
- *   namespaced name on each side of the detection. In a file declaring
- *   `Ticket` it names a different class far more often than this one, and a
- *   single-file scan cannot resolve which, so only an unqualified name counts.
- * - line 61, `self::open()` inside `open()` — recursion with no `new` anywhere
+ * - lines 52 and 57, `new \Other\Ticket()` and `\Other\Ticket::open()` — a
+ *   name carrying a namespace segment, on each side of the detection. In a
+ *   file declaring `Ticket` it names a different class far more often than
+ *   this one, and a single-file scan cannot resolve which. The separator alone
+ *   is not what disqualifies it: a root-qualified `\Ticket` in this same file
+ *   would be the declaring class, as passing.php line 69 pins.
+ * - line 62, `self::open()` inside `open()` — recursion with no `new` anywhere
  *   in it never reaches a constructor, which is why the callee has to be a
  *   *different* method.
- * - line 66, `Ticket::REGISTRY` — a class constant, the own-name spelling of
- *   the line-36 case.
- * - line 78, `new self()` inside an anonymous class declared in the body.
+ * - line 67, `Ticket::REGISTRY` — a class constant, the own-name spelling of
+ *   the line-37 case.
+ * - line 79, `new self()` inside an anonymous class declared in the body.
  *   `self` there names the anonymous class, so the enclosing named constructor
  *   still bypasses its own primary constructor — the one nested scope the body
  *   scan jumps over rather than walking into.
@@ -157,14 +166,75 @@ it('rejects shapes that only resemble delegation', function (): void {
 
     expect($file->getErrors())->toBe([])
         ->and(violationSourcesByLine($file->getWarnings()))->toBe([
-            36 => [DELEGATION_WARNING],
+            37 => [DELEGATION_WARNING],
+            42 => [DELEGATION_WARNING],
+            47 => [DELEGATION_WARNING],
+            52 => [DELEGATION_WARNING],
+            57 => [DELEGATION_WARNING],
+            62 => [DELEGATION_WARNING],
+            67 => [DELEGATION_WARNING],
+            79 => [DELEGATION_WARNING],
+        ]);
+});
+
+/**
+ * A trait's static methods are inspected like a class's, and the one shape
+ * inside a trait that no single-file sniff can reach is disclosed rather than
+ * guessed at.
+ *
+ * `fromReflection()` on line 41 is the pin: a trait method typed `self` whose
+ * body builds its instance with reflection is reported exactly as the same
+ * body in a class would be. Dropping `T_TRAIT` from the constructible scopes
+ * silences it, which is what makes trait support tested rather than assumed.
+ * `zero()` (`new self`), `fromCents()` (`new static`) and `fromString()`
+ * (a call to a sibling static method) stay silent beside it, so a sniff that
+ * reported every static method in a trait would not match this file either.
+ *
+ * `fromSerialized(): Money` on line 48 is the disclosed blind spot, and the
+ * only entry here the sniff passes over rather than clears. A trait is
+ * compiled into whichever class uses it, and this file never says which class
+ * that is, so a return type naming the eventual consumer matches neither
+ * `self`/`static` nor the trait's own name and is not recognized as a named
+ * constructor at all — however its body builds the instance. Its `unserialize()`
+ * body is the same one reported on failing.php line 36, which is what shows
+ * the silence comes from the return-type gate and nothing else.
+ */
+it('inspects trait-declared named constructors, and discloses the consumer-typed blind spot', function (): void {
+    $file = analyzeFixture(DELEGATION, 'trait.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($file->getWarnings()))->toBe([
             41 => [DELEGATION_WARNING],
-            46 => [DELEGATION_WARNING],
-            51 => [DELEGATION_WARNING],
-            56 => [DELEGATION_WARNING],
-            61 => [DELEGATION_WARNING],
-            66 => [DELEGATION_WARNING],
-            78 => [DELEGATION_WARNING],
+        ]);
+});
+
+/**
+ * The root-qualified spelling of the declaring class's own name is that class
+ * where the file declares no namespace, and a different one inside a
+ * namespace. This fixture holds the second half; passing.php line 64/69 and
+ * failing.php line 64 hold the first.
+ *
+ * Two lines pin it, one on each side of the detection, and both flip if a
+ * leading separator is read as this class regardless of the namespace:
+ *
+ * - line 43, `fromGlobal()` — a named constructor of `App\Domain\Money` whose
+ *   body builds the *global* `Money`, reaching no constructor of its own, so
+ *   it is reported. Reading `new \Money()` as delegation silences it.
+ * - line 48, `fromRoot(): \Money` — returns the global `Money`, so it is not a
+ *   named constructor of this class and is never inspected, however its body
+ *   builds the instance. Reading the return type as this class reports it.
+ *
+ * `fromCents()` and `fromSerialized()` hold the unqualified behaviour steady
+ * beside them: a namespace changes nothing about a bare `self`, and the
+ * reported one keeps the file from being vacuously silent.
+ */
+it('reads a root-qualified name as a different class inside a namespace', function (): void {
+    $file = analyzeFixture(DELEGATION, 'namespaced.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($file->getWarnings()))->toBe([
+            38 => [DELEGATION_WARNING],
+            43 => [DELEGATION_WARNING],
         ]);
 });
 
@@ -201,7 +271,7 @@ it('passes over a truncated file without falling over', function (): void {
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(DELEGATION, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(6)
+    expect($file->getWarningCount())->toBe(7)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });

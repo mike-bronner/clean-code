@@ -59,14 +59,27 @@ Out of scope, and why:
 - **Enum methods.** `new` on an enum is a fatal error, so an enum's named
   constructor can only return a case or the engine's own `from()`/`tryFrom()`.
   Flagging it would state a requirement the language forbids satisfying.
+- **A trait method return-typed to its eventual consumer by name.** A trait is
+  compiled into whichever class uses it, and one file never says which class
+  that is, so `: Money` inside `trait Zeroable` matches neither `self`/`static`
+  nor the trait's own name and is not recognized as a named constructor,
+  however its body builds the instance. Nothing available in a single file
+  resolves it. A trait method typed `self` or `static` — the spelling that
+  names no class — is inspected in full: `new self(...)` in its body reaches
+  the consuming class's primary constructor at use-time, so the same
+  delegation question applies and the sniff asks it.
 
 Two limits on what counts as delegation, both erring toward reporting rather
 than staying silent:
 
-- The class reference must be **unqualified** — `self`, `static`, or the bare
-  class name. `new \Other\Money()` in a file declaring `Money` names a
-  different class far more often than the same one, and a sniff handed one file
-  cannot resolve which.
+- The class reference must carry **no namespace segment** — `self`, `static`,
+  the bare class name, or the root-qualified spelling of that name in a file
+  declaring no namespace, where the two are one class. A name with a segment
+  in it cannot be resolved from a single file: `new \Other\Money()` in a file
+  declaring `Money` names a different class far more often than the same one,
+  and under `namespace App` so does `new \Money()`. The return type is read
+  the same way, so `zero(): \Money` on a class `Money` is the named
+  constructor it looks like.
 - A named constructor calling **itself** does not delegate: without a `new`
   anywhere in the recursion it never reaches a constructor.
 

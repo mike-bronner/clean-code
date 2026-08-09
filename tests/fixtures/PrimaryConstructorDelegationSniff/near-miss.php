@@ -13,9 +13,10 @@ declare(strict_types=1);
  *     follow the callee.
  *   - `parent::open()` and `new parent()` — the superclass's constructor is a
  *     different one.
- *   - `new \Other\Ticket()` and `\Other\Ticket::open()` — a namespaced name,
- *     on both sides of the detection, which the sniff cannot resolve to this
- *     class.
+ *   - `new \Other\Ticket()` and `\Other\Ticket::open()` — a name carrying a
+ *     namespace segment, on both sides of the detection, which the sniff
+ *     cannot resolve to this class. The leading separator alone is not the
+ *     disqualifier: a root-qualified `\Ticket` here would be this class.
  *   - `self::open()` inside `open()` — recursion with no `new` in it never
  *     reaches a constructor.
  *   - `Ticket::REGISTRY` — a class constant, again not a call.

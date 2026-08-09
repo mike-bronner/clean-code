@@ -8,10 +8,11 @@ declare(strict_types=1);
  * Two things keep this file discriminating:
  *
  *   1. Every accepted delegation form: `new self(...)`, `new static(...)`,
- *      `new <DeclaringClass>(...)`, a call to another named constructor, and a
- *      call to a plain static helper that is not itself a named constructor —
- *      the breadth #184 settled on. Nullable and union return types are
- *      included, because those are the shapes a `tryFrom()` carries.
+ *      `new <DeclaringClass>(...)`, its root-qualified spelling, a call to
+ *      another named constructor, and a call to a plain static helper that is
+ *      not itself a named constructor — the breadth #184 settled on. Nullable,
+ *      union and root-qualified return types are included, because those are
+ *      the shapes a `tryFrom()` and a fully-written type carry.
  *   2. Every near-miss the sniff must stay silent on: an instance-level wither
  *      returning `self`, a static method returning anything else, an abstract
  *      declaration, an interface signature, an enum's named constructor (which
@@ -58,6 +59,16 @@ final class Money
     public static function fromMixed(string $value): self|null
     {
         return self::hydrate($value);
+    }
+
+    public static function fromRoot(int $cents): \Money
+    {
+        return new self($cents);
+    }
+
+    public static function fromRootInstance(int $cents): self
+    {
+        return new \Money($cents);
     }
 
     /**

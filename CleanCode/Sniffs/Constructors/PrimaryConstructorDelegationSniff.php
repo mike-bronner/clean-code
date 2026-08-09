@@ -52,14 +52,25 @@ use PHP_CodeSniffer\Util\Tokens;
  *   constructor can only ever return a case (`self::Active`) or the result of
  *   the engine's own `from()`/`tryFrom()`. Flagging it would state a
  *   requirement the language forbids satisfying.
+ * - **A trait method return-typed to its eventual consumer by name.** A trait
+ *   is compiled into whichever class uses it, and one file never says which
+ *   class that is, so `: Money` inside `trait Zeroable` matches neither
+ *   `self`/`static` nor the trait's own name, and is not recognized as a named
+ *   constructor however its body builds the instance. Nothing in a single file
+ *   can resolve it. A trait method typed `self` or `static` — the spelling
+ *   that names no class — is inspected in full: `new self(...)` in its body
+ *   reaches the consumer's primary constructor at use-time, which is why
+ *   `T_TRAIT` is a constructible scope.
  *
  * Two deliberate limits on what counts as delegation, both erring toward
  * reporting rather than staying silent:
  *
- * - The class reference must be **unqualified** — `self`, `static`, or the
- *   bare class name. `new \Other\Money()` in a file declaring `Money` names a
- *   different class far more often than the same one, and a sniff handed one
- *   file cannot resolve which.
+ * - The class reference must carry **no namespace segment** — `self`,
+ *   `static`, the bare class name, or the root-qualified spelling of that name
+ *   in a file declaring no namespace, where the two are one class. A name with
+ *   a segment in it cannot be resolved from one file: in a file declaring
+ *   `Money`, `new \Other\Money()` names a different class far more often than
+ *   the same one, and under `namespace App` so does `new \Money()`.
  * - A named constructor calling **itself** does not delegate. Without a `new`
  *   anywhere in the recursion it never reaches a constructor at all.
  *
@@ -126,7 +137,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
         // An anonymous class has no name, so only self/static can name it.
         $className = $phpcsFile->getDeclarationName($ownerPtr);
 
-        if ($this->returnsDeclaringClass($properties['return_type'], $className) === false) {
+        if ($this->returnsDeclaringClass($phpcsFile, $properties['return_type'], $className) === false) {
             return;
         }
 
@@ -182,22 +193,61 @@ class PrimaryConstructorDelegationSniff implements Sniff
      * named constructors they are: `?self` by stripping the mark, `self|null`
      * by splitting on the union and intersection separators. Missing either
      * would leave such a method silently uninspected.
+     *
+     * So is the root-qualified spelling of the class's own name, where the
+     * file declares no namespace and the two are one class. Reading it as a
+     * foreign type instead would leave a bypassing named constructor silently
+     * uninspected on nothing but a leading separator. Inside a namespace it is
+     * a foreign type — `\Money` under `namespace App` is not `App\Money` — and
+     * so is any name carrying a segment of its own.
      */
-    private function returnsDeclaringClass(string $returnType, ?string $className): bool
+    private function returnsDeclaringClass(File $phpcsFile, string $returnType, ?string $className): bool
     {
         foreach (preg_split('/[|&]/', $returnType) as $part) {
-            $type = strtolower(ltrim(trim($part), '?'));
+            $spelling = ltrim(trim($part), '?');
+            $type = strtolower(ltrim($spelling, '\\'));
 
             if (in_array($type, self::SELF_TYPES, true) === true) {
                 return true;
             }
 
-            if ($className !== null && $type === strtolower($className)) {
+            if ($className === null || $type !== strtolower($className)) {
+                continue;
+            }
+
+            if (str_starts_with($spelling, '\\') === false || $this->inGlobalNamespace($phpcsFile) === true) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether the file declares no namespace, which is what makes a
+     * root-qualified name and a bare one the same class.
+     *
+     * A declaration is a `namespace` keyword followed by a name, and it has to
+     * be the file's first statement — so the first such keyword settles it.
+     * The same keyword opening a relative name (`namespace\Money`) or the
+     * explicit global block (`namespace { ... }`) is followed by a separator
+     * or a brace instead, and leaves the file in the global namespace. Several
+     * braced namespaces in one file would need a per-block answer rather than
+     * this per-file one; PSR-12, which this package lints itself against,
+     * does not allow them.
+     */
+    private function inGlobalNamespace(File $phpcsFile): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $keywordPtr = $phpcsFile->findNext(T_NAMESPACE, 0);
+
+        if ($keywordPtr === false) {
+            return true;
+        }
+
+        $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($keywordPtr + 1), null, true);
+
+        return $namePtr === false || $tokens[$namePtr]['code'] !== T_STRING;
     }
 
     /**
@@ -240,11 +290,20 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
     /**
      * Whether a `new` builds the declaring class.
+     *
+     * A root-qualified `new \Money()` opens on the separator rather than the
+     * name, so the name is one token further on. Whether that spelling reaches
+     * this class is the name check's own question, not this one's — it steps
+     * onto the name and asks.
      */
     private function instantiatesDeclaringClass(File $phpcsFile, int $newPtr, ?string $className): bool
     {
         $tokens = $phpcsFile->getTokens();
         $targetPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($newPtr + 1), null, true);
+
+        if ($targetPtr !== false && $tokens[$targetPtr]['code'] === T_NS_SEPARATOR) {
+            $targetPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($targetPtr + 1), null, true);
+        }
 
         if ($targetPtr === false) {
             return false;
@@ -292,12 +351,15 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
     /**
      * Whether a single token names the declaring class: `self`, `static`, or
-     * the class's own name written unqualified.
+     * the class's own name carrying no namespace segment.
      *
      * `parent` is not among them — it builds the superclass, whose constructor
-     * is a different one. Neither is a namespaced name: the token before an
-     * own-name match must not be a `\`, because `new \Other\Money()` in a file
-     * declaring `Money` is a different class the sniff cannot resolve.
+     * is a different one. Neither is a name with a segment in it: a separator
+     * with another name before it makes the match the tail of
+     * `new \Other\Money()`, a class the sniff cannot resolve from one file. A
+     * separator with nothing before it is the root-qualified spelling of this
+     * same class — but only where the file declares no namespace, since
+     * `new \Money()` under `namespace App` builds the global class instead.
      */
     private function namesDeclaringClass(File $phpcsFile, int $pointer, ?string $className): bool
     {
@@ -318,6 +380,16 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
         $beforePtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($pointer - 1), null, true);
 
-        return $beforePtr === false || $tokens[$beforePtr]['code'] !== T_NS_SEPARATOR;
+        if ($beforePtr === false || $tokens[$beforePtr]['code'] !== T_NS_SEPARATOR) {
+            return true;
+        }
+
+        $segmentPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($beforePtr - 1), null, true);
+
+        if ($segmentPtr !== false && $tokens[$segmentPtr]['code'] === T_STRING) {
+            return false;
+        }
+
+        return $this->inGlobalNamespace($phpcsFile);
     }
 }
