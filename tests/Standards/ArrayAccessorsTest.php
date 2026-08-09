@@ -247,7 +247,7 @@ it('decides enclosing constructs in linear time', function (string $shape, int $
             . str_repeat("    \$value = \$row['key'];\n", $size)
             . "}\n";
 
-    $path = tempnam(sys_get_temp_dir(), 'cleancode-scale-') . '.php';
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-scale-', true) . '.php';
     file_put_contents($path, $source);
 
     try {
