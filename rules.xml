@@ -145,6 +145,45 @@
         <type>warning</type>
     </rule>
 
+    <!--
+        Conditionals: Mapping Arrays (#23, sniff scoped by #163) —
+        docs/standards/conditionals-mapping-arrays.md.
+
+        The custom CleanCode.Conditionals.MappingArrayCandidate sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. It warns
+        once per if/elseif chain whose conditions all compare the same plain
+        variable against scalar literals and whose branches do nothing but
+        produce a value.
+
+        No existing PHPCS or Slevomat sniff covers this. The nearest neighbours
+        answer different questions: Slevomat's
+        ControlStructures.RequireSingleLineCondition and .AssignmentInCondition
+        judge a condition's formatting, .EarlyExit and .RequireTernaryOperator
+        rewrite branches regardless of what they compare, and Generic's
+        cyclomatic-complexity metrics count branches without ever looking at
+        their subjects. None of them relates the branches of a chain to one
+        another, which is the whole of this standard's trigger pattern. That is
+        pinned, not merely asserted: "leaves the chain to no other sniff in the
+        ruleset" in tests/Standards/MappingArrayCandidateTest.php runs the whole
+        of rules.xml over the failing fixture and fails if anything else starts
+        speaking about a flagged chain.
+
+        Warning, not error, and detection only. The chain shape is mechanical,
+        but whether a mapping array reads better than the chain is a judgement,
+        and the safe rewrite depends on where the map should live and what the
+        missing-key fallback is — neither of which is in the chain.
+
+        No <properties> block: the sniff's $minimumBranches default of 3 is the
+        threshold this standard names, so configuring it here would only restate
+        the default. Consumers who want a different sensitivity set it in their
+        own ruleset.
+
+        This overlaps CleanCode.Conditionals.AvoidConditionals on purpose — that
+        sniff counts every branch, this one names the replacement for the shape
+        it recognises. A chain matching both draws both warnings, which is two
+        standards speaking, not one diagnostic twice.
+    -->
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
