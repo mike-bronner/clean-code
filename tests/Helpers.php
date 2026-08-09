@@ -688,6 +688,32 @@ function removeStagedDirectory(string $directory): void
 }
 
 /**
+ * Reads the complexity CleanCode.Metrics.CyclomaticComplexity measured back out
+ * of each of its reports, keyed by the declaration the message names
+ * ("method process()", "function nested()"), in report order.
+ *
+ * Reading the number rather than only the presence of a report is what makes a
+ * single counting rule discriminating: a test asserting which declarations were
+ * reported holds just as well against a sniff that measures every one of them
+ * wrongly and still lands above the level. A report whose message does not
+ * carry a measurement is skipped rather than guessed at.
+ *
+ * @return array<string, int>
+ */
+function measuredComplexities(LocalFile $file): array
+{
+    $measured = [];
+
+    foreach (violationMessages($file) as $message) {
+        if (preg_match('/^The (\S+ \S+\(\)) has a cyclomatic complexity of (\d+),/', $message, $matches) === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
+        }
+    }
+
+    return $measured;
+}
+
+/**
  * Executes a fixture in an isolated scope and returns the variables it
  * defined, so a fixer's before/after string values can be compared directly.
  *
