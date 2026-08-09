@@ -25,8 +25,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * static calls (Foo::array_map()), instantiation (new array_map()),
  * declarations (function array_map()), and namespaced functions of the same
  * name (App\Support\array_map(), and namespace\array_map() in a file that
- * declares a namespace) are all different symbols and stay out. A
- * fully-qualified \array_map() is the global function, so it is flagged — and
+ * declares a namespace) are all different symbols and stay out. The new and
+ * function keywords govern whatever spelling of the name follows them, whether
+ * or not something stands in between: new \array_map() and new
+ * namespace\array_map() instantiate, and function &array_map() declares by
+ * reference, so neither a leading qualifier nor an & makes a call of them.
+ *
+ * A fully-qualified \array_map() is the global function, so it is flagged — and
  * so is namespace\array_map() where no namespace has been declared, because
  * the namespace in force there is the global one.
  *
@@ -107,17 +112,29 @@ class ConvertToCollectionSniff implements Sniff
 
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        if (
-            $prev !== false
-            && in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true
-        ) {
-            return;
+        // A leading \ or namespace\ qualifier belongs to the name rather than
+        // to the decision: the keyword that governs new \array_map() stands in
+        // front of the qualifier, so the preceder test below has to look past
+        // it once the name has been ruled out as a qualified one.
+        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
+            if ($this->isQualifiedName($phpcsFile, $prev) === true) {
+                return;
+            }
+
+            $prev = $this->beforeQualifier($phpcsFile, $prev);
+        }
+
+        // Returning by reference puts an & between the keyword and the name,
+        // so function &array_map() is a declaration all the same. The & of a
+        // bitwise and ($mask & array_map()) is stepped over just as harmlessly:
+        // what precedes it there is an operand rather than a keyword.
+        if ($prev !== false && $tokens[$prev]['code'] === T_BITWISE_AND) {
+            $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
         }
 
         if (
             $prev !== false
-            && $tokens[$prev]['code'] === T_NS_SEPARATOR
-            && $this->isQualifiedName($phpcsFile, $prev) === true
+            && in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true
         ) {
             return;
         }
@@ -196,6 +213,30 @@ class ConvertToCollectionSniff implements Sniff
 
         return $tokens[$beforeSeparator]['code'] === T_NAMESPACE
             && $this->isInsideNamedNamespace($phpcsFile, $beforeSeparator) === true;
+    }
+
+    /**
+     * The token in front of the qualifier the T_NS_SEPARATOR at $separatorPtr
+     * opens — the separator itself for \array_map, and the namespace keyword
+     * with it for namespace\array_map. That is the token which decides what
+     * the name is doing, so new \array_map() and new namespace\array_map()
+     * read as the instantiations they are rather than as calls.
+     *
+     * Only reached for an unqualified global name: a qualified one
+     * (App\Support\array_map) has already left process().
+     *
+     * @return int|false
+     */
+    private function beforeQualifier(File $phpcsFile, int $separatorPtr)
+    {
+        $tokens = $phpcsFile->getTokens();
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
+
+        if ($before !== false && $tokens[$before]['code'] === T_NAMESPACE) {
+            return $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true);
+        }
+
+        return $before;
     }
 
     /**

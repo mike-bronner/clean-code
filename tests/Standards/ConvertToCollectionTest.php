@@ -145,11 +145,20 @@ it('is registered in the master ruleset', function (): void {
  * as a function, a method and a static method, used as a type hint and as a
  * bare constant (the two shapes that reach the sniff without an open
  * parenthesis after them), as a string, a property, a class being
- * instantiated, and behind a qualified namespace prefix, plus four native
- * array functions outside the configured list. Each of those is one of the
- * sniff's
+ * instantiated — bare, fully qualified and namespace-relative — declared by
+ * reference as a function, a method and a static method, and behind a
+ * qualified namespace prefix, plus four native array functions outside the
+ * configured list. Each of those is one of the sniff's
  * guards, so the fixture's silence is a verdict about them rather than merely
  * the absence of an array call.
+ *
+ * The three keyword shapes that carry something between the keyword and the
+ * name — new \array_reduce(), new namespace\array_map() and the &-returning
+ * declarations — are the ones a test of the keyword alone would miss. Each of
+ * their spellings is flagged elsewhere in the suite without its keyword
+ * (\array_map() in failing.php, namespace\array_map() in the global block of
+ * namespaced-blocks.php, the plain names throughout), so their silence here is
+ * the keyword's doing rather than the spelling's.
  *
  * The namespace-relative spelling is deliberately not among them: this file
  * declares no namespace, so namespace\array_filter() names the global function

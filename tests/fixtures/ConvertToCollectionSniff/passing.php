@@ -71,3 +71,32 @@ new array_reduce($rows);
 // failing.php, and namespaced.php carries the namespace-relative negative.
 App\Support\array_map($rows);
 App\Support\array_reduce($rows);
+
+// Positive: new keeps instantiating whichever spelling of the class name
+// follows it. Both spellings name the global class here, and both are flagged
+// as calls once the keyword is gone — \array_map() in failing.php,
+// namespace\array_map() in the global block of namespaced-blocks.php — so the
+// silence below is new doing the work rather than the spelling.
+new \array_reduce($rows);
+new namespace\array_map($rows);
+
+// Positive: a declaration that returns by reference is still a declaration.
+// The & stands between the keyword and the name, at file scope and in a class
+// alike.
+function &array_filter(array $rows): array
+{
+    return $rows;
+}
+
+class ReferenceTransformer
+{
+    public function &array_map(array $rows): array
+    {
+        return $rows;
+    }
+
+    public static function &array_reduce(array $rows): array
+    {
+        return $rows;
+    }
+}
