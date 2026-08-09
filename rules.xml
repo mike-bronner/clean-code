@@ -243,6 +243,35 @@
     -->
 
     <!--
+        Arrays: Convert To Collection (#30, sniff #165) —
+        docs/standards/arrays-convert-to-collection.md.
+
+        Manipulation goes through a Collection rather than a native array
+        function. No existing PHPCS or Slevomat sniff expresses this: PHPCS's
+        Generic.PHP.ForbiddenFunctions detects the same call shape but carries
+        no notion of a replacement to name, and Slevomat's array rules speak
+        about syntax (short arrays, trailing commas) rather than about which
+        API does the manipulating. So it is the custom
+        CleanCode.Arrays.ConvertToCollection sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/ConvertToCollectionTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        Warnings, not errors, and detection only: the standard says "whenever
+        possible", so a justified native call (a hot path, a plain-PHP context
+        with no illuminate/collections available) is tolerated, and rewriting a
+        call into a pipeline changes the value's type from array to Collection
+        at every downstream use. The flagged functions are the sniff's
+        configurable arrayFunctions property, so a project tunes coverage in
+        its own ruleset; this block records that the shipped default trio
+        (array_map, array_filter, array_reduce) is wanted unchanged.
+
+        Only that trigger is enforced. Whether a given manipulation reads
+        better as a pipeline, and foreach loops that accumulate into arrays,
+        stay with code review.
+    -->
+
+    <!--
         PHPMD CleanCode: DuplicatedArrayKey (#81) —
         docs/phpmd/cleancode-duplicatedarraykey.md.
 
