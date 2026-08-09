@@ -470,6 +470,54 @@
     -->
 
     <!--
+        PHPMD Naming: BooleanGetMethodName (#116) —
+        docs/phpmd/naming-booleangetmethodname.md.
+
+        No existing PHPCS or Slevomat sniff expresses PHPMD's
+        BooleanGetMethodName. The four nearest candidates were run against
+        tests/fixtures/BooleanGetMethodNameSniff/failing.php, whose twelve
+        methods are all boolean getters, and none of them answers this rule's
+        question: PSR1.Methods.CamelCapsMethodName,
+        Generic.NamingConventions.CamelCapsFunctionName, and
+        Squiz.NamingConventions.ValidFunctionName read the name's *shape*
+        (between them they report only lines 36 and 52, for a leading
+        underscore and a capital), while
+        SlevomatCodingStandard.TypeHints.ReturnTypeHint reports all twelve for
+        the missing native hint and would report the same twelve after every
+        method was renamed to isX(). So this is the custom
+        CleanCode.Naming.BooleanGetMethodName sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above — no per-sniff registration
+        is needed, and tests/Standards/BooleanGetMethodNameTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        No <properties> are configured. PHPMD ships this rule with
+        checkParameterizedMethods="false", so out of the box every boolean
+        getter is reported however many parameters it takes, and the sniff's
+        default matches. A consuming ruleset that already tunes PHPMD's rule
+        can paste the same value here: it is spelled and matched exactly as
+        PHPMD spells and matches it, including the direction — on, the rule
+        NARROWS to parameterless getters.
+
+        As with BooleanArgumentFlag above, no <type> override is needed: the
+        sniff raises errors already, so a violation fails a phpcs run the way
+        it fails a phpmd run.
+
+        Stricter than PHPMD on six shapes, and never looser. PHPMD reads only
+        the doc comment's @return tag, and only when the type is spelled
+        exactly `bool` or `boolean`, so a native return type (`: bool`,
+        `: ?bool`, `: bool|null`) and the nullable/union doc-comment spellings
+        (`?bool`, `bool|null`) all slip past it; a method of an anonymous class
+        does too, because PDepend never surfaces one to a MethodAware rule. All
+        six are true defects and are kept, pinned by
+        tests/fixtures/BooleanGetMethodNameSniff/divergences.php and set out in
+        docs/phpmd/naming-booleangetmethodname.md.
+
+        Detection only: renaming a method rewrites every call site, and `is`
+        versus `has` is a judgement about what the method asks. PHPMD offers no
+        fix either.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
         PHPMD UnusedCode: UnusedLocalVariable (#118) —
