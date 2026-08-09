@@ -180,10 +180,23 @@ it('reports an unterminated chain without falling over', function (): void {
  * The curly brace is the case that has to be handled rather than assumed
  * away. Deciding a curly brace means asking whether it opens a dynamic member
  * name, which reads back from its opener, so taking an opener-less closer for
- * an enclosing construct raises an "Undefined array key" and PHP_CodeSniffer
- * aborts the whole file -- every violation after the first is lost. All six
- * reads here are asserted for that reason: an abort reports the first and
- * nothing else, which is exactly what a count-free assertion would miss.
+ * an enclosing construct hands the missing `bracket_opener` -- `null` -- to
+ * `isDynamicMemberBrace()`, whose `int $openerPtr` rejects it, and the sniff
+ * dies with a TypeError. A TypeError extends Error rather than Exception, so
+ * `Runner::processFile()`'s `catch (Exception)` -- the one path that turns a
+ * failure into an Internal.Exception report -- never sees it. This harness
+ * drives `process()` without a Runner at all, so the TypeError is an uncaught
+ * fatal and this test errors rather than fails.
+ *
+ * (The phpcs command reaches a file-level abort by an earlier route: the
+ * runner installs an error handler that rethrows the "Undefined array key"
+ * warning preceding the TypeError as a RuntimeException, and that one is an
+ * Exception, so it is caught and reported as Internal.Exception. Neither
+ * route survives the stray closer -- they only differ in how loudly.)
+ *
+ * All six reads are asserted rather than a sample: they sit on both sides of
+ * the stray closer, so each one pins the walk stepping over it from a
+ * different position.
  */
 it('steps over a closer whose opener was never typed', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'stray-closer.php');
@@ -195,7 +208,7 @@ it('steps over a closer whose opener was never typed', function (): void {
         21 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         23 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         25 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-    ])->and($file->getErrorCount())->toBe(6, 'no Internal.Exception aborts the run');
+    ])->and($file->getErrorCount())->toBe(6, 'every read survives the stray closer');
 });
 
 /**
