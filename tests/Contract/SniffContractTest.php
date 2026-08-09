@@ -18,8 +18,9 @@
  *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
  *     DisallowStaticMembers, DisallowBooleanArgumentFlag,
- *     ExcessiveParameterList, ExcessivePublicCount, BooleanGetMethodName,
- *     ShortClassName, LineLength, Eval, VariableAnalysis, ShortMethodName) carry
+ *     ExcessiveMethodLength, ExcessiveParameterList, ExcessivePublicCount,
+ *     BooleanGetMethodName, ShortClassName, LineLength, Eval,
+ *     VariableAnalysis, ShortMethodName) carry
  *     passing.php and failing.php but no autofixed.php, because there is no
  *     safe mechanical rewrite.
  *
@@ -74,6 +75,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
+    'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Naming.BooleanGetMethodName',
