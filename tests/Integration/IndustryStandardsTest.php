@@ -72,13 +72,16 @@ it('reports the expected violations', function (
     expect(violationCountsByLine($file->getErrors()))->toBe($expectedErrors, 'Errors in ' . $fixture)
         ->and(violationCountsByLine($file->getWarnings()))->toBe($expectedWarnings, 'Warnings in ' . $fixture);
 })->with([
-    // compliant.php raises no *error* from the whole ruleset. Its one warning
-    // is the guard clause on line 21: AvoidConditionals (#12) warns once per
-    // branch, guard clauses included, so "clean PSR-12 code" and "free of
-    // conditionals" are now two different claims. Recorded rather than edited
-    // away — rewriting the fixture to dodge the warning would hide the most
-    // visible consequence of adding that sniff to the master ruleset.
-    'compliant class produces no errors' => ['compliant.php', [], [21 => 1]],
+    // compliant.php raises no *error* from the whole ruleset. Its warnings are
+    // the guard clause on line 21 — AvoidConditionals (#12) warns once per
+    // branch, guard clauses included — and the `2` and `3` of the `[1, 2, 3]`
+    // literal on line 25, which DisallowMagicNumbers (#136) reads as two
+    // unnamed numbers (`1` is on that sniff's shipped ignore list). So "clean
+    // PSR-12 code", "free of conditionals", and "free of magic numbers" are
+    // now three different claims. Recorded rather than edited away — rewriting
+    // the fixture to dodge the warnings would hide the most visible
+    // consequence of adding those sniffs to the master ruleset.
+    'compliant class produces no errors' => ['compliant.php', [], [21 => 1, 25 => 2]],
     'compliant abstract class produces zero violations' => ['compliant-abstract.php', [], []],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
     'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1], [1 => 1]],
@@ -108,7 +111,11 @@ it('reports the expected violations', function (
     // with absoluteLineLimit=120 a line past 120 chars is an error, not a
     // warning. Fixture line 7 is 124 chars.
     'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
-    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], []],
+    // The line-10 warning is DisallowMagicNumbers (#136) on that fixture's
+    // `$tabbed = 2;`, sitting alongside the indentation error the line exists
+    // to trip. Line 9 assigns `1`, which is on the sniff's ignore list, so the
+    // two visually identical lines report differently.
+    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], [10 => 1]],
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
     // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
     // alongside the two PSR-12 errors the fixture exists to trip.
