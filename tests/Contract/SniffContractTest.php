@@ -16,8 +16,8 @@
  * both. The only axis on which coverage varies is the fixer —
  *
  *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
- *     DisallowStaticMembers, DisallowBooleanArgumentFlag,
+ *   - Detection-only sniffs (ArrayAccessors, DuplicatedArrayKey,
+ *     OperatorLineBreak, DisallowStaticMembers, DisallowBooleanArgumentFlag,
  *     TooManyPublicMethods, ExcessiveMethodLength, ExcessiveParameterList,
  *     ExcessiveClassComplexity, ExcessivePublicCount, BooleanGetMethodName,
  *     ShortClassName, LineLength, Eval, NoSilencedErrors, VariableAnalysis,
@@ -69,6 +69,7 @@ declare(strict_types=1);
  */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
+    'CleanCode.Arrays.DuplicatedArrayKey',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',

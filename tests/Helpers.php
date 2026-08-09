@@ -390,6 +390,32 @@ function violationCountsByLine(array $messages): array
 }
 
 /**
+ * Collapses PHPCS's line => column => violations structure to a map of
+ * line number => list of rendered violation messages, for the assertions that
+ * are about what a diagnostic *says* rather than where it lands.
+ *
+ * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+ *
+ * @return array<int, array<int, string>>
+ */
+function violationMessagesByLine(array $messages): array
+{
+    $rendered = [];
+
+    foreach ($messages as $line => $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $rendered[$line][] = $violation['message'];
+            }
+        }
+    }
+
+    ksort($rendered);
+
+    return $rendered;
+}
+
+/**
  * Flattens a processed file's errors into an ordered list of
  * line/column/source tuples for exact assertion.
  *

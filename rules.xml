@@ -243,6 +243,42 @@
     -->
 
     <!--
+        PHPMD CleanCode: DuplicatedArrayKey (#81) —
+        docs/phpmd/cleancode-duplicatedarraykey.md.
+
+        No existing PHPCS, Generic, Squiz, or Slevomat sniff compares array
+        keys for equality. Squiz.Arrays.ArrayDeclaration is the only bundled
+        sniff that looks at keys at all, and every code it emits is about
+        layout — whether a key is present (KeySpecified, NoKeySpecified) and
+        how keys, arrows, and commas are spaced and aligned — never about two
+        keys naming the same slot. So this is the custom
+        CleanCode.Arrays.DuplicatedArrayKey sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/DuplicatedArrayKeyTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        Reported as an error, so phpcs exits non-zero on a duplicate key. A
+        warning would leave phpmd to run separately for this rule, which is
+        the one thing #81 exists to stop. Custom CleanCode sniffs report
+        errors by default, so no <type> tag is needed here.
+
+        Not a drop-in match for PHPMD. On four shapes this sniff is stricter —
+        a non-decimal integer base, a float key, a negated literal, and an
+        array outside a method or function — because it resolves each key to
+        the value PHP stores it under where PHPMD compares key literals as
+        source text and only inspects methods and functions. It also drops one
+        PHPMD false positive: '01' is a string key, not the octal literal 01.
+        All five are pinned by
+        tests/fixtures/DuplicatedArrayKeySniff/divergences.php and set out in
+        docs/phpmd/cleancode-duplicatedarraykey.md.
+
+        Detection only: the overridden entry's value can carry a side effect,
+        and which of the two entries is the mistake is a judgement about
+        intent, so there is no safe mechanical rewrite. PHPMD reports rather
+        than rewrites for the same reason.
+    -->
+
+    <!--
         Dependency Injection (#72) —
         docs/standards/dependency-injection.md.
 
