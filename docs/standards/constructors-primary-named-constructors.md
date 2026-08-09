@@ -56,6 +56,12 @@ expression in front of a ternary `?`; and — for the two dispatch idioms that
 put the test in the branch rather than in the head — a `match` arm's condition
 and a `switch`'s `case` labels.
 
+A predicate tests its *first* argument and nothing else, so
+`is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
+report `$value` alone — the class name they compare it against is a value the
+call reads, not a parameter whose own type is switched on. A predicate applied
+to a derived value (`is_string(trim($value))`) is not a signal either.
+
 **Warning severity, not error.** Branching in a constructor is a design smell,
 not always a defect; the sniff points at split-into-named-constructors
 candidates. It is detection-only: splitting a constructor rewrites the class's
@@ -76,8 +82,10 @@ Deliberately silent on:
 
 - **Guard clauses** — a branch whose first statement is a `throw` validates a
   precondition rather than selecting an initialization path, so its condition
-  is exempt whatever signal it carries. A `switch` or `match` qualifies when
-  every one of its branches throws.
+  is exempt whatever signal it carries — a mode flag, a type test, or an
+  argument-list read alike, since `if (func_num_args() > 1) { throw … }`
+  rejects a call rather than choosing how to build one. A `switch` or `match`
+  qualifies when every one of its branches throws.
 - **Coalesce defaults** — `$this->x = $x ?? new Default();` carries no
   branching token at all, and the elvis `?:` supplies a default for one
   expression rather than selecting between two. `is_null()` is left out of the

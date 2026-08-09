@@ -8,8 +8,9 @@ declare(strict_types=1);
  * failing.php proves each signal fires at all. This file is the guard against a
  * token walk that only ever handled the one spelling it was written against —
  * every branching form the signals can sit in, every declaration form a
- * constructor can take, and the argument readers in the places a body can put
- * them.
+ * constructor can take, the argument readers in the places a body can put them,
+ * every way a parameter can qualify as a mode flag, and the predicates that
+ * take a second argument alongside the value they test.
  */
 
 final class Mailer
@@ -159,5 +160,43 @@ final class HoldsAnonymousClass
                 $this->transport = $queued ? new Mailer() : new NullLogger();
             }
         };
+    }
+}
+
+/**
+ * A flag declared without the `bool` type, carrying a `true`/`false` default
+ * instead. This is the second leg of the flag test — an untyped parameter and a
+ * `mixed`-typed one reach it and nothing else does, so a `bool`-typed parameter
+ * cannot stand in for either.
+ */
+final class DefaultedModeFlags
+{
+    public function __construct($queued = false, mixed $eager = true)
+    {
+        $this->transport = $queued ? new Mailer() : new NullLogger();
+
+        if ($eager) {
+            $this->warm = new Mailer();
+        }
+    }
+}
+
+/**
+ * The two predicates that take more than one argument. Only the first argument
+ * is the subject being type-tested, so `$source` is a signal and the
+ * `$expectedClass` it is compared against — a value the call reads, never a
+ * parameter whose own type is switched on — is not.
+ */
+final class MultiArgumentPredicates
+{
+    public function __construct(mixed $source, string $expectedClass)
+    {
+        if (is_a($source, $expectedClass)) {
+            $this->handler = $source;
+        } else {
+            $this->handler = new NullLogger();
+        }
+
+        $this->child = is_subclass_of($source, $expectedClass) ? new Mailer() : new NullLogger();
     }
 }

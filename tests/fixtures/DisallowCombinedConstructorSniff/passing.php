@@ -12,7 +12,8 @@ declare(strict_types=1);
  *      scenarios expressed as named constructors that delegate to it.
  *   2. Every near-miss shape the sniff must stay silent on: guard clauses in
  *      each branching form (braced, brace-less, alternative syntax, ternary,
- *      `match`, `switch`), coalesce defaults (`??` and the elvis `?:`) over a
+ *      `match`, `switch`) and for each of the three signals — the argument
+ *      readers included — coalesce defaults (`??` and the elvis `?:`) over a
  *      mode flag, a non-boolean parameter in a condition, a type predicate
  *      applied to a *derived* value rather than the parameter, all three
  *      signals inside a named constructor and inside an ordinary method, all
@@ -152,6 +153,26 @@ final class GuardedWithElse
         } else {
             $this->name = $name;
         }
+    }
+}
+
+/**
+ * The argument readers inside guard clauses. Reading the argument list to
+ * *reject* a call is validating a precondition, not overloading the
+ * constructor, so the exemption covers this signal exactly as it covers the
+ * other two — in a braced `if`, a brace-less one, and a ternary that throws.
+ */
+final class GuardedArgumentCount
+{
+    public function __construct(mixed $value = null)
+    {
+        if (func_num_args() > 1) {
+            throw new InvalidArgumentException('GuardedArgumentCount takes one argument');
+        }
+
+        if (func_get_args() === []) throw new InvalidArgumentException('GuardedArgumentCount needs a value');
+
+        $this->checked = func_num_args() === 0 ? throw new LogicException('no arguments') : $value;
     }
 }
 

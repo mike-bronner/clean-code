@@ -27,7 +27,8 @@ use PHP_CodeSniffer\Util\Tokens;
  *   the parameter's own declared type is never consulted.
  * - `ArgumentCount` — `func_num_args()` or `func_get_args()` anywhere in the
  *   body. Poor-man's overloading needs no branch to be a mode signal; reading
- *   the argument count *is* the mode switch.
+ *   the argument count *is* the mode switch. A read in a guard clause's
+ *   condition is still exempt, like every other signal.
  *
  * A construct's "condition" is read the way each construct spells it: the
  * parenthesised expression of an `if`, `elseif`, `switch`, or `match`; the
@@ -49,9 +50,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * - **Guard clauses.** A branch whose first statement is a `throw` is
  *   validating a precondition, not selecting an initialization path, so its
- *   condition is exempt whatever signal it carries (#193's design constraint,
- *   stated for all three signals). "Only throws" is tested as "the first
- *   statement is a `throw`", because anything after one is unreachable.
+ *   condition is exempt whatever signal it carries — a mode flag, a type test,
+ *   or an argument-list read alike (#193's design constraint, stated for all
+ *   three signals). "Only throws" is tested as "the first statement is a
+ *   `throw`", because anything after one is unreachable.
  * - **Coalesce defaults.** `$this->x = $x ?? new Default();` carries no
  *   branching token at all, and the elvis `?:` is excluded explicitly: a
  *   `T_INLINE_THEN` immediately followed by a `T_INLINE_ELSE` supplies a
@@ -212,15 +214,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             }
 
             if ($code === T_STRING && $this->isArgumentReader($phpcsFile, $pointer)) {
-                $phpcsFile->addWarning(
-                    'Reading the constructor\'s own argument list with %s() overloads __construct()'
-                        . ' into several constructors; give each construction scenario its own named'
-                        . ' constructor delegating to one primary constructor'
-                        . ' (see docs/standards/constructors-primary-named-constructors.md)',
-                    $pointer,
-                    'ArgumentCount',
-                    [$tokens[$pointer]['content']]
-                );
+                $this->reportArgumentReader($phpcsFile, $pointer, $closer);
 
                 continue;
             }
@@ -267,6 +261,33 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
+     * Reports one read of the constructor's own argument list.
+     *
+     * The read needs no branch to be a mode signal, so it reports wherever it
+     * sits — unless it sits in the condition of a guard clause, which is exempt
+     * for this signal exactly as it is for the other two: a branch whose body
+     * only throws is rejecting a call rather than choosing how to build one.
+     */
+    private function reportArgumentReader(File $phpcsFile, int $pointer, int $closer): void
+    {
+        $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
+
+        if ($branch !== null && $this->isGuardClause($phpcsFile, $branch)) {
+            return;
+        }
+
+        $phpcsFile->addWarning(
+            'Reading the constructor\'s own argument list with %s() overloads __construct()'
+                . ' into several constructors; give each construction scenario its own named'
+                . ' constructor delegating to one primary constructor'
+                . ' (see docs/standards/constructors-primary-named-constructors.md)',
+            $pointer,
+            'ArgumentCount',
+            [$phpcsFile->getTokens()[$pointer]['content']]
+        );
+    }
+
+    /**
      * Reports one use of a parameter, when that use is a mode signal sitting in
      * a branching condition that is not a guard clause.
      *
@@ -274,13 +295,13 @@ class DisallowCombinedConstructorSniff implements Sniff
      */
     private function reportModeSwitch(File $phpcsFile, int $pointer, int $closer, array $parameters): void
     {
-        $isTypeTest = $this->isTypeTested($phpcsFile, $pointer);
+        $origin = $this->typeTestOrigin($phpcsFile, $pointer);
 
-        if (!$isTypeTest && $parameters[$phpcsFile->getTokens()[$pointer]['content']] === false) {
+        if ($origin === null && $parameters[$phpcsFile->getTokens()[$pointer]['content']] === false) {
             return;
         }
 
-        $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
+        $branch = $this->branchOwner($phpcsFile, $pointer, $closer, $origin ?? $pointer);
 
         if ($branch === null || $this->isGuardClause($phpcsFile, $branch)) {
             return;
@@ -288,7 +309,7 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $name = $phpcsFile->getTokens()[$pointer]['content'];
 
-        if ($isTypeTest) {
+        if ($origin !== null) {
             $phpcsFile->addWarning(
                 'Branching on the runtime type of %s combines several constructors into'
                     . ' __construct(); give each accepted type its own named constructor'
@@ -314,36 +335,82 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
-     * Whether this parameter use is a test of its runtime type — the left
-     * operand of `instanceof`, or the direct argument of a type-predicate call.
+     * Where the expression around this parameter use continues from when the use
+     * is a test of its runtime type — the left operand of `instanceof`, or the
+     * direct argument of a type-predicate call — and null when it is not one.
      *
-     * "Direct argument" is exact: the innermost parenthesis pair around the
-     * variable must be the predicate's own call parentheses, so
-     * `is_string(trim($value))` tests a derived value rather than the parameter.
+     * "Direct argument" is exact twice over: the innermost parenthesis pair
+     * around the variable must be the predicate's own call parentheses, so
+     * `is_string(trim($value))` tests a derived value rather than the parameter;
+     * and the variable must sit in the *first* argument, the only one any of
+     * these predicates takes as its subject. The two-argument spellings
+     * `is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
+     * test `$value` alone — the class name they compare it against is a value
+     * the call reads, never a parameter whose own type is being switched on.
+     *
+     * The origin is the predicate call's *closing* parenthesis, because what the
+     * surrounding expression branches on is the call's result: in
+     * `is_a($value, $expectedClass) ? … : …` the selector follows the call, and
+     * the comma between the two arguments ends the argument's own expression
+     * rather than the condition. `instanceof` has no call to step out of, so
+     * there the parameter itself is the origin.
+     *
+     * @return int|null Pointer to continue the expression scan from.
      */
-    private function isTypeTested(File $phpcsFile, int $pointer): bool
+    private function typeTestOrigin(File $phpcsFile, int $pointer): ?int
     {
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(T_WHITESPACE, $pointer + 1, null, true);
 
         if ($next !== false && $tokens[$next]['code'] === T_INSTANCEOF) {
-            return true;
+            return $pointer;
         }
 
         $nesting = $tokens[$pointer]['nested_parenthesis'] ?? [];
 
         if ($nesting === []) {
-            return false;
+            return null;
         }
 
         $openers = array_keys($nesting);
         $opener = (int) end($openers);
         $callee = $phpcsFile->findPrevious(T_WHITESPACE, $opener - 1, null, true);
 
-        return $callee !== false
+        $isPredicate = $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
-            && $this->isPlainFunctionCall($phpcsFile, $callee);
+            && $this->isPlainFunctionCall($phpcsFile, $callee)
+            && $this->isFirstArgument($phpcsFile, $opener, $pointer);
+
+        return $isPredicate ? (int) $nesting[$opener] : null;
+    }
+
+    /**
+     * Whether this token sits in the first argument of the call opening at
+     * $opener — that is, no argument separator stands between the two.
+     *
+     * A comma inside a nested group separates that group's own items, so groups
+     * are jumped whole rather than scanned into.
+     */
+    private function isFirstArgument(File $phpcsFile, int $opener, int $pointer): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($next = $opener + 1; $next < $pointer; $next++) {
+            if ($tokens[$next]['code'] === T_COMMA) {
+                return false;
+            }
+
+            foreach (['parenthesis_closer', 'bracket_closer'] as $key) {
+                if (isset($tokens[$next][$key]) && $tokens[$next][$key] > $next) {
+                    $next = (int) $tokens[$next][$key];
+
+                    break;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -390,15 +457,20 @@ class DisallowCombinedConstructorSniff implements Sniff
      *   belong to the `T_IF`, and the `T_ELSE` in front of it is never
      *   consulted.
      * - A selector *following* the expression — a ternary `?` or a `match` arm
-     *   `=>` — has no such marker, so the scan runs forward from the token to
+     *   `=>` — has no such marker, so the scan runs forward from $origin to
      *   the first selector or statement boundary, jumping bracketed and braced
      *   groups whole and stepping out of a group that closes around it (which
      *   is what makes `is_string($value) ? … : …` a condition).
      *
+     * @param int|null $origin Where the forward scan starts, when the token
+     *                         hands its value to an enclosing expression before
+     *                         a selector can follow — a type predicate's closing
+     *                         parenthesis. Defaults to the token itself.
+     *
      * @return int|null Pointer to the owning `if`/`elseif`/`switch`/`match`, the
      *                  ternary `?`, or the `match` arm `=>`.
      */
-    private function branchOwner(File $phpcsFile, int $pointer, int $closer): ?int
+    private function branchOwner(File $phpcsFile, int $pointer, int $closer, ?int $origin = null): ?int
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -412,7 +484,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             }
         }
 
-        return $this->followingSelector($phpcsFile, $pointer, $closer);
+        return $this->followingSelector($phpcsFile, $origin ?? $pointer, $closer);
     }
 
     /**
