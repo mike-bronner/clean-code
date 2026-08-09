@@ -10,7 +10,8 @@ declare(strict_types=1);
  * every branching form the signals can sit in, every declaration form a
  * constructor can take, the argument readers in the places a body can put them,
  * every way a parameter can qualify as a mode flag, the predicates that take a
- * second argument, and a comment wherever the walk needs two adjacent tokens.
+ * second argument, a comment wherever the walk needs two adjacent tokens, and
+ * every way a group can stand between a signal and the selector it feeds.
  */
 
 final class Mailer
@@ -247,5 +248,54 @@ final class NullableModeFlags
         if ($eager) {
             $this->warm = new Mailer();
         }
+    }
+}
+
+/**
+ * A signal separated from its selector by a comma — once inside another call's
+ * argument list, once inside an array literal. A comma separates the elements
+ * of the group it sits in rather than ending the expression: the flag's value
+ * flows on as the group's own result, and the ternary that result selects on is
+ * still the flag's branch.
+ */
+final class NestedGroupShapes
+{
+    public function __construct(bool $queued, mixed $value)
+    {
+        $this->transport = in_array($queued, [$value], true) ? new Mailer() : new NullLogger();
+
+        $this->fallback = [$queued, $value][0] ? new Mailer() : new NullLogger();
+    }
+}
+
+/**
+ * A `match` standing as an operand of the expression a ternary selects on. Its
+ * arm list is a braced group in the middle of that expression, so the scan
+ * jumps the whole construct — subject parentheses, arm list and all — instead
+ * of reading the arm list's opening brace as the end of the expression.
+ */
+final class MatchOperandShapes
+{
+    public function __construct(bool $queued, mixed $value)
+    {
+        $this->transport = $queued && match ($value) { 'draft' => true, default => false }
+            ? new Mailer() : new NullLogger();
+    }
+}
+
+/**
+ * A flag whose expression carries a parenthesised group holding a selector of
+ * its own — a guard clause's ternary, passed as an argument. The group is
+ * jumped whole, so the branch the flag heads is the outer ternary and not the
+ * throwing one inside the call: a scan that read the inner selector as the
+ * flag's own would take the flag for a guard and stay silent.
+ */
+final class ParenthesisedOperandShapes
+{
+    public function __construct(bool $queued, string $mode)
+    {
+        $this->transport = $queued && $this->pick($mode === 'draft' ? throw new InvalidArgumentException('no') : 'b')
+            ? new Mailer()
+            : new NullLogger();
     }
 }

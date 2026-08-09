@@ -24,7 +24,9 @@ declare(strict_types=1);
  *      `function __construct()` at file scope, member and static calls that
  *      merely share a name with a predicate or with the argument readers —
  *      including with a comment splitting the object operator from the name —
- *      and every bodiless constructor shape.
+ *      every bodiless constructor shape, the far side of every expression
+ *      boundary the forward scan must respect, and guards holding a nested
+ *      construct of the same kind as their own.
  *
  * Dropping any one of the sniff's guards reddens this file.
  */
@@ -488,6 +490,75 @@ final class WideUnionParameter
             $this->mode = $mode;
         } else {
             $this->mode = 'default';
+        }
+    }
+}
+
+/**
+ * The far side of the two boundaries shapes.php exercises: a group the flag
+ * sits in, and a group standing in the expression, must both end where the
+ * statement ends. Every constructor below puts a ternary in the *next*
+ * statement, so a scan that ran past its own statement would report the flag.
+ *
+ * A group whose result no selector follows, a `match` operand ending its own
+ * statement, a comma at statement level with no group around it at all, and a
+ * comma-separated group feeding a guard clause — which is exempt through the
+ * step-out exactly as it is anywhere else.
+ */
+final class NestedGroupEnds
+{
+    public function __construct(bool $verbose, int $retries, mixed $value)
+    {
+        $this->allowed = in_array($verbose, [true], true);
+        $this->state = $retries > 3 ? 'capped' : 'open';
+
+        $this->mode = $verbose && match ($value) { 'draft' => true, default => false };
+        $this->label = $retries > 3 ? 'capped' : 'open';
+
+        if ($retries > 3) {
+            echo $verbose, PHP_EOL;
+        }
+
+        $this->level = $retries > 3 ? 'capped' : 'open';
+
+        $this->transport = in_array($verbose, [true], true)
+            ? throw new InvalidArgumentException('verbose is not a construction mode')
+            : new Mailer();
+    }
+}
+
+/**
+ * Guards whose own branches all throw, each holding an unrelated construct of
+ * the same kind inside what it throws — a `switch` in a closure the exception
+ * message is built from, a `match` producing that message. The nested `case`
+ * labels and `match` arms are branches of the nested construct, not of the
+ * guard, so a walk that counted them as the guard's own would find a
+ * non-throwing branch and report a guard that throws on every branch it has.
+ */
+final class NestedGuardBranches
+{
+    public function __construct(bool $verbose, string $mode)
+    {
+        $this->transport = match ($verbose) {
+            true => throw new InvalidArgumentException(match ($mode) {
+                'draft' => 'draft is not a construction mode',
+                default => 'live is not a construction mode',
+            }),
+            default => throw new InvalidArgumentException('verbose is not a construction mode'),
+        };
+
+        switch ($verbose) {
+            case true:
+                throw new InvalidArgumentException($this->explain(function () use ($mode) {
+                    switch ($mode) {
+                        case 'draft':
+                            return 'draft';
+                        default:
+                            return 'live';
+                    }
+                }));
+            default:
+                throw new InvalidArgumentException('verbose is not a construction mode');
         }
     }
 }

@@ -46,7 +46,7 @@ use PHP_CodeSniffer\Util\Tokens;
  * Reported at the *parameter variable* for the first two signals — the thing
  * being switched on — and at the function name for the third.
  *
- * Two invariants hold across every token walk below, and each is
+ * Three invariants hold across every token walk below, and each is
  * mutation-tested in the test file rather than assumed:
  *
  * - **Comment tolerance.** Every adjacency test skips `Tokens::$emptyTokens`,
@@ -58,6 +58,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * - **Argument totality.** A parameter counts as a type predicate's subject
  *   only when it is the bare, undecorated first argument — see
  *   {@see self::isBareFirstArgument()}.
+ * - **Expression levels.** A forward scan reads a token as its expression's own
+ *   only when the token belongs to that expression rather than to a construct
+ *   nested in it or wrapped around it. A group standing in the way is jumped
+ *   whole, whatever kind of group it is — parentheses, brackets, or the braces
+ *   of a `match` used as an operand ({@see self::groupEnd()}) — and a comma
+ *   separates the elements of the group it sits in rather than ending the
+ *   expression that group's value feeds ({@see self::enclosingGroupCloser()}).
  *
  * Deliberately **not** reported, and why:
  *
@@ -149,19 +156,40 @@ class DisallowCombinedConstructorSniff implements Sniff
     ];
 
     /**
-     * Tokens that end the expression a mode signal belongs to, so a selector
-     * found after one of them belongs to a different expression. A brace is
-     * among them: a block opening after the expression is a body, never a
-     * continuation of it.
+     * Tokens that end the expression a mode signal belongs to outright, so a
+     * selector found after one of them belongs to a different expression. A
+     * brace is among them: a block opening after the expression is a body,
+     * never a continuation of it.
+     *
+     * Two punctuation marks are deliberately absent. A comma separates the
+     * elements *inside* a group rather than ending the expression that group's
+     * own value feeds, and is handled by {@see self::enclosingGroupCloser()}
+     * instead. A `T_COLON` needs no entry either: the only ones the scan can
+     * reach are a `case` label's, read as a condition of its own before this
+     * list is consulted, and an alternative-syntax block's, which opens a scope
+     * {@see self::groupEnd()} steps over whole. (A ternary's `:` is a
+     * `T_INLINE_ELSE`, and never a `T_COLON`.)
      *
      * @var array<int, int|string>
      */
     private const EXPRESSION_TERMINATORS = [
-        T_COLON,
-        T_COMMA,
         T_DOUBLE_ARROW,
         T_OPEN_CURLY_BRACKET,
         T_SEMICOLON,
+    ];
+
+    /**
+     * The closing token of every group an expression can be nested in — a call
+     * or parenthesised group, an array literal or subscript, and a braced group
+     * such as a `match` arm list.
+     *
+     * @var array<int, int|string>
+     */
+    private const GROUP_CLOSERS = [
+        T_CLOSE_CURLY_BRACKET,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SHORT_ARRAY,
+        T_CLOSE_SQUARE_BRACKET,
     ];
 
     /**
@@ -313,13 +341,13 @@ class DisallowCombinedConstructorSniff implements Sniff
      */
     private function reportModeSwitch(File $phpcsFile, int $pointer, int $closer, array $parameters): void
     {
-        $origin = $this->typeTestOrigin($phpcsFile, $pointer);
+        $typeTested = $this->isTypeTested($phpcsFile, $pointer);
 
-        if ($origin === null && $parameters[$phpcsFile->getTokens()[$pointer]['content']] === false) {
+        if (!$typeTested && $parameters[$phpcsFile->getTokens()[$pointer]['content']] === false) {
             return;
         }
 
-        $branch = $this->branchOwner($phpcsFile, $pointer, $closer, $origin ?? $pointer);
+        $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
 
         if ($branch === null || $this->isGuardClause($phpcsFile, $branch)) {
             return;
@@ -327,7 +355,7 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $name = $phpcsFile->getTokens()[$pointer]['content'];
 
-        if ($origin !== null) {
+        if ($typeTested) {
             $phpcsFile->addWarning(
                 'Branching on the runtime type of %s combines several constructors into'
                     . ' __construct(); give each accepted type its own named constructor'
@@ -353,9 +381,8 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
-     * Where the expression around this parameter use continues from when the use
-     * is a test of its runtime type — the left operand of `instanceof`, or the
-     * direct argument of a type-predicate call — and null when it is not one.
+     * Whether this parameter use is a test of its runtime type — the left
+     * operand of `instanceof`, or the direct argument of a type-predicate call.
      *
      * "Direct argument" is exact twice over: the innermost parenthesis pair
      * around the variable must be the predicate's own call parentheses, so
@@ -366,43 +393,31 @@ class DisallowCombinedConstructorSniff implements Sniff
      * `is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
      * test `$value` alone — the class name they compare it against is a value
      * the call reads, never a parameter whose own type is being switched on.
-     *
-     * The origin is the predicate call's *closing* parenthesis, because what the
-     * surrounding expression branches on is the call's result: in
-     * `is_a($value, $expectedClass) ? … : …` the selector follows the call, and
-     * the comma between the two arguments ends the argument's own expression
-     * rather than the condition. `instanceof` has no call to step out of, so
-     * there the parameter itself is the origin.
-     *
-     * @return int|null Pointer to continue the expression scan from.
      */
-    private function typeTestOrigin(File $phpcsFile, int $pointer): ?int
+    private function isTypeTested(File $phpcsFile, int $pointer): bool
     {
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
         if ($next !== false && $tokens[$next]['code'] === T_INSTANCEOF) {
-            return $pointer;
+            return true;
         }
 
         $nesting = $tokens[$pointer]['nested_parenthesis'] ?? [];
 
         if ($nesting === []) {
-            return null;
+            return false;
         }
 
         $openers = array_keys($nesting);
         $opener = (int) end($openers);
-        $callCloser = (int) $nesting[$opener];
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
-        $isPredicate = $callee !== false
+        return $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
             && $this->isPlainFunctionCall($phpcsFile, $callee)
-            && $this->isBareFirstArgument($phpcsFile, $opener, $callCloser, $pointer);
-
-        return $isPredicate ? $callCloser : null;
+            && $this->isBareFirstArgument($phpcsFile, $opener, (int) $nesting[$opener], $pointer);
     }
 
     /**
@@ -479,20 +494,15 @@ class DisallowCombinedConstructorSniff implements Sniff
      *   belong to the `T_IF`, and the `T_ELSE` in front of it is never
      *   consulted.
      * - A selector *following* the expression — a ternary `?` or a `match` arm
-     *   `=>` — has no such marker, so the scan runs forward from $origin to
-     *   the first selector or statement boundary, jumping bracketed and braced
-     *   groups whole and stepping out of a group that closes around it (which
-     *   is what makes `is_string($value) ? … : …` a condition).
-     *
-     * @param int|null $origin Where the forward scan starts, when the token
-     *                         hands its value to an enclosing expression before
-     *                         a selector can follow — a type predicate's closing
-     *                         parenthesis. Defaults to the token itself.
+     *   `=>` — has no such marker, so the scan runs forward from the token to
+     *   the first selector or expression boundary, jumping groups whole and
+     *   stepping out of a group that closes around it (which is what makes
+     *   `is_string($value) ? … : …` a condition).
      *
      * @return int|null Pointer to the owning `if`/`elseif`/`switch`/`match`, the
      *                  ternary `?`, or the `match` arm `=>`.
      */
-    private function branchOwner(File $phpcsFile, int $pointer, int $closer, ?int $origin = null): ?int
+    private function branchOwner(File $phpcsFile, int $pointer, int $closer): ?int
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -506,12 +516,22 @@ class DisallowCombinedConstructorSniff implements Sniff
             }
         }
 
-        return $this->followingSelector($phpcsFile, $origin ?? $pointer, $closer);
+        return $this->followingSelector($phpcsFile, $pointer, $closer);
     }
 
     /**
      * The ternary `?` or `match` arm `=>` this token's expression feeds, or null
      * when the expression ends without reaching one.
+     *
+     * The scan reads a token as the expression's own only when the token sits
+     * at the expression's level. Two rules keep it there, and both are stated
+     * about *any* nesting rather than about the shapes that first needed them:
+     *
+     * - A group opening in front of the scan is jumped whole, whatever kind of
+     *   group it is — see {@see self::groupEnd()}.
+     * - A comma is a separator inside an enclosing group rather than an end,
+     *   so the scan steps out to that group's closer and carries on with the
+     *   group's own value — see {@see self::enclosingGroupCloser()}.
      */
     private function followingSelector(File $phpcsFile, int $pointer, int $closer): ?int
     {
@@ -536,20 +556,90 @@ class DisallowCombinedConstructorSniff implements Sniff
                 return $this->enclosingSwitch($phpcsFile, $pointer);
             }
 
+            if ($code === T_COMMA) {
+                $enclosing = $this->enclosingGroupCloser($phpcsFile, $next, $closer);
+
+                if ($enclosing === null) {
+                    return null;
+                }
+
+                $next = $enclosing;
+
+                continue;
+            }
+
             if (in_array($code, self::EXPRESSION_TERMINATORS, true)) {
                 return null;
             }
 
             // A group opening here belongs to the expression — jump it whole so
             // its contents cannot be mistaken for the expression's own tokens.
-            // Only brackets are jumped: a brace ends the expression outright, so
-            // it is a terminator above rather than something to step over.
-            foreach (['parenthesis_closer', 'bracket_closer'] as $key) {
-                if (isset($tokens[$next][$key]) && $tokens[$next][$key] > $next) {
-                    $next = (int) $tokens[$next][$key];
+            $next = $this->groupEnd($phpcsFile, $next) ?? $next;
+        }
 
-                    break;
-                }
+        return null;
+    }
+
+    /**
+     * Where the group holding this separator closes, or null when the separator
+     * is not inside a group at all.
+     *
+     * A comma ends one element of a group — a call's argument, an array's item,
+     * a `match` arm — never the expression the group as a whole hands on. In
+     * `in_array($flag, [$value]) ? new Mailer() : new NullLogger()` the comma
+     * belongs to the call's argument list, and it is the call's *result* the
+     * ternary selects on, so the scan resumes at the call's closing parenthesis
+     * with the flag's value still flowing.
+     *
+     * The scan resumes at the closer rather than merely past the comma, so the
+     * elements after it stay outside the expression: a ternary in a *sibling*
+     * argument is that argument's own, not this one's.
+     *
+     * A comma outside any group ends a statement-level list (`echo $a, $b;`),
+     * which no selector can follow — the semicolon stop below is what
+     * distinguishes the two.
+     */
+    private function enclosingGroupCloser(File $phpcsFile, int $pointer, int $closer): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($next = $pointer + 1; $next < $closer; $next++) {
+            $code = $tokens[$next]['code'];
+
+            if (in_array($code, self::GROUP_CLOSERS, true)) {
+                return $next;
+            }
+
+            if ($code === T_SEMICOLON) {
+                return null;
+            }
+
+            $next = $this->groupEnd($phpcsFile, $next) ?? $next;
+        }
+
+        return null;
+    }
+
+    /**
+     * Where the group opening at this token closes, or null when no group opens
+     * here.
+     *
+     * Every kind of group counts, because every kind can hold a whole
+     * sub-expression the scan must step over rather than read: a call's or a
+     * grouping's parentheses, an array literal or a subscript's brackets, and a
+     * braced group — the arm list of a `match` used as an operand, the body of
+     * a closure or an anonymous class. The braced kind is why `scope_closer` is
+     * consulted first: a `match` carries both a `parenthesis_closer` (its
+     * subject) and a `scope_closer` (its arm list), and only the latter is the
+     * end of the whole construct.
+     */
+    private function groupEnd(File $phpcsFile, int $pointer): ?int
+    {
+        $token = $phpcsFile->getTokens()[$pointer];
+
+        foreach (['scope_closer', 'parenthesis_closer', 'bracket_closer'] as $key) {
+            if (isset($token[$key]) && $token[$key] > $pointer) {
+                return (int) $token[$key];
             }
         }
 
@@ -631,6 +721,25 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
+     * Whether this `case` label or `match` arrow is a branch of the construct
+     * at $owner itself, rather than of one nested inside it.
+     *
+     * Both walks below read a whole block looking for the branch tokens of one
+     * construct, and a block can hold another construct of the same kind: a
+     * `switch` inside a closure passed to a `throw`, a `match` inside the
+     * message another `match` throws. The nested construct's branches are its
+     * own — counting them as the outer construct's would let a non-throwing
+     * nested branch report a guard that does throw on every branch of its own.
+     * The innermost construct holding the token is the one it belongs to.
+     */
+    private function isDirectBranchOf(File $phpcsFile, int $pointer, int $owner): bool
+    {
+        $conditions = array_keys($phpcsFile->getTokens()[$pointer]['conditions'] ?? []);
+
+        return end($conditions) === $owner;
+    }
+
+    /**
      * Whether every non-empty `case`/`default` body of this switch throws first.
      */
     private function everyCaseThrows(File $phpcsFile, int $switch): bool
@@ -649,7 +758,7 @@ class DisallowCombinedConstructorSniff implements Sniff
                 continue;
             }
 
-            if (!isset($tokens[$pointer]['scope_opener'])) {
+            if (!isset($tokens[$pointer]['scope_opener']) || !$this->isDirectBranchOf($phpcsFile, $pointer, $switch)) {
                 continue;
             }
 
@@ -687,7 +796,7 @@ class DisallowCombinedConstructorSniff implements Sniff
         $arms = 0;
 
         for ($pointer = $tokens[$match]['scope_opener'] + 1; $pointer < $end; $pointer++) {
-            if ($tokens[$pointer]['code'] !== T_MATCH_ARROW) {
+            if ($tokens[$pointer]['code'] !== T_MATCH_ARROW || !$this->isDirectBranchOf($phpcsFile, $pointer, $match)) {
                 continue;
             }
 
