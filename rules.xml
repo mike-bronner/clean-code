@@ -339,6 +339,46 @@
     -->
 
     <!--
+        PHPMD CleanCode: ErrorControlOperator (#82) —
+        docs/phpmd/cleancode-errorcontroloperator.md.
+
+        Generic.PHP.NoSilencedErrors registers on T_ASPERAND and reports every
+        error-control operator, which is exactly PHPMD's ErrorControlOperator
+        detection; no custom sniff is needed. Working from the token means the
+        `@` characters that are not the operator — an address in a string, a
+        docblock tag, a PHP 8 attribute — are never seen, so the mapping needs
+        no exclusions to stay free of false positives.
+
+        error="true" is the sniff's own severity switch, and it changes the
+        message code with the type: a violation is reported as an *error* under
+        the `.Forbidden` code rather than as a warning under `.Discouraged`.
+        The error severity is what makes the mapping replace PHPMD, where an
+        ErrorControlOperator violation fails the run — left a warning, phpcs
+        would exit 0 on suppressed errors and phpmd would still have to run
+        separately. Squiz.PHP.Eval above needs a <type>error</type> override to
+        say the same thing only because that sniff has no such property; where
+        one exists, the sniff's own switch is used so the message text agrees
+        with the severity.
+
+        Not auto-fixable, matching PHPMD. The sniff registers no fixer, and
+        stripping an `@` changes runtime behaviour — the suppressed diagnostic
+        starts surfacing, which is the point of the rule but not something a
+        formatter may decide.
+
+        Stricter than PHPMD on one shape, and never looser: PHPMD's rule is
+        MethodAware/FunctionAware, so an `@` at a file's top level is never
+        inspected, while the sniff reports it. Suppression hides the same
+        errors wherever it is written, so the extra report is kept, pinned by
+        tests/fixtures/NoSilencedErrorsSniff/divergences.php and set out in the
+        doc above.
+    -->
+    <rule ref="Generic.PHP.NoSilencedErrors">
+        <properties>
+            <property name="error" value="true"/>
+        </properties>
+    </rule>
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
         PHPMD UnusedCode: UnusedLocalVariable (#118) —
