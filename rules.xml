@@ -976,6 +976,48 @@
     </rule>
 
     <!--
+        PHPMD Design: GotoStatement (#109) — docs/phpmd/design-gotostatement.md.
+
+        Generic.PHP.DiscourageGoto listens for T_GOTO and T_GOTO_LABEL and
+        reports every occurrence, which covers PHPMD's GotoStatement detection;
+        no custom sniff is needed. No Slevomat sniff disallows goto — it shows
+        up there only as a cognitive-complexity increment
+        (Complexity.Cognitive) and in control-structure spacing. Every other
+        PHPCS sniff that touches T_GOTO reads it for some other purpose
+        (spacing, unreachable code, switch-case ends); this is the only sniff
+        in either standard that reports the construct itself. The sniff
+        emits a single code, Found, so the rule is referenced by that code
+        rather than by sniff name — that is what lets the <message> override
+        below apply, since PHPCS resolves a message override per code.
+
+        As with Squiz.PHP.Eval and VariableAnalysis above, the severity is
+        raised from the sniff's built-in warning to an error: PHPMD fails a run
+        on a GotoStatement violation, and a warning would leave phpcs exiting 0,
+        so phpmd would still have to run separately for this rule.
+
+        The message is overridden for the same reason. The stock text calls goto
+        "discouraged", which contradicts the error severity set here and offers
+        no remedy; this ruleset disallows it, and the replacement is standard
+        control structures and separate methods — PHPMD's own guidance.
+
+        Stricter than PHPMD on two shapes, both deliberate. PHPMD's rule is
+        MethodAware/FunctionAware, so it sees neither a goto at file scope nor
+        any target label; the sniff reports both. Every violation PHPMD raises
+        is therefore also raised here, and the extra reports are true positives
+        — a label exists only as a goto target. Both divergences are pinned by
+        tests/Ruleset/GotoStatementTest.php and set out in
+        docs/phpmd/design-gotostatement.md.
+
+        Detection only: the rewrite of a goto into a loop, an early return, or
+        an extracted method depends on what the jump means, so there is nothing
+        to auto-fix. PHPMD offers no auto-fix either.
+    -->
+    <rule ref="Generic.PHP.DiscourageGoto.Found">
+        <message>Use of the goto construct is disallowed; replace it with standard control structures and separate methods.</message>
+        <type>error</type>
+    </rule>
+
+    <!--
         PHPMD Naming: ConstructorWithNameAsEnclosingClass (#113) —
         docs/phpmd/naming-constructorwithnameasenclosingclass.md.
 

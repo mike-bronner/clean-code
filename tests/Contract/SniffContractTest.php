@@ -20,9 +20,10 @@
  *     OperatorLineBreak, DisallowStaticMembers, DisallowBooleanArgumentFlag,
  *     TooManyPublicMethods, ExcessiveMethodLength, ExcessiveParameterList,
  *     ExcessiveClassComplexity, ExcessivePublicCount, BooleanGetMethodName,
- *     ShortClassName, LineLength, ConstructorName, Eval, NoSilencedErrors,
- *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
- *     but no autofixed.php, because there is no safe mechanical rewrite.
+ *     ShortClassName, LineLength, ConstructorName, DiscourageGoto, Eval,
+ *     NoSilencedErrors, VariableAnalysis, ShortMethodName) carry passing.php
+ *     and failing.php but no autofixed.php, because there is no safe
+ *     mechanical rewrite.
  *
  * — which is why the contract is expressed as separate datasets rather than one
  * list. An autofixed.php is never a substitute for a passing.php: it is the
@@ -91,6 +92,7 @@ const SWEPT_SNIFFS = [
     'Generic.ControlStructures.InlineControlStructure',
     'Generic.Files.LineLength',
     'Generic.NamingConventions.ConstructorName',
+    'Generic.PHP.DiscourageGoto',
     'Generic.PHP.NoSilencedErrors',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
