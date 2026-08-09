@@ -295,6 +295,34 @@
     </rule>
 
     <!--
+        Pattern: Don't Repeat Yourself (DRY) (#4, #134) —
+        docs/standards/pattern-dont-repeat-yourself-dry.md.
+
+        The custom CleanCode.Functions.AvoidDuplicateFunctionBodies sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above. It
+        warns once per function or method body in a file whose normalized token
+        stream exactly matches an earlier one, detection only — extracting the
+        shared logic and rewriting both call sites is a design change with no
+        mechanical rewrite.
+
+        No bundled PHPCS or Slevomat sniff compares one declaration's body
+        against another's; every rule either tool ships with "Duplicate" in its
+        name matches a different construct (repeated spaces, repeated
+        assignments to one variable, repeated class/property/argument names),
+        and Slevomat's Complexity.Cognitive scores each declaration alone.
+
+        No <properties> are configured: the sniff's minimumStatements default
+        of 3 is the threshold #134 specifies. A consuming ruleset can raise it
+        to report only larger copy-pastes, or lower it (the sniff floors it at
+        1) to see one-line duplication too.
+
+        Warning severity is the sniff's own, and deliberate — no <type>
+        override. #4 tolerates duplication until an abstraction is warranted
+        ("don't abstract prematurely"), so a report is an abstraction
+        candidate, not a defect, and must not fail a consumer's build.
+    -->
+
+    <!--
         PHPMD CleanCode: BooleanArgumentFlag (#76) —
         docs/phpmd/cleancode-booleanargumentflag.md.
 
