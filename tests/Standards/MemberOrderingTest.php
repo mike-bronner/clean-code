@@ -131,18 +131,23 @@ it('names both members in every ordering message', function (): void {
  * - `InteriorSingletonGroupModel` puts a one-property `protected` group between
  *   a two-property public group and a two-property private group — the boundary
  *   `SingleMemberModel` cannot reach, where the lone group is the class's only
- *   group and nothing sits after it to be compared against. Two mutations of the
- *   per-group reset were run, and this class reports under both: carrying the
- *   baseline across a group change reports on `$delta`, and dropping the
- *   same-group guard from the alphabetical branch reports on `$table` and
- *   `$charlie`.
+ *   group and nothing sits after it to be compared against. Two mutations of
+ *   the per-group boundary were run, each named by its edit and each counted
+ *   from the run rather than from a reading of the code:
+ *
+ *   - The same-group guard (`$rank === $previousRank`) removed from the
+ *     alphabetical branch, so a comparison carries across a group boundary.
+ *     This class reports twice, on `$table` and `$charlie`.
+ *   - The group-order branch widened from `$rank < $previousRank` to `<=`, so
+ *     it fires inside a group. This class reports twice, on `$zulu` and
+ *     `$delta`.
  *
  *   Neither kill is this class's alone — `CompliantModel` reports under both
- *   mutations too, at 2 and 3 total violations respectively. What this class
- *   adds is the shape rather than a mutation nothing else catches: it is the
- *   only fixture in the suite where a group of one has populated groups on both
- *   sides of it, so a future reset that special-cases a singleton group has
- *   something to fail against.
+ *   too, once under the first (`$memoised`) and three times under the second
+ *   (`$beta`, `$table`, `$rendered`). What this class adds is the shape rather
+ *   than a mutation nothing else catches: it is the only fixture in the suite
+ *   where a group of one has populated groups on both sides of it, so a future
+ *   reset that special-cases a singleton group has something to fail against.
  * - `InterleavedModel` puts the three method categories in mixed order, each
  *   internally alphabetical — the assertion that keeps the deliberate decision
  *   not to enforce a sequence *between* the categories from drifting.
@@ -153,7 +158,14 @@ it('names both members in every ordering message', function (): void {
  * - `MagicAndNestedModel` puts `__toString()` after `zulu()`. Magic-method
  *   skip removed: 1 violation, since `_` sorts ahead of every letter.
  * - The anonymous class inside it declares its traits and properties in
- *   reverse order. Conditions check removed: 1 violation.
+ *   reverse order. The conditions check appears at three call sites and they
+ *   do not answer alike, so each site is named with what it actually does:
+ *   removed from the trait walk, 1 violation; removed from the property walk,
+ *   PHPCS aborts the file with "$stackPtr is not a class member var" — the
+ *   walk reaches `$this` in an earlier method body long before it reaches this
+ *   class, and no variable in a method body is a member var; removed from the
+ *   method walk, nothing at all, because this anonymous class declares no
+ *   methods to reach.
  */
 it('is silent on compliant models and on every near-miss shape', function (): void {
     $file = analyzeFixture(MEMBER_ORDERING, 'passing.php');
@@ -235,9 +247,10 @@ it('reports each displaced member once and ignores letter case', function (): vo
  * - `RelationReturnTypeModel` — a relation return type is recognised
  *   qualified (`\Illuminate\…\HasMany`), nullable (`?BelongsTo`), as one arm
  *   of a union (`HasOne|MorphTo`), and as the abstract base (`Relation`).
- *   Dropping the union split: 1 violation. Dropping the `?` from the trimmed
- *   characters: 1 violation. Taking the first namespace qualifier instead of
- *   the last: 1 violation.
+ *   Dropping the `?` from the trimmed characters: 1 violation. Taking the
+ *   first namespace qualifier instead of the last: 1 violation. Dropping the
+ *   union split: 3 violations — one here, and one in each DNF class below,
+ *   whose `|null` arm needs the same split before the parentheses matter.
  * - `DnfLeadingRelationModel` and `DnfTrailingRelationModel` — PHP 8.2's DNF
  *   spelling, `(HasMany&Countable)|null` and `(Countable&HasOne)|null`. The
  *   parenthesis reaches the comparison on the relation itself, and which one it
@@ -255,8 +268,8 @@ it('reports each displaced member once and ignores letter case', function (): vo
  *   the empty string, whose short name matches nothing.
  * - `AccessorModel` — `get*`/`set*` are accessors, but a public method
  *   returning a relation answers to rule 3 whatever it is named. Classifying
- *   accessors first: 3 violations. Dropping the accessor category outright:
- *   2 violations.
+ *   accessors first: 1 violation. Dropping the accessor category outright:
+ *   2 violations — one here, one in `LowercasePrefixModel`.
  * - `LowercasePrefixModel` — `getter()` and `settle()` merely start with those
  *   letters; an accessor needs a capital after the prefix. Dropping the
  *   `[A-Z]`: 1 violation.
