@@ -114,3 +114,21 @@ function showUser(int $id): ?User
 $resolve = static function (int $id): ?User {
     return User::find($id);
 };
+
+class PromotedController
+{
+    public function __construct(private int $id)
+    {
+        $this->model = User::find($id);
+    }
+
+    public function __get(string $id): ?User
+    {
+        return User::find($id);
+    }
+
+    public function __call(string $id, array $arguments): ?User
+    {
+        return User::findOrFail($id);
+    }
+}

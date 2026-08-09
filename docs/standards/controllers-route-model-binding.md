@@ -46,8 +46,13 @@ follow-up issue
   shadows the action's, and a public method of an anonymous class declared
   inside the action. A named function declared inside an action is *not* one
   of them — it is never routed to and inherits nothing, so it is judged on its
-  own and stays silent. Every case named here is pinned in
-  `tests/Standards/ManualModelResolutionTest.php`.
+  own and stays silent. Magic methods are silent too — a route binds into a
+  named action or into `__invoke()`, and every other `__`-prefixed method is
+  called by the engine, so its parameters never carry a route segment. A
+  constructor is the case this rules out most often: its parameters come from
+  the container, promoted or not. `__invoke()` itself is still flagged, because
+  a single-action controller *is* its `__invoke()`. Every case named here is
+  pinned in `tests/Standards/ManualModelResolutionTest.php`.
 - **Detection only** — replacing the lookup with a bound parameter also means
   editing the route definition in another file, so there is no mechanical fix.
 

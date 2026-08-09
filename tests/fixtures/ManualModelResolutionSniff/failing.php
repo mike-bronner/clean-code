@@ -61,4 +61,9 @@ class UserController
     {
         return User::findOrFail(id: $id, columns: ['name']);
     }
+
+    public function __invoke(int $id): ?User
+    {
+        return User::find($id);
+    }
 }

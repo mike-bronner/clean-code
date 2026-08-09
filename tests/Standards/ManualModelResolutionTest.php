@@ -115,6 +115,15 @@ it('is registered in the master ruleset', function (): void {
  * - lines 105, 111 and 115, the same call in a non-`Controller` class, a
  *   plain function and a file-scope closure — outside a controller action
  *   there is no route parameter to have bound.
+ * - lines 122, 127 and 132, `__construct`, `__get` and `__call` of a
+ *   `*Controller` — public methods of a controller whose parameter names match
+ *   the argument, so every other check passes and only the magic-method rule
+ *   keeps them silent. A route binds into a named action or `__invoke()`; the
+ *   engine calls the rest, so their parameters never carry a route segment.
+ *   `__construct` is the shape that matters in practice, promoted parameter
+ *   and all, because a controller taking an id from the container reads
+ *   exactly like one taking it from a route. Deleting `isRoutable()` makes all
+ *   three report, which is the mutation the assertion below catches.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(MANUAL_RESOLUTION, 'passing.php');
@@ -156,6 +165,11 @@ it('produces no violations on the compliant fixture', function (): void {
  *   check: line 35 already covers that branch, and deleting `T_COMMA` from it
  *   silences both lines together. Said outright rather than left to imply
  *   coverage of its own.
+ * - line 67, `__invoke($id)` — the one magic method a route does bind into,
+ *   because a single-action controller *is* its `__invoke()`. It is the
+ *   boundary of the rule that silences `__construct` and friends in
+ *   passing.php: widening that rule to every `__`-prefixed name silences this
+ *   line, and dropping it altogether makes passing.php report.
  */
 it('flags every manual resolution at its position', function () use ($warningsByPosition): void {
     expect(analyzeFixture(MANUAL_RESOLUTION, 'failing.php')->getErrors())->toBe([])
@@ -171,6 +185,7 @@ it('flags every manual resolution at its position', function () use ($warningsBy
             51 => [26 => MANUAL_RESOLUTION_WARNING],
             57 => [22 => MANUAL_RESOLUTION_WARNING],
             62 => [22 => MANUAL_RESOLUTION_WARNING],
+            67 => [22 => MANUAL_RESOLUTION_WARNING],
         ]);
 });
 
@@ -216,10 +231,12 @@ it('names the model, the parameter and the action in the warning', function (): 
  *   so both would answer the innermost-T_FUNCTION lookup and be judged as if
  *   they were the action itself. Neither is routed to, and a named function
  *   inherits nothing from the scope around it, so `$unrelated` can never be a
- *   route segment. `isMethod()` is what keeps them silent: it reads the
- *   declaration's own innermost condition, which is the enclosing function
- *   rather than a class. Deleting that check makes both lines report, which
- *   is the mutation this assertion catches.
+ *   route segment. `isMethod()` is what keeps them silent: conditions nest, so
+ *   it compares the declaration's nearest class-like ancestor against its
+ *   nearest function-like one and takes the later pointer as the innermost
+ *   scope — a method's is the class, a nested function's is the function
+ *   around it. Deleting that check makes both lines report, which is the
+ *   mutation this assertion catches.
  */
 it('judges nested scopes by the enclosing method', function () use ($warningsByPosition): void {
     expect(analyzeFixture(MANUAL_RESOLUTION, 'nested-scopes.php')->getErrors())->toBe([])
@@ -235,22 +252,16 @@ it('judges nested scopes by the enclosing method', function () use ($warningsByP
  * parser would reject. Two of them, both silent:
  *
  * - line 12, a statement stranded in the class body with no method around it.
- *   This is what pins the sniff's `$functionPtr === false` guard: the token
- *   has a T_CLASS condition but no T_FUNCTION one, and without the guard the
- *   `false` reaches `getMethodProperties()`, which throws.
+ *   This is what pins the sniff's `$functionPtr === null` guard: the token has
+ *   a T_CLASS condition but no T_FUNCTION one, and deleting the guard lets the
+ *   null reach `isMethod()`, whose int parameter raises a TypeError. Confirmed
+ *   by deleting it and watching this assertion go red for that reason.
  * - line 15, a call running off the end of the file with its argument list
- *   still open.
- *
- * The five `=== false` guards on the sniff's findNext() results read as what
- * handles the second one, but all five are defensive only: each was deleted in
- * turn and every fixture in this directory reported exactly the same
- * violations, because PHP resolves `$tokens[false]` to `$tokens[0]`, the open
- * tag, which fails the comparison on the next line anyway. The fifth, the one
- * on the named-argument colon, is unreachable for a second reason: PHPCS only
- * spells a label T_PARAM_NAME when a colon follows it, so a label with no
- * colon after it never gets that far. They are kept for saying so outright
- * instead of leaning on either fact. Stated here because no fixture can pin
- * them.
+ *   still open. This is what reaches the sniff's end-of-file path: every
+ *   findNext()/findPrevious() result funnels through `orNull()`, and counting
+ *   its `false` branch across all four fixtures in this directory gives
+ *   exactly one hit, on this fixture alone. So the path is exercised rather
+ *   than merely defensive, and this is the line that exercises it.
  *
  * Line 9 keeps the assertion honest: the file still has to report the call
  * that precedes the damage, so a sniff that fell silent on the whole file
@@ -275,7 +286,7 @@ it('handles mid-edit source without falling over', function () use ($warningsByP
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(MANUAL_RESOLUTION, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(11)
+    expect($file->getWarningCount())->toBe(12)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
