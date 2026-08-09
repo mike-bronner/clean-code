@@ -470,6 +470,54 @@
     -->
 
     <!--
+        PHPMD CodeSize: ExcessivePublicCount (#96) —
+        docs/phpmd/codesize-excessivepubliccount.md.
+
+        No PHPCS or Slevomat sniff counts a type's public surface. The nearest
+        candidates each measure something else: Generic.Metrics.* cover
+        cyclomatic complexity and nesting depth, Slevomat's
+        SlevomatCodingStandard.Classes.ClassLength counts lines, and
+        SlevomatCodingStandard.Complexity.Cognitive scores one method at a
+        time. So this is the custom CleanCode.Metrics.ExcessivePublicCount
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and
+        tests/Standards/ExcessivePublicCountTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        minimum=45, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        The threshold is inclusive, matching PHPMD: its rule class returns
+        early only when the count is strictly below minimum, so exactly 45
+        public members is already a violation. tests/fixtures/
+        ExcessivePublicCountSniff/boundaries.php pins 44/45/46 against PHPMD's
+        measured output.
+
+        Like CleanCode.Functions.DisallowBooleanArgumentFlag above, the sniff
+        raises errors already, so no <type> override is needed for a violation
+        to fail a phpcs run the way it fails a phpmd run.
+
+        Stricter than PHPMD on three shapes, and never looser. A trait's public
+        properties, a constructor's promoted public properties, and an
+        anonymous class's own members are all counted here and all invisible to
+        PDepend, which is what PHPMD measures through. The promoted-property
+        gap is the one that matters for this ruleset: RequireConstructorPropertyPromotion
+        above makes promotion the mandated way to declare a public property, so
+        deferring to PDepend would leave the rule blind to the shape the
+        ruleset itself demands. All three are pinned by tests/fixtures/
+        ExcessivePublicCountSniff/divergences.php and set out in
+        docs/phpmd/codesize-excessivepubliccount.md.
+
+        Interfaces and enums are left alone, matching PHPMD, whose rule is
+        declared ClassAware and TraitAware only.
+
+        Detection only: splitting an oversized type is a design change, and
+        which members move — and to what — is not machine-derivable. PHPMD
+        offers no fix either.
+    -->
+
+    <!--
         PHPMD Naming: ShortClassName (#103) —
         docs/phpmd/naming-shortclassname.md.
 
