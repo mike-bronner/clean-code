@@ -265,17 +265,27 @@ class NoProceduralCodeSniff implements Sniff
      * `while (…)` tail of a `do` block — which is told apart from a `while`
      * loop by having no scope of its own.
      *
-     * The loop always advances: findEndOfStatement() never returns a pointer
-     * below its own start, and each continuation starts after the previous
-     * end.
+     * A continuation is usually the next token *after* the clause before it,
+     * but under the alternative syntax it *is* that clause's end: PHPCS ends
+     * `if (…):` on the `else` rather than past it. Both are picked up, so
+     * `if … else … endif` is one statement exactly like its braced form.
+     *
+     * Reading the end as the next start is also what makes the loop able to
+     * stall: a file cut off right after a continuation keyword gives that
+     * keyword neither a scope nor a statement to end, so its clause ends where
+     * it begins and the walk would measure the same token forever. A clause
+     * that fails to move the end forward returns instead.
      */
     private function endOfStatement(File $phpcsFile, int $pointer): int
     {
         $tokens = $phpcsFile->getTokens();
-        $end = $phpcsFile->findEndOfStatement($pointer);
+        $end = $this->endOfClause($phpcsFile, $pointer);
 
         while (true) {
-            $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($end + 1), null, true);
+            $isContinuation = in_array($tokens[$end]['code'], self::CONTINUATION_TOKENS, true);
+            $next = $isContinuation === true
+                ? $end
+                : $phpcsFile->findNext(Tokens::$emptyTokens, ($end + 1), null, true);
 
             if ($next === false) {
                 return $end;
@@ -295,8 +305,40 @@ class NoProceduralCodeSniff implements Sniff
                 return $end;
             }
 
-            $end = $phpcsFile->findEndOfStatement($next);
+            $clause = $this->endOfClause($phpcsFile, $next);
+
+            if ($clause <= $end) {
+                return $end;
+            }
+
+            $end = $clause;
         }
+    }
+
+    /**
+     * The last token of one clause of a compound statement.
+     *
+     * PHPCS's generic findEndOfStatement() reads every clause correctly except
+     * one: a *spaced* `else if (…) { … }`. PHPCS puts the scope on the trailing
+     * `if`, never on the `else`, so a scan started at the `else` finds no scope
+     * to stop at and runs to its own default end token — past the whole
+     * construct, swallowing the top-level statement that follows it. The
+     * trailing `if` is measured instead, which is where the scope actually is.
+     *
+     * Nothing else needs the detour. A merged `elseif` is one token carrying
+     * its own scope; an alternative-syntax clause ends at `endif`/`endforeach`;
+     * a brace-less `else bar();` ends at its semicolon — findEndOfStatement()
+     * returns all three.
+     */
+    private function endOfClause(File $phpcsFile, int $pointer): int
+    {
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), null, true);
+
+        if ($next !== false && $phpcsFile->getTokens()[$next]['code'] === T_IF) {
+            return $this->endOfClause($phpcsFile, $next);
+        }
+
+        return $phpcsFile->findEndOfStatement($pointer);
     }
 
     /**

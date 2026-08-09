@@ -47,6 +47,28 @@ function sniffFixtureDirectory(string $sniffCode): string
 }
 
 /**
+ * Puts the third-party standards' installed paths back into PHPCS's config.
+ *
+ * ConfigDouble blanks CodeSniffer.conf, where Composer registers them, and
+ * every ruleset built here references at least one of those standards. Every
+ * standard a ruleset depends on has to be listed — a missing entry does not
+ * fail loudly, it makes the referenced sniffs fail to resolve and takes the
+ * whole ruleset parse down with it. In memory only; CodeSniffer.conf on disk
+ * is never written.
+ */
+function restoreInstalledPaths(): void
+{
+    Config::setConfigData(
+        'installed_paths',
+        implode(',', [
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        ]),
+        true
+    );
+}
+
+/**
  * A freshly built master ruleset plus the config it was built from.
  *
  * Results are memoised per cache key so rules.xml is parsed once per distinct
@@ -70,25 +92,14 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
         return $cache[$key];
     }
 
-    // ConfigDouble blanks CodeSniffer.conf, where Composer registers the
-    // third-party standards' installed paths; the master ruleset references
-    // them, so restore the paths (in memory only) before the rules.xml parse.
-    // Every standard rules.xml depends on has to be listed — a missing entry
-    // does not fail loudly, it makes the referenced sniffs fail to resolve and
-    // takes the whole rules.xml parse down with it. The explicit argv also
-    // stops Config falling back to parsing the live $_SERVER['argv'] as PHPCS
-    // flags, which would leak the test runner's own arguments in.
+    // restoreInstalledPaths() puts back what ConfigDouble blanks, and has to
+    // run before the rules.xml parse. The explicit argv stops Config falling
+    // back to parsing the live $_SERVER['argv'] as PHPCS flags, which would
+    // leak the test runner's own arguments in.
     $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml']);
     $config->cache = false;
 
-    Config::setConfigData(
-        'installed_paths',
-        implode(',', [
-            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
-        ]),
-        true
-    );
+    restoreInstalledPaths();
 
     $ruleset = new Ruleset($config);
 
@@ -119,6 +130,40 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
 function analyzeWithMasterRuleset(string $path): LocalFile
 {
     [$config, $ruleset] = buildRuleset();
+
+    $file = new LocalFile($path, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
+ * Processes a file through a whole third-party standard, by name, outside the
+ * master ruleset.
+ *
+ * rules.xml references vendor sniffs one at a time, never a whole category, so
+ * narrowing the master ruleset can only ever report on the sniffs already
+ * wired in — it cannot answer "does anything in this vendor standard cover
+ * this?", which is the question a new custom sniff has to settle before it is
+ * written, and the one a vendor upgrade can quietly change the answer to.
+ *
+ * Memoised per standard, each ruleset built immediately after its own
+ * ConfigDouble, for the reason given on buildRuleset().
+ */
+function analyzeWithStandard(string $standard, string $path): LocalFile
+{
+    static $cache = [];
+
+    if (isset($cache[$standard]) === false) {
+        $config = new ConfigDouble(['--standard=' . $standard]);
+        $config->cache = false;
+
+        restoreInstalledPaths();
+
+        $cache[$standard] = [$config, new Ruleset($config)];
+    }
+
+    [$config, $ruleset] = $cache[$standard];
 
     $file = new LocalFile($path, $ruleset, $config);
     $file->process();

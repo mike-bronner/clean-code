@@ -24,6 +24,8 @@
 
 declare(strict_types=1);
 
+use PHP_CodeSniffer\Files\LocalFile;
+
 const PROCEDURAL = 'CleanCode.Files.NoProceduralCode';
 
 const PROCEDURAL_STATEMENT = PROCEDURAL . '.ProceduralStatement';
@@ -102,6 +104,155 @@ it('flags every top-level construct at its own line', function () use ($sourceRu
             ['line' => 53, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
             ['line' => 55, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
             ['line' => 58, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
+        ]);
+});
+
+/**
+ * A compound statement is reported once however its continuation clauses are
+ * written, and — the half that actually bites — whatever follows it is still
+ * reached. A clause the walk mis-measures does not report anything extra; it
+ * swallows the next top-level statement silently, which is a false negative
+ * that ships procedural code undetected.
+ *
+ * failing.php covers the braced `else` and `catch`/`finally`. One fixture per
+ * remaining shape, because each takes a different path through the walk:
+ *
+ * - continuation-spaced-else-if.php — `else if (…) { … }`, spaced. PHPCS puts
+ *   the scope on the trailing `if`, never on the `else`, so measuring the
+ *   `else` with the generic statement scan runs past the whole chain. Chained
+ *   three deep, so the fix has to hold for each link and not just the first.
+ * - continuation-elseif.php — merged `elseif`, one token with its own scope.
+ *   Its own entry in the sniff's continuation list, consumed independently of
+ *   `else`: deleting that entry leaves this the only red case.
+ * - continuation-alternative-syntax.php — `if … elseif … else … endif;` and
+ *   `foreach … endforeach;`. Here the continuation *is* the previous clause's
+ *   end rather than the token after it, and a walk that only looks past the
+ *   end reports the `:` as a statement of its own.
+ * - continuation-braceless.php — `else` and a spaced `else if` with no braces
+ *   at all, which own no scope and end at their semicolon.
+ *
+ * Each fixture's trailing assignments are the discriminating part: the first
+ * tuple alone would hold against a walk that swallowed everything after the
+ * chain.
+ */
+it('flags top-level code after every continuation-clause shape', function (
+    string $fixture,
+    array $lines
+) use ($sourceRun): void {
+    expect(violationTuples($sourceRun($fixture)))->toBe(array_map(
+        static fn (int $line): array => ['line' => $line, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
+        $lines
+    ));
+})->with([
+    'spaced else if' => ['continuation-spaced-else-if.php', [7, 17, 19]],
+    'merged elseif' => ['continuation-elseif.php', [7, 15]],
+    'alternative syntax' => ['continuation-alternative-syntax.php', [7, 15, 19]],
+    'brace-less clauses' => ['continuation-braceless.php', [7, 14]],
+]);
+
+/**
+ * A file cut off mid-continuation terminates the walk instead of spinning on
+ * it. PHP_CodeSniffer tokenizes files mid-edit, and a continuation keyword
+ * with nothing after it gets neither a scope nor a statement end — so the
+ * clause "ends" exactly where it starts, and a walk that took that as its new
+ * position would measure the same token forever. The sniff returns instead.
+ *
+ * One fixture per continuation keyword, and the two syntax families split
+ * across them, because each reaches the non-progress case by a different
+ * route: `else` from a scope closer that lands on it, `elseif` from the
+ * alternative syntax's own closer, `catch` and `finally` from a `try` whose
+ * scope ends before them. Removing the guard spins on all four and on nothing
+ * else — every other fixture in this directory reports identically without it
+ * — so these four are the guard's only witnesses.
+ *
+ * Each fixture still reports the assignment above the truncation and the
+ * construct the truncation belongs to, so a sniff that gave up on the whole
+ * file would fail here rather than pass.
+ */
+it('terminates on a truncated continuation clause', function (
+    string $fixture,
+    array $tuples
+) use ($sourceRun): void {
+    expect(violationTuples($sourceRun($fixture)))->toBe(array_map(
+        static fn (array $tuple): array => [
+            'line' => $tuple[0],
+            'column' => $tuple[1],
+            'source' => PROCEDURAL_STATEMENT,
+        ],
+        $tuples
+    ));
+})->with([
+    'braced else' => ['truncated-else.php', [[3, 1], [5, 1]]],
+    'alternative-syntax elseif' => ['truncated-elseif.php', [[3, 1], [5, 1], [6, 5]]],
+    'catch' => ['truncated-catch.php', [[3, 1], [5, 1]]],
+    'finally' => ['truncated-finally.php', [[3, 1], [5, 1]]],
+]);
+
+/**
+ * A file opened with `<?=` is a top-level echo, so it is procedural and is
+ * reported at the tag. T_OPEN_TAG_WITH_ECHO is a separate entry in the sniff's
+ * registration and a separate absence from its ignore list; nothing else in
+ * the fixtures opens with a short echo tag, so without this case either could
+ * change and the sniff would fall silent here unnoticed.
+ */
+it('flags a file opened with a short echo tag', function () use ($sourceRun): void {
+    expect(violationTuples($sourceRun('short-echo-tag.php')))->toBe([
+        ['line' => 1, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
+    ]);
+});
+
+/**
+ * The other half of the "nothing shipped already covers this" check the issue
+ * asked for, and the half that can rot: composer.json floats Slevomat on
+ * ^8.15, so a later minor could start covering the pure-procedural file and
+ * make this sniff redundant with nothing to say so.
+ *
+ * The whole Slevomat standard is built, not the master ruleset: rules.xml
+ * references Slevomat sniffs one at a time, so a sniff added in a future minor
+ * would not be wired in and a master-ruleset run could never see it. The
+ * master ruleset is asserted too, because that is what a consumer actually
+ * runs — together they say no Slevomat sniff covers this file today, whether
+ * or not rules.xml has opted into it.
+ *
+ * The fixture is deliberately clean under Slevomat's own style rules
+ * (`strict_types = 1` spaced its way, a Yoda comparison, no imports), so the
+ * assertion can be an empty set rather than a list of unrelated style findings
+ * that would have to be curated on every upgrade.
+ *
+ * Three halves, asserted together. Empty Slevomat output alone would hold just
+ * as well against a standard that failed to load and ran nothing, so the
+ * control run pins that the same built standard does report on a fixture that
+ * earns it; and the NoProceduralCode run pins that the file really is
+ * procedural rather than trivially unremarkable.
+ */
+it('reports a purely procedural file the whole Slevomat standard passes', function () use ($sourceRun): void {
+    $slevomatSources = static function (LocalFile $file): array {
+        $sources = [];
+
+        foreach (allViolationSourcesByLine($file) as $line => $lineSources) {
+            foreach ($lineSources as $source) {
+                if (str_starts_with($source, 'SlevomatCodingStandard.') === true) {
+                    $sources[$line][] = $source;
+                }
+            }
+        }
+
+        return $sources;
+    };
+
+    $staged = stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', 'slevomat-clean.php'), 'src');
+    $control = stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', 'no-declaration.php'), 'src');
+
+    expect($slevomatSources(analyzeWithStandard('SlevomatCodingStandard', $staged)))->toBe([])
+        ->and($slevomatSources(analyzeWithMasterRuleset($staged)))->toBe([])
+        ->and($slevomatSources(analyzeWithStandard('SlevomatCodingStandard', $control)))->toBe([
+            3 => ['SlevomatCodingStandard.TypeHints.DeclareStrictTypes.IncorrectStrictTypesFormat'],
+            7 => ['SlevomatCodingStandard.Namespaces.UseOnlyWhitelistedNamespaces.NonFullyQualified'],
+            11 => ['SlevomatCodingStandard.ControlStructures.RequireYodaComparison.RequiredYodaComparison'],
+        ])
+        ->and(violationTuples($sourceRun('slevomat-clean.php')))->toBe([
+            ['line' => 7, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
+            ['line' => 9, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
         ]);
 });
 

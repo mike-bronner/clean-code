@@ -287,9 +287,12 @@
         PSR1 wholesale, and PSR1.Files.SideEffects forbids only *mixing* a
         declaration with side effects, so a file that is nothing but procedural
         code declares no symbol and passes it silently. Slevomat's whole
-        standard was run against
-        tests/fixtures/NoProceduralCodeSniff/failing.php and reported nothing
-        about the file's structure either.
+        standard reports nothing on a purely procedural file either.
+
+        Both halves are asserted rather than asserted-in-prose, in
+        tests/Standards/NoProceduralCodeTest.php — composer.json floats
+        Slevomat on ^8.15, so the Slevomat half is a claim a vendor upgrade can
+        change without anyone touching this file.
 
         Scoped with <include-pattern> rather than a list of exclusions, because
         the standard is an allow-list: source directories only. Entry points
