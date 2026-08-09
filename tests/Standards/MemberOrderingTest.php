@@ -128,6 +128,21 @@ it('names both members in every ordering message', function (): void {
  * - `SingleMemberModel` has exactly one trait, one property, and one method,
  *   the boundary at which "out of order" cannot be decided.
  * - `EmptyModel` has no members at all.
+ * - `InteriorSingletonGroupModel` puts a one-property `protected` group between
+ *   a two-property public group and a two-property private group — the boundary
+ *   `SingleMemberModel` cannot reach, where the lone group is the class's only
+ *   group and nothing sits after it to be compared against. Two mutations of the
+ *   per-group reset were run, and this class reports under both: carrying the
+ *   baseline across a group change reports on `$delta`, and dropping the
+ *   same-group guard from the alphabetical branch reports on `$table` and
+ *   `$charlie`.
+ *
+ *   Neither kill is this class's alone — `CompliantModel` reports under both
+ *   mutations too, at 2 and 3 total violations respectively. What this class
+ *   adds is the shape rather than a mutation nothing else catches: it is the
+ *   only fixture in the suite where a group of one has populated groups on both
+ *   sides of it, so a future reset that special-cases a singleton group has
+ *   something to fail against.
  * - `InterleavedModel` puts the three method categories in mixed order, each
  *   internally alphabetical — the assertion that keeps the deliberate decision
  *   not to enforce a sequence *between* the categories from drifting.
@@ -223,6 +238,17 @@ it('reports each displaced member once and ignores letter case', function (): vo
  *   Dropping the union split: 1 violation. Dropping the `?` from the trimmed
  *   characters: 1 violation. Taking the first namespace qualifier instead of
  *   the last: 1 violation.
+ * - `DnfLeadingRelationModel` and `DnfTrailingRelationModel` — PHP 8.2's DNF
+ *   spelling, `(HasMany&Countable)|null` and `(Countable&HasOne)|null`. The
+ *   parenthesis reaches the comparison on the relation itself, and which one it
+ *   is depends on where the relation sits inside the intersection, so the two
+ *   characters need a shape each: dropping `(` alone reddens the first class,
+ *   dropping `)` alone reddens the second, and dropping both reddens both — 1
+ *   violation per class, confirmed by all three mutations separately. The
+ *   violation is one the sniff invents against an unrelated method, because a
+ *   misread relationship is ordered against the ordinary methods instead of the
+ *   relationships. One class per shape is deliberate: sharing one would let the
+ *   first misread method take the baseline and silence the second.
  * - `NotARelationModel` — a method with no declared return type, and a
  *   protected one, are ordinary methods. Dropping the public test: 1
  *   violation. The no-hint case needs no guard of its own: an absent hint is

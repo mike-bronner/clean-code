@@ -116,6 +116,32 @@ class EmptyModel extends Authenticatable
 }
 
 /**
+ * A visibility group of exactly one property, sitting between two larger ones —
+ * the boundary at which a lone group has nothing of its own kind to sort
+ * against, while groups on both sides do.
+ *
+ * The names are chosen so the class is silent only if each group is ordered
+ * against itself: `$charlie` and `$delta` both sort before the `$zulu` above
+ * them, and `$charlie` sorts before the `$table` between them, so any reading
+ * that carries a baseline across a group boundary reports here. The
+ * single-property groups elsewhere in this file cannot say that — each is the
+ * only group its class has — and `CompliantModel`, the one class with all three
+ * groups populated, has two properties in each.
+ */
+class InteriorSingletonGroupModel extends Model
+{
+    public string $alpha = '';
+
+    public string $zulu = '';
+
+    protected string $table = 'interior_singleton';
+
+    private bool $charlie = false;
+
+    private bool $delta = false;
+}
+
+/**
  * The three method categories interleaved, each internally alphabetical. The
  * sequence *between* categories is not a rule this sniff enforces, so nothing
  * is reported — the assertion that keeps that decision from drifting.
