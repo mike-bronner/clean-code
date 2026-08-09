@@ -167,6 +167,49 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
 }
 
 /**
+ * Processes a fixture through a ruleset narrowed to one sniff, with that
+ * sniff's properties set the way a *consuming ruleset* sets them — through
+ * Ruleset::setSniffProperty(), with string values, exactly as parsing a
+ * `<property>` element does.
+ *
+ * The `$configure` callback analyzeFixture() takes is the other half of this
+ * pair, and the two are not interchangeable. That callback assigns to the
+ * property directly, so it always hands over a correctly typed PHP value; the
+ * XML path first trims the value and turns an empty string into `null`, which
+ * is what decides whether an empty `<property>` element configures a sniff or
+ * aborts the whole ruleset parse with a TypeError. Reach for this one when the
+ * assertion is about how a consumer's ruleset reaches the sniff, and for
+ * `$configure` when it is about what the sniff does with a value it already
+ * holds.
+ *
+ * Always builds a fresh ruleset, so a configured sniff can never leak into a
+ * later test through buildRuleset()'s memoisation.
+ *
+ * @param array<string, string> $properties Property name => value, as written in XML.
+ */
+function analyzeFixtureWithRulesetProperties(
+    string $sniffCode,
+    string $fixture,
+    array $properties
+): LocalFile {
+    [$config, $ruleset] = buildRuleset([$sniffCode], true);
+    $sniffClass = $ruleset->sniffCodes[$sniffCode];
+
+    foreach ($properties as $name => $value) {
+        $ruleset->setSniffProperty($sniffClass, $name, ['scope' => 'sniff', 'value' => $value]);
+    }
+
+    $file = new LocalFile(
+        fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
+        $ruleset,
+        $config
+    );
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to a *group* of sniffs that
  * together implement one configured standard, from tests/fixtures/_rulesets/.
  *
