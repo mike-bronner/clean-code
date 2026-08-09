@@ -462,6 +462,31 @@
     </rule>
 
     <!--
+        PHPMD Design: ExitExpression (#105) — docs/phpmd/design-exitexpression.md.
+
+        No existing PHPCS, Slevomat or Generic sniff matches this rule.
+        Generic.PHP.ForbiddenFunctions can be pointed at exit/die and does
+        report both constructs, but it reports them everywhere, including at
+        file scope — and file scope is exactly where PHPMD's own remedy puts
+        them ("relocate exit expressions to startup scripts"). Wiring it here
+        would forbid the fix the rule asks for, so the custom
+        CleanCode.ControlStructures.DisallowExitExpression sniff carries the
+        rule instead; it is picked up automatically via the
+        ./CleanCode/ruleset.xml ref above, and no scoping is wanted.
+
+        The sniff reports errors already, so unlike Squiz.PHP.Eval above there
+        is no severity to raise. Detection only, matching PHPMD: swapping a
+        termination for a return value or an exception is a judgement about
+        what the code was meant to do.
+
+        Stricter than PHPMD on two shapes, both true exit expressions PDepend
+        does not model — a method of a file-scope anonymous class, and the
+        fully qualified \exit / \die spelling. Both are kept for the same
+        reason VariableAnalysis's extra reports are kept below, and both are
+        pinned by tests/fixtures/DisallowExitExpressionSniff/divergences.php.
+    -->
+
+    <!--
         PHPMD CleanCode: BooleanArgumentFlag (#76) —
         docs/phpmd/cleancode-booleanargumentflag.md.
 
