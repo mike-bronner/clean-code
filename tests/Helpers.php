@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
+use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -779,4 +780,38 @@ function nestedChainFixture(int $depth): array
     ]);
 
     return [implode("\n", $lines), $chainLine];
+}
+
+/**
+ * Collapses the sniff's messages into `callable name => measured NPath`, which
+ * is what every measurement assertion above reads.
+ *
+ * The value is parsed back out of the message because the message is the only
+ * place the sniff publishes it. Anchoring on the name as well as the number
+ * means a measurement landing on the wrong callable cannot satisfy an
+ * expectation meant for another.
+ *
+ * @return array<string, int>
+ */
+function measuredComplexities(File $file): array
+{
+    $measured = [];
+
+    foreach ($file->getErrors() as $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $matched = preg_match(
+                    '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
+                    $violation['message'],
+                    $matches
+                );
+
+                if ($matched === 1) {
+                    $measured[$matches[1]] = (int) $matches[2];
+                }
+            }
+        }
+    }
+
+    return $measured;
 }
