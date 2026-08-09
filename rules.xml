@@ -222,6 +222,44 @@
     -->
 
     <!--
+        Controllers: No Business Logic (#48/#141) —
+        docs/standards/controllers-no-business-logic.md.
+
+        The custom CleanCode.Controllers.NoCustomActions sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted. The sniff only speaks about a class
+        whose name ends in Controller, so it is already silent everywhere else,
+        tests included — a Laravel controller test is named UserControllerTest
+        and does not match.
+
+        It carries one slice of the standard: a controller is RESTful or
+        invokable, so a public method outside the seven resource actions,
+        __construct, __invoke, and the configured allowlist is a custom
+        action. The rest of the standard — whether a method holds business
+        logic at all — is a semantic judgement and stays with code review.
+
+        Warnings, not errors. The match is on a naming convention and the sniff
+        cannot prove a class is routed, so a misread must not fail a build.
+
+        No <properties> are configured. The allowlist (allowedMethods) ships
+        empty so nothing beyond the standard's own list is allowed out of the
+        box; an application declaring a framework hook such as Laravel 11's
+        HasMiddleware::middleware() names it here:
+
+            <rule ref="CleanCode.Controllers.NoCustomActions">
+                <properties>
+                    <property name="allowedMethods" type="array">
+                        <element value="middleware"/>
+                    </property>
+                </properties>
+            </rule>
+
+        Detection only: removing a custom action means moving it into its own
+        controller and rewriting the routes that reach it, which is an
+        architectural change with no mechanical rewrite.
+    -->
+
+    <!--
         Dependency Injection (#72) —
         docs/standards/dependency-injection.md.
 

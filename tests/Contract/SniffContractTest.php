@@ -86,6 +86,7 @@ const SWEPT_SNIFFS = [
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.Conditionals.AvoidConditionals',
+    'CleanCode.Controllers.NoCustomActions',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
 ];
