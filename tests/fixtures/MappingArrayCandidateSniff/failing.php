@@ -83,6 +83,22 @@ final class Labels
         }
     }
 
+    // 91 — signed numeric literals: both signs, both operand orders, and a
+    // signed value at the head of a branch expression. PHP has no
+    // negative-number token; each of these is a sign token followed by a number.
+    public function signedCodes(int $code): int
+    {
+        if ($code === -1) {
+            return -10;
+        } elseif (-2 === $code) {
+            return 20;
+        } elseif ($code === +3) {
+            return 30;
+        } else {
+            return -40;
+        }
+    }
+
     public const DEFAULT_FLAG = false;
 
     public mixed $fallback = null;

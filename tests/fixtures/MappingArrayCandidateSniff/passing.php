@@ -16,11 +16,13 @@ declare(strict_types=1);
  *   - calledCondition     a call in the condition
  *   - parenthesised       an extra parenthesis pair — not three tokens
  *   - notIdentical        `!==`, which is not one of the two named comparisons
+ *   - subtractedCondition arithmetic on a condition operand, not a literal
  *   - differentSubjects   a different variable in one branch
  *   - propertySubject     a property read rather than a plain variable
  *   - nullLiteral         `null`, which is not a scalar
  *   - multiStatement      two statements in a branch body
  *   - sideEffect          a call in a branch expression
+ *   - subtractedValue     arithmetic between two operands in a branch expression
  *   - emptyBranch         a branch that produces no value at all
  *   - mixedBodies         `return` in one branch, assignment in another
  *   - differentTargets    assignments to two different targets
@@ -111,6 +113,22 @@ final class NearMisses
         }
     }
 
+    /**
+     * The sign token that makes `-1` a literal is also PHP's subtraction
+     * operator. Here it joins two operands instead, so the right-hand side is
+     * an expression rather than a literal and the chain is not a lookup.
+     */
+    public function subtractedCondition(int $code, int $offset): string
+    {
+        if ($code === $offset - 1) {
+            return 'Alpha';
+        } elseif ($code === 2) {
+            return 'Bravo';
+        } else {
+            return 'Unknown';
+        }
+    }
+
     public function differentSubjects(string $code, string $other): string
     {
         if ($code === 'a') {
@@ -165,6 +183,22 @@ final class NearMisses
             return 'Bravo';
         } else {
             return 'Unknown';
+        }
+    }
+
+    /**
+     * Subtraction between two variables is work, and a mapping array evaluates
+     * every value the moment it is built — so hoisting this branch into a map
+     * would run it on every call rather than on the one that selects it.
+     */
+    public function subtractedValue(int $code, int $first, int $second): int
+    {
+        if ($code === 1) {
+            return $first - $second;
+        } elseif ($code === 2) {
+            return 2;
+        } else {
+            return 3;
         }
     }
 

@@ -19,8 +19,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * A chain qualifies when *all* of the following hold:
  *
- * 1. Every `if`/`elseif` condition is exactly three significant tokens: a plain
- *    variable, `===` or `==`, and a scalar literal — in either operand order.
+ * 1. Every `if`/`elseif` condition is exactly two operands around `===` or `==`,
+ *    in either order: one plain variable, and one scalar literal. A literal may
+ *    carry a leading sign (`-1`, `+1`), which PHP tokenises as two tokens.
  * 2. The same variable is the subject of every condition, compared by token
  *    content, so `$a` and `$b` never share a chain.
  * 3. Every branch body — including a trailing `else` — is a single statement:
@@ -28,8 +29,8 @@ use PHP_CodeSniffer\Util\Tokens;
  *    the identical target variable.
  * 4. Every branch expression is built only from value tokens (literals,
  *    variables, constants, array literals, property/index reads). Anything that
- *    can do work — a call, `new`, an increment, a nested assignment — disqualifies
- *    the chain.
+ *    can do work — a call, `new`, an increment, a nested assignment, arithmetic
+ *    between two operands — disqualifies the chain.
  * 5. The branch count reaches $minimumBranches, counting a trailing `else` as
  *    the default entry.
  *
@@ -46,8 +47,9 @@ use PHP_CodeSniffer\Util\Tokens;
  * Deliberately **not** flagged, and why:
  *
  * - Non-equality operators, compound conditions (`&&`, `||`), calls in a
- *   condition, and parenthesised conditions — all fail the three-token rule.
- *   Judging those from tokens alone is noise-prone.
+ *   condition, parenthesised conditions, and arithmetic on either operand
+ *   (`$code === $offset - 1`) — all fail the two-operand rule. Judging those
+ *   from tokens alone is noise-prone.
  * - A subject that is not a plain variable (`$this->status`, `$row['type']`).
  *   The standard speaks about "different values of the same variable", and a
  *   property or index read can be a different value on each evaluation.
@@ -108,6 +110,46 @@ class MappingArrayCandidateSniff implements Sniff
     ];
 
     /**
+     * The literals a sign may legally precede. PHP has no negative-number
+     * token: `-1` is a `T_MINUS` followed by a `T_LNUMBER`, so a signed literal
+     * is only ever recognised as this pair.
+     *
+     * @var array<int, int|string>
+     */
+    private const NUMERIC_LITERALS = [
+        T_LNUMBER,
+        T_DNUMBER,
+    ];
+
+    /**
+     * The two tokens that can sign a numeric literal. Both are also PHP's
+     * binary addition and subtraction operators, so neither is ever accepted on
+     * token type alone — see isUnarySign().
+     *
+     * @var array<int, int|string>
+     */
+    private const SIGN_TOKENS = [
+        T_MINUS,
+        T_PLUS,
+    ];
+
+    /**
+     * The value tokens after which an operand must begin, and therefore the
+     * only tokens a sign may follow inside a branch expression. Every other
+     * value token either *is* an operand (a literal, a variable, a constant) or
+     * glues one together (`->`, `::`, `\`), and a sign after any of those is
+     * binary arithmetic rather than a sign.
+     *
+     * @var array<int, int|string>
+     */
+    private const OPERAND_POSITION_TOKENS = [
+        T_COMMA,
+        T_DOUBLE_ARROW,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_SQUARE_BRACKET,
+    ];
+
+    /**
      * The only tokens a branch expression may be built from — an allowlist, so
      * an unfamiliar construct fails closed and the chain goes unreported.
      *
@@ -116,6 +158,10 @@ class MappingArrayCandidateSniff implements Sniff
      * moment they take arguments, and `T_NEW`/`T_FN`/`T_FUNCTION` are absent
      * besides. `T_STRING` is present for bare and class constants (`MY_CONST`,
      * `self::MAP`), which a call would otherwise be indistinguishable from.
+     *
+     * Membership here is necessary but not sufficient for the SIGN_TOKENS: they
+     * are admitted only as the sign of an adjacent numeric literal, never as
+     * arithmetic between two operands, which would be work the map hoists.
      *
      * @var array<int, int|string>
      */
@@ -142,6 +188,7 @@ class MappingArrayCandidateSniff implements Sniff
         T_DOUBLE_ARROW,
         T_COMMA,
         T_MINUS,
+        T_PLUS,
     ];
 
     /**
@@ -272,8 +319,11 @@ class MappingArrayCandidateSniff implements Sniff
      * The variable a condition tests, when the condition is exactly
      * `<variable> === <literal>` or `<literal> === <variable>`; null otherwise.
      *
-     * The three-token rule is what excludes compound conditions, calls,
-     * parenthesised conditions, and non-equality operators in one stroke.
+     * The condition is split on its single equality operator and each side is
+     * matched against one of two operand shapes. That is what excludes compound
+     * conditions, calls, parenthesised conditions, non-equality operators, and
+     * arithmetic on an operand in one stroke — while still admitting a signed
+     * numeric literal, which PHP writes as two tokens rather than one.
      */
     private function conditionSubject(File $phpcsFile, int $clausePtr): ?string
     {
@@ -289,30 +339,62 @@ class MappingArrayCandidateSniff implements Sniff
             $tokens[$clausePtr]['parenthesis_closer'] - 1
         );
 
-        if (
-            count($condition) !== 3
-            || in_array($tokens[$condition[1]]['code'], self::EQUALITY_OPERATORS, true) === false
-        ) {
+        $operators = [];
+
+        foreach ($condition as $index => $pointer) {
+            if (in_array($tokens[$pointer]['code'], self::EQUALITY_OPERATORS, true) === true) {
+                $operators[] = $index;
+            }
+        }
+
+        if (count($operators) !== 1) {
             return null;
         }
 
-        [$left, , $right] = $condition;
+        $left = array_slice($condition, 0, $operators[0]);
+        $right = array_slice($condition, $operators[0] + 1);
 
-        if (
-            $tokens[$left]['code'] === T_VARIABLE
-            && in_array($tokens[$right]['code'], self::SCALAR_LITERALS, true) === true
-        ) {
-            return $tokens[$left]['content'];
+        if ($this->isPlainVariable($tokens, $left) === true && $this->isScalarLiteral($tokens, $right) === true) {
+            return $tokens[$left[0]]['content'];
         }
 
-        if (
-            $tokens[$right]['code'] === T_VARIABLE
-            && in_array($tokens[$left]['code'], self::SCALAR_LITERALS, true) === true
-        ) {
-            return $tokens[$right]['content'];
+        if ($this->isPlainVariable($tokens, $right) === true && $this->isScalarLiteral($tokens, $left) === true) {
+            return $tokens[$right[0]]['content'];
         }
 
         return null;
+    }
+
+    /**
+     * Whether an operand is a single plain variable — never a property or index
+     * read, which the standard's "same variable" wording does not cover.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $pointers
+     */
+    private function isPlainVariable(array $tokens, array $pointers): bool
+    {
+        return count($pointers) === 1 && $tokens[$pointers[0]]['code'] === T_VARIABLE;
+    }
+
+    /**
+     * Whether an operand is a scalar literal: one literal token, or a sign
+     * immediately followed by a numeric literal. The two-token form is the only
+     * way PHP spells a negative number, so without it `$code === -1` would look
+     * like a compound condition and go silently undetected.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $pointers
+     */
+    private function isScalarLiteral(array $tokens, array $pointers): bool
+    {
+        if (count($pointers) === 1) {
+            return in_array($tokens[$pointers[0]]['code'], self::SCALAR_LITERALS, true);
+        }
+
+        return count($pointers) === 2
+            && in_array($tokens[$pointers[0]]['code'], self::SIGN_TOKENS, true) === true
+            && in_array($tokens[$pointers[1]]['code'], self::NUMERIC_LITERALS, true) === true;
     }
 
     /**
@@ -326,6 +408,14 @@ class MappingArrayCandidateSniff implements Sniff
      *   which therefore doubles as the continuation pointer;
      * - brace-less — no scope at all, so the body is the single statement after
      *   the condition, ending at its semicolon.
+     *
+     * The brace-less path rejects a body that cannot open a single
+     * value-producing statement *before* it asks for the statement's end.
+     * findEndOfStatement() walks until it finds one, and a brace-less `if`
+     * nested inside a brace-less `if` puts every level below it inside that
+     * walk — so the check that costs one token is what keeps the walk from
+     * being repeated once per level. The verdict is unchanged either way: a body
+     * failing this check also fails bodyShape().
      *
      * @return array{bodyStart: int, bodyEnd: int, next: int|null}|null
      */
@@ -354,7 +444,7 @@ class MappingArrayCandidateSniff implements Sniff
         // on the statement's first real token, never the whitespace before it.
         $bodyStart = $phpcsFile->findNext(Tokens::$emptyTokens, $afterCondition, null, true);
 
-        if ($bodyStart === false) {
+        if ($bodyStart === false || $this->isStatementHead($tokens[$bodyStart]['code']) === false) {
             return null;
         }
 
@@ -377,67 +467,125 @@ class MappingArrayCandidateSniff implements Sniff
      * Classifies a branch body as a single value-producing statement, or null
      * when it is anything else — empty, multi-statement, or side-effectful.
      *
+     * The body's two ends are read first, and only the expression *between*
+     * them is ever walked in full. Every `if` not preceded by `else` heads a
+     * chain of its own and an outer body's range contains every level nested
+     * inside it, so materialising the whole range before rejecting it would cost
+     * one walk per level. A braced inner block is now rejected on its closing
+     * brace, a brace-less one on its leading `if`, both without a walk.
+     *
+     * Only the brace-less shape can nest far enough for that to matter:
+     * PHP_CodeSniffer abandons a file whose braced scopes nest more than 50 deep
+     * (Tokenizers/Tokenizer.php, "Maximum nesting level reached"), and a
+     * brace-less body opens no scope, so nothing caps it. The brace-less
+     * rejection that carries the weight is in clauseExtent(), before this.
+     *
+     * A second statement in the body needs no separate check: `;` is not a value
+     * token, so it fails the expression allowlist like any other intruder.
+     *
      * @return array{kind: string, target: string|null}|null
      */
     private function bodyShape(File $phpcsFile, int $bodyStart, int $bodyEnd): ?array
     {
         $tokens = $phpcsFile->getTokens();
-        $body = $this->significantTokens($phpcsFile, $bodyStart, $bodyEnd);
-        $last = array_pop($body);
+        $last = $phpcsFile->findPrevious(Tokens::$emptyTokens, $bodyEnd, $bodyStart, true);
 
         // A body that does not end at a semicolon is not one statement: an
         // inner `if`, a loop, or a nested block all end on a brace instead.
-        if ($last === null || $tokens[$last]['code'] !== T_SEMICOLON) {
+        if ($last === false || $tokens[$last]['code'] !== T_SEMICOLON) {
             return null;
         }
 
-        // Any *further* semicolon means a second statement — the exclusion for
-        // multi-statement and side-effectful bodies.
-        foreach ($body as $pointer) {
-            if ($tokens[$pointer]['code'] === T_SEMICOLON) {
-                return null;
-            }
+        $first = $phpcsFile->findNext(Tokens::$emptyTokens, $bodyStart, $last, true);
+
+        if ($first === false || $this->isStatementHead($tokens[$first]['code']) === false) {
+            return null;
         }
 
-        if ($body !== [] && $tokens[$body[0]]['code'] === T_RETURN) {
-            return $this->isValueExpression($phpcsFile, array_slice($body, 1)) === true
+        if ($tokens[$first]['code'] === T_RETURN) {
+            return $this->isValueExpression($phpcsFile, $first + 1, $last - 1) === true
                 ? ['kind' => 'return', 'target' => null]
                 : null;
         }
 
-        if (
-            count($body) >= 2
-            && $tokens[$body[0]]['code'] === T_VARIABLE
-            && $tokens[$body[1]]['code'] === T_EQUAL
-        ) {
-            return $this->isValueExpression($phpcsFile, array_slice($body, 2)) === true
-                ? ['kind' => 'assign', 'target' => $tokens[$body[0]]['content']]
-                : null;
+        $operator = $phpcsFile->findNext(Tokens::$emptyTokens, $first + 1, $last, true);
+
+        if ($operator === false || $tokens[$operator]['code'] !== T_EQUAL) {
+            return null;
         }
 
-        return null;
+        return $this->isValueExpression($phpcsFile, $operator + 1, $last - 1) === true
+            ? ['kind' => 'assign', 'target' => $tokens[$first]['content']]
+            : null;
     }
 
     /**
-     * Whether an expression is non-empty and built only from value tokens.
-     *
-     * @param array<int, int> $pointers
+     * Whether a token can open one value-producing statement: `return`, or the
+     * target variable of an assignment. Nothing else can, so this is the
+     * cheapest possible rejection of a body — and the single place both
+     * clauseExtent() and bodyShape() get that answer from.
      */
-    private function isValueExpression(File $phpcsFile, array $pointers): bool
+    private function isStatementHead(int|string $code): bool
+    {
+        return $code === T_RETURN || $code === T_VARIABLE;
+    }
+
+    /**
+     * Whether the expression in a range is non-empty and built only from value
+     * tokens, with every sign token a sign rather than arithmetic.
+     */
+    private function isValueExpression(File $phpcsFile, int $start, int $end): bool
     {
         $tokens = $phpcsFile->getTokens();
+        $pointers = $this->significantTokens($phpcsFile, $start, $end);
 
         if ($pointers === []) {
             return false;
         }
 
-        foreach ($pointers as $pointer) {
-            if (in_array($tokens[$pointer]['code'], self::VALUE_TOKENS, true) === false) {
+        foreach ($pointers as $index => $pointer) {
+            $code = $tokens[$pointer]['code'];
+
+            if (in_array($code, self::VALUE_TOKENS, true) === false) {
+                return false;
+            }
+
+            if (
+                in_array($code, self::SIGN_TOKENS, true) === true
+                && $this->isUnarySign($tokens, $pointers, $index) === false
+            ) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * Whether the sign token at $index signs the literal after it, rather than
+     * joining two operands.
+     *
+     * Membership in VALUE_TOKENS alone cannot tell the two apart: `-` is both
+     * the sign of `-1` and the subtraction in `$x - $y`. Subtraction is work,
+     * and hoisting work into a mapping array changes when — and how often — it
+     * runs, which is the whole reason the expression allowlist exists.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $pointers
+     */
+    private function isUnarySign(array $tokens, array $pointers, int $index): bool
+    {
+        $next = $pointers[$index + 1] ?? null;
+
+        if ($next === null || in_array($tokens[$next]['code'], self::NUMERIC_LITERALS, true) === false) {
+            return false;
+        }
+
+        if ($index === 0) {
+            return true;
+        }
+
+        return in_array($tokens[$pointers[$index - 1]]['code'], self::OPERAND_POSITION_TOKENS, true);
     }
 
     /**

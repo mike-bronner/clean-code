@@ -44,10 +44,15 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * One warning per qualifying chain, at its leading `if` — never once per
- * branch. The five chains cover the two body forms (return and assignment),
+ * branch. The six chains cover the two body forms (return and assignment),
  * both operand orders, both equality operators, a chain with no trailing
- * `else`, and branch values that are constants and array literals rather than
- * inline scalars.
+ * `else`, branch values that are constants and array literals rather than
+ * inline scalars, and signed numeric literals.
+ *
+ * Line 91 is the signed-literal guard. A negative number is two tokens in PHP,
+ * so a condition parser that counts tokens rather than reading operands drops
+ * `$code === -1` as if it were a compound condition — silently, since nothing
+ * else about the chain looks unusual. This is the tuple that catches that.
  */
 it('warns once per qualifying chain, at its leading if', function (): void {
     $file = analyzeFixture(MAPPING_ARRAY_CANDIDATE, 'failing.php');
@@ -58,6 +63,7 @@ it('warns once per qualifying chain, at its leading if', function (): void {
         ['line' => 46, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
         ['line' => 60, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
         ['line' => 75, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
+        ['line' => 91, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
     ]);
 });
 
@@ -65,7 +71,7 @@ it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(MAPPING_ARRAY_CANDIDATE, 'failing.php');
 
     expect($file->getErrorCount())->toBe(0)
-        ->and($file->getWarningCount())->toBe(5);
+        ->and($file->getWarningCount())->toBe(6);
 });
 
 /**
@@ -90,7 +96,7 @@ it('names the branch count and the subject variable', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(MAPPING_ARRAY_CANDIDATE, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(5)
+    expect($file->getWarningCount())->toBe(6)
         ->and($file->getFixableCount())->toBe(0);
 });
 
@@ -158,6 +164,13 @@ it('judges a nested chain on its own bodies, not its parent', function (): void 
  * and the brace-less walk calls findEndOfStatement() past the last token. Each
  * must terminate and stay silent.
  *
+ * truncated-value.php is the one that fails *loudly* rather than by stalling.
+ * Its chain satisfies every rule but the last: the final statement is cut off
+ * inside an array literal, so it never reaches a semicolon, while everything
+ * before the cut is a legitimate value expression. Reading that expression
+ * without first confirming the statement ended reports the chain — a warning on
+ * a file PHP cannot parse. This is what pins the terminator check.
+ *
  * The assertion is the pair (no violations, and the run finished at all): an
  * unterminated walk would hang here rather than fail.
  */
@@ -170,7 +183,56 @@ it('terminates silently on a truncated chain', function (string $fixture): void 
     'truncated-braced.php',
     'truncated-alternative.php',
     'truncated-braceless.php',
+    'truncated-value.php',
 ]);
+
+/**
+ * Deeply nested single-branch `if`s are the shape that makes this walk
+ * expensive. Every `if` not preceded by `else` heads a chain in its own right,
+ * and an outer clause's body range contains every level nested inside it — so a
+ * walk that materialises a body before rejecting it pays one full pass per
+ * level, and the file costs its own square.
+ *
+ * The nesting here is brace-less on purpose. It is the shape that stays
+ * quadratic under the obvious half-fix: a brace-less body *does* end at a
+ * semicolon, so checking the terminator alone still lets every level through to
+ * findEndOfStatement(), whose own search is unbounded. Reading the body's first
+ * token before asking for its end is what closes it.
+ *
+ * It is also the only shape that can nest this far. PHP_CodeSniffer abandons a
+ * file whose braced scopes nest more than 50 deep — it throws "Maximum nesting
+ * level reached" from Tokenizers/Tokenizer.php rather than tokenizing it — so
+ * braced nesting has no reachable scale to measure, and its rejection is pinned
+ * for correctness by the nested pair in shapes.php instead. A brace-less body
+ * opens no scope, so nothing caps it and the walk is the only thing that can.
+ *
+ * An asymptotic fix has no observable but time, so the budget sits an order of
+ * magnitude above the measured cost rather than near it. Measured in this
+ * harness at 2400 levels: 6.161s before the walk was reordered, 0.123s after —
+ * and 0.349s / 1.345s / 3.202s before at 600 / 1200 / 1800, the ~4x per
+ * doubling that names the growth as quadratic. A 2.0s cap leaves a slow runner
+ * 16x room while still failing the quadratic walk by 3x.
+ *
+ * The warning assertion is what stops the timing from passing vacuously, and it
+ * has already earned its keep: a file the tokenizer gives up on is both fast and
+ * silent about this sniff, which a stopwatch alone would have read as a pass.
+ * The ruleset is built before the clock starts so the first parse of rules.xml
+ * is not charged to the measurement.
+ */
+it('stays linear on deeply nested chains', function (): void {
+    [$source, $chainLine] = nestedChainFixture(2400);
+    $fixture = stageGeneratedFixture('nested.php', $source);
+
+    buildRuleset([MAPPING_ARRAY_CANDIDATE]);
+
+    $started = hrtime(true);
+    $file = analyzeWithSniffs([MAPPING_ARRAY_CANDIDATE], $fixture);
+    $elapsed = (hrtime(true) - $started) / 1e9;
+
+    expect(warningTuples($file))->toBe([
+        ['line' => $chainLine, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
+    ])->and($elapsed)->toBeLessThan(2.0);
+});
 
 /**
  * threshold.php holds a single two-branch chain and nothing else, so the
@@ -220,9 +282,9 @@ it('leaves the chain to no other sniff in the ruleset', function (): void {
         analyzeWithMasterRuleset(fixturePath('MappingArrayCandidateSniff', 'failing.php'))
     );
 
-    $atChainHeads = array_intersect_key($sources, array_flip([20, 32, 46, 60, 75]));
+    $atChainHeads = array_intersect_key($sources, array_flip([20, 32, 46, 60, 75, 91]));
 
-    expect($atChainHeads)->toHaveCount(5);
+    expect($atChainHeads)->toHaveCount(6);
 
     foreach ($atChainHeads as $line => $reported) {
         expect($reported)->toBe(

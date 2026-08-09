@@ -22,7 +22,8 @@ chains as mapping-array (or `match`) candidates, once per chain, at the leading
 - **Detection** — an `if`/`elseif` chain in which every condition is
   `<same variable> === <scalar literal>` (or `==`), with each branch body a
   single `return` or a single assignment to the same target, is flagged as a
-  mapping-array candidate.
+  mapping-array candidate. The literal may carry a sign: PHP writes `-1` as two
+  tokens, and a signed number is read as the one literal it is.
 - **Configurable threshold** — the minimum branch count is the public sniff
   property `minimumBranches`, defaulting to 3 and counting a trailing `else` as
   the default entry, so projects can tune sensitivity:
@@ -60,7 +61,8 @@ stay silent rather than guess:
 | A subject that is not a plain variable (`$this->status`, `$row['type']`) | The standard speaks about values of *one variable*; a property or index read can differ on each evaluation. |
 | `null` as the compared literal | It is not a scalar, and `$x == null` is an emptiness test rather than a value lookup. |
 | A chain mixing `return` with assignment, or assigning to different targets | Neither collapses into a single lookup. |
-| A branch expression that can do work — a call, `new`, an increment, a nested assignment | Hoisting it into an array literal changes when, and how often, it runs. |
+| A branch expression that can do work — a call, `new`, an increment, a nested assignment, arithmetic between two operands (`$first - $second`) | Hoisting it into an array literal changes when, and how often, it runs. |
+| Arithmetic on a condition operand (`$code === $offset - 1`) | The compared side is an expression, not a literal, so the chain is not a lookup. The sign of a literal is the one exception, and only directly before a number. |
 | `switch` and `match` | The sniff registers on `if` alone. `switch` already centralises its subject, and `match` is the construct this standard recommends. |
 
 The sniff deliberately overlaps

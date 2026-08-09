@@ -346,17 +346,43 @@ function violationFixableFlags(LocalFile $file): array
  */
 function stageFixtureOutsideTests(string $path): string
 {
+    $staged = stagingDirectory() . '/' . basename($path);
+    stagedFixtures($staged);
+    copy($path, $staged);
+
+    return $staged;
+}
+
+/**
+ * Writes generated source to a staged fixture and returns its path, for the
+ * cases where a fixture's *size* is the point — committing thousands of
+ * mechanical lines would bury the one thing the test is about.
+ */
+function stageGeneratedFixture(string $filename, string $contents): string
+{
+    $staged = stagingDirectory() . '/' . $filename;
+    stagedFixtures($staged);
+
+    if (file_put_contents($staged, $contents) === false) {
+        throw new RuntimeException("could not write a generated fixture to {$staged}");
+    }
+
+    return $staged;
+}
+
+/**
+ * A fresh directory outside the repository, tracked by whichever staging
+ * helper called for it.
+ */
+function stagingDirectory(): string
+{
     $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
 
     if (mkdir($directory, 0700) === false) {
         throw new RuntimeException("could not stage a fixture in {$directory}");
     }
 
-    $staged = $directory . '/' . basename($path);
-    stagedFixtures($staged);
-    copy($path, $staged);
-
-    return $staged;
+    return $directory;
 }
 
 /**
@@ -415,4 +441,50 @@ function evaluateFixtureVariables(string $path): array
     };
 
     return $load($path);
+}
+
+/**
+ * Source for a file of $depth brace-less single-branch `if`s nested inside one
+ * another, followed by one qualifying if/elseif chain.
+ *
+ * Generated rather than committed because the depth is the whole point: this is
+ * what the mapping-array sniff's nesting-scale test measures against, and
+ * thousands of mechanical lines in tests/fixtures/ would bury it. Returned with
+ * the line its chain heads on, which follows from the depth.
+ *
+ * @return array{0: string, 1: int}
+ */
+function nestedChainFixture(int $depth): array
+{
+    $indent = str_repeat(' ', 8);
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'final class DeepNesting', '{'];
+    $lines[] = '    public function nested(int $code): int';
+    $lines[] = '    {';
+
+    for ($level = 0; $level < $depth; $level++) {
+        $lines[] = $indent . 'if ($code === ' . $level . ')';
+    }
+
+    $lines[] = $indent . 'return 0;';
+    $lines[] = '    }';
+    $lines[] = '';
+    $lines[] = '    public function chain(int $code): int';
+    $lines[] = '    {';
+
+    $chainLine = count($lines) + 1;
+
+    $lines = array_merge($lines, [
+        $indent . 'if ($code === 1) {',
+        $indent . '    return 1;',
+        $indent . '} elseif ($code === 2) {',
+        $indent . '    return 2;',
+        $indent . '} else {',
+        $indent . '    return 3;',
+        $indent . '}',
+        '    }',
+        '}',
+        '',
+    ]);
+
+    return [implode("\n", $lines), $chainLine];
 }
