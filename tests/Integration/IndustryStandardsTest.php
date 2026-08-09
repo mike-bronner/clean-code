@@ -119,7 +119,15 @@ it('reports the expected violations', function (
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
     // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
     // alongside the two PSR-12 errors the fixture exists to trip.
-    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1], [9 => 1]],
+    // 12 => 1 is the else branch this fixture uses to exercise PSR-12's brace
+    // placement. The PHPMD ElseExpression replacement (#77) reports every else,
+    // so the two standards now both speak about this fixture: PSR-12 about
+    // where the keyword sits (line 11), CleanCode.Conditionals.DisallowElse
+    // about the branch existing at all (line 12). Not a conflict — the fixture
+    // keeps its else because moving it would stop exercising brace placement,
+    // and its `.fixed.php` counterpart is unaffected (the else sniff has no
+    // fixer).
+    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
 /**

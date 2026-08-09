@@ -1063,6 +1063,41 @@
     </rule>
 
     <!--
+        PHPMD CleanCode: ElseExpression (#77) —
+        docs/phpmd/cleancode-elseexpression.md.
+
+        The custom CleanCode.Conditionals.DisallowElse sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records why it is custom rather than a wired third-party sniff, and
+        where it diverges from PHPMD.
+
+        SlevomatCodingStandard.ControlStructures.EarlyExit is the obvious
+        candidate and is not enough. It reports an else only where an early
+        exit is mechanically available — the if branch or the else branch
+        already ends in a jump statement. PHPMD reports *every* else. Measured
+        over tests/fixtures/DisallowElseSniff/failing.php: PHPMD 2.15.0 reports
+        eight elses, EarlyExit reports two. Configuration does not close the
+        gap; the sniff has no property that widens detection. Wiring it
+        alongside the custom sniff would only double-report those two lines,
+        so it is deliberately left out — issue #14 ("Conditionals: No else or
+        elseif") may revisit it for the fixable subset.
+
+        Stricter than PHPMD on two shapes, both kept because both are the same
+        avoidable branch the rule targets: a file-scope else (PHPMD's rule is
+        method/function-aware and never visits one) and a braceless
+        single-statement else (PHPMD matches a braced scope). Both are pinned
+        in tests/Standards/DisallowElseTest.php. `elseif` and the two-word
+        `else if` are reported by neither tool.
+
+        Detection only, matching PHPMD: turning an else into an early exit
+        moves statements and inverts a condition, which is safe only in the
+        narrow shapes EarlyExit already handles. The sniff reports errors, so
+        an else fails a phpcs run the way it fails a phpmd run — a warning
+        would leave phpcs exiting 0 and phpmd would still have to run
+        separately for this rule.
+    -->
+
+    <!--
         PHPMD CleanCode: MissingImport (#84) —
         docs/phpmd/cleancode-missingimport.md.
 
