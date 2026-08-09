@@ -976,6 +976,54 @@
     </rule>
 
     <!--
+        PHPMD Naming: ConstructorWithNameAsEnclosingClass (#113) —
+        docs/phpmd/naming-constructorwithnameasenclosingclass.md.
+
+        Generic.NamingConventions.ConstructorName bans PHP4-style constructors
+        (a method whose name matches its enclosing class), which is PHPMD's
+        rule. Both tools compare the two names case-insensitively, so a method
+        differing only in case is flagged by each.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis above, this sniff needs no
+        <type>error</type>: it already reports through addError(), so phpcs
+        exits non-zero on a violation and phpmd does not have to run for this
+        rule. The test pins that, so a vendor change to warning severity surfaces
+        as a failure rather than as a silent hole in the mapping.
+
+        The sniff emits two codes; only OldStyle is this rule:
+
+        - OldStyle     → a PHP4-style constructor *declaration*. PHPMD's rule.
+        - OldStyleCall → a PHP4-style *call* to a parent constructor
+                         (parent::ParentName()). PHPMD's rule only ever inspects
+                         a method's own declared name against its enclosing
+                         class, so a call site has no counterpart in it. Excluded
+                         rather than shipped as a side effect, matching how the
+                         VariableAnalysis block above treats its extra codes.
+
+        PHPMD exposes no properties or thresholds for this rule, so there is
+        nothing to tune; no <properties> are configured.
+
+        Not a drop-in match, and no property makes it one. Three shapes diverge,
+        all pinned by fixtures and set out in the doc:
+
+        - A namespaced class — this ruleset is stricter. PHPMD skips every class
+          outside the global namespace; the sniff does not. The extra report is a
+          true defect (PHP never treated a same-named method in a namespaced
+          class as a constructor, so the code reads as one and is not one), so it
+          is kept.
+        - An enum, and a class declaring both __construct and a same-named
+          method — PHPMD is stricter, and wrongly so. Neither shape is a PHP4
+          constructor in any PHP version, so the sniff's silence is kept too.
+
+        Detection only, matching PHPMD: renaming a PHP4 constructor to
+        __construct is only safe once every call site and every subclass is
+        known, which a single-file sniff cannot establish.
+    -->
+    <rule ref="Generic.NamingConventions.ConstructorName">
+        <exclude name="Generic.NamingConventions.ConstructorName.OldStyleCall"/>
+    </rule>
+
+    <!--
         PHPMD CodeSize: TooManyMethods (#80) —
         docs/phpmd/codesize-toomanymethods.md.
 
