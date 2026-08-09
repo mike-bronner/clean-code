@@ -10,8 +10,7 @@ declare(strict_types=1);
  * every branching form the signals can sit in, every declaration form a
  * constructor can take, the argument readers in the places a body can put them,
  * every way a parameter can qualify as a mode flag, the predicates that take a
- * second argument, a comment wherever the walk needs two adjacent tokens, and
- * every way a group can stand between a signal and the selector it feeds.
+ * second argument, and a comment wherever the walk needs two adjacent tokens.
  */
 
 final class Mailer

@@ -24,9 +24,7 @@ declare(strict_types=1);
  *      `function __construct()` at file scope, member and static calls that
  *      merely share a name with a predicate or with the argument readers —
  *      including with a comment splitting the object operator from the name —
- *      every bodiless constructor shape, the far side of every expression
- *      boundary the forward scan must respect, and guards holding a nested
- *      construct of the same kind as their own.
+ *      and every bodiless constructor shape.
  *
  * Dropping any one of the sniff's guards reddens this file.
  */
