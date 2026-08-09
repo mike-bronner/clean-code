@@ -61,6 +61,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.CodeSize.TooManyMethods',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
