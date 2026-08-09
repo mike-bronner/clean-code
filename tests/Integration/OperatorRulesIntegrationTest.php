@@ -40,15 +40,25 @@ it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
-        // exactly-1-space spacing — Squiz supersedes PSR12, no stacking
+        // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
+        // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands
+        // this line uses to carry a spacing defect are numeric literals, and
+        // #136 speaks about the one not on its ignore list. Listed for the
+        // same reason as AvoidConditionals below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
         9 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
         ],
         // concatenation spacing — ConcatenationSpacing only, no PSR12
         10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
-        // padding before "=" — the ignoreSpacingBeforeAssignments knob
-        11 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
+        // padding before "=" — the ignoreSpacingBeforeAssignments knob, plus
+        // #136 on the "3" that line assigns
+        11 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
+            'Squiz.WhiteSpace.OperatorSpacing.SpacingBefore',
+        ],
         // dangling "." outside a condition — OperatorLineBreak's to own
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
         // the three "if" keywords the operator fixtures wrap their conditions

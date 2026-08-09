@@ -90,6 +90,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
+    'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Testing.NoReflectionAccess',
 ];
 
