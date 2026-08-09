@@ -278,6 +278,49 @@
     -->
 
     <!--
+        Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
+
+        The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
+        one token-visible slice of an otherwise Tier 3 standard: "only test
+        public methods" has a single standard workaround, and that workaround is
+        Reflection. It is picked up automatically via the ./CleanCode/ruleset.xml
+        ref above; this comment records that no scoping is wanted here.
+
+        No <exclude-pattern>, deliberately, and this is the inverse of the
+        DisallowExternalPersistenceCalls block above: the sniff is *only*
+        meaningful inside test paths, and it decides that itself from its
+        testFilePatterns property rather than from a ruleset path filter. A
+        consuming project whose tests live somewhere else retunes that property;
+        with a path filter here it would have to override this ruleset instead.
+
+        One existing sniff covers part of it and is still not enough.
+        SlevomatCodingStandard.PHP.ForbiddenClasses, configured with
+        ReflectionMethod and ReflectionProperty, was run against
+        tests/fixtures/NoReflectionAccessSniff/failing.php: it reported 4 of the
+        17 lines the custom sniff reports (3, 4, 5, 23) and missed the other 13.
+
+        - It has no test-path awareness at all, so it would report the same
+          Reflection in production code, which this standard does not forbid.
+        - It compares class names case-sensitively, so `new REFLECTIONPROPERTY()`
+          (line 6) escapes it even though PHP class names are case-insensitive.
+        - It speaks only about class *usage*, so the whole member half —
+          setAccessible(), getMethod(), getProperty(), invoke(), invokeArgs(),
+          12 of the 17 lines — is invisible to it.
+
+        Generic.PHP.ForbiddenFunctions, configured with those five member names,
+        reported nothing at all on the same fixture: it matches global function
+        calls, not method calls. No other PHPCS or Slevomat sniff mentions
+        Reflection.
+
+        Warnings, not errors, and detection only. The standard is advisory, the
+        member half matches on member name rather than on receiver type (which a
+        single-file token scan cannot resolve), and replacing a Reflection call
+        with coverage through the public API is a redesign of the test with no
+        mechanical rewrite. Legitimate Reflection in a test takes the ordinary
+        per-line phpcs:ignore.
+    -->
+
+    <!--
         PHPMD Naming: ShortMethodName (#111) —
         docs/phpmd/naming-shortmethodname.md.
 
