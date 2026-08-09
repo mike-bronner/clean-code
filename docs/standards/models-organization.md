@@ -38,7 +38,9 @@ Name comparison is case-insensitive throughout, so `$Total` sorts against
 - A **relationship method** is a public method whose declared return type names
   an Eloquent relation — `HasMany`, `BelongsTo`, `MorphTo`, the rest of the
   concrete classes, and the `Relation` base a project's own relation class
-  extends. Nullable, namespace-qualified, and union types all count. Without a
+  extends. Nullable, namespace-qualified, union, and intersection types all
+  count, including the parenthesised DNF spelling — `(HasMany&Countable)|null`
+  names a relation as surely as `HasMany` does. Without a
   declared return type the relation is invisible to a linter, and the method is
   ordered with the ordinary ones.
 - A **getter or setter** is a method named `get` or `set` followed by a capital.

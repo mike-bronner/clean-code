@@ -471,8 +471,19 @@ class MemberOrderingSniff implements Sniff
      * getMethodProperties() hands the type over exactly as written — `?` and
      * all, despite also reporting nullability separately — so it may be
      * nullable, namespace-qualified, or a union or intersection of several
-     * types. Each part is stripped to its short name and any one part matching
-     * is enough.
+     * types, including PHP 8.2's DNF spelling, which parenthesises each
+     * intersection arm: `(HasMany&Countable)|null`. Each part is stripped to
+     * its short name and any one part matching is enough.
+     *
+     * The separators stripped here are the whole set that can reach this
+     * method, not a sample. getMethodProperties() concatenates only the tokens
+     * in its own `$valid` list, which holds no whitespace token, so the type
+     * arrives with none: the only characters around a name are the `?` it
+     * prepends for a nullable, the `|` and `&` split on above, the `\` the
+     * explode below handles, and the DNF parentheses. Splitting without
+     * stripping the parentheses left `(HasMany` as a short name, which matches
+     * no relation — a DNF relationship method was filed under rule 5 and, worse,
+     * dragged an unrelated method into a spurious rule-5 violation with it.
      *
      * A method with no declared return type arrives as the empty string, which
      * reduces to an empty short name and matches nothing, so it is not a
@@ -489,7 +500,7 @@ class MemberOrderingSniff implements Sniff
         $parts = preg_split('/[|&]/', $returnType) ?: [];
 
         foreach ($parts as $part) {
-            $qualifiers = explode('\\', trim($part, " ?\t"));
+            $qualifiers = explode('\\', trim($part, '?()'));
 
             if (in_array(strtolower(end($qualifiers)), $accepted, true) === true) {
                 return true;

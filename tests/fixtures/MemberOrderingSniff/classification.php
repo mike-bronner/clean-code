@@ -46,6 +46,41 @@ class RelationReturnTypeModel extends Model
 }
 
 /**
+ * PHP 8.2's DNF spelling parenthesises each intersection arm, so a parenthesis
+ * arrives attached to a different part of the type's split depending on where
+ * the relation sits inside the arm: `(HasMany&Countable)` leaves the opening one
+ * on the relation, `(Countable&HasOne)` leaves the closing one on it.
+ *
+ * The two shapes get a class each rather than sharing one. Read as ordinary
+ * methods they would cascade — the first to report becomes the baseline for the
+ * second and silences it — so one class could only ever pin whichever shape it
+ * listed first.
+ */
+class DnfLeadingRelationModel extends Model
+{
+    public function zulu(): void
+    {
+    }
+
+    public function alpha(): (HasMany&Countable)|null
+    {
+        return null;
+    }
+}
+
+class DnfTrailingRelationModel extends Model
+{
+    public function zulu(): void
+    {
+    }
+
+    public function alpha(): (Countable&HasOne)|null
+    {
+        return null;
+    }
+}
+
+/**
  * The two shapes that look like a relationship and are not: a method with no
  * declared return type, where the relation is invisible to a token scan, and a
  * non-public method, which the standard's rule 3 does not cover.
