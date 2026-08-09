@@ -33,10 +33,10 @@ intention, and be consistent with expectations.
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (not statically enforceable)
+## Enforceability — Tier 3 (semantic core not statically enforceable)
 
-This is an architectural / semantic standard. It is **not** enforced by a PHPCS
-sniff. Enforcement is via **code review and developer discipline**.
+This is an architectural / semantic standard. Its core is enforced by **code
+review and developer discipline**; one narrow slice carries a sniff.
 
 Whether a name reveals intent, misleads, maps onto the reader's existing
 vocabulary, or stays consistent with the concept-word used elsewhere in the
@@ -44,16 +44,53 @@ codebase are judgements about *meaning* — they depend on the problem domain,
 the reader, and cross-file context that no single file's tokens can decide. A
 token stream can see a name's shape, but not whether it tells the truth.
 
+### The sniffed slice — magic numbers
+
+`CleanCode.Naming.DisallowMagicNumbers` warns on a bare numeric literal used
+where a named constant belongs — the "Use Searchable Names" rule's numeric
+half ([#136](https://github.com/mike-bronner/phpcs-rules/issues/136)).
+
+| | |
+|---|---|
+| Registers on | `T_LNUMBER`, `T_DNUMBER` |
+| Severity | **warning**, not error — some literals are self-evident in context, so the rule must not fail a build |
+| Fixer | none. Only the author knows what the number means, and choosing the constant's name is the judgement this standard leaves to review |
+| Property | `ignoredNumbers`, an array, default `0, 1, -1` |
+
+It skips the places a literal is *being given* its name — `const` statements,
+class constant and enum case declarations, and property and parameter default
+values — plus two shapes where naming is impossible or meaningless: a
+`declare()` directive, whose value PHP requires to be a literal, and attribute
+arguments, which are declarative metadata rather than an evaluated expression.
+
+The ignore list is matched by value, not spelling, in whichever base the
+literal is written: an entry of `0` also covers `0.0` and `0x0`, and `1_000`
+matches an entry of `1000`. Widen it from a consuming ruleset when a domain has
+its own self-evident values:
+
+```xml
+<rule ref="CleanCode.Naming.DisallowMagicNumbers">
+    <properties>
+        <property name="ignoredNumbers" type="array" value="0,1,-1,100"/>
+    </properties>
+</rule>
+```
+
+Magic *strings* are out of scope. Formats, array keys, and SQL fragments make
+string literals far noisier at the token level, with no comparable heuristic
+for telling a concept from a value.
+
 ## Partial enforcement assessment
 
 The standard was assessed for narrow, token-based heuristics that could catch
 a subset:
 
-- **Searchable names — magic numbers** — *heuristic found.* A bare numeric
-  literal in an expression is exactly the unsearchable constant the standard
-  calls out, and it is detectable by pure single-file token analysis
-  (`T_LNUMBER` / `T_DNUMBER` outside declaration sites). Focused sniff issue:
-  [#136](https://github.com/mike-bronner/phpcs-rules/issues/136).
+- **Searchable names — magic numbers** — *heuristic found, and shipped.* A bare
+  numeric literal in an expression is exactly the unsearchable constant the
+  standard calls out, and it is detectable by pure single-file token analysis
+  (`T_LNUMBER` / `T_DNUMBER` outside declaration sites). Now enforced by
+  `CleanCode.Naming.DisallowMagicNumbers` — see the section above
+  ([#136](https://github.com/mike-bronner/phpcs-rules/issues/136)).
 - **Searchable names — short identifiers** — *already tracked.* Too-short
   method and function names are enforced by
   `CleanCode.Naming.ShortMethodName` — see
@@ -79,3 +116,7 @@ obligation is concrete: for every identifier a change introduces or renames,
 the reviewer confirms the name states what it is for without a comment, is
 pronounceable and greppable, needs no mental translation, and reuses the
 concept-word the codebase already uses for that operation.
+
+The magic-number sniff does not narrow that obligation. It says a number wants
+a name; whether the name it is given reveals intent is still a judgement only a
+reader can make.
