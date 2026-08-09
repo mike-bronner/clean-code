@@ -178,6 +178,75 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
 }
 
 /**
+ * Processes a fixture through a *consumer* ruleset — one that references
+ * rules.xml and then overrides a sniff's properties in XML, exactly as a
+ * consuming project's own ruleset does.
+ *
+ * Distinct from analyzeFixture()'s $configure callback, and deliberately so.
+ * The callback assigns the property directly, so it hands over whatever PHP
+ * type the test wrote; PHPCS's XML path always hands over a *string*, because
+ * Ruleset::setSniffProperty() ends in `$sniffObject->$name = $value;` with no
+ * cast. A sniff whose threshold property carries a native `int` type therefore
+ * passes every callback-driven test and still dies with an uncaught TypeError
+ * the moment a real consumer configures it. Only this route exercises that.
+ *
+ * @param array<string, string> $properties Property name => value, as written in XML.
+ */
+function analyzeWithConfiguredRuleset(
+    string $sniffCode,
+    string $fixture,
+    array $properties
+): LocalFile {
+    $lines = [];
+
+    foreach ($properties as $name => $value) {
+        $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+    }
+
+    $standard = sys_get_temp_dir() . '/' . uniqid('cleancode-ruleset-', true) . '.xml';
+    file_put_contents($standard, implode("\n", [
+        '<?xml version="1.0"?>',
+        '<ruleset name="Consumer">',
+        '    <description>Consumer ruleset built by the test suite.</description>',
+        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="' . $sniffCode . '">',
+        '        <properties>',
+        implode("\n", $lines),
+        '        </properties>',
+        '    </rule>',
+        '</ruleset>',
+        '',
+    ]));
+
+    // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
+    // third-party standards rules.xml references have to be restored in memory
+    // before the parse or the whole ruleset fails to resolve.
+    $config = new ConfigDouble(['--standard=' . $standard]);
+    $config->cache = false;
+
+    Config::setConfigData(
+        'installed_paths',
+        implode(',', [
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+        ]),
+        true
+    );
+
+    $ruleset = new Ruleset($config);
+    unlink($standard);
+
+    $class = $ruleset->sniffCodes[$sniffCode];
+    $ruleset->sniffs = [$class => $ruleset->sniffs[$class]];
+    $ruleset->populateTokenListeners();
+
+    $file = new LocalFile(fixturePath(sniffFixtureDirectory($sniffCode), $fixture), $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Runs the fixer over an already-processed file and returns the result.
  */
 function autofixedContents(LocalFile $file): string
