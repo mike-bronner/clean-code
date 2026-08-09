@@ -18,9 +18,9 @@
  *   - Autofixable sniffs carry all three fixtures.
  *   - Detection-only sniffs (ArrayAccessors, OperatorLineBreak,
  *     DisallowStaticMembers, DisallowBooleanArgumentFlag,
- *     ExcessiveMethodLength, ExcessiveParameterList, ExcessiveClassComplexity,
- *     ExcessivePublicCount, BooleanGetMethodName, ShortClassName, LineLength,
- *     Eval, VariableAnalysis, ShortMethodName) carry
+ *     TooManyPublicMethods, ExcessiveMethodLength, ExcessiveParameterList,
+ *     ExcessiveClassComplexity, ExcessivePublicCount, BooleanGetMethodName,
+ *     ShortClassName, LineLength, Eval, VariableAnalysis, ShortMethodName) carry
  *     passing.php and failing.php but no autofixed.php, because there is no
  *     safe mechanical rewrite.
  *
@@ -70,6 +70,7 @@ declare(strict_types=1);
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.DisallowStaticMembers',
+    'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
     'CleanCode.Conditionals.OneConditionPerLine',

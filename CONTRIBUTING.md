@@ -84,6 +84,14 @@ you will reach for:
   through a ruleset narrowed to one sniff, resolving the fixture directory from
   the sniff code. `$configure` receives the sniff instance so a test can set its
   public properties the way a consuming ruleset would.
+- `analyzeFixtureWithRulesetProperties($sniffCode, $fixture, $properties)` — the
+  same, but setting the properties the way a *consuming ruleset* does: string
+  values through `Ruleset::setSniffProperty()`, exactly as parsing a
+  `<property>` element does. Not interchangeable with `$configure` above, which
+  assigns to the property directly and so always hands over a correctly typed
+  value: only the XML path trims the value and turns an empty string into
+  `null`, which is what decides whether an empty `<property>` element
+  configures the sniff or aborts the ruleset parse with a `TypeError`.
 - `analyzeRulesetFixture([$sniffCodes], $directory, $fixture)` — the
   `_rulesets/` equivalent, for a standard carried by several sniffs.
 - `analyzeWithMasterRuleset($path)` — the *whole* ruleset, every sniff active.

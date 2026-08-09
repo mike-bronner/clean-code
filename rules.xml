@@ -470,6 +470,50 @@
     -->
 
     <!--
+        PHPMD CodeSize: TooManyPublicMethods (#83) —
+        docs/phpmd/codesize-toomanypublicmethods.md.
+
+        No existing PHPCS or Slevomat sniff expresses this rule. The four
+        nearest candidates were run against
+        tests/fixtures/TooManyPublicMethodsSniff/failing.php and each reported
+        nothing on its five classes of eleven public methods:
+        SlevomatCodingStandard.Classes.ClassLength (a class's line count, blind
+        to visibility), SlevomatCodingStandard.Classes.ForbiddenPublicProperty
+        (public properties, not methods), Generic.Metrics.CyclomaticComplexity
+        and Generic.Metrics.NestingLevel (both measure inside one method). So
+        this is the custom CleanCode.Classes.TooManyPublicMethods sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed, and
+        tests/Standards/TooManyPublicMethodsTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        No <properties> are configured: both defaults are taken verbatim from
+        PHPMD 2.15.0's own rulesets/codesize.xml, so an unconfigured phpcs run
+        and an unconfigured phpmd run report the same classes, and a project
+        that already tunes PHPMD's rule can paste the same two values here.
+
+        Note that maxmethods=10 matches phpmd.org, but ignorepattern does not:
+        the page still documents (^(set|get))i while the shipped ruleset carries
+        (^(set|get|is|has|with))i, and the sniff tracks the shipped value —
+        confirmed against a live PHPMD 2.15.0 run. Using the documented value
+        would report classes PHPMD leaves alone, so the two tools would disagree
+        out of the box. A project that wants the narrower behaviour sets
+        ignorepattern explicitly; the doc spells out both.
+
+        As with DisallowBooleanArgumentFlag above, no <type> override is needed:
+        the sniff raises errors already, so an over-large class fails a phpcs
+        run the way it fails a phpmd run.
+
+        Detection only, matching PHPMD. Splitting a class into finer-grained
+        objects rewrites its call sites, which is a design change with no
+        mechanical rewrite.
+
+        Exact parity with PHPMD on both fixtures and on both configured
+        properties — same classes, same counts, same lines, all cross-checked
+        against a live PHPMD 2.15.0 run and tabulated in the doc.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessiveClassComplexity (#87) —
         docs/phpmd/codesize-excessiveclasscomplexity.md.
 
