@@ -233,3 +233,34 @@ it('does not report a run of similar lines against itself', function (): void {
         ->and($file->getWarnings()[47][9][0]['message'])
         ->toContain('through line 51, repeats the block starting on line 42');
 });
+
+/**
+ * The sniff over its own source, which is the one file in the standard whose
+ * shape this sniff's author controls.
+ *
+ * This exists because the claim was previously made without a check behind it.
+ * `composer lint` runs PSR-12, and CI's ruleset step lints tests/bootstrap.php
+ * — neither loads the CleanCode standard over CleanCode/Sniffs/, so neither
+ * could have reported a CleanCode.Pattern warning at all, and the sniff was in
+ * fact flagging its own file.
+ *
+ * What it flagged was real, not a false positive: two adjacent lookup tables
+ * written one `TOKEN => true,` entry per line are five identical line shapes
+ * after five identical line shapes, which is exactly what this sniff reports
+ * everywhere else. The tables are flat token lists now — the form the rest of
+ * this standard's sniffs already use — and this test fails if they drift back.
+ *
+ * The token count is asserted first because the path is a literal. A file
+ * PHP_CodeSniffer cannot read yields no tokens and therefore no warnings, so
+ * without it this test would go quietly green the day the sniff is renamed or
+ * moved — passing for the one reason it must never pass for.
+ */
+it('leaves its own source alone', function (): void {
+    $file = analyzeWithSniffs(
+        [AVOID_DUPLICATE_CODE_BLOCKS],
+        cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/AvoidDuplicateCodeBlocksSniff.php'
+    );
+
+    expect($file->numTokens)->toBeGreaterThan(0)
+        ->and(warningTuples($file))->toBe([]);
+});

@@ -79,35 +79,34 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
      * Inline HTML and the tags around it are template output rather than logic,
      * so a repeated markup block is not the duplication this standard is about.
      *
-     * @var array<int|string, true>
+     * @var array<int, int|string>
      */
-    private const NON_CODE_TOKENS = [
-        T_OPEN_TAG => true,
-        T_OPEN_TAG_WITH_ECHO => true,
-        T_CLOSE_TAG => true,
-        T_INLINE_HTML => true,
-    ];
+    private const NON_CODE_TOKENS = [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO, T_CLOSE_TAG, T_INLINE_HTML];
 
     /**
-     * The punctuation that structures code without being code itself.
+     * The tokens a file's PHP can open on, which is both what the sniff
+     * registers for and what it looks back for to know it has already run.
+     *
+     * @var array<int, int|string>
+     */
+    private const OPEN_TAGS = [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO];
+
+    /**
+     * The punctuation that structures code without being code itself, listed as
+     * the opener/closer pairs it comes in.
      *
      * A line built entirely from these — `{`, `}`, `];`, `);`, `,` — is a
      * layout artefact of PSR-12, not a line of logic, and is dropped from the
      * comparison so it cannot pad a block up to the threshold.
      *
-     * @var array<int|string, true>
+     * @var array<int, int|string>
      */
     private const DELIMITER_TOKENS = [
-        T_OPEN_CURLY_BRACKET => true,
-        T_CLOSE_CURLY_BRACKET => true,
-        T_OPEN_PARENTHESIS => true,
-        T_CLOSE_PARENTHESIS => true,
-        T_OPEN_SQUARE_BRACKET => true,
-        T_CLOSE_SQUARE_BRACKET => true,
-        T_OPEN_SHORT_ARRAY => true,
-        T_CLOSE_SHORT_ARRAY => true,
-        T_COMMA => true,
-        T_SEMICOLON => true,
+        T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET,
+        T_OPEN_PARENTHESIS, T_CLOSE_PARENTHESIS,
+        T_OPEN_SQUARE_BRACKET, T_CLOSE_SQUARE_BRACKET,
+        T_OPEN_SHORT_ARRAY, T_CLOSE_SHORT_ARRAY,
+        T_COMMA, T_SEMICOLON,
     ];
 
     /**
@@ -139,7 +138,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
      */
     public function register(): array
     {
-        return [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO];
+        return self::OPEN_TAGS;
     }
 
     /**
@@ -156,7 +155,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        if ($phpcsFile->findPrevious([T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO], ($stackPtr - 1)) !== false) {
+        if ($phpcsFile->findPrevious(self::OPEN_TAGS, ($stackPtr - 1)) !== false) {
             return;
         }
 
@@ -200,14 +199,13 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
      */
     private function summarizeCodeLines(array $tokens): array
     {
+        $ignored = Tokens::$emptyTokens + array_fill_keys(self::NON_CODE_TOKENS, true);
+        $delimiters = array_fill_keys(self::DELIMITER_TOKENS, true);
         $summaries = [];
         $line = null;
 
         foreach ($tokens as $pointer => $token) {
-            if (
-                isset(Tokens::$emptyTokens[$token['code']]) === true
-                || isset(self::NON_CODE_TOKENS[$token['code']]) === true
-            ) {
+            if (isset($ignored[$token['code']]) === true) {
                 continue;
             }
 
@@ -218,7 +216,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
             $summaries[$line]['shape'] .= $token['code'] . ',';
             $summaries[$line]['code'] = $summaries[$line]['code']
-                || isset(self::DELIMITER_TOKENS[$token['code']]) === false;
+                || isset($delimiters[$token['code']]) === false;
         }
 
         $shapes = [];
@@ -295,8 +293,12 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
      *
      * @param array<int, int> $lineShapes
      */
-    private function measureBlock(array $lineShapes, int $index, int $origin, int $minimumLines): int
-    {
+    private function measureBlock(
+        array $lineShapes,
+        int $index,
+        int $origin,
+        int $minimumLines
+    ): int {
         $length = $minimumLines;
 
         while (
