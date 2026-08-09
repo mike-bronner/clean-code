@@ -6,8 +6,32 @@ declare(strict_types=1);
  * Every declaration here measures at or above the default report level of 10.
  * The exact complexity of each, the exact line it is reported on, and the exact
  * number of reports are asserted in
- * tests/Standards/CyclomaticComplexityTest.php against a live PHPMD 2.15.0 run
- * over this same file.
+ * tests/Standards/CyclomaticComplexityTest.php.
+ *
+ * Those numbers were measured against a live PHPMD rather than read off
+ * phpmd.org or off the sniff. `vendor/bin/phpmd --version` reported:
+ *
+ *     PHPMD 2.15.0
+ *
+ * and the run itself, from the package root, was:
+ *
+ *     vendor/bin/phpmd tests/fixtures/CyclomaticComplexitySniff/failing.php \
+ *         text codesize
+ *
+ * PHPMD's CLI takes whole rulesets and never a single rule, so that is the
+ * entire codesize ruleset, and its output carries two findings from other
+ * rules in the set. They are kept here rather than filtered out, because a
+ * quote edited down is no longer the thing that was measured. Verbatim, with
+ * only the checkout root shortened to <repo> and PHP 8.4's deprecation notices
+ * from PDepend's own source dropped:
+ *
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:37   ExcessiveClassComplexity  The class Reported has an overall complexity of 52 which is very high. The configured complexity threshold is 50.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:46   CyclomaticComplexity      The method atExactlyTheReportLevel() has a Cyclomatic Complexity of 10. The configured cyclomatic complexity threshold is 10.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:46   NPathComplexity           The method atExactlyTheReportLevel() has an NPath complexity of 512. The configured NPath complexity threshold is 200.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:93   CyclomaticComplexity      The method booleanOperatorChain() has a Cyclomatic Complexity of 12. The configured cyclomatic complexity threshold is 10.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:110  CyclomaticComplexity      The method mergesItsClosure() has a Cyclomatic Complexity of 11. The configured cyclomatic complexity threshold is 10.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:152  CyclomaticComplexity      The method deeplyNested() has a Cyclomatic Complexity of 19. The configured cyclomatic complexity threshold is 10.
+ *     <repo>/tests/fixtures/CyclomaticComplexitySniff/failing.php:210  CyclomaticComplexity      The function heavyStandalone() has a Cyclomatic Complexity of 10. The configured cyclomatic complexity threshold is 10.
  */
 
 class Reported

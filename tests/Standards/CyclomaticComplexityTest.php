@@ -7,26 +7,20 @@
  *
  * Every number below was measured against a live PHPMD 2.15.0 run over these
  * same fixtures rather than derived from the sniff or from phpmd.org. The
- * invocation was:
+ * literal invocation, the version string, and PHPMD's verbatim output on
+ * failing.php at the default report level are quoted in **failing.php's own
+ * docblock**; the five measurements it reports are:
  *
- *     phpmd tests/fixtures/CyclomaticComplexitySniff/failing.php text \
- *         rulesets/codesize.xml/CyclomaticComplexity
+ *     failing.php:46   atExactlyTheReportLevel()  10
+ *     failing.php:93   booleanOperatorChain()     12
+ *     failing.php:110  mergesItsClosure()         11
+ *     failing.php:152  deeplyNested()             19
+ *     failing.php:210  heavyStandalone()          10
  *
- * and, for the measurements below the default report level, the same command
- * against a ruleset setting `reportLevel` to 1. `phpmd --version` reported
- * `PHPMD 2.15.0`. Its verbatim output on failing.php at the default level is
- * quoted in the fixture's own docblock and reproduced here:
- *
- *     failing.php:22   The method atExactlyTheReportLevel() has a Cyclomatic
- *                      Complexity of 10.
- *     failing.php:69   The method booleanOperatorChain() has a Cyclomatic
- *                      Complexity of 12.
- *     failing.php:86   The method mergesItsClosure() has a Cyclomatic
- *                      Complexity of 11.
- *     failing.php:128  The method deeplyNested() has a Cyclomatic Complexity
- *                      of 19.
- *     failing.php:186  The function heavyStandalone() has a Cyclomatic
- *                      Complexity of 10.
+ * The measurements *below* the default report level come from a second run of
+ * the same binary against a hand-written ruleset referencing
+ * `rulesets/codesize.xml/CyclomaticComplexity` with `reportLevel` set to 1,
+ * since PHPMD says nothing at all about a declaration it does not report.
  *
  * Three measurements are worth stating outright, because a reader is most
  * likely to assume each of them the other way round:
@@ -59,6 +53,62 @@ it('is registered in the master ruleset', function (): void {
 
     expect($ruleset->sniffCodes)->toHaveKey(CYCLOMATIC_COMPLEXITY);
 });
+
+/**
+ * The rule as a consumer meets it: the real vendor/bin/phpcs binary, in its own
+ * process, over a violating fixture.
+ *
+ * Every other test in this file drives PHPCS in process through ConfigDouble,
+ * which blanks the CodeSniffer.conf Composer wrote at install time and has the
+ * helpers hand the installed standards back. That harness settles what the
+ * sniff measures and nothing about whether the shipped package works: it
+ * supplies the registration itself, so a package that never registered would
+ * pass all the same — and the registration test above reads rules.xml through
+ * exactly that scaffolding.
+ *
+ * This one uses none of it, and names both identifiers a consumer can point
+ * `--standard` at, because each fails for a reason the other cannot catch.
+ * Both were confirmed by mutation, not reasoned about:
+ *
+ * - `rules.xml` — the master ruleset the README tells a consumer to use.
+ *   Excluding the sniff from the ./CleanCode/ruleset.xml ref there reddens this
+ *   case alone; the standard-by-name case stays green, because CleanCode's own
+ *   ruleset still carries the sniff.
+ * - `CleanCode` — the standard by *name*, which resolves through the
+ *   installed_paths entry dealerdirect/phpcodesniffer-composer-installer writes
+ *   on install. Deleting that entry reddens this case alone. It only discriminates
+ *   because the helper runs phpcs from outside the package: from the package
+ *   root the name resolves as a plain relative path to ./CleanCode/ and the
+ *   deletion changes nothing, which is how this test read before it was
+ *   mutation-checked.
+ *
+ * Nothing narrows the run to one sniff, because narrowing is what a consumer
+ * does not do; the report is filtered afterwards instead. The five lines and
+ * measurements are failing.php's, the same ones the in-process tests below
+ * assert and the same ones failing.php's docblock quotes live PHPMD reporting.
+ */
+it('reports the violation end to end through the installed package', function (string $standard): void {
+    $violations = installedPhpcsViolations(
+        $standard,
+        fixturePath('CyclomaticComplexitySniff', 'failing.php'),
+        CYCLOMATIC_COMPLEXITY . '.Found'
+    );
+
+    expect(array_column($violations, 'line'))->toBe([46, 93, 110, 152, 210])
+        ->and($violations[0]['message'])
+        ->toContain('atExactlyTheReportLevel() has a cyclomatic complexity of 10')
+        ->and($violations[1]['message'])
+        ->toContain('booleanOperatorChain() has a cyclomatic complexity of 12')
+        ->and($violations[2]['message'])
+        ->toContain('mergesItsClosure() has a cyclomatic complexity of 11')
+        ->and($violations[3]['message'])
+        ->toContain('deeplyNested() has a cyclomatic complexity of 19')
+        ->and($violations[4]['message'])
+        ->toContain('heavyStandalone() has a cyclomatic complexity of 10');
+})->with([
+    'the master ruleset' => fn (): string => cleanCodeRoot() . '/rules.xml',
+    'the standard by name' => 'CleanCode',
+]);
 
 /**
  * passing.php carries the near miss the report level has to stay silent on —
@@ -175,11 +225,11 @@ it('flags each over-level declaration at its declaration line', function (): voi
     $file = analyzeFixture(CYCLOMATIC_COMPLEXITY, 'failing.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 22, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
-        ['line' => 69, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
-        ['line' => 86, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
-        ['line' => 128, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
-        ['line' => 186, 'column' => 1, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
+        ['line' => 46, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
+        ['line' => 93, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
+        ['line' => 110, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
+        ['line' => 152, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
+        ['line' => 210, 'column' => 1, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -201,19 +251,19 @@ it('flags each over-level declaration at its declaration line', function (): voi
 it('reports the measured complexity and the report level', function (): void {
     $errors = analyzeFixture(CYCLOMATIC_COMPLEXITY, 'failing.php')->getErrors();
 
-    expect($errors[22][12][0]['message'])
+    expect($errors[46][12][0]['message'])
         ->toBe(
             'The method atExactlyTheReportLevel() has a cyclomatic complexity of 10, reaching '
                 . 'the report level of 10; break it into smaller declarations '
                 . '(see docs/phpmd/codesize-cyclomaticcomplexity.md)'
         )
-        ->and($errors[69][12][0]['message'])
+        ->and($errors[93][12][0]['message'])
         ->toContain('The method booleanOperatorChain() has a cyclomatic complexity of 12,')
-        ->and($errors[86][12][0]['message'])
+        ->and($errors[110][12][0]['message'])
         ->toContain('The method mergesItsClosure() has a cyclomatic complexity of 11,')
-        ->and($errors[128][12][0]['message'])
+        ->and($errors[152][12][0]['message'])
         ->toContain('The method deeplyNested() has a cyclomatic complexity of 19,')
-        ->and($errors[186][1][0]['message'])
+        ->and($errors[210][1][0]['message'])
         ->toContain('The function heavyStandalone() has a cyclomatic complexity of 10,');
 });
 

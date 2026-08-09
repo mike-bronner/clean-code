@@ -372,6 +372,116 @@ function analyzeWithConfiguredRuleset(
 }
 
 /**
+ * Runs the *installed* phpcs binary out of process and returns the violations
+ * it reports for one sniff, as a list of `['line' => int, 'message' => string]`
+ * in report order.
+ *
+ * Every other helper above drives PHPCS in process through ConfigDouble, which
+ * blanks the CodeSniffer.conf Composer wrote at install time and has
+ * restoreInstalledPaths() put the standards back by hand. That is the right
+ * harness for asserting what a sniff measures, but it cannot answer whether the
+ * *shipped* package works: the scaffolding supplies the registration a consumer
+ * gets from Composer, so a package that never registered itself would pass all
+ * the same. This helper uses none of it — it executes vendor/bin/phpcs the way
+ * a consumer does, reading the real CodeSniffer.conf.
+ *
+ * $standard is passed to `--standard` verbatim, so it takes either a ruleset
+ * file's path (rules.xml, the file a consumer points at) or an installed
+ * standard's name (CleanCode). The run happens from a working directory
+ * *outside* the package, which is what keeps those two distinct: PHPCS resolves
+ * `--standard=CleanCode` against the working directory first, so run from the
+ * package root the name would find ./CleanCode/ruleset.xml as a plain relative
+ * path and prove nothing about the package being installed at all. Measured,
+ * not assumed — from the package root the name still resolves with the
+ * package's installed_paths entry deleted; from outside it does not.
+ *
+ * Nothing narrows the run to one sniff, because narrowing is what a consumer
+ * does not do; $sniffCode filters the report afterwards instead.
+ *
+ * Every way this can fail to measure anything throws rather than returning an
+ * empty list: a missing binary, a process that will not start, output that is
+ * not the expected JSON report, or a report naming other than exactly the one
+ * file asked about. An assertion of "no violations" must never be satisfiable
+ * by a run that never happened.
+ *
+ * @return array<int, array{line: int, message: string}>
+ */
+function installedPhpcsViolations(string $standard, string $path, string $sniffCode): array
+{
+    $report = installedPhpcsReport($standard, $path);
+    $violations = [];
+
+    foreach ($report as $message) {
+        if ($message['source'] === $sniffCode) {
+            $violations[] = ['line' => (int) $message['line'], 'message' => (string) $message['message']];
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * The messages the installed phpcs reports for $path, unfiltered.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function installedPhpcsReport(string $standard, string $path): array
+{
+    $binary = cleanCodeRoot() . '/vendor/bin/phpcs';
+
+    if (is_file($binary) === false) {
+        throw new RuntimeException("the installed phpcs binary is missing at {$binary}; run composer install");
+    }
+
+    $arguments = [PHP_BINARY, $binary, '--standard=' . $standard, '--report=json', '--no-cache', $path];
+    [$stdout, $stderr] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
+
+    $decoded = json_decode($stdout, true);
+    $files = is_array($decoded) === true ? $decoded['files'] ?? null : null;
+
+    if (is_array($files) === false) {
+        throw new RuntimeException("phpcs produced no JSON report for {$path}; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    if (count($files) !== 1) {
+        throw new RuntimeException('phpcs reported on ' . count($files) . " files, expected only {$path}");
+    }
+
+    return reset($files)['messages'] ?? [];
+}
+
+/**
+ * Runs $command from a working directory outside the package and returns its
+ * stdout and stderr.
+ *
+ * phpcs exits non-zero whenever it reports anything at all, so the exit status
+ * says nothing a caller can use and is deliberately not returned; what a failed
+ * run leaves behind is unparseable stdout, which installedPhpcsReport() throws
+ * on.
+ *
+ * @return array{0: string, 1: string}
+ */
+function runOutsidePackage(string $command): array
+{
+    $pipes = [];
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open($command, $descriptors, $pipes, sys_get_temp_dir());
+
+    if (is_resource($process) === false) {
+        throw new RuntimeException("could not start: {$command}");
+    }
+
+    $stdout = (string) stream_get_contents($pipes[1]);
+    $stderr = (string) stream_get_contents($pipes[2]);
+
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+
+    return [$stdout, $stderr];
+}
+
+/**
  * Runs the fixer over an already-processed file and returns the result.
  */
 function autofixedContents(LocalFile $file): string
