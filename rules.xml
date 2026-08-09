@@ -339,6 +339,61 @@
     -->
 
     <!--
+        PHPMD CodeSize: ExcessiveMethodLength (#91) —
+        docs/phpmd/codesize-excessivemethodlength.md.
+
+        No existing PHPCS or Slevomat sniff expresses PHPMD's method-length
+        metric. PHPCS's own Generic.Metrics.* pair measures cyclomatic
+        complexity and nesting depth, not length, and Generic.Files.LineLength
+        measures the width of a line rather than a count of them. The one real
+        candidate is SlevomatCodingStandard.Functions.FunctionLength, and it was
+        configured as close to PHPMD as it goes — maxLinesLength 100,
+        includeComments and includeWhitespace both true — and run against
+        tests/fixtures/ExcessiveMethodLengthSniff/failing.php. It reported
+        nothing at all, on a fixture where PHPMD reports every one of its four
+        declarations. Three independent differences produce that, and no
+        combination of properties closes any of them:
+
+        - It measures a different span. FunctionHelper::getLineCount() counts
+          from the body's opening brace to the token before the closing one, so
+          the four declarations measure 97, 95, 97, and 97 where PDepend's `loc`
+          measures 100 apiece — the signature and the closing brace are outside
+          its span and inside PHPMD's.
+        - It compares with `>` where PHPMD compares with `>=`, so even a span
+          that did agree would disagree on the boundary case the rule is usually
+          configured for.
+        - It anchors elsewhere. On the modifier-split declaration it reports
+          line 117, the `function` keyword; PHPMD reports line 115, the `public`
+          that begins PDepend's node.
+
+        So this is the custom CleanCode.Functions.ExcessiveMethodLength sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above — no per-sniff
+        registration is needed, and tests/Standards/ExcessiveMethodLengthTest.php
+        asserts the sniff resolves from this master ruleset.
+
+        No <properties> are configured. PHPMD ships this rule with minimum 100
+        and ignore-whitespace false, and the sniff's defaults are the same two
+        values, so an unconfigured phpcs run reports what an unconfigured phpmd
+        run reports. A project that already tunes PHPMD's rule transfers its
+        values verbatim; only the spelling of the second changes, to
+        ignoreWhitespace, because PHPCS sets a PHP property rather than an XML
+        attribute.
+
+        Note that PHPMD's threshold is inclusive: a declaration of exactly
+        `minimum` lines is already a violation. The sniff matches, and
+        tests/fixtures/ExcessiveMethodLengthSniff/ pins both sides of the
+        boundary at 99 and 100 lines against a live PHPMD 2.15.0 run.
+
+        Unlike Squiz.PHP.Eval and VariableAnalysis below, no <type> override is
+        needed: the sniff raises errors already, so a violation fails a phpcs
+        run the way it fails a phpmd run.
+
+        Detection only: shortening a method means extracting helpers and naming
+        them, which is a design decision with no mechanical rewrite. PHPMD
+        offers no fix either.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
         PHPMD UnusedCode: UnusedLocalVariable (#118) —
