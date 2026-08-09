@@ -1061,6 +1061,43 @@
             <property name="allowUnusedVariablesInFileScope" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        PHPMD CodeSize: ExcessiveClassLength (#93) —
+        docs/phpmd/codesize-excessiveclasslength.md.
+
+        No existing sniff replicates the metric. SlevomatCodingStandard.Classes.
+        ClassLength is the closest, and misses on three counts that no property
+        setting reaches: it registers on every OO scope (interfaces, traits,
+        enums, and anonymous classes included) where PHPMD's rule is ClassAware;
+        it reports on "longer than" where PHPMD reports on "at least"; and it
+        counts from the opening brace where PHPMD counts from the declaration.
+        Generic.Metrics carries no class-length sniff at all. Hence the custom
+        CleanCode.Classes.ExcessiveClassLength sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above.
+
+        The thresholds are written out here rather than left to the sniff's
+        defaults so the shipped configuration is the one under test: `minimum`
+        1000 and `ignoreWhitespace` false are PHPMD's own defaults for this
+        rule. `ignoreWhitespace` is PHPMD's `ignore-whitespace`, which switches
+        the metric from every physical line of the class to PDepend's `eloc` —
+        the non-comment lines inside the bodies of the class's own methods —
+        rather than merely dropping blank lines.
+
+        The sniff calls addError directly, so no <type> override is needed: an
+        over-long class fails a phpcs run the way it fails a phpmd run, and
+        phpmd does not have to run separately for this rule.
+
+        Detection only, as in PHPMD. Splitting an over-long class is a design
+        decision, so there is nothing to auto-fix.
+    -->
+    <rule ref="CleanCode.Classes.ExcessiveClassLength">
+        <properties>
+            <property name="minimum" value="1000"/>
+            <property name="ignoreWhitespace" value="false"/>
+        </properties>
+    </rule>
+
     <!--
         PHPMD CodeSize: TooManyFields (#98) —
         docs/phpmd/codesize-toomanyfields.md.

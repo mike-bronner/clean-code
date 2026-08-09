@@ -19,10 +19,10 @@
  *   - Detection-only sniffs (ArrayAccessors, DuplicatedArrayKey,
  *     OperatorLineBreak, DisallowStaticMembers, DisallowCountInLoopExpression,
  *     DisallowExitExpression, DisallowBooleanArgumentFlag,
- *     TooManyPublicMethods, ExcessiveMethodLength, ExcessiveParameterList,
- *     ExcessiveClassComplexity, ExcessivePublicCount, TooManyFields,
- *     BooleanGetMethodName, LongClassName, ShortClassName, LineLength,
- *     ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
+ *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
+ *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
+ *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
+ *     LineLength, ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
  *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
  *     but no autofixed.php, because there is no safe mechanical rewrite.
  *
@@ -73,6 +73,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Arrays.DuplicatedArrayKey',
     'CleanCode.Classes.DisallowStaticMembers',
+    'CleanCode.Classes.ExcessiveClassLength',
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
