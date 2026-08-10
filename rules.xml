@@ -593,6 +593,71 @@
     -->
 
     <!--
+        Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
+
+        The custom CleanCode.Testing.NoFirstPartyMocks sniff (#146) carries the
+        second token-visible slice of the same Tier 3 standard: "do not mock
+        classes you control" is approximated by flagging a mock-creation call
+        whose class argument resolves into a namespace root the project owns.
+        The sniff itself is picked up automatically via the
+        ./CleanCode/ruleset.xml ref above; the block below exists only to
+        configure it.
+
+        SLEVOMAT/PHPCS EVALUATION. No existing PHPCS, Generic, Squiz or Slevomat
+        sniff covers this, and the two that come closest were run against
+        tests/fixtures/NoFirstPartyMocksSniff/failing.php to confirm it:
+
+        - SlevomatCodingStandard.PHP.ForbiddenClasses, configured with
+          App\Models\User, reported 7 of the 18 lines the custom sniff reports
+          (13, 14, 20, 21, 25, 26, 35) and missed the other 11. It speaks about
+          a class being *used*, not about it being mocked, so it needs every
+          first-party class named one by one — and then forbids each of them in
+          production code too, which this standard does not. It also reads only
+          the `::class` spelling, so the string literals on lines 15 and 24
+          escape it, and it is not test-path aware.
+        - Generic.PHP.ForbiddenFunctions, configured with createMock, mock, spy
+          and getMockBuilder, reported nothing at all on the same fixture: it
+          matches global function calls, not method calls.
+
+        Neither resolves an argument through the file's `use` imports, which is
+        what the rule actually turns on.
+
+        $firstPartyNamespaces ships EMPTY on the sniff class, so an unconfigured
+        consumer gets a no-op rather than guesses. `App` is configured here
+        because that is the root of the Laravel layout these standards are
+        written against; a project with different roots replaces the whole
+        element list in its own ruleset:
+
+            <rule ref="CleanCode.Testing.NoFirstPartyMocks">
+                <properties>
+                    <property name="firstPartyNamespaces" type="array">
+                        <element value="Acme"/>
+                        <element value="Acme\Support"/>
+                    </property>
+                </properties>
+            </rule>
+
+        No <exclude-pattern>, for the same reason as the block above: the sniff
+        is only meaningful inside test paths and decides that itself from its
+        testFilePatterns property, so a consumer whose tests live elsewhere
+        retunes a property rather than overriding this ruleset.
+
+        Warnings, not errors, and detection only. The standard is advisory,
+        $mockCreators matches on member name rather than on receiver type, a
+        first-party facade wrapping a genuinely external service is a known
+        false positive, and replacing a mock of a class you own with the real
+        collaborator is a redesign of the test with no mechanical rewrite. Both
+        gray areas take the ordinary per-line phpcs:ignore.
+    -->
+    <rule ref="CleanCode.Testing.NoFirstPartyMocks">
+        <properties>
+            <property name="firstPartyNamespaces" type="array">
+                <element value="App"/>
+            </property>
+        </properties>
+    </rule>
+
+    <!--
         PHPMD Naming: ShortMethodName (#111) —
         docs/phpmd/naming-shortmethodname.md.
 

@@ -19,12 +19,12 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3, with one partial rule
+## Enforceability — Tier 3, with two partial rules
 
 This is an architectural / semantic / process standard. Its **core** is
-enforced by **code review and developer discipline**; one narrow slice is
-enforced by the custom sniff `CleanCode.Testing.NoReflectionAccess`, described
-below.
+enforced by **code review and developer discipline**; two narrow slices are
+enforced by the custom sniffs `CleanCode.Testing.NoReflectionAccess` and
+`CleanCode.Testing.NoFirstPartyMocks`, described below.
 
 A token-based PHPCS sniff inspects one file's tokens in isolation at lint
 time. Where a developer *started* writing tests, whether "Shameless Green" was
@@ -95,19 +95,94 @@ $method = new ReflectionMethod(Calculator::class, 'applyDiscount');
 A project that hits the second limit often can narrow `reflectionMembers`
 instead.
 
+## The rule: `CleanCode.Testing.NoFirstPartyMocks`
+
+"Do not mock classes you control" has one token-visible approximation: a
+mock-creation call whose class argument resolves into a namespace root the
+project owns. The sniff reports that shape, as a **warning**, detection only —
+replacing a mock of a class you own with the real collaborator is a redesign of
+the test, not a mechanical rewrite ([#146](https://github.com/mike-bronner/phpcs-rules/issues/146)).
+
+It fires only inside test files, and only once configured. These are the
+mock-creation calls it recognises:
+
+| Source | Calls |
+|---|---|
+| PHPUnit | `$this->createMock(…)`, `$this->createPartialMock(…)`, `$this->getMockBuilder(…)` |
+| Mockery | `Mockery::mock(…)`, `Mockery::spy(…)` |
+| Laravel test helpers | `$this->mock(…)`, `$this->partialMock(…)`, `$this->spy(…)` |
+
+The first argument is resolved to a fully-qualified name from the file's own
+`namespace` declaration and `use` imports, so every spelling of the same class
+lands on the same answer:
+
+| Written | Resolved (in `namespace App\Tests\Unit`, with `use App\Models\User`) |
+|---|---|
+| `User::class` | `App\Models\User` — through the import |
+| `\App\Models\User::class` | `App\Models\User` — already qualified |
+| `namespace\Support\Clock::class` | `App\Tests\Unit\Support\Clock` — relative |
+| `Support\Clock::class` | `App\Tests\Unit\Support\Clock` — current namespace |
+| `'App\Models\User'` | `App\Models\User` — a string is never resolved through imports |
+
+A reference the file's own tokens cannot resolve — a variable, a call, a
+concatenation, a constant that is not `::class` — is left alone rather than
+guessed at.
+
+Three public properties configure it from a consuming ruleset:
+
+```xml
+<rule ref="CleanCode.Testing.NoFirstPartyMocks">
+    <properties>
+        <property name="firstPartyNamespaces" type="array">
+            <element value="App"/>
+        </property>
+        <property name="testFilePatterns" type="array" value="*/tests/*,*/Tests/*,*Test.php"/>
+        <property name="mockCreators" type="array" value="createMock,createPartialMock,getMockBuilder,mock,partialMock,spy"/>
+    </properties>
+</rule>
+```
+
+`firstPartyNamespaces` ships **empty on the sniff class**: nothing in one file
+says which roots a project owns, so an unconfigured sniff is a no-op rather
+than a guesser. This package's own `rules.xml` configures `App`, the root of
+the Laravel layout these standards are written against; a project with
+different roots replaces the element list. Roots are compared segment-wise and
+case-insensitively, so `App` covers `App\Models\User` and never
+`Application\Order`.
+
+`testFilePatterns` behaves exactly as it does for `NoReflectionAccess` above,
+and gates this rule the same way.
+
+### Known limits
+
+Both are by design, and both are why the rule warns rather than errors:
+
+- `mockCreators` matches on member **name**, not on receiver type, which a
+  single-file token scan cannot resolve. `$surveillance->spy(User::class)`
+  therefore reports even though no mocking library is involved.
+- A **facade or contract that wraps a genuinely external service** lives in the
+  project's own namespace and so reports, even though the thing being mocked is
+  external. This is the gray area the standard's own wording leaves open.
+
+Both take the ordinary per-line suppression:
+
+```php
+// phpcs:ignore CleanCode.Testing.NoFirstPartyMocks.Found
+$gateway = $this->createMock(PaymentGatewayContract::class);
+```
+
+A project that hits either often can narrow `mockCreators` or the namespace
+roots instead.
+
 ## Partial enforcement assessment
 
-Two narrow slices **are** catchable by a sniff. The first is now the rule
-above; the second is a focused follow-up issue rather than a sniff built under
-this standard:
+Two narrow slices **are** catchable by a sniff, and both are now implemented:
 
 - **Reflection-based access to non-public methods in tests** — [#145](https://github.com/mike-bronner/phpcs-rules/issues/145),
   **implemented** as `CleanCode.Testing.NoReflectionAccess`, above.
 - **Mocking first-party classes in tests** —
-  [#146](https://github.com/mike-bronner/phpcs-rules/issues/146). "Do not mock
-  classes you control" is approximated by flagging mock creation
-  (`createMock`, `Mockery::mock`, Laravel's `$this->mock`) whose class
-  argument resolves to a configured first-party namespace prefix.
+  [#146](https://github.com/mike-bronner/phpcs-rules/issues/146),
+  **implemented** as `CleanCode.Testing.NoFirstPartyMocks`, above.
 
 Adjacent slices already tracked elsewhere:
 
@@ -139,6 +214,8 @@ the public API rather than reaching into a protected or private method, and
 that any newly mocked collaborator is genuinely external — with an integration
 test alongside it that would fail if the real interface drifted from the mock.
 
-The public-API half of that obligation is now partly automated: the sniff above
-reports the Reflection route into a non-public member. It reports nothing about
-the other routes, so the reviewer still owns them.
+Two halves of that obligation are now partly automated: `NoReflectionAccess`
+reports the Reflection route into a non-public member, and `NoFirstPartyMocks`
+reports a mock of a class in the project's own namespace. Neither says anything
+about the other routes into a non-public member, nor about whether an
+integration test sits alongside a mock, so the reviewer still owns those.

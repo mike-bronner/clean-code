@@ -315,7 +315,13 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
  * passes every callback-driven test and still dies with an uncaught TypeError
  * the moment a real consumer configures it. Only this route exercises that.
  *
- * @param array<string, string> $properties Property name => value, as written in XML.
+ * An array value is written out as a `type="array"` property with one
+ * `<element>` per entry — the spelling PHPCS documents for a list property, and
+ * a different parse path from the scalar `value=""` attribute above. A sniff
+ * with an `array` property type needs that route specifically: the attribute
+ * form hands over a string and dies with the same TypeError described above.
+ *
+ * @param array<string, string|array<string>> $properties Property name => value, as written in XML.
  */
 function analyzeWithConfiguredRuleset(
     string $sniffCode,
@@ -325,7 +331,19 @@ function analyzeWithConfiguredRuleset(
     $lines = [];
 
     foreach ($properties as $name => $value) {
-        $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+        if (is_array($value) === false) {
+            $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+
+            continue;
+        }
+
+        $lines[] = '            <property name="' . $name . '" type="array">';
+
+        foreach ($value as $element) {
+            $lines[] = '                <element value="' . $element . '"/>';
+        }
+
+        $lines[] = '            </property>';
     }
 
     $standard = sys_get_temp_dir() . '/' . uniqid('cleancode-ruleset-', true) . '.xml';
