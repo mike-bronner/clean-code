@@ -366,16 +366,16 @@ class NoFirstPartyMocksSniff implements Sniff
     }
 
     /**
-     * The class name a string literal spells. A single-quoted literal carries
-     * the name verbatim; a double-quoted one has escaped every separator, so
-     * `"App\\Models\\User"` collapses back to one separator per segment.
+     * The class name a string literal spells. Both quote styles escape the
+     * separator the same way — PHP's own lexer collapses `\\` to one backslash
+     * in a single-quoted literal just as it does in a double-quoted one — so
+     * `'App\\Models\\User'` and `"App\\Models\\User"` both name
+     * `App\Models\User`. A single separator is already what it says and comes
+     * through untouched.
      */
     private function literalValue(string $content): string
     {
-        $quote = substr($content, 0, 1);
-        $value = trim($content, '\'"');
-
-        return $quote === '"' ? str_replace('\\\\', '\\', $value) : $value;
+        return str_replace('\\\\', '\\', trim($content, '\'"'));
     }
 
     /**
@@ -512,6 +512,11 @@ class NoFirstPartyMocksSniff implements Sniff
      * because a group import may mix them in beside classes — and a whole-file
      * `use function` reaches the same check as its own single clause.
      *
+     * An empty clause is dropped before the group prefix is applied, not after:
+     * a trailing comma inside a group (`use A\{B, C,};`, legal since PHP 8.0)
+     * leaves one, and prefixing it first would turn it into the non-empty
+     * `A\` and import a phantom `a => A` alias that no `use` statement wrote.
+     *
      * @param array<int, array<string, mixed>> $tokens
      *
      * @return array<string, string>
@@ -526,10 +531,17 @@ class NoFirstPartyMocksSniff implements Sniff
             $written = rtrim(explode('}', $written, 2)[0]);
         }
 
+        $prefix = trim($prefix);
         $imports = [];
 
         foreach (explode(',', $written) as $clause) {
-            $import = $this->importedAlias(trim($prefix) . trim($clause));
+            $clause = trim($clause);
+
+            if ($clause === '') {
+                continue;
+            }
+
+            $import = $this->importedAlias($prefix . $clause);
 
             $imports = ($import === null ? $imports : array_merge($imports, $import));
         }
@@ -539,14 +551,15 @@ class NoFirstPartyMocksSniff implements Sniff
 
     /**
      * One import clause as an alias => fully-qualified name pair, or null when
-     * the clause names a function or a constant (which a group import may mix
-     * in beside classes) or is empty (a trailing comma inside a group).
+     * the clause names a function or a constant, which a group import may mix
+     * in beside classes. The clause is never empty: the caller drops an empty
+     * one before it prefixes the group.
      *
      * @return array<string, string>|null
      */
     private function importedAlias(string $clause): ?array
     {
-        if ($clause === '' || preg_match('/^(function|const)\s/i', $clause) === 1) {
+        if (preg_match('/^(function|const)\s/i', $clause) === 1) {
             return null;
         }
 

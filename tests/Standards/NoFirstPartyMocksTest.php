@@ -6,9 +6,11 @@
  * tests/fixtures/NoFirstPartyMocksSniff/: the compliant vendor mocks plus every
  * near-miss shape in passing.php, the flagged first-party mocks in failing.php,
  * the property-configurability triple in configured.php, the per-line
- * suppression in suppressed.php, the header-walk boundary in class-body-use.php
- * and the three end-of-file truncations in unterminated-*.php. The rule is
- * detection-only, so there is no autofixed fixture.
+ * suppression in suppressed.php, the header-walk boundary in class-body-use.php,
+ * the string-literal escaping in escaped-literals.php, the group-import
+ * emptiness guard in group-import-trailing-comma.php and the three end-of-file
+ * truncations in unterminated-*.php. The rule is detection-only, so there is no
+ * autofixed fixture.
  *
  * $firstPartyNamespaces ships EMPTY on the sniff class, so every assertion here
  * that expects a warning depends on rules.xml configuring `App` — which is the
@@ -203,6 +205,122 @@ it('names the resolved class and the standard in the warning message', function 
         ->and($warnings[15][34][0]['message'])->toContain('Mocking App\Models\User,')
         ->and($warnings[24][26][0]['message'])->toContain('Mocking App\Models\User,')
         ->and($warnings[27][39][0]['message'])->toContain('Mocking App\Tests\Unit\Support\Clock,');
+});
+
+/**
+ * A doubled separator inside a string literal is an escape in *both* quote
+ * styles: PHP's single-quote lexer collapses `\\` to one backslash exactly as
+ * its double-quote lexer does. So `'App\\Models\\User'` (line 10),
+ * `"App\\Models\\User"` (line 11) and `'App\Models\User'` (line 15) all name
+ * the same class, and reading the single-quoted form verbatim leaves the
+ * resolved name as `App\\Models\\User`.
+ *
+ * Both configurations are asserted, because each catches a different half of
+ * that defect and neither catches the other:
+ *
+ * - under the `App` root rules.xml ships, the doubled name still matches by
+ *   plain prefix luck — `app\` *is* a prefix of `app\\` — so line 10 reports
+ *   either way and only the message shows the doubled separators baked into
+ *   the resolved name.
+ * - under a multi-segment `App\Models` root, which is the shape rules.xml's own
+ *   example consumer configuration offers, the luck runs out: `app\models\` is
+ *   not a prefix of `app\\models\\`, so line 10 falls silent altogether — a
+ *   first-party mock the sniff simply misses. Line 19 sits under `App` but
+ *   outside `App\Models` and must stay silent, which is what proves the
+ *   narrower root is genuinely in force rather than the shipped one.
+ */
+it('collapses an escaped separator in either quote style', function (): void {
+    $shipped = analyzeFixture(FIRST_PARTY_MOCKS, 'escaped-literals.php');
+    $messages = violationMessagesByLine($shipped->getWarnings());
+
+    expect($shipped->getErrors())->toBe([])
+        ->and(array_keys($shipped->getWarnings()))->toBe([10, 11, 15, 19])
+        ->and($messages[10][0])->toContain('Mocking App\Models\User,')
+        ->and($messages[11][0])->toContain('Mocking App\Models\User,')
+        ->and($messages[15][0])->toContain('Mocking App\Models\User,')
+        ->and($messages[19][0])->toContain('Mocking App\Services\Payments,');
+
+    $narrowed = analyzeWithConfiguredRuleset(
+        FIRST_PARTY_MOCKS,
+        'escaped-literals.php',
+        ['firstPartyNamespaces' => ['App\Models']]
+    );
+
+    expect($narrowed->getErrors())->toBe([])
+        ->and(array_keys($narrowed->getWarnings()))->toBe([10, 11, 15]);
+});
+
+/**
+ * A trailing comma inside a group import is legal from PHP 8.0 and leaves an
+ * empty clause behind. The clause has to be dropped *before* the group prefix
+ * is applied to it: prefixed first, the empty clause becomes `Vendor\Sdk\` —
+ * never empty, so no emptiness guard downstream can catch it — and is imported
+ * as the phantom alias `sdk => Vendor\Sdk`, an import the file never wrote.
+ *
+ * Both directions are pinned on one fixture, because the phantom alias hides in
+ * a different way under each root:
+ *
+ * - under the `App` root rules.xml ships, line 22's `Sdk` must resolve inside
+ *   the declared namespace as `App\Tests\Unit\Sdk` and report. The phantom
+ *   alias would send it to `Vendor\Sdk` and swallow the warning.
+ * - under a `Vendor` root it is the inverse, and the false *positive* the AC
+ *   forbids outright: an unresolvable-through-imports name must not be flagged,
+ *   yet the phantom alias makes `Sdk` look first-party.
+ *
+ * Line 27 is the second group's own copy of the defect, and it needs the
+ * message rather than the line: `Models` resolves to `App\Tests\Unit\Models`,
+ * and the phantom `models => App\Models` sends it to `App\Models` instead —
+ * first-party under `App` either way, same line, different class.
+ *
+ * Lines 13 to 16 keep the fixture honest in the other direction: both halves of
+ * both groups still import, so a parser that dropped the last clause of a
+ * trailing-comma group (rather than inventing one) fails here too.
+ */
+it('ignores the empty clause a trailing comma leaves in a group import', function (): void {
+    $shipped = analyzeFixture(FIRST_PARTY_MOCKS, 'group-import-trailing-comma.php');
+
+    expect($shipped->getErrors())->toBe([])
+        ->and(array_keys($shipped->getWarnings()))->toBe([13, 14, 22, 27])
+        ->and(violationMessagesByLine($shipped->getWarnings())[27][0])
+        ->toContain('Mocking App\Tests\Unit\Models,');
+
+    $vendor = analyzeFixture(
+        FIRST_PARTY_MOCKS,
+        'group-import-trailing-comma.php',
+        static function (object $sniff): void {
+            $sniff->firstPartyNamespaces = ['Vendor'];
+        }
+    );
+
+    expect($vendor->getErrors())->toBe([])
+        ->and(array_keys($vendor->getWarnings()))->toBe([15, 16]);
+});
+
+/**
+ * The namespace list is a list: a class under *any* configured root is
+ * first-party, not just one under the first. That is the sniff's own documented
+ * extensibility path — rules.xml teaches a two-root consumer configuration — so
+ * it is asserted rather than left to the single-root tests above, all of which
+ * a comparison that only ever read `firstPartyNamespaces[0]` would pass.
+ *
+ * `Vendor` is listed first and `App` second, so configured.php's line 10
+ * (`App\Models\User`) can only report through the *second* entry, and line 11
+ * (`Vendor\Sdk\Client`) only through the first. Both are asserted together: the
+ * pair is what forces a real union rather than either entry winning alone.
+ *
+ * Configured through XML rather than the callback, because two `<element>`
+ * entries under one property is the exact spelling rules.xml documents and the
+ * one a consuming project writes.
+ */
+it('treats a class under any configured namespace root as first-party', function (): void {
+    $configured = analyzeWithConfiguredRuleset(
+        FIRST_PARTY_MOCKS,
+        'configured.php',
+        ['firstPartyNamespaces' => ['Vendor', 'App']]
+    );
+
+    expect($configured->getErrors())->toBe([])
+        ->and(array_keys($configured->getWarnings()))->toBe([10, 11]);
 });
 
 /**

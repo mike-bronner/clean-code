@@ -123,6 +123,7 @@ lands on the same answer:
 | `namespace\Support\Clock::class` | `App\Tests\Unit\Support\Clock` — relative |
 | `Support\Clock::class` | `App\Tests\Unit\Support\Clock` — current namespace |
 | `'App\Models\User'` | `App\Models\User` — a string is never resolved through imports |
+| `'App\\Models\\User'` | `App\Models\User` — a doubled separator is an escape in either quote style |
 
 A reference the file's own tokens cannot resolve — a variable, a call, a
 concatenation, a constant that is not `::class` — is left alone rather than
@@ -146,9 +147,9 @@ Three public properties configure it from a consuming ruleset:
 says which roots a project owns, so an unconfigured sniff is a no-op rather
 than a guesser. This package's own `rules.xml` configures `App`, the root of
 the Laravel layout these standards are written against; a project with
-different roots replaces the element list. Roots are compared segment-wise and
-case-insensitively, so `App` covers `App\Models\User` and never
-`Application\Order`.
+different roots replaces the element list, and a class under **any** listed
+root is first-party. Roots are compared segment-wise and case-insensitively, so
+`App` covers `App\Models\User` and never `Application\Order`.
 
 `testFilePatterns` behaves exactly as it does for `NoReflectionAccess` above,
 and gates this rule the same way.
