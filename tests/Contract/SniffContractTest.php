@@ -21,7 +21,8 @@
  *     DisallowStaticMembers, DisallowCountInLoopExpression,
  *     DisallowExitExpression, DisallowBooleanArgumentFlag,
  *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
- *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
+ *     ExcessiveParameterList, CouplingBetweenObjects, ExcessiveClassComplexity,
+ *     ExcessivePublicCount,
  *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
  *     LineLength, ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
  *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
@@ -86,6 +87,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
+    'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.TooManyFields',
