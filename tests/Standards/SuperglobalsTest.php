@@ -36,13 +36,14 @@ it('is registered in the master ruleset', function (): void {
  * - Three member declarations: `$_GET`, a static `$_POST`, and a promoted
  *   constructor pair `$HTTP_GET_VARS`/`$HTTP_POST_VARS`. Each declares a
  *   property; none reads the superglobal. The promoted pair is the PHP 8
- *   spelling of the same thing and is exempt through the same condition check
- *   — a parameter list is not a scope of its own, so the innermost condition
- *   of a promoted parameter is still the class — so it needs no separate
- *   guard, and nothing but a fixture can pin that. It has to be spelled with
- *   long-form aliases: PHP refuses to compile a parameter named after one of
- *   the nine real superglobals, promoted or not, so the alias half of the name
- *   list is the only half this shape exists in.
+ *   spelling of the same thing: it declares the property from the parameter
+ *   list, so it is exempt with the other two. What it is not exempt *by* is
+ *   its position — a parameter list opens no scope of its own, so a plain
+ *   parameter carries the same innermost condition while declaring nothing,
+ *   and parameters.php pins that the sniff reports that one. It has to be
+ *   spelled with long-form aliases: PHP refuses to compile a parameter named
+ *   after one of the nine real superglobals, promoted or not, so the alias
+ *   half of the name list is the only half this shape exists in.
  *   SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable reports the
  *   first two where PHPMD reports neither, which is one of the two reasons
  *   Slevomat could not be wired in instead. It misses the promoted pair, but
@@ -236,6 +237,93 @@ it('counts backslash pairs when deciding whether an interpolation is live', func
         [48, '$_COOKIE'],
         [59, '$_REQUEST'],
     ]);
+});
+
+/**
+ * The parameter list, where the class-scope exemption has to stop.
+ *
+ * PHPCS opens a method's own scope at its `{`, so a parameter carries the class
+ * as its innermost condition — the same condition a member declared in the
+ * class body carries. An exemption keyed on that position alone cannot tell a
+ * *promoted* parameter, which declares a property, from a *plain* one, which
+ * declares nothing and is an ordinary local; it swallows both. Nothing in
+ * passing.php or failing.php could catch that, because neither carries a plain
+ * parameter at all — every access in failing.php is a read inside a body, which
+ * is also why its twenty-six stay twenty-six with this fixture added.
+ *
+ * The reported *names* are asserted alongside the positions so the expectation
+ * says which shape reported rather than counting anonymous hits, and the list
+ * is exhaustive, so it equally asserts the two promoted lines are absent.
+ *
+ * Line 82 is the same plain shape in a global function, where there is no class
+ * condition to be confused by. It is the control: a parameter means the same
+ * thing inside a class and outside one, so the two halves have to agree, and
+ * before the exemption learned the difference they did not — the in-class
+ * declaration was dropped while this one was reported.
+ *
+ * Line 71 is a plain parameter nothing reads, which is what pins that the
+ * declaration is reported on its own merits rather than only through the read
+ * that follows it. PHPMD 2.15.0 is silent there — its rule is method-level and
+ * keys on reads — so this fixture is deliberately not in failing.php, whose
+ * exact-parity claim it would break. parameters.php's own docblock carries the
+ * measured comparison.
+ */
+it('flags a plain parameter as it flags the same parameter in a function', function (): void {
+    $file = analyzeFixture(SUPERGLOBALS, 'parameters.php');
+
+    $reported = [];
+
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $column => $violations) {
+            foreach ($violations as $violation) {
+                $reported[] = [$line, $column, explode(' ', $violation['message'])[1]];
+            }
+        }
+    }
+
+    expect($reported)->toBe([
+        [61, 39, '$HTTP_GET_VARS'],
+        [63, 16, '$HTTP_GET_VARS'],
+        [71, 41, '$HTTP_ENV_VARS'],
+        [82, 28, '$HTTP_COOKIE_VARS'],
+        [84, 12, '$HTTP_COOKIE_VARS'],
+    ]);
+});
+
+/**
+ * The other half of the same distinction: a promoted parameter declares the
+ * property from the parameter list, so it is the member declaration passing.php
+ * carries in its class-body spelling and stays exempt. PHPMD is silent on it
+ * too.
+ *
+ * The lines are located by content rather than written out, because a
+ * hard-coded number silently stops discriminating the moment an edit above it
+ * shifts the fixture — the assertion would then hold on a line that never had a
+ * violation either way, and the exemption could be deleted with this test still
+ * green. Both promoted spellings are located, since promotion allows a typed
+ * and an untyped parameter and only the untyped one shares its shape with the
+ * plain parameter above.
+ *
+ * The test above shares this fixture, and that is what keeps this one honest:
+ * between them they pin that the sniff is silent *here specifically* while
+ * still reporting five other lines of the same file.
+ */
+it('stays silent on a promoted parameter', function (): void {
+    $fixture = file(fixturePath(sniffFixtureDirectory(SUPERGLOBALS), 'parameters.php'));
+    $promotedLines = array_keys(array_filter(
+        $fixture,
+        static fn (string $line): bool => str_contains($line, 'public $HTTP_POST_VARS = [],')
+            || str_contains($line, 'protected array $HTTP_SERVER_VARS = []')
+    ));
+
+    expect($promotedLines)->toHaveCount(2);
+
+    $file = analyzeFixture(SUPERGLOBALS, 'parameters.php');
+    $reportedLines = array_column(violationTuples($file), 'line');
+
+    foreach ($promotedLines as $promotedLine) {
+        expect($reportedLines)->not->toContain($promotedLine + 1);
+    }
 });
 
 /**

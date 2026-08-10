@@ -51,3 +51,11 @@ class StaticHolder
         return [self::$_POST, static::$_POST, StaticHolder::$_POST];
     }
 }
+
+// ---------------------------------------------------------------------------
+// One further divergence lives in parameters.php rather than here, because it
+// cannot be separated from the promoted-parameter shape it has to be told apart
+// from: a plain parameter nothing reads is reported by this sniff and not by
+// PHPMD, whose rule keys on reads. This note sits at the foot of the file
+// because every line above it is pinned by position in SuperglobalsTest.php.
+// ---------------------------------------------------------------------------

@@ -21,12 +21,16 @@ class RequestHandler
 
     /**
      * The PHP 8 spelling of the same declaration: a promoted constructor
-     * parameter declares the property from the parameter list. A parameter
-     * list is not a scope of its own, so the innermost condition of the token
-     * is still the class body — which is exactly what the exemption keys on,
-     * and why the modern form needs no guard separate from the two above.
-     * Both the typed and the untyped spelling are here, because promotion
-     * allows either.
+     * parameter declares the property from the parameter list, so it is the
+     * same member declaration as the two above and is exempt with them. Both
+     * the typed and the untyped spelling are here, because promotion allows
+     * either.
+     *
+     * Position is not what earns the exemption. A parameter list opens no
+     * scope of its own, so a *plain* parameter reaches the sniff carrying this
+     * same class condition while declaring nothing at all — and it is
+     * reported. parameters.php carries both verdicts side by side; what
+     * separates them is property_visibility, not the condition stack.
      *
      * The names are long-form aliases rather than `$_GET` and `$_POST`
      * because a parameter cannot be named after one of the nine real

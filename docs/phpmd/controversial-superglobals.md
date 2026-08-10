@@ -109,17 +109,24 @@ divergence at all, so both claim exact parity: on `failing.php` PHPMD reports
 the same 26 accesses under the same 26 names, and on `passing.php` its
 Superglobals rule is silent.
 
-### Stricter — two shapes
+### Stricter — three shapes
 
 | Shape | Why PHPMD misses it |
 | --- | --- |
 | A superglobal read at **file scope** | PHPMD's rule is `MethodAware` and `FunctionAware`, so it inspects function and method bodies only. The read is the same defect wherever it sits. |
 | The `"${_POST}"` **interpolation form** | PDepend does not model it. PHP reads the superglobal all the same. The form is deprecated in PHP 8.2 and removed in PHP 9, which makes the report more useful, not less — the code has to be rewritten anyway. |
+| A **plain parameter** carrying the name, which nothing in the body reads | PHPMD keys on reads, so a parameter no statement reads is invisible to it. The name is still the wrong name for a local, and it is what a later read would bind to. |
 
-Both are true superglobal reads, so both are kept rather than suppressed for
-parity — the posture `rules.xml` already takes for the extra `VariableAnalysis`
-and `DisallowExitExpression` reports. Adopting this ruleset can therefore
-surface findings a previous `phpmd` run did not.
+All three are true superglobal names in code, so all three are kept rather than
+suppressed for parity — the posture `rules.xml` already takes for the extra
+`VariableAnalysis` and `DisallowExitExpression` reports. Adopting this ruleset
+can therefore surface findings a previous `phpmd` run did not.
+
+PHPMD also reports at a coarser position throughout: its rule is method-level,
+so it names the enclosing method once however many accesses the body holds,
+while this sniff reports each access where it sits. The two agree on the verdict
+wherever a read exists; `tests/fixtures/SuperglobalsSniff/parameters.php`
+carries the measured comparison for the parameter shapes.
 
 ### Narrower — one shape
 
@@ -138,6 +145,13 @@ acceptance criteria forbid.
   alone too, though only the long-form aliases can be written that way:
   PHP refuses to compile a parameter named after one of the nine real
   superglobals, promoted or not (`Cannot re-assign auto-global variable`).
+
+  A **plain** parameter is a different thing wearing the same clothes, and this
+  rule reports it. `function bar($HTTP_GET_VARS)` declares no property whether
+  it sits in a class or not, so it is reported in both — even though PHPCS
+  gives a parameter the enclosing class as its innermost scope, because a
+  parameter list opens no scope of its own. Promotion is the only thing that
+  turns a parameter into a declaration.
 - An object property read as `$request->_GET` or `$request?->_SERVER`. PHPCS
   tokenises the name after an object operator as an identifier, never as a
   variable.
