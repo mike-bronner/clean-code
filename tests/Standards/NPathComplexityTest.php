@@ -20,7 +20,9 @@
  *   ignores it — CleanCode.Metrics.ExcessiveClassComplexity excludes it for
  *   exactly that reason, and the two sniffs disagreeing here is deliberate.
  * - a closure or arrow function is **not** its own artifact; a nested named
- *   function is.
+ *   function is. Its body is folded into the enclosing callable only where
+ *   PDepend walks statements, though — in expression position the control flow
+ *   inside it is worth nothing, which the closure pair below pins.
  *
  * The rule is detection-only — the fix is to break the callable up — so there
  * is no autofixed fixture, and the detection-only test pins that.
@@ -113,6 +115,24 @@ it('produces no violations on the compliant fixture', function (): void {
  * - 4 on returnTernaryCountsItsConditionTwice() against 3 on
  *   assignedTernaryCountsItsConditionOnce() — the `return` quirk, and the
  *   assignment that isolates it.
+ * - 8 on closureInStatementPositionIsWalked() against 1 on
+ *   closureInExpressionPositionIsNotWalked() — the same closure body, moved
+ *   from an assignment into a `return`. PDepend reaches the `if`s inside a
+ *   closure only while walking statements; `sumComplexity()`, which scores an
+ *   expression, sums boolean operators and ternaries and never runs the
+ *   statement visitor. Descending into the closure body from the expression
+ *   walk would score the second 8 too and break parity.
+ * - 4 on matchArmBooleanCountsInACondition() and 2 on
+ *   matchArmBooleanCountsInAReturn(), against 1 on
+ *   matchArmBooleanIsUncounted() — the same boundary from the other side. An
+ *   arm's boolean operator is uncounted at statement level and counted once the
+ *   `match` sits in an expression PDepend sums.
+ * - 3 on switchWithAMatchSubject(), 2 on switchWithAMatchSubjectAndNoBoolean(),
+ *   and 3 on alternativeSyntaxSwitchWithAMatchSubject() — the one shape PHPCS
+ *   3.13.6 builds no scope for. Read from the tokenizer alone all three look
+ *   label-less, which scores 0; the boolean-free twin is the discriminating
+ *   one, because 0 is reported at no threshold and the callable disappears from
+ *   this map rather than reading low.
  *
  * labellessSwitch() is absent on purpose: it measures 0, and 0 is below a
  * minimum of 1, so it is reported at no threshold at all. The silence test
@@ -147,6 +167,13 @@ it('measures each counting rule exactly as PHPMD does', function (): void {
         'ternaryConditionIncludesAParenthesisedGroup' => 6,
         'returnTernaryCountsItsConditionTwice' => 4,
         'assignedTernaryCountsItsConditionOnce' => 3,
+        'closureInStatementPositionIsWalked' => 8,
+        'closureInExpressionPositionIsNotWalked' => 1,
+        'matchArmBooleanCountsInACondition' => 4,
+        'matchArmBooleanCountsInAReturn' => 2,
+        'switchWithAMatchSubject' => 3,
+        'switchWithAMatchSubjectAndNoBoolean' => 2,
+        'alternativeSyntaxSwitchWithAMatchSubject' => 3,
     ]);
 });
 
@@ -190,8 +217,48 @@ it('scores a switch with no labels as zero, matching PDepend', function (): void
 });
 
 /**
+ * A `switch` whose subject holds a `match` still finds its labels, even though
+ * PHPCS 3.13.6 attaches no scope to it and leaves it out of its own labels'
+ * `conditions`.
+ *
+ * Taking the tokenizer at its word reads the switch as label-less, and a
+ * label-less switch scores 0 — which multiplies the whole callable to 0 and
+ * hides it at every threshold, exactly as labellessSwitch() shows. So the
+ * failure this guards against is silence, not a wrong number, and a minimum of
+ * 1 is what makes it observable: a callable scoring 0 is below it and absent
+ * either way, so each of the three must both be present *and* carry its
+ * PHPMD value.
+ *
+ * The boolean-free twin carries the assertion's weight. The other two hold a
+ * `&&` in an arm, which the subject scores whether or not the labels are found,
+ * so only the twin falls to 0 on its own.
+ */
+it('finds the labels of a switch the tokenizer built no scope for', function (): void {
+    $file = analyzeFixture(NPATH_COMPLEXITY, 'passing.php', function ($sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    expect(measuredComplexities($file))
+        ->toHaveKeys([
+            'switchWithAMatchSubject',
+            'switchWithAMatchSubjectAndNoBoolean',
+            'alternativeSyntaxSwitchWithAMatchSubject',
+        ])
+        ->and(measuredComplexities($file)['switchWithAMatchSubject'])->toBe(3)
+        ->and(measuredComplexities($file)['switchWithAMatchSubjectAndNoBoolean'])->toBe(2)
+        ->and(measuredComplexities($file)['alternativeSyntaxSwitchWithAMatchSubject'])->toBe(3);
+});
+
+/**
  * The failing fixture, pinned by line, column, and source rather than by count
  * alone, so a violation moving to a different callable would fail.
+ *
+ * The column is part of the assertion because the report is attached to the
+ * `function` keyword rather than to the line: the four top-level functions sit
+ * at column 1 and the method sits at column 12, so a regression that reattached
+ * the report to the callable's name, its visibility modifier, or the line's
+ * first token would move at least one of them while leaving every line
+ * unchanged.
  *
  * Every callable here is built so one counting rule is load-bearing for the
  * total: drop that rule and the callable falls *below* 200 rather than merely
@@ -201,13 +268,13 @@ it('scores a switch with no labels as zero, matching PDepend', function (): void
 it('flags every over-complex callable in the failing fixture', function (): void {
     $file = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        22 => [NPATH_COMPLEXITY . '.MinimumExceeded'],
-        66 => [NPATH_COMPLEXITY . '.MinimumExceeded'],
-        115 => [NPATH_COMPLEXITY . '.MinimumExceeded'],
-        159 => [NPATH_COMPLEXITY . '.MinimumExceeded'],
-        227 => [NPATH_COMPLEXITY . '.MinimumExceeded'],
-    ]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 22, 'column' => 1, 'source' => NPATH_COMPLEXITY . '.MinimumExceeded'],
+        ['line' => 66, 'column' => 1, 'source' => NPATH_COMPLEXITY . '.MinimumExceeded'],
+        ['line' => 115, 'column' => 1, 'source' => NPATH_COMPLEXITY . '.MinimumExceeded'],
+        ['line' => 159, 'column' => 1, 'source' => NPATH_COMPLEXITY . '.MinimumExceeded'],
+        ['line' => 227, 'column' => 12, 'source' => NPATH_COMPLEXITY . '.MinimumExceeded'],
+    ])->and($file->getWarnings())->toBe([]);
 });
 
 /**

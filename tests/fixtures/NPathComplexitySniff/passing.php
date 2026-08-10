@@ -441,3 +441,162 @@ function assignedTernaryCountsItsConditionOnce(bool $a, bool $b): int
 
     return $value;
 }
+
+/**
+ * 8, and the statement-position half of the pair below. PDepend reaches the
+ * `if`s inside a closure only while it is walking *statements*, so a closure
+ * held by an assignment contributes its whole body: three independent `if`s
+ * multiply to 2 * 2 * 2.
+ */
+function closureInStatementPositionIsWalked(): callable
+{
+    $closure = function (int $b): int {
+        if ($b === 1) {
+            $b++;
+        }
+
+        if ($b === 2) {
+            $b++;
+        }
+
+        if ($b === 3) {
+            $b++;
+        }
+
+        return $b;
+    };
+
+    return $closure;
+}
+
+/**
+ * 1, from the *identical* closure written in expression position — the contrast
+ * that pins where PDepend's own boundary falls.
+ *
+ * A `return` is scored by `sumComplexity()`, which sums only boolean operators
+ * and ternaries as it descends; it never runs the statement visitor that scores
+ * an `if`. So the three `if`s above are worth nothing here, and a live PHPMD
+ * 2.15.0 run reports exactly this: 8 for the callable above, 1 for this one.
+ *
+ * The pair is deliberately load-bearing. Teaching the expression walk to
+ * descend into a closure body — the intuitive "fix" for the asymmetry — would
+ * score this 8 as well and break parity with the tool this sniff replicates.
+ */
+function closureInExpressionPositionIsNotWalked(): callable
+{
+    return function (int $b): int {
+        if ($b === 1) {
+            $b++;
+        }
+
+        if ($b === 2) {
+            $b++;
+        }
+
+        if ($b === 3) {
+            $b++;
+        }
+
+        return $b;
+    };
+}
+
+/**
+ * 4, and the same boundary read from the other side: an arm's boolean operator
+ * *is* counted once the `match` sits in an expression PDepend sums.
+ *
+ * matchArmBooleanIsUncounted() above measures 1 for the same arm at statement
+ * level. Here `sumComplexity()` walks the whole `if` condition and reaches the
+ * `&&` in the arm, so the condition is worth 2 rather than 1: a live PHPMD run
+ * reports 4, not the 3 the statement-level rule alone would predict.
+ */
+function matchArmBooleanCountsInACondition(int $a, bool $b, bool $c): int
+{
+    if ($a > 0 && match ($a) {
+        1 => $b && $c,
+        default => false,
+    }) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * 2, the `return` counterpart of the callable above: `return` sums its whole
+ * expression, so the arm's `&&` counts there too. A live PHPMD run reports 2.
+ */
+function matchArmBooleanCountsInAReturn(int $a, bool $b, bool $c, bool $q): bool
+{
+    return $q && match ($a) {
+        1 => $b && $c,
+        default => false,
+    };
+}
+
+/**
+ * 3. A `switch` whose subject holds a `match` is the one shape PHPCS 3.13.6
+ * builds no scope for — no `scope_opener`, no `scope_closer`, and labels whose
+ * `conditions` skip the switch entirely.
+ *
+ * Read from the tokenizer alone this `switch` looks label-less, which scores 0
+ * and would zero the whole callable. It is really `B(expr)` 1 for the `&&` in
+ * the arm plus one range per label: a live PHPMD run reports 3.
+ */
+function switchWithAMatchSubject(int $a, bool $b, bool $c): int
+{
+    switch (match ($a) {
+        1 => $b && $c,
+        default => false,
+    }) {
+        case true:
+            return 1;
+        default:
+            return 2;
+    }
+}
+
+/**
+ * 2, the boolean-free twin of the callable above. Without the `&&` the subject
+ * is worth nothing, so the two labels alone carry the score — which is what
+ * separates "the labels were found" from "the subject happened to score".
+ * Measured 0 before the tokenizer gap was covered, and 0 is reported at no
+ * threshold at all, so the callable vanished rather than reading low.
+ */
+function switchWithAMatchSubjectAndNoBoolean(int $a, bool $b): int
+{
+    switch (match ($a) {
+        1 => $b,
+        default => false,
+    }) {
+        case true:
+            return 1;
+        default:
+            return 2;
+    }
+}
+
+/**
+ * 3, the same gap in the alternative syntax, which has no body brace to fall
+ * back on and ends at its own `endswitch` instead.
+ *
+ * The tokenizer also truncates the *enclosing function's* scope here, landing
+ * its `scope_closer` on the `endswitch` rather than on the function's own
+ * brace, so the `return` below the switch is hidden along with the labels. The
+ * trailing statement is here to hold that second half of the gap: it is inside
+ * the callable PDepend measures, and a live PHPMD run reports 3.
+ */
+function alternativeSyntaxSwitchWithAMatchSubject(int $a, bool $b, bool $c): int
+{
+    switch (match ($a) {
+        1 => $b && $c,
+        default => false,
+    }):
+        case true:
+            return 1;
+        default:
+            return 2;
+    endswitch;
+
+    return 0;
+}

@@ -46,7 +46,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * - `switch`:  `B(expr) + the sum of N(range) over every `case` *and* `default`
  *              label. A `switch` with no labels therefore scores 0 and zeroes
  *              the whole product — PDepend's behaviour, pinned by
- *              labellessSwitch() in passing.php.
+ *              labellessSwitch() in passing.php. The labels are found by walking
+ *              the body rather than by reading the tokenizer's scope map, which
+ *              PHPCS 3.13.6 does not build for a `switch` whose subject holds a
+ *              `match` (see `switchBody()`).
  * - `try`:     the sum of `N(range)` over the `try` block, every `catch` block,
  *              and the `finally` block. Nothing is added for the construct.
  * - `? :`:     `B(cond) + B(then) + B(else) + 2`, where the short form `?:`
@@ -60,13 +63,17 @@ use PHP_CodeSniffer\Util\Tokens;
  *              by keywordXorAndReturnChain() in failing.php.
  *
  * Not counted at all: `??`, `??=`, `?->`, `!`, `goto`, `throw`, `yield`, and
- * `break`/`continue`. A `match` adds nothing for itself either, and a boolean
- * operator in an arm body is not counted — but an arm body is still an ordinary
- * expression in the enclosing sequence, so a *ternary* written in one multiplies
- * into the callable exactly as it would anywhere else. A live PHPMD run scores
- * `match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` as 2, not 1, and
- * matchArmTernaryMultiplies() and matchArmBooleanIsUncounted() in passing.php
- * pin the two halves. `xor` *is* counted, unlike in
+ * `break`/`continue`. A `match` adds nothing for itself either, and at statement
+ * level a boolean operator in an arm body is not counted — but an arm body is
+ * still an ordinary expression in the enclosing sequence, so a *ternary* written
+ * in one multiplies into the callable exactly as it would anywhere else. A live
+ * PHPMD run scores `match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` as 2,
+ * not 1, and matchArmTernaryMultiplies() and matchArmBooleanIsUncounted() in
+ * passing.php pin the two halves. That uncounted arm boolean is a property of
+ * *statement* position, not of `match`: put the same `match` in a condition or a
+ * `return` and `sumComplexity()` walks the whole expression and reaches it, so
+ * it counts after all (matchArmBooleanCountsInACondition() and
+ * matchArmBooleanCountsInAReturn() in passing.php). `xor` *is* counted, unlike in
  * cyclomatic complexity where PDepend ignores it — ExcessiveClassComplexitySniff
  * in this same directory excludes `xor` for that reason, and the two sniffs
  * disagreeing here is deliberate (keywordXorAndReturnChain() in failing.php
@@ -77,10 +84,20 @@ use PHP_CodeSniffer\Util\Tokens;
  * - Named functions and methods only. PHPMD's rule is FunctionAware and
  *   MethodAware, so it measures each named callable separately, including one
  *   declared inside another (nestedNamedFunction() in passing.php).
- * - A closure or arrow function is *not* its own artifact: its statements are
- *   part of the enclosing callable and multiply into its score, which is what
- *   PDepend does by walking the callable's whole subtree
+ * - A closure or arrow function is *not* its own artifact: it is never reported
+ *   separately, and in *statement* position its own statements multiply into the
+ *   enclosing callable's score
  *   (closureBodiesBelongToTheEnclosingCallable() in failing.php).
+ * - In *expression* position — a `return` value, a condition, a ternary branch —
+ *   a closure body contributes only what `sumComplexity()` sums as it descends:
+ *   boolean operators and ternaries. Control flow inside it is worth nothing,
+ *   because PDepend runs its statement visitor over statements only and an
+ *   expression never reaches it. So the identical closure scores 8 held by an
+ *   assignment and 1 returned directly, which a live PHPMD 2.15.0 run confirms;
+ *   closureInStatementPositionIsWalked() and
+ *   closureInExpressionPositionIsNotWalked() in passing.php are that pair, and
+ *   teaching this walk to descend into a closure body would score the second 8
+ *   and break parity.
  * - The body of an anonymous class is skipped, and its methods are not reported
  *   either — a live PHPMD run reports neither (anonymousClassBody() in
  *   passing.php).
@@ -332,6 +349,14 @@ class NPathComplexitySniff implements Sniff
         if ($opener === null || $closer === null) {
             return 1;
         }
+
+        // The same PHPCS 3.13.6 defect switchBody() covers also truncates the
+        // scope of the callable *around* an alternative-syntax `switch` whose
+        // subject holds a `match`: `scope_closer` lands on the `endswitch`
+        // rather than on the body's own brace, hiding every statement after it.
+        // The brace carries the true end in `bracket_closer` whether or not a
+        // scope was attached, so it is preferred where it is available.
+        $closer = $tokens[$opener]['bracket_closer'] ?? $closer;
 
         // Token offsets are per file, so the memo from the previous callable
         // must not be read against this one.
@@ -627,17 +652,16 @@ class NPathComplexitySniff implements Sniff
     {
         $switchPtr = $ptr;
         $npath = $this->conditionComplexity($phpcsFile, $tokens, $switchPtr);
-        $opener = $tokens[$switchPtr]['scope_opener'] ?? null;
-        $closer = $tokens[$switchPtr]['scope_closer'] ?? null;
+        $body = $this->switchBody($phpcsFile, $tokens, $switchPtr, $end);
 
-        if ($opener === null || $closer === null) {
+        if ($body === null) {
             $ptr++;
 
             return $npath;
         }
 
-        $labels = $this->switchLabels($phpcsFile, $tokens, $switchPtr, $opener, $closer);
-        $count = count($labels);
+        [$opener, $closer] = $body;
+        $labels = $this->switchLabels($phpcsFile, $tokens, $opener, $closer);
 
         foreach ($labels as $index => $label) {
             $bodyEnd = $labels[($index + 1)] ?? $closer;
@@ -654,29 +678,122 @@ class NPathComplexitySniff implements Sniff
     }
 
     /**
+     * The opener and closer holding this switch's labels, or null when neither
+     * the tokenizer nor the tokens themselves supply them.
+     *
+     * PHPCS 3.13.6 builds no scope at all for a `switch` whose subject holds a
+     * `match` — `scope_opener` and `scope_closer` are both absent, and the
+     * labels' own `conditions` skip the switch — for the braced and the
+     * `:`/`endswitch` form alike. Trusting the tokenizer there would read every
+     * such `switch` as label-less, which scores 0 and zeroes the whole callable:
+     * `switch (match ($a) { 1 => $b && $c, default => false }) { case true: …
+     * default: … }` measured 1 against the 3 a live PHPMD 2.15.0 run reports,
+     * and its boolean-free twin measured 0 against 2.
+     *
+     * So the bounds are recovered from the tokens instead. The body brace still
+     * carries `bracket_closer` even with no scope attached, and the alternative
+     * form ends at its own `endswitch`, found at this switch's nesting level so
+     * a nested one cannot close the outer switch early.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    private function switchBody(File $phpcsFile, array $tokens, int $switchPtr, int $end): ?array
+    {
+        $opener = $tokens[$switchPtr]['scope_opener'] ?? null;
+        $closer = $tokens[$switchPtr]['scope_closer'] ?? null;
+
+        if ($opener !== null && $closer !== null) {
+            return [$opener, $closer];
+        }
+
+        $subjectEnd = $tokens[$switchPtr]['parenthesis_closer'] ?? null;
+
+        if ($subjectEnd === null) {
+            return null;
+        }
+
+        $opener = $phpcsFile->findNext(Tokens::$emptyTokens, ($subjectEnd + 1), $end, true);
+
+        if ($opener === false) {
+            return null;
+        }
+
+        if ($tokens[$opener]['code'] === T_OPEN_CURLY_BRACKET) {
+            $closer = $tokens[$opener]['bracket_closer'] ?? null;
+        } elseif ($tokens[$opener]['code'] === T_COLON) {
+            $closer = $this->nextAtLevel($phpcsFile, $tokens, [T_ENDSWITCH], ($opener + 1), $end);
+        } else {
+            $closer = null;
+        }
+
+        return $closer === null ? null : [$opener, $closer];
+    }
+
+    /**
      * The `case` and `default` tokens belonging to this switch and not to one
      * nested inside it, in source order.
      *
      * `match` carries no `case` at all and its `default` tokenizes as
-     * T_MATCH_DEFAULT, so a `match` written inside a case body cannot leak a
-     * label into this list.
+     * T_MATCH_DEFAULT, so a `match` cannot leak a label into this list however
+     * it is written.
      *
      * @param array<int, array<string, mixed>> $tokens
      *
      * @return array<int, int>
      */
-    private function switchLabels(File $phpcsFile, array $tokens, int $switchPtr, int $opener, int $closer): array
+    private function switchLabels(File $phpcsFile, array $tokens, int $opener, int $closer): array
     {
         $labels = [];
-        $ptr = $opener;
+        $ptr = ($opener + 1);
 
-        while (($ptr = $phpcsFile->findNext([T_CASE, T_DEFAULT], ($ptr + 1), $closer)) !== false) {
-            if (array_key_last($tokens[$ptr]['conditions'] ?? []) === $switchPtr) {
-                $labels[] = $ptr;
-            }
+        while (($ptr = $this->nextAtLevel($phpcsFile, $tokens, [T_CASE, T_DEFAULT], $ptr, $closer)) !== null) {
+            $labels[] = $ptr;
+            $ptr++;
         }
 
         return $labels;
+    }
+
+    /**
+     * The first token in $codes at the nesting level $ptr starts on, or null.
+     *
+     * Nesting is walked over rather than read from each token's `conditions`,
+     * because a `switch` the tokenizer built no scope for is missing from the
+     * `conditions` of its own labels — the very case switchBody() exists for.
+     * A brace is jumped by `bracket_closer`, which the tokenizer sets whether or
+     * not a scope was attached, so a `match`, closure, anonymous class, or
+     * braced nested `switch` in a case body cannot leak a label upward. A nested
+     * `switch` written in the alternative syntax carries no brace to jump, so it
+     * is resolved through switchBody() itself.
+     *
+     * The membership test runs before either jump, because a `case` owns a scope
+     * of its own and would otherwise be skipped rather than returned.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int|string> $codes
+     */
+    private function nextAtLevel(File $phpcsFile, array $tokens, array $codes, int $ptr, int $end): ?int
+    {
+        while ($ptr < $end) {
+            $code = $tokens[$ptr]['code'];
+
+            if (in_array($code, $codes, true) === true) {
+                return $ptr;
+            }
+
+            if ($code === T_OPEN_CURLY_BRACKET && isset($tokens[$ptr]['bracket_closer']) === true) {
+                $ptr = $tokens[$ptr]['bracket_closer'];
+            } elseif ($code === T_SWITCH) {
+                $body = $this->switchBody($phpcsFile, $tokens, $ptr, $end);
+                $ptr = ($body === null ? $ptr : $body[1]);
+            }
+
+            $ptr++;
+        }
+
+        return null;
     }
 
     /**

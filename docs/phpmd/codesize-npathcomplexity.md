@@ -55,10 +55,16 @@ not everything to the left of the `?`. So `$a && $b ? 1 : 0` does not count the
 `($a && $b) ? 1 : 0` does (the first child is the whole parenthesised group) —
 a live PHPMD run scores an `if` around the first 5 and around the second 6.
 
-A `match` adds nothing for itself, and a boolean operator in an arm body is not
-counted — but an arm body is still an ordinary expression in the enclosing
-sequence, so a **ternary** in an arm multiplies into the callable like any other.
-`match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` measures 2, not 1.
+A `match` adds nothing for itself, and at statement level a boolean operator in
+an arm body is not counted — but an arm body is still an ordinary expression in
+the enclosing sequence, so a **ternary** in an arm multiplies into the callable
+like any other. `match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` measures 2,
+not 1.
+
+That uncounted arm boolean belongs to statement position, not to `match`. Put
+the same `match` in a condition or a `return` and PDepend sums the whole
+expression, reaching the arm's operator after all — see **Position changes what
+an expression is worth** below.
 
 Worth nothing at all: `??`, `??=`, `?->`, `!`, `goto`,
 `throw`, `yield`, `break`, and `continue`.
@@ -76,13 +82,54 @@ Worth nothing at all: `??`, `??=`, `?->`, `!`, `goto`,
   zeroes the whole callable. A callable holding branches *and* an empty `switch`
   measures 0 and is therefore reported at no threshold.
 
+## Position changes what an expression is worth
+
+PDepend scores a **statement** with its statement visitor, which knows every
+construct in the table above. It scores an **expression** with `sumComplexity()`,
+which descends through the expression counting only boolean operators and
+ternaries. An expression never reaches the statement visitor, so a construct
+written inside one is worth whatever `sumComplexity()` finds and nothing more.
+
+Two consequences, both confirmed against a live PHPMD 2.15.0 run and both
+deliberately replicated:
+
+| Written as | Measures |
+|---|---|
+| `$f = function () { if (…) {} if (…) {} if (…) {} };` — closure held by an assignment | 8: the body is a statement sequence, so the three `if`s multiply |
+| `return function () { if (…) {} if (…) {} if (…) {} };` — the identical closure returned | 1: the body is inside an expression, so the `if`s are worth nothing |
+| `$r = match ($a) { 1 => $b && $c, default => false };` — `match` at statement level | 1: the arm's `&&` is not counted |
+| `return $q && match ($a) { 1 => $b && $c, default => false };` — `match` in an expression | 2: the arm's `&&` is summed with the rest of the expression |
+
+The asymmetry looks like a bug and is not one. Making the expression walk
+descend into a closure body or stop at a `match` boundary would score the second
+and fourth rows 8 and 1 — the intuitive numbers, and the wrong ones. The
+fixtures `closureInStatementPositionIsWalked()`,
+`closureInExpressionPositionIsNotWalked()`,
+`matchArmBooleanCountsInACondition()`, and `matchArmBooleanCountsInAReturn()`
+pin all four rows so that change cannot land silently.
+
+## One tokenizer gap the sniff covers
+
+PHPCS 3.13.6 builds no scope for a `switch` whose subject holds a `match`:
+`scope_opener` and `scope_closer` are both absent, and the labels' own
+`conditions` skip the switch. The braced and the `:`/`endswitch` form are both
+affected, and in the alternative form the *enclosing function's* `scope_closer`
+lands on the `endswitch` as well, hiding every statement after it.
+
+Read from the tokenizer alone such a `switch` looks label-less — which scores 0
+and zeroes the whole callable, so the callable disappears at every threshold
+rather than merely reading low. The sniff therefore walks the body for its
+labels and recovers the bounds from the tokens (`switchBody()`), and takes a
+callable's end from its opening brace's `bracket_closer`, which the tokenizer
+fills in whether or not a scope was attached.
+
 ## What is measured, and what is skipped
 
 | Declaration | Measured? |
 |---|---|
 | Named function, method of a class or trait | yes |
 | A named function declared inside another callable | yes, separately — its body is excluded from the callable around it |
-| A closure or arrow function | no, **not** separately: its statements belong to the enclosing callable and multiply into its score |
+| A closure or arrow function | no, **not** separately: in statement position its statements belong to the enclosing callable and multiply into its score; in expression position only its boolean operators and ternaries count (see above) |
 | An abstract method | yes; with no body there is no sequence, so it scores 1 |
 | A method declared in an interface | no — PHPMD's method rules walk classes and traits, not interfaces |
 | An anonymous class, and its methods | no — a live PHPMD run reports neither |
