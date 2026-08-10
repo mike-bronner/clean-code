@@ -11,10 +11,10 @@
  * next line would have gone silent.
  *
  * Which is exactly what happens in phpmd. Verified against phpmd 2.15: it
- * reports line 24, the property declaration, and nothing else. pdepend nests
+ * reports line 27, the property declaration, and nothing else. pdepend nests
  * `self::$sa` under a MemberPrimaryPrefix, one of the contexts PHPMD allows a
  * short name in, and marks the name processed there — so the ordinary local
- * on line 29 never gets looked at. This file is therefore a divergence of the
+ * on line 32 never gets looked at. This file is therefore a divergence of the
  * same family as divergences.php: phpcs reports both lines, phpmd the first.
  */
 

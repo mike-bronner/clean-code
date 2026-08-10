@@ -154,15 +154,39 @@ silent where `phpmd` speaks would.
    builds no class node for `new class`, the same blind spot documented for
    [ShortMethodName](naming-shortmethodname.md).
 
-One shape is reported *less*: a short parameter of a **trait method**, which
-`phpmd` prints twice. pdepend hands it over once under the trait node and
-again under the method node, and PHPMD's per-name map is reset between the
-two. The violation is reported either way; only the duplicate is dropped.
+Two shapes are reported *less*.
+
+A short parameter of a **trait method**, which `phpmd` prints twice. pdepend
+hands it over once under the trait node and again under the method node, and
+PHPMD's per-name map is reset between the two. The violation is reported
+either way; only the duplicate is dropped.
+
+**`$this`, however it is written.** This is the one place the ruleset is
+genuinely quieter than `phpmd`, and the reason is that the report cannot be
+acted on: PHP forbids assigning `$this`, so no rename silences it and a user
+meeting it could only add `this` to the `exceptions` list. `this` is four
+characters, so nothing changes at the default `minimum` of 3 — the exclusion
+is what keeps a ruleset that raises `minimum` to 5 from reporting every
+`$this` in the codebase.
+
+`phpmd` is not uniform here. pdepend folds a chain's receiver into a
+`MemberPrimaryPrefix` and builds no node for it, so `phpmd` is silent on the
+first two below and reports the rest at `minimum` 5:
+
+```php
+$this->value;         // phpmd silent — receiver of a member chain
+"{$this->value}";     // phpmd silent — braced interpolation parses the chain
+return $this;         // phpmd reports $this
+"{$this}"; "$this";   // phpmd reports $this
+"$this->value";       // phpmd reports $this — the simple-syntax parser
+<<<EOT $this->value   // phpmd reports $this — likewise
+```
 
 Every behaviour above is pinned by a fixture under
 `tests/fixtures/ShortVariableSniff/` — `divergences.php`, `static-access.php`,
 `contexts.php`, `trait-method.php`, `reopened-tags.php`,
-`multiline-string.php` and `malformed-declaration.php` — and every line
+`multiline-string.php`, `implicit-receiver.php` and
+`malformed-declaration.php` — and every line
 asserted against `failing.php` and `passing.php` was cross-checked against a
 live `phpmd` 2.15 run of `rulesets/naming.xml/ShortVariable` from a cold
 pdepend cache.

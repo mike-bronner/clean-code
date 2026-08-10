@@ -51,6 +51,11 @@ use PHP_CodeSniffer\Util\Tokens;
  *   occurrences, because pdepend parses them into the same variable nodes.
  *   A nowdoc and a single-quoted string interpolate nothing, so neither is
  *   read.
+ * - `$this` is never an occurrence, however it is written — bare, as a member
+ *   chain's receiver, or interpolated into a string with either syntax. This
+ *   is the single place the sniff is quieter than phpmd, because the report
+ *   is unactionable: PHP forbids assigning `$this`, so no rename can silence
+ *   it. See self::IMPLICIT_RECEIVER for the spellings phpmd does report.
  *
  * Detection only, matching PHPMD: renaming a variable means rewriting every
  * read and write of it, and for a property or parameter every caller too, so
@@ -102,6 +107,40 @@ class ShortVariableSniff implements Sniff
      * @var string|null
      */
     public $exceptions = '';
+
+    /**
+     * PHP's implicit receiver, written without its `$` sigil.
+     *
+     * Never an occurrence, however it is written. `this` is four characters,
+     * so the exclusion changes nothing at the default minimum of 3 — it is
+     * what keeps a ruleset that raises `minimum` to 5 or more from reporting
+     * every `$this` in the codebase.
+     *
+     * This is the one place the sniff is deliberately *quieter* than phpmd,
+     * and the reason is that the report is unactionable rather than wrong:
+     * PHP forbids assigning `$this`, so the name is never one an author chose
+     * and no rename can silence it. A user meeting it could only add `this` to
+     * the exceptions list. Every other divergence goes the other way, because
+     * reporting more than phpmd cannot hide a real violation — and no real
+     * violation hides here either, since there is nothing to fix.
+     *
+     * Verified against phpmd 2.15, which is not uniform about it. pdepend
+     * folds a member chain's receiver into a MemberPrimaryPrefix and builds no
+     * variable node for it, so phpmd stays silent on `$this->value` and on the
+     * braced interpolation `"{$this->value}"`. Everywhere `$this` stands as an
+     * ordinary expression it does get a node, and phpmd reports it at
+     * `minimum` 5: `return $this;`, `"{$this}"`, `"$this"`, and — because
+     * pdepend's simple-interpolation parser reads the name without building
+     * the member access around it — `"$this->value"` and its heredoc spelling.
+     * Those five are what this sniff drops and phpmd does not; the matrix is
+     * pinned by tests/fixtures/ShortVariableSniff/implicit-receiver.php.
+     *
+     * Dropped rather than exempted, for the reason isStaticMemberAccess()
+     * gives: this is not an occurrence at all. The comparison is
+     * case-sensitive because PHP variable names are — `$This` is a different,
+     * ordinary variable, and both tools measure it.
+     */
+    private const IMPLICIT_RECEIVER = 'this';
 
     /**
      * The class-like tokens that own a property-declaration scope and hide
@@ -246,8 +285,12 @@ class ShortVariableSniff implements Sniff
             }
 
             if ($code === T_VARIABLE) {
-                if ($this->isStaticMemberAccess($phpcsFile, $pointer) === false) {
-                    $name = substr($tokens[$pointer]['content'], 1);
+                $name = substr($tokens[$pointer]['content'], 1);
+
+                $isOccurrence = $name !== self::IMPLICIT_RECEIVER
+                    && $this->isStaticMemberAccess($phpcsFile, $pointer) === false;
+
+                if ($isOccurrence === true) {
                     $occurrences[] = ['pointer' => $pointer, 'name' => $name];
                 }
 
@@ -255,6 +298,13 @@ class ShortVariableSniff implements Sniff
             }
 
             foreach ($this->interpolatedNames($tokens[$pointer]) as $name) {
+                // A string spells the receiver too, and it is dropped here for
+                // the same reason — see self::IMPLICIT_RECEIVER, which records
+                // that phpmd does report several of these spellings.
+                if ($name === self::IMPLICIT_RECEIVER) {
+                    continue;
+                }
+
                 $occurrences[] = ['pointer' => $pointer, 'name' => $name];
             }
         }

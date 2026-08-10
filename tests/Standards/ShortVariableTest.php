@@ -348,6 +348,46 @@ it('does not count a static property access as an occurrence', function (): void
 });
 
 /**
+ * `$this` is never an occurrence, however it is written — bare, as a member
+ * chain's receiver, or interpolated into a string with either syntax.
+ *
+ * The threshold has to be raised to pin this at all: `this` is four
+ * characters, so at the default minimum of 3 it clears the length gate on its
+ * own and the exclusion never runs. At 5 — which the `minimum` property
+ * explicitly supports — every `$this` in the fixture would be reported
+ * without it.
+ *
+ * The exact list is what discriminates, in two directions. Each of the five
+ * controls is short and must still be reported, so a sniff that had given up
+ * on the file would fail; and the controls are split across the two places
+ * the receiver is dropped — `$ma` and `$so` are ordinary variable tokens,
+ * `$si`, `$bi` and `$hi` appear nowhere but inside a string — so dropping
+ * `$this` from only one of the two paths leaves the other's `$this` in the
+ * list and fails too.
+ *
+ * phpmd 2.15 at the same threshold reports the same five controls and adds
+ * `$this` at 47, 54 and 65 (see the fixture's docblock for why those three and
+ * not the other two). This is the one place the sniff is deliberately quieter:
+ * PHP forbids assigning `$this`, so the report names nothing a rename could
+ * fix.
+ */
+it('never reports the implicit receiver, however it is written', function (): void {
+    $file = analyzeFixture(
+        SHORT_VARIABLE,
+        'implicit-receiver.php',
+        static fn (object $sniff): mixed => $sniff->minimum = 5
+    );
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 40, 'column' => 9, 'source' => SHORT_VARIABLE_TOO_SHORT],
+        ['line' => 47, 'column' => 9, 'source' => SHORT_VARIABLE_TOO_SHORT],
+        ['line' => 54, 'column' => 16, 'source' => SHORT_VARIABLE_TOO_SHORT],
+        ['line' => 59, 'column' => 16, 'source' => SHORT_VARIABLE_TOO_SHORT],
+        ['line' => 65, 'column' => 1, 'source' => SHORT_VARIABLE_TOO_SHORT],
+    ]);
+});
+
+/**
  * A trait method's short parameter is reported once. phpmd reports it twice —
  * pdepend hands it over under the trait node and again under the method node,
  * and PHPMD's per-name map is reset between the two. The violation is
