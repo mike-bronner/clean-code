@@ -107,7 +107,12 @@ rather than a sniff built under this documentation-only standard:
   `Feature/` sets `testDirectory` to `tests/*`. Exactly one `glob()` call is
   made per class declaration, and `*` never crosses a separator, so the cost is
   fixed by the configured pattern rather than by the size of the suite — there
-  is no directory walk and no recursive search.
+  is no directory walk and no recursive search. The wildcards belong to the
+  configured properties alone: the parts read off the filesystem — the
+  directories above the source root, `{path}` and `{name}` — are quoted before
+  they are substituted in, so a project checked out under a directory called
+  `build[1]` resolves its companions from `build[1]/tests/` rather than from
+  whatever `build1` might be.
 - **Never flagged** — interfaces, traits and enums (the tokenizer spells them
   `T_INTERFACE`, `T_TRAIT` and `T_ENUM`, none of which the sniff registers),
   anonymous classes (`T_ANON_CLASS`, and no name for a test to be named after),

@@ -49,6 +49,13 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * that ignores the source-relative directory sets `$testPathTemplate` to
  * `{name}Test.php`.
  *
+ * The wildcards are the configured halves' alone. `{path}`, `{name}` and the
+ * directories above the source root are read off the filesystem, where `*`, `?`
+ * and `[...]` are all legal characters in a name, so each is quoted into a form
+ * the pattern matches literally before it is substituted in. A project checked
+ * out under a directory called `build[1]` resolves its companions from
+ * `build[1]/tests/`, not from whatever `build1` might happen to be.
+ *
  * Exactly one `glob()` call is made per class declaration. There is no
  * directory walk and no recursive search: `*` in a glob pattern does not cross
  * a separator, so the cost of the lookup is fixed by the configured pattern
@@ -257,14 +264,41 @@ class RequireTestFileSniff implements Sniff
     {
         $relativeDirectory = implode('/', array_slice($segments, ($sourceIndex + 1), -1));
         $expected = strtr($this->testPathTemplate, [
-            '{path}' => $relativeDirectory,
-            '{name}' => pathinfo(end($segments), PATHINFO_FILENAME),
+            '{path}' => $this->quoteGlob($relativeDirectory),
+            '{name}' => $this->quoteGlob(pathinfo(end($segments), PATHINFO_FILENAME)),
         ]);
-        $projectRoot = implode('/', array_slice($segments, 0, $sourceIndex));
+        $projectRoot = $this->quoteGlob(implode('/', array_slice($segments, 0, $sourceIndex)));
         $leadingSeparator = $segments[0] === '' ? '/' : '';
         $parts = explode('/', $projectRoot . '/' . $this->testDirectory . '/' . $expected);
 
         return $leadingSeparator . implode('/', array_filter($parts, 'strlen'));
+    }
+
+    /**
+     * The form of a literal path segment that a glob pattern matches as itself.
+     *
+     * Everything the expected path is built from splits in two. The template and
+     * the test root are written by whoever configures the sniff, and a wildcard
+     * in either is the point — `tests/*` is how a split suite is spelled. The
+     * rest is read off the filesystem: the directories above the source root,
+     * the file's directory relative to it, and the file's own name. None of
+     * those is constrained to be free of `*`, `?` or `[...]`, so each is quoted
+     * here and only the configured halves keep their wildcards.
+     *
+     * Quoted by wrapping each character in a class of its own rather than by
+     * escaping it with a backslash: the path is normalised to forward slashes
+     * before it reaches this point, and a backslash is a path separator on the
+     * platform that normalisation is there for. `]` needs no quoting — outside a
+     * class it is already literal, and every class opened here is closed
+     * immediately.
+     */
+    private function quoteGlob(string $literal): string
+    {
+        return strtr($literal, [
+            '*' => '[*]',
+            '?' => '[?]',
+            '[' => '[[]',
+        ]);
     }
 
     /**

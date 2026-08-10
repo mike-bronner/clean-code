@@ -47,6 +47,19 @@ const REQUIRE_TEST_FILE_MISSING = REQUIRE_TEST_FILE . '.Missing';
  */
 const FLAT_FIXTURE_SOURCE_ROOT = ['RequireTestFileSniff'];
 
+/**
+ * The one concrete class a staged project holds, declared on line 5. Named for
+ * the file it is written to in every case but one, where the point is that the
+ * companion is resolved from the *file* name.
+ */
+const STAGED_CLASS = "<?php\n\ndeclare(strict_types=1);\n\nclass Widget\n{\n}\n";
+
+/**
+ * A staged companion test. The sniff reads whether this file exists and nothing
+ * else about it, so its contents only have to be a file.
+ */
+const STAGED_COMPANION = "<?php\n\ndeclare(strict_types=1);\n";
+
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -191,6 +204,83 @@ it('anchors the project root on the source directory closest to the file', funct
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * The expected path is a glob pattern, and every part of it the sniff reads off
+ * the filesystem — the directories above the source root, the file's directory
+ * relative to it, and the file's own name — is a literal that has to survive
+ * being put into one. `*`, `?` and `[...]` are all legal in a directory name on
+ * the platforms this package runs on, and none of them is constrained by
+ * anything: a source root's parent is wherever the consuming project happens to
+ * be checked out.
+ *
+ * These two tests are staged rather than committed. A directory named `Od*d`
+ * cannot exist in a Windows checkout, so putting one under tests/fixtures/ would
+ * break `git clone` there instead of testing anything.
+ *
+ * The silent half — the companion exists at the literal path, and the sniff has
+ * to find it. Each case names what an unquoted pattern would look for instead:
+ *
+ * - `src/Foo[Bar]/Widget.php` — read as a pattern, `[Bar]` is a character class
+ *   matching one of B, a or r, so the lookup goes to `tests/FooB/` and this
+ *   compliant class is reported.
+ * - `proj[1]/src/Widget.php` — the same, in the segments above the source root,
+ *   which the sniff folds into the project root.
+ * - `src/Odd[Name].php` — the same again, in the name the companion is named
+ *   after.
+ */
+it('finds a companion under a name holding a glob metacharacter', function (array $files): void {
+    $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with([
+    'a bracket group in the source-relative directory' => [[
+        'src/Foo[Bar]/Widget.php' => STAGED_CLASS,
+        'tests/Foo[Bar]/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group above the source root' => [[
+        'proj[1]/src/Widget.php' => STAGED_CLASS,
+        'proj[1]/tests/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group in the file name' => [[
+        'src/Odd[Name].php' => STAGED_CLASS,
+        'tests/Odd[Name]Test.php' => STAGED_COMPANION,
+    ]],
+]);
+
+/**
+ * The other half, and the one the silent half above cannot cover on its own: a
+ * metacharacter left unescaped does not only miss a file that is there, it also
+ * *matches* one that is not the companion. Each of these stages a test file at
+ * the path the unescaped pattern would find and nothing at the literal one, so
+ * the warning is what proves the pattern is being matched literally:
+ *
+ * - `src/Od*d/` against `tests/Odad/` — `*` spans the different character.
+ * - `src/Od?d/` against `tests/Odad/` — `?` spans it too, one character wide.
+ * - `src/Foo[Bar]/` against `tests/FooB/` — the character class matches its own
+ *   first alternative.
+ */
+it('does not let a glob metacharacter match a directory that is not the companion', function (array $files): void {
+    $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 5, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ]);
+})->with([
+    'an asterisk spanning a different directory name' => [[
+        'src/Od*d/Widget.php' => STAGED_CLASS,
+        'tests/Odad/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a question mark spanning a different character' => [[
+        'src/Od?d/Widget.php' => STAGED_CLASS,
+        'tests/Odad/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group matching one of its own characters' => [[
+        'src/Foo[Bar]/Widget.php' => STAGED_CLASS,
+        'tests/FooB/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+]);
 
 /**
  * $sourceDirectories is what scopes the sniff, in place of a ruleset

@@ -638,6 +638,41 @@ function stagingDirectory(string $subdirectory = ''): string
 }
 
 /**
+ * Builds a small project outside the repository from a map of
+ * `<path relative to the project root> => <file contents>`, and returns the
+ * absolute path of the first entry.
+ *
+ * For the sniffs that read the *filesystem* rather than one file's tokens, and
+ * whose subject is the directory name itself: a directory called `Od*d` or
+ * `Foo[Bar]` is legal on the platforms this package is tested on but not on
+ * Windows, so committing one under tests/fixtures/ would break a checkout
+ * rather than exercise a rule. Staging it at run time keeps the name where it
+ * has to be — on disk, in a real path handed to PHPCS — without putting it in
+ * the tree.
+ *
+ * @param array<string, string> $files
+ */
+function stageProjectOutsideTests(array $files): string
+{
+    $root = stagingDirectory();
+
+    foreach ($files as $relativePath => $contents) {
+        $path = $root . '/' . $relativePath;
+        $directory = dirname($path);
+
+        if (is_dir($directory) === false && mkdir($directory, 0700, true) === false) {
+            throw new RuntimeException("could not stage a project directory at {$directory}");
+        }
+
+        if (file_put_contents($path, $contents) === false) {
+            throw new RuntimeException("could not stage a project file at {$path}");
+        }
+    }
+
+    return $root . '/' . array_key_first($files);
+}
+
+/**
  * Writes $source to a file named $filename in a directory outside the
  * repository and returns the path, so a test can compare a sniff's verdict on
  * the same bytes at a real path and with no path at all.
