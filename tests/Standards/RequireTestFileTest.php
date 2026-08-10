@@ -228,6 +228,13 @@ it('anchors the project root on the source directory closest to the file', funct
  *   which the sniff folds into the project root.
  * - `src/Odd[Name].php` — the same again, in the name the companion is named
  *   after.
+ *
+ * `[...]` is the only metacharacter this half can prove anything about, which is
+ * why all three cases carry one. A `*` or a `?` left unquoted still matches the
+ * literal character it stands for — `Od*d` as a pattern matches the directory
+ * `Od*d`, and `Od?d` matches `Od?d` — so a silent case built on either passes
+ * whether the quoting is there or not. The whole of their coverage is the
+ * near-miss half below, where they are discriminating.
  */
 it('finds a companion under a name holding a glob metacharacter', function (array $files): void {
     $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
@@ -254,12 +261,24 @@ it('finds a companion under a name holding a glob metacharacter', function (arra
  * metacharacter left unescaped does not only miss a file that is there, it also
  * *matches* one that is not the companion. Each of these stages a test file at
  * the path the unescaped pattern would find and nothing at the literal one, so
- * the warning is what proves the pattern is being matched literally:
+ * the warning is what proves the pattern is being matched literally.
+ *
+ * The sniff substitutes a filesystem-derived literal at three places — the
+ * file's directory relative to the source root (`{path}`), the file's own name
+ * (`{name}`), and the segments above the source root that it folds into the
+ * project root — and each is quoted by its own call. Dropping the quoting at one
+ * of them leaves the other two intact, so each place needs its own case for each
+ * of the three metacharacters, and all nine are here:
  *
  * - `src/Od*d/` against `tests/Odad/` — `*` spans the different character.
  * - `src/Od?d/` against `tests/Odad/` — `?` spans it too, one character wide.
  * - `src/Foo[Bar]/` against `tests/FooB/` — the character class matches its own
  *   first alternative.
+ * - `src/Od*d.php`, `src/Od?d.php` and `src/Foo[Bar].php` — the same three
+ *   against `tests/OdadTest.php` and `tests/FooBTest.php`, in the name the
+ *   companion is named after.
+ * - `proj*d/`, `proj?d/` and `proj[1]/` — the same three again against
+ *   `projad/tests/` and `proj1/tests/`, above the source root.
  */
 it('does not let a glob metacharacter match a directory that is not the companion', function (array $files): void {
     $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
@@ -279,6 +298,30 @@ it('does not let a glob metacharacter match a directory that is not the companio
     'a bracket group matching one of its own characters' => [[
         'src/Foo[Bar]/Widget.php' => STAGED_CLASS,
         'tests/FooB/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'an asterisk spanning a different file name' => [[
+        'src/Od*d.php' => STAGED_CLASS,
+        'tests/OdadTest.php' => STAGED_COMPANION,
+    ]],
+    'a question mark spanning a different character of a file name' => [[
+        'src/Od?d.php' => STAGED_CLASS,
+        'tests/OdadTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group in a file name matching one of its own characters' => [[
+        'src/Foo[Bar].php' => STAGED_CLASS,
+        'tests/FooBTest.php' => STAGED_COMPANION,
+    ]],
+    'an asterisk spanning a different project root' => [[
+        'proj*d/src/Widget.php' => STAGED_CLASS,
+        'projad/tests/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a question mark spanning a different character of a project root' => [[
+        'proj?d/src/Widget.php' => STAGED_CLASS,
+        'projad/tests/WidgetTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group above the source root matching one of its own characters' => [[
+        'proj[1]/src/Widget.php' => STAGED_CLASS,
+        'proj1/tests/WidgetTest.php' => STAGED_COMPANION,
     ]],
 ]);
 
