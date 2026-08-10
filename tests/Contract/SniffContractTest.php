@@ -43,20 +43,28 @@
  * feeds every severity-neutral assertion — registration and both halves of the
  * passing fixture — so neither list can be added to and forgotten there.
  *
- * Three sniffs are deliberately absent from every dataset. A path-scoped sniff
+ * Four sniffs are deliberately absent from every dataset. A path-scoped sniff
  * cannot be swept: the sweep processes each fixture where it lives, under
- * tests/, and PHPCS decides path scoping from the file's path alone — so the
+ * tests/, and the scoping is decided from the file's path alone — so the
  * failing fixture reports nothing whatever the sniff does, and the passing
- * assertion would hold against a sniff that had fallen silent altogether.
- * Both such sniffs stage their fixtures outside the repository instead, and
- * pin the scoping itself in their own file.
+ * assertion would hold against a sniff that had fallen silent altogether. Each
+ * one reaches its own fixtures another way, and pins the scoping itself in its
+ * own file.
  *
  *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
- *     out of test paths. It is covered in
- *     tests/Standards/DisallowExternalPersistenceCallsTest.php.
+ *     out of test paths. It stages its fixtures outside the repository, and is
+ *     covered in tests/Standards/DisallowExternalPersistenceCallsTest.php.
  *   - CleanCode.Files.NoProceduralCode — rules.xml scopes it *into* source
- *     paths (src/, app/) with <include-pattern>. It is covered in
- *     tests/Standards/NoProceduralCodeTest.php.
+ *     paths (src/, app/) with <include-pattern>. It stages its fixtures the
+ *     same way, and is covered in tests/Standards/NoProceduralCodeTest.php.
+ *   - CleanCode.Testing.RequireTestFile — scoped by its own sourceDirectories
+ *     property rather than by rules.xml, which puts it out of the sweep for
+ *     the same reason and adds a second one: the sweep configures nothing, and
+ *     the flat fixtures need that property pointed at their own directory
+ *     before they reach the rule at all. Its fixture directory holds a small
+ *     committed project instead of staging, because the rule's answer is a
+ *     companion file's existence. Covered in
+ *     tests/Standards/RequireTestFileTest.php.
  *   - The naming casing conventions — a composite standard carried by three
  *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
  *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
