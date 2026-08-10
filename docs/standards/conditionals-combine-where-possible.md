@@ -17,9 +17,9 @@ whitespace stripped) — the same normalized-block comparison
 `CleanCode.Pattern.AvoidDuplicateCodeBlocks` already applies to runs of code
 lines for the DRY standard
 ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
-Two combination patterns are behavior-preserving and safe to flag. Focused
-sniff issue:
-[#181](https://github.com/mike-bronner/phpcs-rules/issues/181).
+Two combination patterns are behavior-preserving and safe to flag, and the
+custom sniff `CleanCode.Conditionals.CombinableConditions` reports both
+([#181](https://github.com/mike-bronner/phpcs-rules/issues/181)).
 
 - **Detection — adjacent branches of one `if`/`elseif` chain** — adjacent
   branches whose normalized bodies are identical are always combinable with
@@ -37,11 +37,19 @@ sniff issue:
 - **Warning severity, not error** — the sniff points at combination
   candidates; whether the combined condition actually reads better is a
   judgement call.
+- **One warning per participating branch**, at its own `if`/`elseif` keyword,
+  naming the others by line. Combinability is a property the branches share,
+  not something the later one did to the earlier — the same reporting choice
+  `CleanCode.Pattern.AvoidDuplicateCodeBlocks` makes for duplicated blocks.
+  A run of three identical branches is therefore three warnings, not two.
 - **Boundaries** — separate `if` statements whose identical bodies do *not*
   exit stay out (combining changes how often the body runs and whether the
   second condition is evaluated), as do non-adjacent branches of a chain
   (merging them reorders condition evaluation). Flagging those would suggest
-  behavior-changing rewrites.
+  behavior-changing rewrites. An `else` branch is out too — it carries no
+  condition to join with `||` — as are an empty body and a brace-less body
+  that is itself a control structure, neither of which is a statement worth
+  comparing.
 
 ## What remains code review
 
