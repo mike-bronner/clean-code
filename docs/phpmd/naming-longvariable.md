@@ -70,9 +70,15 @@ to run separately for it.
   by the enclosing walk. PDepend builds no artifact for an **anonymous** class,
   so one is reached only through whatever encloses it: through the enclosing
   method or function when it sits in a body, and not at all at file scope,
-  where PHPMD reports neither its fields nor the locals of its methods.
+  where PHPMD reports neither its fields nor the locals of its methods. That
+  exception covers the anonymous class's own body and no deeper — a named
+  function declared inside one of its methods, and a named class declared
+  inside that function, are artifacts again, each with its own scope. That
+  holds at file scope too: the anonymous class stays silent while the named
+  function declared inside it is reported, in both tools.
   `tests/fixtures/LongVariableSniff/nesting.php` pins every one of those shapes
-  against a live PHPMD run.
+  against a live PHPMD run. (A class declared *directly* in any method body is
+  a PHP parse error, which is why the nested-class case sits one level deeper.)
 - **File scope is out of scope.** PHPMD's rule is `ClassAware`, `MethodAware`,
   `FunctionAware`, and `TraitAware`, and none of those covers code at file
   scope — including a closure declared there, which is not a named function. A

@@ -386,12 +386,22 @@ it('diverges from PHPMD only on trait duplicates and string interpolation', func
  * descends the whole subtree of each, so anything declared inside a function
  * body is reached through that function and never visited again; and PDepend
  * registers no artifact for an anonymous class, so one is reached only through
- * whatever encloses it. `isOwnContainer()` is the single predicate that carries
- * both facts — `process()` skips a construct that fails it, and `collect()`
- * declines to skip over one for the same reason, which is what keeps every
- * variable walked exactly once.
+ * whatever encloses it. `isReachableArtifact()` is the single predicate that
+ * carries both facts — `process()` skips a construct that fails it, and
+ * `collect()` declines to skip over one for the same reason, which is what
+ * keeps every variable walked exactly once.
  *
- * A live PHPMD 2.15.0 run over this fixture reports these same six lines, with
+ * The anonymous-class exception reaches exactly one level, which lines 115 to
+ * 178 pin in three shapes. A named function declared inside an anonymous
+ * class's method, and a named class declared inside *that* function, are
+ * artifacts again, each with its own de-duplication scope; the first two cases
+ * share their name with a local of the nearest real method, so merging the
+ * scopes does not merely misattribute a report, it deletes one. The third puts
+ * the same rule at file scope, where there is no enclosing walk to be merged
+ * into and the report is lost outright instead — a presence bug rather than a
+ * de-duplication one.
+ *
+ * A live PHPMD 2.15.0 run over this fixture reports these same eleven lines, with
  * 45 and 94 doubled where a class node and a method node both reach the same
  * field. This sniff collapses those duplicates, exactly as it already does for
  * a trait's.
@@ -401,20 +411,37 @@ it('diverges from PHPMD only on trait duplicates and string interpolation', func
  * and re-run by hand, and the lines named are what it actually produced:
  *
  * - Narrow `collect()`'s search back to `[T_VARIABLE, T_FUNCTION]`, so a nested
- *   *class* is no longer stepped over, and line 69 reports twice — its field
- *   swept into the enclosing function's scope while the class is also walked in
- *   its own right. Stepping over a nested function alone was never enough.
+ *   *class* is no longer stepped over, and lines 69 and 153 report twice — the
+ *   field swept into the enclosing function's scope while the class is also
+ *   walked in its own right. Stepping over a nested function alone was never
+ *   enough.
  * - Drop the `isReachableArtifact()` guard in `process()` and line 49 reports
  *   twice, while line 33 — a local in a method of a *file-scope* anonymous
  *   class — appears where PHPMD reports nothing at all.
  * - Remove `collect()`'s skip altogether and lines 45, 69, 80, and 94 all
- *   double, which is the same defect as the first bullet with the nested
- *   function included.
+ *   double while 153 reports four times and 144 disappears — the same defect as
+ *   the first bullet with the nested function included.
  * - Swap `$declarations` and `$plain` in `functionVariables()` and line 94
  *   becomes line 91: the anonymous class's field shares its name with the local
  *   three lines above it, so the ordering does not merely reorder the output,
  *   it swaps which line is reported. PHPMD walks every declarator in a subtree
  *   before any variable, and 94 is what that yields.
+ * - Test `isReachableArtifact()` against the whole conditions chain
+ *   (`in_array(T_ANON_CLASS, $conditions, true) === false`) instead of the
+ *   innermost condition, and lines 122, 144, and 178 all vanish. Being inside
+ *   an anonymous class then becomes contagious: the named constructs beneath
+ *   one are swept into the nearest real method, where the name-based
+ *   de-duplication in `report()` silently drops one occurrence of each shared
+ *   name. Which one is dropped differs by shape — the nested function's local
+ *   (122) loses to the earlier plain local, the enclosing method's local (144)
+ *   loses to the nested class's field, which is a declarator and so ordered
+ *   first — and at file scope (178) there is no enclosing walk to be swept
+ *   into, so the report is lost rather than moved. The three fail in three
+ *   different ways and none covers for the others.
+ * - Return `true` unconditionally from `isReachableArtifact()` and lines 33 and
+ *   174 appear — the locals of a file-scope anonymous class's own methods,
+ *   which PHPMD never reports. The exception itself, not just its depth, is
+ *   still pinned.
  *
  * Line 29, the file-scope anonymous class's own field, is absent from every one
  * of those and from PHPMD. It appears only if `T_ANON_CLASS` is added to
@@ -425,8 +452,19 @@ it('diverges from PHPMD only on trait duplicates and string interpolation', func
 it('walks a nested construct through its owner exactly once', function (): void {
     $file = analyzeFixture(LONG_VARIABLE, 'nesting.php');
 
-    expect(violationCountsByLine($file->getErrors()))
-        ->toBe([45 => 1, 49 => 1, 58 => 1, 69 => 1, 80 => 1, 94 => 1]);
+    expect(violationCountsByLine($file->getErrors()))->toBe([
+        45 => 1,
+        49 => 1,
+        58 => 1,
+        69 => 1,
+        80 => 1,
+        94 => 1,
+        115 => 1,
+        122 => 1,
+        144 => 1,
+        153 => 1,
+        178 => 1,
+    ]);
 });
 
 /**

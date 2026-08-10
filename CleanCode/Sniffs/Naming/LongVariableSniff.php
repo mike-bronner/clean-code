@@ -56,11 +56,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * - A construct is walked either in its own right or as part of what encloses
  *   it, never both — see isReachableArtifact(). A named class, trait,
  *   interface, enum, or function is an artifact of PDepend's wherever it is
- *   declared, nested in a function body included, so it is walked in its own
- *   right and stepped over by the enclosing walk. An anonymous class is not an
- *   artifact at all, so it is reached only through whatever encloses it — and
- *   at file scope, where nothing does, neither its fields nor the locals of
- *   its methods are reported, in either tool.
+ *   declared — nested in a function body, or in an anonymous class's method —
+ *   so it is walked in its own right and stepped over by the enclosing walk. An
+ *   anonymous class is not an artifact at all, so it is reached only through
+ *   whatever encloses it, and its methods with it — but only its own body is
+ *   covered that way, not a named construct declared deeper inside one. At file
+ *   scope nothing encloses it, so neither its fields nor the locals of its
+ *   methods are reported, in either tool.
  *   `tests/fixtures/LongVariableSniff/nesting.php` pins each shape.
  *
  * Two deliberate divergences, both documented in docs/phpmd/naming-longvariable.md:
@@ -198,18 +200,28 @@ class LongVariableSniff implements Sniff
      * different scopes rather than one subtree.
      *
      * An **anonymous class** is the exception, and the only one. PDepend builds
-     * no artifact for it, so PHPMD reaches its fields — and everything in its
-     * methods — only through whatever encloses it. Inside a method or function
-     * that is the enclosing node's own walk; at file scope nothing encloses it,
-     * and PHPMD reports neither its fields nor the locals of its methods. So
-     * anything with an anonymous class among its enclosing scopes is not an
-     * artifact here either.
+     * no artifact for it, so PHPMD reaches its fields — and its methods, which
+     * are its children rather than artifacts of their own — only through
+     * whatever encloses it. Inside a method or function that is the enclosing
+     * node's own walk; at file scope nothing encloses it, and PHPMD reports
+     * neither its fields nor the locals of its methods.
+     *
+     * That exception reaches exactly one level. Only a construct declared
+     * *directly* in an anonymous class body — a method of one — is a non-
+     * artifact; a named class or function declared inside that method is an
+     * artifact again, because PDepend registers a named construct wherever it
+     * is declared. So the test is the innermost enclosing scope, not the whole
+     * chain: reading the chain made "inside an anonymous class" contagious, and
+     * a named construct nested under one was then walked as part of the nearest
+     * real function instead of in its own right — which silently dropped a
+     * genuine local of that function to the name-based de-duplication in
+     * report(). A live PHPMD 2.15.0 run reports both, separately.
      */
     private function isReachableArtifact(File $phpcsFile, int $stackPtr): bool
     {
         $conditions = $phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [];
 
-        return in_array(T_ANON_CLASS, $conditions, true) === false;
+        return end($conditions) !== T_ANON_CLASS;
     }
 
     /**
