@@ -164,6 +164,34 @@ final class Combinable
         $this->log($name);
     }
 
+    // 172 + 174 — the identical pair is still reported although the branch
+    // after it is one the sniff cannot read: a brace-less nested `if` is
+    // skipped, not contagious.
+    public function chainPairThenUnreadableBranch(int $code, bool $ready): string
+    {
+        if ($code === 1) {
+            return 'same';
+        } elseif ($code === 2) {
+            return 'same';
+        } elseif ($code === 3) if ($ready) return 'other';
+
+        return 'none';
+    }
+
+    // 186 + 188 — the same, where the unreadable branch is a brace-less loop
+    // rather than a nested `if`. What ends the chain is that the clause cannot
+    // be measured, not which construct made it unmeasurable.
+    public function chainPairThenUnreadableLoop(int $code, array $rows): string
+    {
+        if ($code === 1) {
+            return 'same';
+        } elseif ($code === 2) {
+            return 'same';
+        } elseif ($code === 3) foreach ($rows as $row) $this->log((string) $row);
+
+        return 'none';
+    }
+
     private function log(string $message): void
     {
     }

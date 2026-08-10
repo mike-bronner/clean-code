@@ -70,6 +70,14 @@ it('produces no violations on the compliant fixture', function (): void {
  * that lost one of them would still pass on the other four. Lines 155 and 160
  * have a comment between the two `if`s, which is not a statement and so does
  * not break their adjacency.
+ *
+ * Lines 172/174 and 186/188 are the pairs whose chain continues into a branch
+ * the sniff cannot read — a brace-less nested `if` for the first, a brace-less
+ * loop for the second. Both pairs were themselves read in full, so both are
+ * combinable and both are reported: an unreadable branch ends the chain at the
+ * branch before it rather than voiding what came before. Reading it as fatal
+ * silences all four of these lines while every other assertion here still
+ * passes, which is why they are asserted at both spellings of "unreadable".
  */
 it('warns once per participating branch', function (): void {
     $file = analyzeFixture(COMBINABLE_CONDITIONS, 'failing.php');
@@ -97,6 +105,10 @@ it('warns once per participating branch', function (): void {
         ['line' => 144, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_ADJACENT],
         ['line' => 155, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_ADJACENT],
         ['line' => 160, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_ADJACENT],
+        ['line' => 172, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_CHAIN],
+        ['line' => 174, 'column' => 11, 'source' => COMBINABLE_CONDITIONS_CHAIN],
+        ['line' => 186, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_CHAIN],
+        ['line' => 188, 'column' => 11, 'source' => COMBINABLE_CONDITIONS_CHAIN],
     ]);
 });
 
@@ -104,7 +116,7 @@ it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(COMBINABLE_CONDITIONS, 'failing.php');
 
     expect($file->getErrorCount())->toBe(0)
-        ->and($file->getWarningCount())->toBe(22);
+        ->and($file->getWarningCount())->toBe(26);
 });
 
 /**
@@ -143,7 +155,7 @@ it('names the other branches of the group and the operator to use', function ():
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(COMBINABLE_CONDITIONS, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(22)
+    expect($file->getWarningCount())->toBe(26)
         ->and($file->getFixableCount())->toBe(0);
 });
 
@@ -232,6 +244,27 @@ it('terminates silently on a truncated conditional', function (string $fixture):
     'truncated-braceless.php',
     'truncated-alternative.php',
 ]);
+
+/**
+ * Silence is the right answer above only because nothing in those three files
+ * could be read. It is the wrong answer when the truncation arrives *after* two
+ * branches that were each read in full: the pair is combinable on its own
+ * evidence, and a branch that never arrived is not evidence against it.
+ *
+ * This is the case the three fixtures above cannot make. Each of them cuts
+ * where the very first clause is already unreadable, so a walk that voids a
+ * whole chain the moment one clause fails and a walk that merely stops at that
+ * clause are indistinguishable on all three — both stay silent. Here they
+ * differ: voiding reports nothing, stopping reports the pair.
+ */
+it('still reports a comparable pair when the branch after it is truncated', function (): void {
+    $file = analyzeFixture(COMBINABLE_CONDITIONS, 'truncated-after-comparable-pair.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 24, 'column' => 9, 'source' => COMBINABLE_CONDITIONS_CHAIN],
+        ['line' => 26, 'column' => 11, 'source' => COMBINABLE_CONDITIONS_CHAIN],
+    ]);
+});
 
 /**
  * Two shapes make this walk expensive, and the generated file holds both.

@@ -26,6 +26,13 @@ declare(strict_types=1);
  *   - nestedLoopBodies       brace-less bodies that are themselves loops
  *   - conditionalExit        identical bodies whose exit is nested, not final
  *   - separateScopes         identical exiting `if`s in two different methods
+ *   - guardThenChainInto…    a guard followed by a chain that continues past
+ *                            what the sniff can read, so the second `if` is
+ *                            not a plain one and cannot join the first
+ *   - bracelessBodyOf…       an `if` that is the brace-less body of an
+ *                            enclosing structure, one method per structure the
+ *                            sniff refuses, because a list that lost one entry
+ *                            would still pass on the other five
  */
 
 final class NearMisses
@@ -224,6 +231,92 @@ final class NearMisses
         }
 
         $this->log($email);
+    }
+
+    // A chain whose last branch the sniff cannot read still *continues* there,
+    // so the `if` heading it carries a continuation and is not the plain `if`
+    // the separate-`if` rule asks for. It cannot join the guard above it.
+    public function guardThenChainIntoUnreadable(?string $name, int $code, array $rows): void
+    {
+        if ($name === null) {
+            return;
+        }
+
+        if ($code === 1) {
+            return;
+        } elseif ($code === 2) foreach ($rows as $row) $this->log((string) $row);
+    }
+
+    // An `if` that is the brace-less body of an enclosing structure is that
+    // structure's whole body, so the statement after it belongs to the scope
+    // outside and no `||` can join the two. One method per structure whose
+    // parentheses such a body can follow.
+    public function bracelessBodyOfIf(bool $ready, ?string $email): void
+    {
+        if ($ready) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
+    }
+
+    public function bracelessBodyOfElseif(bool $ready, ?string $email): void
+    {
+        if ($email === 'skip') {
+            $this->log('skipped');
+        } elseif ($ready) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
+    }
+
+    public function bracelessBodyOfWhile(bool $ready, ?string $email): void
+    {
+        while ($ready) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
+    }
+
+    public function bracelessBodyOfFor(?string $email): void
+    {
+        for ($index = 0; $index < 1; $index++) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
+    }
+
+    public function bracelessBodyOfForeach(array $rows, ?string $email): void
+    {
+        foreach ($rows as $row) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
+    }
+
+    public function bracelessBodyOfDeclare(?string $email): void
+    {
+        declare(ticks=1) if ($email === null) return;
+
+        if ($email === '') {
+            return;
+        }
+
+        $this->log('done');
     }
 
     private function log(string $message): void

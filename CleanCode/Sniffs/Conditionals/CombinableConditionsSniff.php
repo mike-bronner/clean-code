@@ -78,6 +78,23 @@ use PHP_CodeSniffer\Util\Tokens;
  *   Neither pattern can reach one: it is not an unconditional exit, and a
  *   brace-less nested `if` swallows any `else` that follows into itself.
  *
+ *   Such a clause is skipped, never contagious. It ends the chain it sits in
+ *   at the clause before it, and the branches already read stay comparable
+ *   with each other — voiding the whole chain would lose a legitimate pair
+ *   that happens to be followed by an unreadable sibling. What the truncated
+ *   chain does lose is its claim to being a plain separate `if`: a chain that
+ *   continues into a clause the sniff cannot read still continues, so its head
+ *   never joins a run.
+ *
+ * - An `if` that is itself the brace-less body of an enclosing control
+ *   structure, as a member of a run of separate `if` statements. Such an `if`
+ *   is somebody's body rather than a statement standing beside its neighbours,
+ *   so the statement that follows it belongs to the enclosing scope, not
+ *   beside it — `if ($x) if ($a) return 1;` and a following `if ($b) return
+ *   1;` are one scope apart, and `||` cannot join them. Its own chain is still
+ *   read and reported: the branches of a nested chain are as combinable as any
+ *   other.
+ *
  * Detection only. Merging two conditions with `||` is a rewrite whose result
  * has to read better than the original to be worth making, and that is exactly
  * the judgement the standard leaves to a human, so there is nothing to
@@ -114,6 +131,22 @@ class CombinableConditionsSniff implements Sniff
      * @var array<int, int|string>
      */
     private const NESTING_STATEMENTS = [T_IF, T_WHILE, T_FOR, T_FOREACH, T_SWITCH, T_DO, T_TRY];
+
+    /**
+     * The control structures whose brace-less body can be an `if` with another
+     * statement behind it, named by the token owning the parentheses that body
+     * follows. Every entry was confirmed against the tokenizer to produce the
+     * pairing this list exists to refuse; nothing is listed on the strength of
+     * looking like it belongs.
+     *
+     * `switch` and `try` are absent because PHP gives neither a brace-less
+     * form. `do` is absent for a subtler reason: its body is followed by its
+     * own `while`, never by the next statement, so a run can never reach past
+     * it and there is nothing to refuse.
+     *
+     * @var array<int, int|string>
+     */
+    private const BRACELESS_BODY_OWNERS = [T_IF, T_ELSEIF, T_WHILE, T_FOR, T_FOREACH, T_DECLARE];
 
     /**
      * @return array<int|string>
@@ -195,20 +228,70 @@ class CombinableConditionsSniff implements Sniff
     }
 
     /**
-     * The whole chain from its leading `if`: one entry per clause, plus the
-     * token the chain ends on. Null when any clause cannot be read — a
-     * truncated file, or a brace-less body the sniff does not compare.
+     * Whether this `if` is the brace-less body of an enclosing control
+     * structure rather than a statement standing beside its neighbours.
+     *
+     * The distinction decides who the `if`'s neighbours *are*. A brace-less
+     * body is the whole of its owner's body — PHP allows exactly one statement
+     * there — so whatever follows it closes the owner and belongs to the scope
+     * outside, one level up. Reading it as an adjacent statement pairs two
+     * `if`s that no `||` can join, which is why a run never starts on one.
+     *
+     * Detection is by the token in front, because that is the only thing that
+     * distinguishes the shape: PHP_CodeSniffer opens no scope for a brace-less
+     * body, so the `if` carries nothing saying whose body it is. What such a
+     * body follows is its owner's closing parenthesis. `else` needs no entry —
+     * an `if` after one is the trailing half of a spaced `else if`, and
+     * isChainHead() already refuses it a head's turn, so it never reaches a run
+     * at all.
+     */
+    private function isBracelessBody(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+
+        if ($previous === false) {
+            return false;
+        }
+
+        $owner = $tokens[$previous]['parenthesis_owner'] ?? null;
+
+        return $tokens[$previous]['code'] === T_CLOSE_PARENTHESIS
+            && $owner !== null
+            && in_array($tokens[$owner]['code'], self::BRACELESS_BODY_OWNERS, true) === true;
+    }
+
+    /**
+     * The chain from its leading `if`: one entry per clause, the token the
+     * chain ends on, and whether every clause of it could be read.
+     *
+     * A clause the sniff cannot read — a truncated file, or a brace-less body
+     * it does not compare — stops the walk *at* that clause rather than
+     * discarding the chain. The clauses already collected were each read in
+     * full and remain fully comparable with each other, so an unreadable third
+     * branch must not silence an identical first and second. Only a chain whose
+     * *first* clause is unreadable yields null: there is nothing to compare.
+     *
+     * `complete` is what keeps that prefix honest. A chain stopped early still
+     * continues in the source, so the `if` heading it is not a plain one and
+     * the `end` reported is the prefix's rather than the whole statement's —
+     * which is why a run refuses an incomplete chain as a member.
      *
      * A clause carries its own body signature, so the comparison never re-reads
      * the body: identical normalized bodies produce identical signatures, and
      * an `else` (or an uncomparable body) carries null, which no run can span.
      *
-     * @return array{clauses: array<int, array{pointer: int, signature: string|null, exits: bool}>, end: int}|null
+     * @return array{
+     *     clauses: array<int, array{pointer: int, signature: string|null, exits: bool}>,
+     *     end: int,
+     *     complete: bool
+     * }|null
      */
     private function collectChain(File $phpcsFile, int $stackPtr): ?array
     {
         $tokens = $phpcsFile->getTokens();
         $clauses = [];
+        $complete = true;
         $pointer = $stackPtr;
         $end = $stackPtr;
         // What the current pointer is allowed to be. Only `elseif` and `else`
@@ -229,7 +312,9 @@ class CombinableConditionsSniff implements Sniff
             $extent = $this->clauseExtent($phpcsFile, $pointer);
 
             if ($extent === null) {
-                return null;
+                $complete = false;
+
+                break;
             }
 
             $signature = $code === T_ELSE
@@ -267,7 +352,9 @@ class CombinableConditionsSniff implements Sniff
             $pointer = $next;
         }
 
-        return ['clauses' => $clauses, 'end' => $end];
+        return $clauses === []
+            ? null
+            : ['clauses' => $clauses, 'end' => $end, 'complete' => $complete];
     }
 
     /**
@@ -427,7 +514,21 @@ class CombinableConditionsSniff implements Sniff
      * gets its own turn as a head, which is what lets `A A B B` report two
      * groups rather than one.
      *
-     * @param array{clauses: array<int, array{pointer: int, signature: string|null, exits: bool}>, end: int} $chain
+     * An incomplete chain is refused as a *candidate*: its clauses were read,
+     * but the chain continues past them into something the sniff could not
+     * read, so the `if` carries a continuation and is not a plain one.
+     *
+     * The same chain needs no refusing as the run's *head*, and asking would be
+     * a branch no input can reach. An incomplete chain stopped at a clause it
+     * could not read, which means the chain continued — so the token after the
+     * prefix's recorded end is the `elseif` or `else` it stopped on, never an
+     * `if`. The walk below therefore ends on its first step, of its own accord.
+     *
+     * @param array{
+     *     clauses: array<int, array{pointer: int, signature: string|null, exits: bool}>,
+     *     end: int,
+     *     complete: bool
+     * } $chain
      *
      * @return array<int, array{pointer: int, signature: string|null, exits: bool}>
      */
@@ -437,6 +538,10 @@ class CombinableConditionsSniff implements Sniff
         $run = [$head];
 
         if ($head['signature'] === null || $head['exits'] === false) {
+            return $run;
+        }
+
+        if ($this->isBracelessBody($phpcsFile, $head['pointer']) === true) {
             return $run;
         }
 
@@ -451,7 +556,7 @@ class CombinableConditionsSniff implements Sniff
 
             $candidate = $this->collectChain($phpcsFile, $next);
 
-            if ($candidate === null || count($candidate['clauses']) !== 1) {
+            if ($candidate === null || $candidate['complete'] === false || count($candidate['clauses']) !== 1) {
                 return $run;
             }
 
