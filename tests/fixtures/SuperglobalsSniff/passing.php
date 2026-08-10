@@ -19,6 +19,27 @@ class RequestHandler
 
     public static $_POST = [];
 
+    /**
+     * The PHP 8 spelling of the same declaration: a promoted constructor
+     * parameter declares the property from the parameter list. A parameter
+     * list is not a scope of its own, so the innermost condition of the token
+     * is still the class body — which is exactly what the exemption keys on,
+     * and why the modern form needs no guard separate from the two above.
+     * Both the typed and the untyped spelling are here, because promotion
+     * allows either.
+     *
+     * The names are long-form aliases rather than `$_GET` and `$_POST`
+     * because a parameter cannot be named after one of the nine real
+     * superglobals at all: PHP rejects `function f($_GET)` outright with
+     * "Cannot re-assign auto-global variable", promoted or not. The seven
+     * PHP 4 aliases are ordinary variables on PHP 8, so they are the only half
+     * of the sniff's name list this shape can be written in at all. PHPMD is
+     * silent here too.
+     */
+    public function __construct(public $HTTP_GET_VARS = [], protected array $HTTP_POST_VARS = [])
+    {
+    }
+
     public function encapsulated($request): array
     {
         // The remedy the rule asks for: the request arrives injected.

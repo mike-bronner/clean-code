@@ -33,10 +33,20 @@ it('is registered in the master ruleset', function (): void {
  * passing.php is the sniff's whole silence contract, and every block in it is a
  * separate verdict rather than merely the absence of a superglobal:
  *
- * - Two member declarations named `$_GET` and `$_POST`. They declare a
- *   property; nothing reads the superglobal. This is one of the two reasons
- *   SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable could not be
- *   wired in instead — it reports both, and PHPMD reports neither.
+ * - Three member declarations: `$_GET`, a static `$_POST`, and a promoted
+ *   constructor pair `$HTTP_GET_VARS`/`$HTTP_POST_VARS`. Each declares a
+ *   property; none reads the superglobal. The promoted pair is the PHP 8
+ *   spelling of the same thing and is exempt through the same condition check
+ *   — a parameter list is not a scope of its own, so the innermost condition
+ *   of a promoted parameter is still the class — so it needs no separate
+ *   guard, and nothing but a fixture can pin that. It has to be spelled with
+ *   long-form aliases: PHP refuses to compile a parameter named after one of
+ *   the nine real superglobals, promoted or not, so the alias half of the name
+ *   list is the only half this shape exists in.
+ *   SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable reports the
+ *   first two where PHPMD reports neither, which is one of the two reasons
+ *   Slevomat could not be wired in instead. It misses the promoted pair, but
+ *   for the unrelated reason that it carries no aliases at all.
  * - `$request->_GET` and `$request?->_SERVER`. PHPCS demotes the name after an
  *   object operator to an identifier, so the sniff never sees a variable. This
  *   fixture is what pins that tokenizer behaviour, since the sniff carries no
@@ -181,6 +191,51 @@ it('ignores an escaped superglobal beside a live one', function (): void {
 
     expect($messages)->toHaveCount(1)
         ->and($messages[0])->toStartWith('Superglobal $_COOKIE ');
+});
+
+/**
+ * The other half of the escape guard, and the half the two floor fixtures
+ * cannot reach: a run of backslashes long enough to have a parity.
+ *
+ * The test above pins that one backslash cancels an interpolation. It cannot
+ * pin *why* the pattern counts pairs rather than simply refusing any `$`
+ * preceded by a backslash, because both readings agree on a single backslash —
+ * and a single backslash is all failing.php and passing.php carry between them.
+ * escape-pairs.php carries runs of one, two, three, and four, where the two
+ * readings disagree on half the lines: an even run is entirely consumed by
+ * escaped backslashes, so the interpolation is live and PHP really does read
+ * the superglobal.
+ *
+ * Asserting the reported *names* rather than a count is what makes one
+ * assertion cover both directions. The fixture gives each parity its own
+ * superglobal, so this expectation says both that the three even runs are
+ * reported and that the three odd runs are not — a guard that cancelled on any
+ * leading backslash would lose the first list, and a guard dropped altogether
+ * would gain the second. The heredoc line is included because the guard lives
+ * in the pattern the heredoc branch shares, not in the double-quoted branch.
+ *
+ * Every line was measured against the PHP interpreter and PHPMD 2.15.0 as well
+ * as this sniff, and all three agree, so this fixture claims exact parity the
+ * way failing.php does.
+ */
+it('counts backslash pairs when deciding whether an interpolation is live', function (): void {
+    $file = analyzeFixture(SUPERGLOBALS, 'escape-pairs.php');
+
+    $reported = [];
+
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $reported[] = [$line, explode(' ', $violation['message'])[1]];
+            }
+        }
+    }
+
+    expect($reported)->toBe([
+        [42, '$_POST'],
+        [48, '$_COOKIE'],
+        [59, '$_REQUEST'],
+    ]);
 });
 
 /**

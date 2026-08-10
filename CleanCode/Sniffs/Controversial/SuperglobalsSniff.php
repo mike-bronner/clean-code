@@ -49,7 +49,12 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * - A *declaration* of a class member that happens to carry a superglobal's
  *   name (`public $_GET = [];`). It declares a property; it does not read the
- *   superglobal. PHPMD is silent on it too.
+ *   superglobal. PHPMD is silent on it too. The PHP 8 promoted-constructor
+ *   spelling is exempt through the same check, because a parameter list is not
+ *   a scope of its own, so the innermost condition of a promoted parameter is
+ *   still the class. Only a long-form alias can be written that way: PHP
+ *   refuses to compile a parameter named after one of the nine real
+ *   superglobals, promoted or not.
  * - A static property access spelled `self::$_POST` or `Holder::$_POST`. The
  *   `::` fixes the name to a member of that class, so no superglobal is reached.
  *   This is the one shape where the sniff is deliberately *narrower* than
@@ -183,6 +188,11 @@ class SuperglobalsSniff implements Sniff
      * match, while `\\$_GET` — an escaped backslash followed by a live
      * interpolation — still does. A trailing \b stops a longer name that merely
      * starts with a superglobal's spelling from matching.
+     *
+     * Both parities are pinned by
+     * tests/fixtures/SuperglobalsSniff/escape-pairs.php, which carries runs of
+     * one through four backslashes; PHP and PHPMD agree with the sniff on all
+     * four.
      */
     private function interpolationPattern(): string
     {

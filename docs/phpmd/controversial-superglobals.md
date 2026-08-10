@@ -134,6 +134,10 @@ acceptance criteria forbid.
 
 - A member **declaration** that happens to carry a superglobal's name
   (`public $_GET = [];`). It declares a property; nothing reads the superglobal.
+  The PHP 8 promoted-constructor spelling is the same declaration and is left
+  alone too, though only the long-form aliases can be written that way:
+  PHP refuses to compile a parameter named after one of the nine real
+  superglobals, promoted or not (`Cannot re-assign auto-global variable`).
 - An object property read as `$request->_GET` or `$request?->_SERVER`. PHPCS
   tokenises the name after an object operator as an identifier, never as a
   variable.
@@ -141,3 +145,11 @@ acceptance criteria forbid.
   `$_ENVIRONMENT` — bare or interpolated.
 - A superglobal spelled inside a single-quoted string, a nowdoc, or behind a
   backslash (`"\$_POST"`). None of the three interpolates.
+
+  "Behind a backslash" means an **odd** run of them. A backslash can itself be
+  escaped, so what cancels the interpolation is a backslash left spare once the
+  run is paired off: `"\$_GET"` and `"\\\$_GET"` read nothing, while `"\\$_GET"`
+  is a literal backslash followed by a live read and is reported — by PHPMD too.
+  `tests/fixtures/SuperglobalsSniff/escape-pairs.php` carries runs of one
+  through four and claims exact parity the way `passing.php` and `failing.php`
+  do.
