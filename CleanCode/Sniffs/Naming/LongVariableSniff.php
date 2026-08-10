@@ -53,6 +53,15 @@ use PHP_CodeSniffer\Util\Tokens;
  * - Code outside any class, trait, interface, enum, or named function is not
  *   examined, including a closure declared at file scope. PHPMD's rule is not
  *   aware of those contexts, so neither is this sniff.
+ * - A construct is walked either in its own right or as part of what encloses
+ *   it, never both — see isReachableArtifact(). A named class, trait,
+ *   interface, enum, or function is an artifact of PDepend's wherever it is
+ *   declared, nested in a function body included, so it is walked in its own
+ *   right and stepped over by the enclosing walk. An anonymous class is not an
+ *   artifact at all, so it is reached only through whatever encloses it — and
+ *   at file scope, where nothing does, neither its fields nor the locals of
+ *   its methods are reported, in either tool.
+ *   `tests/fixtures/LongVariableSniff/nesting.php` pins each shape.
  *
  * Two deliberate divergences, both documented in docs/phpmd/naming-longvariable.md:
  *
@@ -129,6 +138,27 @@ class LongVariableSniff implements Sniff
     ];
 
     /**
+     * The constructs PDepend models as artifacts of their own, which is exactly
+     * the set this sniff registers. A nested one is walked in its own right, so
+     * collect() steps over it rather than sweeping its variables into the
+     * enclosing scope.
+     *
+     * T_ANON_CLASS is deliberately absent: PDepend builds no artifact for an
+     * anonymous class, so collect() walks into one instead. T_CLOSURE and T_FN
+     * are absent for the same reason — PHPMD finds a closure's variables as
+     * children of the enclosing function, so they share its scope.
+     *
+     * @var array<int, int|string>
+     */
+    private const ARTIFACT_TOKENS = [
+        T_FUNCTION,
+        T_CLASS,
+        T_TRAIT,
+        T_INTERFACE,
+        T_ENUM,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -143,11 +173,43 @@ class LongVariableSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
+        if ($this->isReachableArtifact($phpcsFile, $stackPtr) === false) {
+            return;
+        }
+
         $variables = $phpcsFile->getTokens()[$stackPtr]['code'] === T_FUNCTION
             ? $this->functionVariables($phpcsFile, $stackPtr)
             : $this->fieldVariables($phpcsFile, $stackPtr);
 
         $this->report($phpcsFile, $variables);
+    }
+
+    /**
+     * Whether PHPMD reaches the construct at $stackPtr as an artifact of its
+     * own. This is the single predicate that keeps every variable walked
+     * exactly once: process() skips a construct it is false for, and collect()
+     * steps over a nested construct it is true for.
+     *
+     * A named class, trait, interface, enum, or function is an artifact
+     * wherever it is declared — PDepend registers one nested inside a function
+     * body just as it does one at namespace scope, and a live PHPMD 2.15.0 run
+     * confirms it: a nested class's field and a local of the same name in the
+     * enclosing function are reported separately, so the two are genuinely
+     * different scopes rather than one subtree.
+     *
+     * An **anonymous class** is the exception, and the only one. PDepend builds
+     * no artifact for it, so PHPMD reaches its fields — and everything in its
+     * methods — only through whatever encloses it. Inside a method or function
+     * that is the enclosing node's own walk; at file scope nothing encloses it,
+     * and PHPMD reports neither its fields nor the locals of its methods. So
+     * anything with an anonymous class among its enclosing scopes is not an
+     * artifact here either.
+     */
+    private function isReachableArtifact(File $phpcsFile, int $stackPtr): bool
+    {
+        $conditions = $phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [];
+
+        return in_array(T_ANON_CLASS, $conditions, true) === false;
     }
 
     /**
@@ -222,10 +284,13 @@ class LongVariableSniff implements Sniff
     }
 
     /**
-     * A function's formal parameters followed by every variable in its body,
-     * in that order. The order is what decides which occurrence of a repeated
-     * name is the one reported, so parameters have to come first — as they do
-     * in PHPMD, which walks every `VariableDeclarator` before any variable.
+     * A function's declarations followed by its plain variables, in that order.
+     * The order is what decides which occurrence of a repeated name is the one
+     * reported, and PHPMD walks every `VariableDeclarator` in the subtree
+     * before any `Variable`. A declaration here is the formal parameter list
+     * first, then anything in the body that opens a declaration: a `static`
+     * local, and the fields of a class declared inside the body, both of which
+     * PDepend also models as declarators.
      *
      * An abstract or interface method has parameters but no body.
      *
@@ -249,22 +314,47 @@ class LongVariableSniff implements Sniff
             return $parameters;
         }
 
-        return array_merge($parameters, $this->collect(
+        $body = $this->collect(
             $phpcsFile,
             $tokens[$stackPtr]['scope_opener'] + 1,
             $tokens[$stackPtr]['scope_closer']
-        ));
+        );
+
+        $declarations = [];
+        $plain = [];
+
+        foreach ($body as $variablePtr) {
+            if ($this->isPropertyDeclaration($phpcsFile, $variablePtr)) {
+                $declarations[] = $variablePtr;
+
+                continue;
+            }
+
+            $plain[] = $variablePtr;
+        }
+
+        return array_merge($parameters, $declarations, $plain);
     }
 
     /**
      * Every variable token between $start and $end, in source order, with any
-     * nested named function's parameters and body left out — that function is
-     * registered in its own right and owns those names, so collecting them here
-     * too would report each one twice.
+     * nested artifact — a named function, class, trait, interface, or enum —
+     * left out, because process() walks that one in its own right and
+     * collecting its names here too would report each of them twice. A nested
+     * *class* had to be skipped here as much as a nested function: sweeping a
+     * function-nested class's fields into the enclosing function while the
+     * class was also walked separately is what reported them twice.
      *
-     * Closures and arrow functions are deliberately *not* skipped: PHPMD finds
-     * their variables as children of the enclosing function, so they share its
-     * de-duplication scope.
+     * The one construct walked into rather than over is an **anonymous class**,
+     * for the reason isReachableArtifact() gives: PDepend builds no artifact
+     * for it, so this walk is the only thing that reaches its fields — and the
+     * only thing that reaches its methods' parameters and locals, which is why
+     * a method inside one is walked into as well.
+     *
+     * Closures and arrow functions are likewise not skipped: PHPMD finds their
+     * variables as children of the enclosing function, so they share its
+     * de-duplication scope. They carry their own token codes, so they never
+     * match the artifact search below in the first place.
      *
      * @return array<int, int>
      */
@@ -273,9 +363,10 @@ class LongVariableSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $variables = [];
         $current = $start;
+        $wanted = array_merge([T_VARIABLE], self::ARTIFACT_TOKENS);
 
         while ($current < $end) {
-            $next = $phpcsFile->findNext([T_VARIABLE, T_FUNCTION], $current, $end);
+            $next = $phpcsFile->findNext($wanted, $current, $end);
 
             if ($next === false) {
                 break;
@@ -288,21 +379,27 @@ class LongVariableSniff implements Sniff
                 continue;
             }
 
-            $current = $this->endOfFunction($tokens, $next) + 1;
+            if ($this->isReachableArtifact($phpcsFile, $next) === false) {
+                $current = $next + 1;
+
+                continue;
+            }
+
+            $current = $this->endOfArtifact($tokens, $next) + 1;
         }
 
         return $variables;
     }
 
     /**
-     * The last token of a nested function declaration: its closing brace, or —
+     * The last token of a nested artifact declaration: its closing brace, or —
      * for an abstract or interface method — its closing parenthesis. Falls back
      * to the keyword itself so a malformed declaration advances the scan by one
      * token rather than looping forever.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
-    private function endOfFunction(array $tokens, int $stackPtr): int
+    private function endOfArtifact(array $tokens, int $stackPtr): int
     {
         return $tokens[$stackPtr]['scope_closer']
             ?? $tokens[$stackPtr]['parenthesis_closer']
@@ -361,12 +458,20 @@ class LongVariableSniff implements Sniff
      * Array access is not a member access in either tool: `$someArray['key']`
      * is followed by a bracket, not by one of these operators, so it is still
      * measured.
+     *
+     * The neighbour search steps over Tokens::$emptyTokens — whitespace *and*
+     * comments — as isPropertyDeclaration() does above. Skipping only
+     * whitespace let a comment between the variable and its operator hide the
+     * operator, so a variable followed by a block comment and then `->` was
+     * measured, while the same line without the comment was exempt. PHPMD
+     * parses to an AST, where a comment is trivia that cannot come between the
+     * two, so the commented form is exempt there as well.
      */
     private function isMemberAccess(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $before = $phpcsFile->findPrevious(T_WHITESPACE, $stackPtr - 1, null, true);
-        $after = $phpcsFile->findNext(T_WHITESPACE, $stackPtr + 1, null, true);
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $stackPtr - 1, null, true);
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $stackPtr + 1, null, true);
 
         foreach ([$before, $after] as $neighbour) {
             if ($neighbour !== false && in_array($tokens[$neighbour]['code'], self::MEMBER_ACCESS_OPERATORS, true)) {

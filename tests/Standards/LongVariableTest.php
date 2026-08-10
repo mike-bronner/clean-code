@@ -378,3 +378,79 @@ it('diverges from PHPMD only on trait duplicates and string interpolation', func
     expect(violationCountsByLine($file->getErrors()))
         ->toBe([26 => 1, 28 => 1, 30 => 1]);
 });
+
+/**
+ * Which construct owns which variable, pinned shape by shape.
+ *
+ * PHPMD applies the rule to class, trait, method, and function nodes and
+ * descends the whole subtree of each, so anything declared inside a function
+ * body is reached through that function and never visited again; and PDepend
+ * registers no artifact for an anonymous class, so one is reached only through
+ * whatever encloses it. `isOwnContainer()` is the single predicate that carries
+ * both facts — `process()` skips a construct that fails it, and `collect()`
+ * declines to skip over one for the same reason, which is what keeps every
+ * variable walked exactly once.
+ *
+ * A live PHPMD 2.15.0 run over this fixture reports these same six lines, with
+ * 45 and 94 doubled where a class node and a method node both reach the same
+ * field. This sniff collapses those duplicates, exactly as it already does for
+ * a trait's.
+ *
+ * The counts are asserted, not just the sources, because most of what this pins
+ * is a *count* bug rather than a presence bug. Each mutation below was applied
+ * and re-run by hand, and the lines named are what it actually produced:
+ *
+ * - Narrow `collect()`'s search back to `[T_VARIABLE, T_FUNCTION]`, so a nested
+ *   *class* is no longer stepped over, and line 69 reports twice — its field
+ *   swept into the enclosing function's scope while the class is also walked in
+ *   its own right. Stepping over a nested function alone was never enough.
+ * - Drop the `isReachableArtifact()` guard in `process()` and line 49 reports
+ *   twice, while line 33 — a local in a method of a *file-scope* anonymous
+ *   class — appears where PHPMD reports nothing at all.
+ * - Remove `collect()`'s skip altogether and lines 45, 69, 80, and 94 all
+ *   double, which is the same defect as the first bullet with the nested
+ *   function included.
+ * - Swap `$declarations` and `$plain` in `functionVariables()` and line 94
+ *   becomes line 91: the anonymous class's field shares its name with the local
+ *   three lines above it, so the ordering does not merely reorder the output,
+ *   it swaps which line is reported. PHPMD walks every declarator in a subtree
+ *   before any variable, and 94 is what that yields.
+ *
+ * Line 29, the file-scope anonymous class's own field, is absent from every one
+ * of those and from PHPMD. It appears only if `T_ANON_CLASS` is added to
+ * `register()` — which is why it is not: PDepend builds no artifact for an
+ * anonymous class, so registering one here would report a field PHPMD never
+ * does.
+ */
+it('walks a nested construct through its owner exactly once', function (): void {
+    $file = analyzeFixture(LONG_VARIABLE, 'nesting.php');
+
+    expect(violationCountsByLine($file->getErrors()))
+        ->toBe([45 => 1, 49 => 1, 58 => 1, 69 => 1, 80 => 1, 94 => 1]);
+});
+
+/**
+ * The member-access exemption survives a comment between the variable and its
+ * operator.
+ *
+ * PHPMD works from an AST, where a comment is trivia that cannot come between a
+ * variable and the `->`, `?->`, or `::` that exempts it. A token-based sniff
+ * has to step over the comment itself, and stepping over whitespace alone let
+ * the comment hide the operator — a false positive against PHPMD, on the
+ * commented form only.
+ *
+ * The whole file is asserted silent, which is the point: every name in it is 22
+ * to 25 bytes, past the default maximum of 20, and every one first occurs as
+ * the object of a member access. Narrow `isMemberAccess()` back to
+ * `T_WHITESPACE` and all five commented methods report — lines 30, 42, 48, 54,
+ * and 61 — while the uncommented twin stays silent; the fixture pairs the two
+ * shapes so that asymmetry cannot appear unnoticed. Re-run by hand, not
+ * assumed. A live PHPMD 2.15.0 run over this fixture is likewise silent
+ * throughout.
+ */
+it('exempts a member access with a comment before its operator', function (): void {
+    $file = analyzeFixture(LONG_VARIABLE, 'member-access-comments.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});

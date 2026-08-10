@@ -59,7 +59,20 @@ to run separately for it.
 - **Member accesses are exempt.** A variable that is the object on the left of
   `->`, `?->`, or `::`, or the static field on the right of a `::`, is not
   reported: PHPMD skips any node under a `MemberPrimaryPrefix`. Array access is
-  not a member access, so `$someLongArrayName['key']` is still measured.
+  not a member access, so `$someLongArrayName['key']` is still measured. A
+  comment between the variable and its operator makes no difference: PHPMD
+  works from an AST, where a comment is trivia that cannot sit between the two,
+  so the sniff steps over comments as well as whitespace when it looks for the
+  operator.
+- **Each construct is walked once.** A named class, trait, interface, enum, or
+  function is an artifact of PDepend's wherever it is declared — nested inside
+  a function body included — so it is walked in its own right and stepped over
+  by the enclosing walk. PDepend builds no artifact for an **anonymous** class,
+  so one is reached only through whatever encloses it: through the enclosing
+  method or function when it sits in a body, and not at all at file scope,
+  where PHPMD reports neither its fields nor the locals of its methods.
+  `tests/fixtures/LongVariableSniff/nesting.php` pins every one of those shapes
+  against a live PHPMD run.
 - **File scope is out of scope.** PHPMD's rule is `ClassAware`, `MethodAware`,
   `FunctionAware`, and `TraitAware`, and none of those covers code at file
   scope — including a closure declared there, which is not a named function. A
