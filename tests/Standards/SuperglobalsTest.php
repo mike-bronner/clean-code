@@ -276,3 +276,99 @@ it('stays silent on a static property access', function (): void {
 
     expect(array_column(violationTuples($file), 'line'))->not->toContain($staticAccessLine);
 });
+
+/**
+ * Re-measures the two rejected vendor candidates, because the whole case for
+ * writing a custom sniff rests on numbers taken from a run rather than from
+ * either sniff's documentation.
+ *
+ * The lines matter more than the total. Slevomat's twelve are not "the nine
+ * modern names, near enough": nine of them are that block, and the other three
+ * are a variable-variable, a dynamic property read, and a backtick shell-exec,
+ * all reported because the sniff keys on the bare T_VARIABLE token whatever
+ * encloses it. Asserting the lines is what tells those two groups apart, so a
+ * future version that dropped one and gained the other could not keep the total
+ * at twelve and slip through.
+ *
+ * The seven interpolated accesses are the gap this rule could not live with,
+ * and they are the difference between Slevomat's twelve and the sniff's
+ * twenty-six here.
+ */
+it('measures the vendor candidates the comparison table rejects', function (): void {
+    $reportedLines = static function (string $standard, string $source, string $fixture): array {
+        $file = analyzeWithStandard($standard, fixturePath(sniffFixtureDirectory(SUPERGLOBALS), $fixture));
+
+        $lines = array_keys(array_filter(
+            allViolationSourcesByLine($file),
+            static fn (array $sources): bool => in_array($source, $sources, true)
+        ));
+
+        sort($lines);
+
+        return $lines;
+    };
+
+    $slevomat = 'SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable'
+        . '.DisallowedSuperGlobalVariable';
+    $generic = 'Generic.PHP.DisallowRequestSuperglobal.Found';
+
+    $slevomatLines = $reportedLines('SlevomatCodingStandard', $slevomat, 'failing.php');
+    $violations = violationTuples(analyzeFixture(SUPERGLOBALS, 'failing.php'));
+
+    $fixture = file(fixturePath(sniffFixtureDirectory(SUPERGLOBALS), 'failing.php'));
+    $missed = array_filter(
+        array_column($violations, 'line'),
+        static fn (int $line): bool => in_array($line, $slevomatLines, true) === false
+    );
+    $aliases = array_filter(
+        $missed,
+        static fn (int $line): bool => str_contains($fixture[$line - 1], '$HTTP_')
+    );
+
+    expect($slevomatLines)->toBe([13, 14, 15, 16, 17, 18, 19, 20, 21, 56, 57, 67])
+        ->and($reportedLines('SlevomatCodingStandard', $slevomat, 'passing.php'))->toHaveCount(2)
+        ->and($reportedLines('Generic', $generic, 'failing.php'))->toBe([20])
+        ->and($violations)->toHaveCount(26)
+        ->and($aliases)->toHaveCount(7)
+        ->and(array_diff($missed, $aliases))->toHaveCount(7);
+});
+
+/**
+ * Pins the prose to the measurement above. Both the docs table and rules.xml
+ * quote the candidates' counts as fact, and a wrong one there is what a reader
+ * deciding whether this sniff had to exist would act on — the count in the docs
+ * table shipped as 11 and was caught in review, not by a test.
+ *
+ * Each assertion reads the one row or the one comment that makes the claim,
+ * never the whole file: both documents name every count somewhere in their
+ * prose, so a file-wide search for "12 of 26" would pass over the exact cell
+ * edit this test exists to catch.
+ */
+it('quotes those measurements accurately in the docs and in rules.xml', function (): void {
+    $reportsCell = static function (string $candidate): string {
+        $rows = array_filter(
+            file(cleanCodeRoot() . '/docs/phpmd/controversial-superglobals.md'),
+            static fn (string $line): bool => str_starts_with($line, '| `' . $candidate . '` |')
+        );
+
+        expect($rows)->toHaveCount(1);
+
+        return trim(explode('|', (string) array_values($rows)[0])[2]);
+    };
+
+    $comments = [];
+    preg_match_all('/<!--(.*?)-->/s', (string) file_get_contents(cleanCodeRoot() . '/rules.xml'), $comments);
+    $superglobals = array_values(array_filter(
+        $comments[1],
+        static fn (string $comment): bool => str_contains($comment, 'DisallowSuperGlobalVariable was run')
+    ));
+
+    expect($superglobals)->toHaveCount(1);
+
+    $prose = (string) preg_replace('/\s+/', ' ', $superglobals[0]);
+
+    expect($reportsCell('SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable'))->toBe('12 of 26')
+        ->and($reportsCell('Generic.PHP.DisallowRequestSuperglobal'))->toBe('1 of 26')
+        ->and($prose)->toContain('it reports 12 of the 26 accesses in failing.php')
+        ->and($prose)->toContain('it reports 1 of 26');
+});

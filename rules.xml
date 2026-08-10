@@ -1550,12 +1550,16 @@
         which is the question a reader of this file will have.
 
         SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable was run
-        against tests/fixtures/SuperglobalsSniff/ — where it reports 11 of the
+        against tests/fixtures/SuperglobalsSniff/ — where it reports 12 of the
         26 accesses in failing.php — and misses PHPMD's rule at both ends. It
         carries nine names where PHPMD carries sixteen, so every
         PHP 4 long-form alias ($HTTP_POST_VARS and its six siblings) goes
         unreported, and it never looks inside a double-quoted string or a
-        heredoc, so an interpolated "{$_GET['name']}" goes unreported too. In
+        heredoc, so all seven interpolated accesses go unreported too. Its
+        twelve are those nine modern names plus three unusual bare-variable
+        contexts — a variable-variable $$_GET, a dynamic property read
+        $this->{$_POST['field']}, and a backtick shell-exec — which it matches
+        because it keys on the T_VARIABLE token alone, whatever encloses it. In
         the other direction it reports both member *declarations* in
         passing.php (`public $_GET = [];`), which read no superglobal and which
         PHPMD does not report. The sniff exposes no property, so none of that

@@ -88,13 +88,17 @@ have to run separately for this rule.
 
 Two sniffs come close. Both were run against
 `tests/fixtures/SuperglobalsSniff/`, whose `failing.php` holds 26 accesses.
+Every count below is measured at the versions `composer.lock` pins, and
+`tests/Standards/SuperglobalsTest.php` re-measures each of them on every run
+and reads them back out of this table, so a vendor upgrade that moves one fails
+the suite rather than leaving this table to drift.
 
 | Candidate | Reports | Why it was rejected |
 | --- | --- | --- |
-| `SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable` | 11 of 26 | Nine names against PHPMD's sixteen, so every long-form alias goes unreported; never looks inside a string, so every interpolated access goes unreported. In the other direction it reports both member *declarations* in `passing.php`, which PHPMD does not. Exposes no property, so none of it is configurable. |
+| `SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable` | 12 of 26 | Nine names against PHPMD's sixteen, so every long-form alias goes unreported; it also matches on the bare `T_VARIABLE` token alone, whatever encloses it, so its twelve are the nine modern names plus three unusual bare-variable contexts — a variable-variable `$$_GET`, a dynamic property read `$this->{$_POST['field']}`, and a backtick shell-exec `` `ls $_SERVER[PWD]` ``. What it never does is look inside a string token, so all seven interpolated accesses go unreported. In the other direction it reports both member *declarations* in `passing.php`, which PHPMD does not. Exposes no property, so none of it is configurable. |
 | `Generic.PHP.DisallowRequestSuperglobal` | 1 of 26 | Matches the single name `$_REQUEST`. Its message recommends `$_GET`, `$_POST` and `$_COOKIE` as the replacement — the very names this rule exists to forbid. |
 
-Neither matches, so the custom sniff carries the rule.
+Neither matches, so the custom sniff carries the rule, and it reports 26 of 26.
 
 ## Divergences from PHPMD
 
