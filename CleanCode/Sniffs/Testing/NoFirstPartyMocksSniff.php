@@ -48,13 +48,20 @@ use PHP_CodeSniffer\Util\Tokens;
  * - `User` written bare, with no `::class` — the same resolution as the first
  *   case. It is not valid PHP for a mock argument, but it costs nothing to
  *   resolve and the AC names the shape.
+ * - `self::class`, `static::class` and `parent::class` — the same `::class`
+ *   constant naming the enclosing scope instead of writing a name out.
+ *   `$this->createPartialMock(static::class, [...])` is the idiomatic way to
+ *   partial-mock the class a test file is about, so it has to resolve or the
+ *   commonest first-party partial mock of all goes unseen. `self` and `static`
+ *   both resolve to the class the call sits in, and `parent` to the name in
+ *   that class's `extends` clause, resolved like any other written name.
  *
  * Anything else is left alone: a variable (`Mockery::mock($class)`), a
  * concatenation, a constant (`$this->mock(Config::DRIVER)`), a call, or an
  * empty argument list. A name the file's own tokens cannot resolve is not
  * guessed at.
  *
- * Known limits, both by design and both named in #146:
+ * Known limits, three by design and all named in #146:
  *
  * - $mockCreators matches on member *name*, not on receiver type, which a
  *   single-file token scan cannot resolve. `$this->spy(User::class)` and
@@ -64,6 +71,12 @@ use PHP_CodeSniffer\Util\Tokens;
  *   the project's own namespace and so reports, even though the thing being
  *   mocked is external. That gray area is why the rule warns rather than
  *   errors, and it takes the standard per-line suppression.
+ * - `self`, `static` and `parent` only resolve inside a *named class*. In a
+ *   trait or an anonymous class they name a class the file never writes down,
+ *   and `parent` in a class with no `extends` names nothing at all, so each of
+ *   those stays silent rather than being guessed at. `static` resolves to the
+ *   class the call is written in, which is what the file can see; a subclass
+ *   binding it to something else at run time is beyond a single-file scan.
  *
  * Warnings, not errors, matching CleanCode.Testing.NoReflectionAccess and the
  * rest of Testing: Guidelines: the standard is advisory and the two limits
@@ -90,6 +103,32 @@ class NoFirstPartyMocksSniff implements Sniff
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
+    ];
+
+    /**
+     * The keywords that name a class through the scope the call sits in rather
+     * than by writing the name out. PHP_CodeSniffer gives each its own token,
+     * none of them in NAME_TOKENS, so the token-run walk cannot read them.
+     */
+    private const SCOPE_KEYWORDS = [
+        T_SELF,
+        T_STATIC,
+        T_PARENT,
+    ];
+
+    /**
+     * Every scope a class-like declaration opens. `self` and friends resolve
+     * against the innermost of these, and only a named class among them gives
+     * a name the file actually writes down.
+     *
+     * @var array<int, int|string>
+     */
+    private const CLASS_LIKE_SCOPES = [
+        T_CLASS,
+        T_ANON_CLASS,
+        T_TRAIT,
+        T_INTERFACE,
+        T_ENUM,
     ];
 
     /**
@@ -294,16 +333,11 @@ class NoFirstPartyMocksSniff implements Sniff
             return $this->endsTheArgument($phpcsFile, ($argumentPtr + 1)) === true ? $written : null;
         }
 
-        $written = '';
-        $pointer = $argumentPtr;
-
-        for (; isset($tokens[$pointer]) === true; $pointer++) {
-            if (in_array($tokens[$pointer]['code'], self::NAME_TOKENS, true) === false) {
-                break;
-            }
-
-            $written .= $tokens[$pointer]['content'];
+        if (in_array($tokens[$argumentPtr]['code'], self::SCOPE_KEYWORDS, true) === true) {
+            return $this->scopeReference($phpcsFile, $argumentPtr);
         }
+
+        [$written, $pointer] = $this->nameRun($tokens, $argumentPtr);
 
         if ($written === '') {
             return null;
@@ -316,6 +350,163 @@ class NoFirstPartyMocksSniff implements Sniff
         }
 
         return $this->endsTheArgument($phpcsFile, $pointer) === true ? $written : null;
+    }
+
+    /**
+     * The run of name tokens starting at $pointer as source text, paired with
+     * the pointer just past it. Empty text when the first token carries no name.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return array{0: string, 1: int}
+     */
+    private function nameRun(array $tokens, int $pointer): array
+    {
+        $written = '';
+
+        for (; isset($tokens[$pointer]) === true; $pointer++) {
+            if (in_array($tokens[$pointer]['code'], self::NAME_TOKENS, true) === false) {
+                break;
+            }
+
+            $written .= $tokens[$pointer]['content'];
+        }
+
+        return [$written, $pointer];
+    }
+
+    /**
+     * The class the scope keyword at $argumentPtr names, already fully
+     * qualified, or null when the file's own tokens do not say which class
+     * that is.
+     *
+     * A leading separator is what tells resolve() the name is qualified
+     * already, the same handoff the string-literal branch makes: the name comes
+     * from a declaration in this file, not from a written reference, so it must
+     * not be sent back through the imports.
+     *
+     * The keyword has to carry a `::class` suffix to name a class at all.
+     * Without one it is some other use of the same word — `self::DRIVER` names
+     * a constant, and `static fn () => null` a closure — so skipClassConstant()
+     * leaving the pointer where it started is a rejection here, not a bare name
+     * as it is on the written-name path.
+     */
+    private function scopeReference(File $phpcsFile, int $argumentPtr): ?string
+    {
+        $afterKeyword = ($argumentPtr + 1);
+        $pointer = $this->skipClassConstant($phpcsFile, $afterKeyword);
+
+        if ($pointer === null || $pointer === $afterKeyword) {
+            return null;
+        }
+
+        if ($this->endsTheArgument($phpcsFile, $pointer) === false) {
+            return null;
+        }
+
+        $name = $this->scopeClassName($phpcsFile, $argumentPtr);
+
+        return $name === null ? null : '\\' . $name;
+    }
+
+    /**
+     * The fully-qualified name the scope keyword at $keywordPtr resolves to.
+     *
+     * `self` and `static` both give the class the keyword is written in. They
+     * differ only at run time, where `static` binds to the subclass actually
+     * called — which no single-file scan can see, so the class in front of it
+     * is what both resolve to. `parent` gives the `extends` clause instead,
+     * which *is* a written reference and so resolves through the imports.
+     */
+    private function scopeClassName(File $phpcsFile, int $keywordPtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $classPtr = $this->enclosingClass($tokens, $keywordPtr);
+
+        if ($classPtr === null) {
+            return null;
+        }
+
+        if ($tokens[$keywordPtr]['code'] === T_PARENT) {
+            return $this->parentName($phpcsFile, $classPtr);
+        }
+
+        $declared = $phpcsFile->getDeclarationName($classPtr);
+
+        if ($declared === null) {
+            return null;
+        }
+
+        [$namespace] = $this->fileScope($phpcsFile);
+
+        return $this->join($namespace, $declared);
+    }
+
+    /**
+     * The pointer to the named class the token at $pointer sits directly
+     * inside, or null when the innermost class-like scope around it is not one.
+     *
+     * Innermost is the whole point: `self` inside an anonymous class declared
+     * in a method names that anonymous class, not the method's own class, so an
+     * enclosing named class further out must not be reached for. A trait and an
+     * anonymous class have no name the file writes down, an interface and an
+     * enum cannot be mocked into existence, and outside every class-like scope
+     * the keyword names nothing — all four end here rather than being guessed.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function enclosingClass(array $tokens, int $pointer): ?int
+    {
+        $conditions = array_reverse($tokens[$pointer]['conditions'], true);
+
+        foreach ($conditions as $conditionPtr => $code) {
+            if (in_array($code, self::CLASS_LIKE_SCOPES, true) === false) {
+                continue;
+            }
+
+            return $code === T_CLASS ? $conditionPtr : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * The fully-qualified name in the `extends` clause of the class at
+     * $classPtr, or null when it has none.
+     *
+     * Both searches are bounded by the class's own opening brace, so a class
+     * without an `extends` clause cannot reach into the next declaration's and
+     * borrow its parent. A class whose brace never arrives has no bound to
+     * search within and so returns null rather than scanning to the end of the
+     * file — unreachable from here, since a keyword can only sit inside a body
+     * the opener starts, but it is what makes the bound safe to read.
+     */
+    private function parentName(File $phpcsFile, int $classPtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$classPtr]['scope_opener']) === false) {
+            return null;
+        }
+
+        $openerPtr = $tokens[$classPtr]['scope_opener'];
+        $extendsPtr = $phpcsFile->findNext(T_EXTENDS, ($classPtr + 1), $openerPtr);
+
+        if ($extendsPtr === false) {
+            return null;
+        }
+
+        // Searching for the name itself rather than skipping the whitespace in
+        // front of it also settles an `extends` with no name after it at all.
+        $namePtr = $phpcsFile->findNext(self::NAME_TOKENS, ($extendsPtr + 1), $openerPtr);
+
+        if ($namePtr === false) {
+            return null;
+        }
+
+        [$written] = $this->nameRun($tokens, $namePtr);
+
+        return $this->resolve($phpcsFile, $written);
     }
 
     /**

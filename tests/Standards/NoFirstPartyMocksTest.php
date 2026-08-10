@@ -8,9 +8,10 @@
  * the property-configurability triple in configured.php, the per-line
  * suppression in suppressed.php, the header-walk boundary in class-body-use.php,
  * the string-literal escaping in escaped-literals.php, the group-import
- * emptiness guard in group-import-trailing-comma.php and the three end-of-file
- * truncations in unterminated-*.php. The rule is detection-only, so there is no
- * autofixed fixture.
+ * emptiness guard in group-import-trailing-comma.php, the scope keywords in
+ * scope-keywords.php and the three end-of-file truncations in
+ * unterminated-*.php. The rule is detection-only, so there is no autofixed
+ * fixture.
  *
  * $firstPartyNamespaces ships EMPTY on the sniff class, so every assertion here
  * that expects a warning depends on rules.xml configuring `App` — which is the
@@ -494,6 +495,87 @@ it('honours per-line phpcs:ignore suppression', function (): void {
             19 => [FIRST_PARTY_MOCKS_WARNING],
             20 => [FIRST_PARTY_MOCKS_WARNING],
         ]);
+});
+
+/**
+ * `self::class`, `static::class` and `parent::class` are the same `::class`
+ * constant the AC names, naming the enclosing scope instead of writing a name
+ * out — and `$this->createPartialMock(static::class, [...])` is the idiomatic
+ * way to partial-mock the class a test file is about, so leaving them
+ * unresolved would miss the commonest first-party partial mock there is.
+ * PHP_CodeSniffer gives each keyword its own token (T_SELF, T_STATIC, T_PARENT),
+ * none of them among the name tokens the ordinary run walk reads.
+ *
+ * Flagged, lines 69 to 72: `self::class` and `static::class` both resolve to
+ * the class the call is written in, `parent::class` to the `extends` clause,
+ * and `SELF::class` proves the keywords are matched as tokens rather than by
+ * spelling. Registering only one of the three keywords silences the other two,
+ * so the four lines pin the list as well as the resolution. Line 71 needs its
+ * message rather than its line — `User` resolves through the file's import to
+ * `App\Models\User`, and joining the extends clause to the current namespace
+ * instead yields `App\Tests\Unit\User`, still first-party, still warned, same
+ * line, wrong class.
+ *
+ * Silent, each verified by mutation — the mutation named against each line is
+ * the one that makes that line report:
+ *
+ * - line 9, outside every class-like scope: there is no enclosing class to
+ *   name. Falling back to the file's first class flags it.
+ * - line 17, inside a trait: `self` names whichever class uses the trait.
+ *   Resolving any class-like scope rather than a named one flags it as
+ *   `App\Tests\Unit\Doubles`.
+ * - line 30, inside an anonymous class nested in a method: `self` names the
+ *   anonymous class. Dropping T_ANON_CLASS from the class-like scopes lets the
+ *   walk reach past it to AnonymousHostTest and flag the line.
+ * - line 40, `parent::class` in a class extending a vendor one — resolved,
+ *   through the import, to a class that is correctly not first-party. Reading
+ *   `parent` as the enclosing class instead flags it.
+ * - line 50, `parent::class` in a class whose `extends` has no name after it,
+ *   as a file caught mid-edit leaves it. Dropping the guard for that takes the
+ *   whole run down with a TypeError rather than misreporting.
+ * - line 61, `parent::class` in a class with no `extends` clause at all. Both
+ *   searches parentName() makes are bounded by that class's own brace, and the
+ *   two bounds express one invariant — either alone still holds the line, and
+ *   dropping *both* finds the `extends User` of the class declared next and
+ *   flags lines 50 and 61 together.
+ * - line 83, `self::class . 'Proxy'` — a concatenation, so the reference is not
+ *   the whole argument.
+ * - line 88, a bare `self` with no `::class` at all. The written-name path
+ *   accepts a bare `User` (failing.php line 23) because a name is a name
+ *   whatever follows it; a keyword names a class only through the constant.
+ *
+ * Three shapes here are covered rather than pinned, and that is said outright
+ * instead of being left to imply coverage, as the compliant-fixture test above
+ * does for its own two:
+ *
+ * - line 78, `self::DRIVER`, is rejected by the same `::class` check the
+ *   written-name path uses, which passing.php line 29 already pins. It is kept
+ *   as the keyword-path instance of that shape, not as new coverage.
+ * - lines 79-80, a `static` closure, is guarded twice over — the keyword
+ *   carries no `::class`, and `function` does not end the argument either — so
+ *   neither guard alone reports it.
+ * - scopeClassName()'s rejection of a declaration PHPCS gives no name for has
+ *   no discriminating fixture at all: the only unnamed class there is
+ *   tokenizes as T_ANON_CLASS, which enclosingClass() has already stopped on.
+ *   Deleting it changes no result here (verified by mutation). It is kept so
+ *   the method fails closed on a name it does not have rather than joining a
+ *   null.
+ */
+it('resolves self, static and parent to the class the call sits in', function (): void {
+    $file = analyzeFixture(FIRST_PARTY_MOCKS, 'scope-keywords.php');
+    $warnings = $file->getWarnings();
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($warnings))->toBe([
+            69 => [FIRST_PARTY_MOCKS_WARNING],
+            70 => [FIRST_PARTY_MOCKS_WARNING],
+            71 => [FIRST_PARTY_MOCKS_WARNING],
+            72 => [FIRST_PARTY_MOCKS_WARNING],
+        ])
+        ->and($warnings[69][37][0]['message'])->toContain('Mocking App\Tests\Unit\UserServiceTest,')
+        ->and($warnings[70][42][0]['message'])->toContain('Mocking App\Tests\Unit\UserServiceTest,')
+        ->and($warnings[71][36][0]['message'])->toContain('Mocking App\Models\User,')
+        ->and($warnings[72][36][0]['message'])->toContain('Mocking App\Tests\Unit\UserServiceTest,');
 });
 
 /**

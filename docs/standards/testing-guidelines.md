@@ -124,6 +124,13 @@ lands on the same answer:
 | `Support\Clock::class` | `App\Tests\Unit\Support\Clock` — current namespace |
 | `'App\Models\User'` | `App\Models\User` — a string is never resolved through imports |
 | `'App\\Models\\User'` | `App\Models\User` — a doubled separator is an escape in either quote style |
+| `self::class`, `static::class` | `App\Tests\Unit\UserTest` — the class the call is written in |
+| `parent::class` | the `extends` clause of that class, resolved like any other written name |
+
+`self`, `static` and `parent` matter more than they look:
+`$this->createPartialMock(static::class, [...])` is the idiomatic way to
+partial-mock the class a test file is about, so leaving it unresolved would
+miss the commonest first-party partial mock there is.
 
 A reference the file's own tokens cannot resolve — a variable, a call, a
 concatenation, a constant that is not `::class` — is left alone rather than
@@ -156,7 +163,8 @@ and gates this rule the same way.
 
 ### Known limits
 
-Both are by design, and both are why the rule warns rather than errors:
+All three are by design, and the first two are why the rule warns rather than
+errors:
 
 - `mockCreators` matches on member **name**, not on receiver type, which a
   single-file token scan cannot resolve. `$surveillance->spy(User::class)`
@@ -164,8 +172,14 @@ Both are by design, and both are why the rule warns rather than errors:
 - A **facade or contract that wraps a genuinely external service** lives in the
   project's own namespace and so reports, even though the thing being mocked is
   external. This is the gray area the standard's own wording leaves open.
+- `self`, `static` and `parent` resolve **only inside a named class**. In a
+  trait or an anonymous class they name a class the file never writes down, and
+  `parent` in a class with no `extends` names nothing at all, so each of those
+  stays silent. `static` resolves to the class the call is written in; a
+  subclass binding it to something else at run time is beyond a single-file
+  scan.
 
-Both take the ordinary per-line suppression:
+The first two take the ordinary per-line suppression:
 
 ```php
 // phpcs:ignore CleanCode.Testing.NoFirstPartyMocks.Found
