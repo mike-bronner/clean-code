@@ -112,6 +112,13 @@ you will reach for:
   cover the case?" — the one a new custom sniff has to settle, and the one a
   vendor upgrade can quietly change the answer to.
 - `buildRuleset()` — `[$config, $ruleset]`, for asserting a sniff is registered.
+- `installedPhpcsViolations($standard, $path, $sniffCode)` — the only helper
+  that leaves this process: it runs the installed `vendor/bin/phpcs` binary,
+  from a working directory outside the package, and returns what one sniff
+  reported. Use it for a smoke test that the *shipped* package works, and
+  nothing else — every in-process helper here supplies the standards
+  registration itself, so none of them can tell a registered package from an
+  unregistered one.
 - `violationSourcesByLine()`, `violationCountsByLine()`, `violationTuples()`,
   `allViolationSourcesByLine()`, `violationFixableFlags()` — collapse PHPCS's
   nested `line => column => violations` structure into something assertable.
