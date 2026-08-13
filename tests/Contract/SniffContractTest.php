@@ -21,10 +21,11 @@
  *     DisallowStaticMembers, DisallowCountInLoopExpression,
  *     DisallowExitExpression, DisallowBooleanArgumentFlag,
  *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
- *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
+ *     ExcessiveParameterList, CyclomaticComplexity, ExcessiveClassComplexity,
+ *     ExcessivePublicCount,
  *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
  *     ShortMethodName, ShortVariable, LineLength, ConstructorName,
- *     DiscourageGoto, Eval, NoSilencedErrors, VariableAnalysis) carry
+ *     DiscourageGoto, Eval, NoSilencedErrors, VariableAnalysis, ShortMethodName, Superglobals) carry
  *     passing.php and failing.php
  *     but no autofixed.php, because there is no safe mechanical rewrite.
  *
@@ -83,10 +84,12 @@ const SWEPT_SNIFFS = [
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.ControlStructures.DisallowCountInLoopExpression',
     'CleanCode.ControlStructures.DisallowExitExpression',
+    'CleanCode.Controversial.Superglobals',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
+    'CleanCode.Metrics.CyclomaticComplexity',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.TooManyFields',
