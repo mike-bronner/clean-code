@@ -326,8 +326,17 @@
         it reads the way it does: match(true) guard chains instead of if
         (CleanCode.Conditionals.AvoidConditionals), the File API instead of the
         token array (CleanCode.Arrays.ArrayAccessors, whose data_get()
-        replacement is a Laravel helper this package does not ship), and a
-        NOWDOC message (CleanCode.Strings.MultilineStrings).
+        replacement is a Laravel helper this package does not ship), a max()
+        fold instead of array_map()/array_filter()
+        (CleanCode.Arrays.ConvertToCollection, whose collect() replacement is
+        another helper this package does not ship), and a NOWDOC message
+        (CleanCode.Strings.MultilineStrings).
+
+        tests/Standards/ManualModelResolutionTest.php asserts that run reports
+        nothing, warnings included. Until it did, the claim above was only a
+        comment: CleanCode.Arrays.ConvertToCollection landed after this sniff
+        and flagged its array_map()/array_filter() pair, so the run had been
+        exiting 1 with nothing to catch it.
 
         One line carries a phpcs:ignore, the only one in the package. PHPCS's
         Sniff interface declares process()'s $stackPtr untyped, and PHP treats

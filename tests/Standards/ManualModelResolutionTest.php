@@ -50,6 +50,47 @@ it('is registered in the master ruleset', function (): void {
 });
 
 /**
+ * The sniff's own source passes rules.xml, the standard it belongs to — the
+ * claim rules.xml makes about this file, and the reason the file reads the way
+ * it does: match(true) guard chains instead of if
+ * (CleanCode.Conditionals.AvoidConditionals), the File API instead of the token
+ * array (CleanCode.Arrays.ArrayAccessors), a max() fold instead of
+ * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection) and a
+ * NOWDOC message (CleanCode.Strings.MultilineStrings). The three Arrays and
+ * Strings replacements are all Laravel helpers this package does not ship, so
+ * each has to be written around rather than adopted.
+ *
+ * Asserted here because nothing else does. The claim was written when the file
+ * was, then quietly falsified by a *later* sibling standard —
+ * CleanCode.Arrays.ConvertToCollection landed afterwards and flagged the
+ * array_map()/array_filter() pair in innermostConditionPointer(), so the run
+ * had been exiting 1 rather than 0 with no test to notice. Warnings are counted
+ * alongside errors on purpose: this sniff reports warnings itself, so a check
+ * that read errors only would have stayed green through exactly the drift that
+ * happened.
+ *
+ * Every sniff wired into rules.xml is active, not just this one, because the
+ * claim is about the whole standard. Run through the *installed* phpcs rather
+ * than an in-process ruleset, because "exits 0" is a claim about the binary a
+ * consumer runs — the same reason CyclomaticComplexityTest.php reaches for this
+ * helper. An empty report is exactly that claim: phpcs exits non-zero whenever
+ * it reports anything at all, warnings included, so zero messages and exit 0
+ * are the same statement.
+ *
+ * Confirmed non-vacuous by restoring the array_map()/array_filter() spelling,
+ * which reddens this assertion with exactly two
+ * CleanCode.Arrays.ConvertToCollection.Found warnings and nothing else.
+ */
+it('passes the standard it belongs to', function (): void {
+    $report = installedPhpcsReport(
+        cleanCodeRoot() . '/rules.xml',
+        cleanCodeRoot() . '/CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php'
+    );
+
+    expect(array_column($report, 'source'))->toBe([]);
+});
+
+/**
  * The compliant action and every near-miss stay silent — a false positive on
  * any of them makes the rule unusable. Most groups pin one of the sniff's
  * early returns, confirmed by deleting that check and watching this fixture
