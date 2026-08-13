@@ -593,6 +593,39 @@
     -->
 
     <!--
+        PHPMD Naming: ShortVariable (#106) —
+        docs/phpmd/naming-shortvariable.md.
+
+        No PHPCS, Generic, Squiz or Slevomat sniff measures variable-name
+        length: Squiz.NamingConventions.ValidVariableName (wired in above)
+        judges casing and underscores, VariableAnalysis judges whether a
+        variable is defined and used, and Slevomat ships no name-length rule.
+        The custom CleanCode.Naming.ShortVariable sniff covers it, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above — no per-sniff
+        registration is needed, and this comment records that no scoping is
+        wanted either.
+
+        The sniff reports errors directly, so there is no severity to raise:
+        phpcs already exits non-zero on a violation, the way phpmd does.
+
+        PHPMD's two properties are carried over under their own names and
+        defaults (minimum=3, exceptions=""), so a phpmd.xml configuration
+        transfers unchanged. Exception names are written without the `$`
+        sigil, as phpmd compares them:
+
+            <rule ref="CleanCode.Naming.ShortVariable">
+                <properties>
+                    <property name="minimum" value="4"/>
+                    <property name="exceptions" value="id,to"/>
+                </properties>
+            </rule>
+
+        Detection only, matching PHPMD: renaming a variable means rewriting
+        every read and write of it, and for a property or parameter every
+        caller too, so there is no safe mechanical rewrite.
+    -->
+
+    <!--
         PHPMD Naming: ShortMethodName (#111) —
         docs/phpmd/naming-shortmethodname.md.
 
