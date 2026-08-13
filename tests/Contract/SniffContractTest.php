@@ -1,77 +1,8 @@
 <?php
 
-/**
- * The three-fixture contract every per-sniff fixture directory follows:
- *
- *   passing.php    code the sniff must leave alone
- *   failing.php    code the sniff must flag
- *   autofixed.php  phpcbf's output for failing.php (fixable sniffs only)
- *
- * This is the generic sweep. It proves each sniff is wired into rules.xml and
- * broadly does the right thing on each fixture; the exact line, column, and
- * violation-source assertions live in the per-sniff files under
- * tests/Standards, tests/Rules, and tests/Ruleset.
- *
- * passing.php and failing.php are the floor: every sniff in this sweep carries
- * both. The only axis on which coverage varies is the fixer —
- *
- *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ApiControllerNamespace, ArrayAccessors,
- *     DisallowElse, DuplicatedArrayKey, OperatorLineBreak,
- *     DisallowStaticMembers, DisallowCountInLoopExpression,
- *     DisallowExitExpression, DisallowBooleanArgumentFlag,
- *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
- *     ExcessiveParameterList, CyclomaticComplexity, ExcessiveClassComplexity,
- *     ExcessivePublicCount,
- *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
- *     ShortMethodName, ShortVariable, LineLength, ConstructorName,
- *     DiscourageGoto, Eval, NoSilencedErrors, VariableAnalysis, ShortMethodName, Superglobals) carry
- *     passing.php and failing.php
- *     but no autofixed.php, because there is no safe mechanical rewrite.
- *
- * — which is why the contract is expressed as separate datasets rather than one
- * list. An autofixed.php is never a substitute for a passing.php: it is the
- * fixer's own output, so asserting a sniff is silent on it tests the fixer
- * twice and the compliant form never. CleanCode.Conditionals.OneConditionPerLine
- * makes that concrete — its autofixed.php deliberately retains a non-fixable
- * violation, so it could not stand in for a passing fixture even in principle.
- *
- * The other axis the datasets split on is *severity*. A detection-only sniff
- * whose violations are warnings rather than errors still carries both floor
- * fixtures, but "flags the failing fixture" has to look at the warning list —
- * asserting on errors would pass against a sniff that says nothing at all. The
- * two severities therefore have their own failing-fixture assertions, fed from
- * SWEPT_SNIFFS and SWEPT_WARNING_SNIFFS. The merged 'every swept sniff' dataset
- * feeds every severity-neutral assertion — registration and both halves of the
- * passing fixture — so neither list can be added to and forgotten there.
- *
- * Three sniffs are deliberately absent from every dataset. A path-scoped sniff
- * cannot be swept: the sweep processes each fixture where it lives, under
- * tests/, and PHPCS decides path scoping from the file's path alone — so the
- * failing fixture reports nothing whatever the sniff does, and the passing
- * assertion would hold against a sniff that had fallen silent altogether.
- * Both such sniffs stage their fixtures outside the repository instead, and
- * pin the scoping itself in their own file.
- *
- *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
- *     out of test paths. It is covered in
- *     tests/Standards/DisallowExternalPersistenceCallsTest.php.
- *   - CleanCode.Files.NoProceduralCode — rules.xml scopes it *into* source
- *     paths (src/, app/) with <include-pattern>. It is covered in
- *     tests/Standards/NoProceduralCodeTest.php.
- *   - The naming casing conventions — a composite standard carried by three
- *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
- *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
- */
 
 declare(strict_types=1);
 
-/**
- * Every error-reporting sniff the sweep covers. passing.php and failing.php
- * are the contract's floor, and both are asserted from this one list rather
- * than a list written out twice: a sniff cannot be added to one and forgotten
- * in the other.
- */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Arrays.DuplicatedArrayKey',
@@ -89,6 +20,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
+    'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.CyclomaticComplexity',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',

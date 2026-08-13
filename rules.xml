@@ -1086,6 +1086,53 @@
     -->
 
     <!--
+        PHPMD Design: CouplingBetweenObjects (#114) —
+        docs/phpmd/design-couplingbetweenobjects.md.
+
+        No PHPCS or Slevomat sniff counts the distinct types a class names.
+        SlevomatCodingStandard.Namespaces.UnusedUses below sees imports but only
+        to reject the unused ones, SlevomatCodingStandard.Complexity.Cognitive
+        scores one method's control flow, and Generic.Metrics.* cover cyclomatic
+        complexity and nesting depth. So this is the custom
+        CleanCode.Metrics.CouplingBetweenObjects sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/CouplingBetweenObjectsTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        maximum=13, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        The threshold is inclusive, matching PHPMD: its rule class reports when
+        the metric is greater than or equal to maximum, so exactly 13
+        dependencies is already a violation. phpmd.org's "maximum number of
+        acceptable dependencies" and #114's acceptance criteria both read like a
+        strict `>`; a live PHPMD 2.15.0 run disagrees with them, and the tool is
+        what this package replaces. tests/fixtures/CouplingBetweenObjectsSniff/
+        boundaries.php pins 12/13/14 against PHPMD's measured output.
+
+        As with the sniffs above, no <type> override is needed: the sniff raises
+        errors already, so a violation fails a phpcs run the way it fails a
+        phpmd run.
+
+        Four shapes diverge from PHPMD 2.15.0, all deliberate and all measured
+        against a live install. An unused import is counted here and not there —
+        #114 makes imports a dependency source, and the gap is unobservable in
+        code this ruleset passes, because UnusedUses below already rejects an
+        unused import. A nested anonymous class is scored as its own scope
+        rather than folded into its host, matching what ExcessivePublicCount and
+        TooManyFields above already do. `mixed` and `object` are not counted,
+        though PDepend models both as class types. Docblock-only types are not
+        read, because the TypeHints rules above already require the declaration.
+        All four are pinned by tests/fixtures/CouplingBetweenObjectsSniff/ and
+        set out in docs/phpmd/design-couplingbetweenobjects.md.
+
+        Detection only: cutting a class's dependencies means moving behaviour to
+        another object, which is a design decision and not a mechanical rewrite.
+        PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessivePublicCount (#96) —
         docs/phpmd/codesize-excessivepubliccount.md.
 
