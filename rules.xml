@@ -312,6 +312,33 @@
     -->
 
     <!--
+        Controllers: Route Model Binding (#50) —
+        docs/standards/controllers-route-model-binding.md.
+
+        The custom CleanCode.Controllers.ManualModelResolution sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records that no scoping is wanted. The sniff only ever speaks
+        inside a class whose name ends in Controller, so it is already silent
+        everywhere else, tests included.
+
+        The sniff's own source passes this ruleset — a phpcs run of
+        ManualModelResolutionSniff.php against rules.xml exits 0 — which is why
+        it reads the way it does: match(true) guard chains instead of if
+        (CleanCode.Conditionals.AvoidConditionals), the File API instead of the
+        token array (CleanCode.Arrays.ArrayAccessors, whose data_get()
+        replacement is a Laravel helper this package does not ship), and a
+        NOWDOC message (CleanCode.Strings.MultilineStrings).
+
+        One line carries a phpcs:ignore, the only one in the package. PHPCS's
+        Sniff interface declares process()'s $stackPtr untyped, and PHP treats
+        adding a native hint to an inherited untyped parameter as narrowing:
+        writing the int that
+        SlevomatCodingStandard.TypeHints.ParameterTypeHint asks for is a fatal
+        error that stops the sniff loading. The suppression names that single
+        code on that single line and says why; the return hint, which has no
+        such constraint, is written rather than suppressed.
+  -->
+      <!--
         Controllers: No Business Logic (#48/#141) —
         docs/standards/controllers-no-business-logic.md.
 
