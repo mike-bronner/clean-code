@@ -205,6 +205,36 @@
         standards speaking, not one diagnostic twice.
     -->
 
+    <!--
+        Conditionals: Combine Where Possible (#21, sniff scoped by #181) —
+        docs/standards/conditionals-combine-where-possible.md.
+
+        The custom CleanCode.Conditionals.CombinableConditions sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. It warns on
+        each branch of two shapes: adjacent branches of one if/elseif chain
+        with identical bodies, and adjacent separate plain `if` statements
+        whose identical bodies unconditionally exit the scope. Both rewrites
+        preserve behaviour exactly; everything else this standard covers does
+        not, and stays with code review.
+
+        No existing PHPCS or Slevomat sniff covers this. The nearest neighbours
+        answer different questions: Slevomat's ControlStructures.EarlyExit and
+        .RequireTernaryOperator rewrite one branch without ever comparing it to
+        another, .UselessIfConditionWithReturn reads a condition against its
+        own body, and Generic's cyclomatic-complexity metrics count branches
+        without relating them. Relating two adjacent branches to each other is
+        the whole of this standard's trigger pattern. That is pinned, not
+        merely asserted: "leaves the combinable conditional to no other sniff
+        in the ruleset" in tests/Standards/CombinableConditionsTest.php runs the
+        whole of rules.xml over a fixture holding nothing but the two flagged
+        shapes, and fails if anything else starts speaking about them.
+
+        Warning, not error, and detection only. Whether a combined condition
+        reads better than two is a judgement, and phpcbf cannot make it.
+
+        No <properties> block: the sniff has no thresholds to configure.
+    -->
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
@@ -550,6 +580,61 @@
     </rule>
 
     <!--
+        Testing: Development Process (TDD) (#57), test-existence slice (#128) —
+        docs/standards/testing-development-process-tdd.md.
+
+        The custom CleanCode.Testing.RequireTestFile sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the standard's other
+        catchable slice: a concrete class under the source directory with no
+        companion test file is out of compliance whatever process produced it.
+        Test-first *order* is not recoverable from a file and stays with code
+        review, as it does for the classes-only slice above.
+
+        No <include-pattern>, and this is deliberately unlike the
+        NoProceduralCode block above. That sniff never looks at the file's path,
+        so the ruleset has to scope it; this one resolves a companion *from* the
+        path and so has to read it anyway. Its sourceDirectories property is
+        both the scope and the mapping's anchor, which keeps the two from
+        disagreeing — the same arrangement CleanCode.Testing.NoReflectionAccess
+        uses for the inverse case. A project whose classes live elsewhere
+        retunes the property instead of overriding this ruleset.
+
+        Nothing shipped covers this, and nothing could without touching the
+        filesystem: the answer is not in the file being linted. Of every sniff
+        in PHP_CodeSniffer 3.x and Slevomat 8.x, exactly two read the disk at
+        all — Generic.VersionControl.SubversionProperties reads .svn/props and
+        Generic.Debug.ESLint shells out to a linter — and neither knows what a
+        test file is. No sniff in either standard mentions companion tests,
+        coverage, or a source-to-test mapping.
+
+        No <properties> are configured. The shipped mapping is the PSR-4 mirror
+        (src/Foo/Bar.php -> tests/Foo/BarTest.php, with app/ as the second
+        source root), and each half is retuned on its own. A Laravel application
+        splitting its suite into Unit/ and Feature/ points the test root one
+        level deeper, and framework scaffolding is opted out by path:
+
+            <rule ref="CleanCode.Testing.RequireTestFile">
+                <properties>
+                    <property name="testDirectory" value="tests/*"/>
+                    <property name="excludePatterns" type="array">
+                        <element value="*/Providers/*"/>
+                        <element value="*/database/migrations/*"/>
+                    </property>
+                </properties>
+            </rule>
+
+        excludePatterns ships empty on purpose: which scaffolding is exempt is a
+        property of the application, not of the standard.
+
+        Warnings, not errors, matching NoReflectionAccess and the rest of the
+        Testing standards. The rule reads a project's layout off a configurable
+        convention and cannot prove it guessed right, so a misread must not fail
+        a consumer's build. Detection only — the fix is writing the test, and no
+        fixer can write it.
+    -->
+
+    <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
@@ -590,6 +675,39 @@
         with coverage through the public API is a redesign of the test with no
         mechanical rewrite. Legitimate Reflection in a test takes the ordinary
         per-line phpcs:ignore.
+    -->
+
+    <!--
+        PHPMD Naming: ShortVariable (#106) —
+        docs/phpmd/naming-shortvariable.md.
+
+        No PHPCS, Generic, Squiz or Slevomat sniff measures variable-name
+        length: Squiz.NamingConventions.ValidVariableName (wired in above)
+        judges casing and underscores, VariableAnalysis judges whether a
+        variable is defined and used, and Slevomat ships no name-length rule.
+        The custom CleanCode.Naming.ShortVariable sniff covers it, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above — no per-sniff
+        registration is needed, and this comment records that no scoping is
+        wanted either.
+
+        The sniff reports errors directly, so there is no severity to raise:
+        phpcs already exits non-zero on a violation, the way phpmd does.
+
+        PHPMD's two properties are carried over under their own names and
+        defaults (minimum=3, exceptions=""), so a phpmd.xml configuration
+        transfers unchanged. Exception names are written without the `$`
+        sigil, as phpmd compares them:
+
+            <rule ref="CleanCode.Naming.ShortVariable">
+                <properties>
+                    <property name="minimum" value="4"/>
+                    <property name="exceptions" value="id,to"/>
+                </properties>
+            </rule>
+
+        Detection only, matching PHPMD: renaming a variable means rewriting
+        every read and write of it, and for a property or parameter every
+        caller too, so there is no safe mechanical rewrite.
     -->
 
     <!--
@@ -881,6 +999,62 @@
     -->
 
     <!--
+        PHPMD CodeSize: CyclomaticComplexity (#88) —
+        docs/phpmd/codesize-cyclomaticcomplexity.md.
+
+        Generic.Metrics.CyclomaticComplexity is the obvious candidate and it
+        cannot express this rule. PHPMD reads PDepend's `ccn2` metric; that
+        sniff counts a fixed token list of its own, and the two disagree in
+        both directions, so no threshold offset reconciles them. Measured
+        against live PHPMD 2.15.0 and PHP_CodeSniffer 3.13.6 over identical
+        fixtures: `1 if + 10 &&` is 12 to PHPMD and 2 to PHPCS (PHPCS counts no
+        boolean operator); a `switch` with 2 cases and a `default` is 3 to
+        PHPMD and 4 to PHPCS (PHPCS counts `default:`); a body of `??`, `?->`,
+        and `match` is 1 to PHPMD and 4 to PHPCS. PHPMD also reports at or
+        ABOVE its reportLevel while that sniff reports strictly above its
+        complexity, so a declaration measuring exactly 10 is reported by PHPMD
+        and passed over by PHPCS.
+
+        So this is the custom CleanCode.Metrics.CyclomaticComplexity sniff,
+        with its own token walk rather than a subclass or a configuration of
+        the Generic one, picked up automatically via the ./CleanCode/ruleset.xml
+        ref above — no per-sniff registration is needed, and
+        tests/Standards/CyclomaticComplexityTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        There is no <rule> block below it, for the reason TooManyFields records:
+        the sniff wants no scoping, and its one property, `reportLevel`, already
+        defaults to the 10 PHPMD's codesize.xml ships, so repeating that number
+        here would only create a second place for it to drift. A project wanting
+        a different level sets the property in its own ruleset:
+
+            <rule ref="CleanCode.Metrics.CyclomaticComplexity">
+                <properties>
+                    <property name="reportLevel" value="8"/>
+                </properties>
+            </rule>
+
+        The sniff reports errors, not warnings, so an over-complex declaration
+        fails a phpcs run the way it fails a phpmd run; a warning would leave
+        phpcs exiting 0 and phpmd would still have to run for this rule.
+
+        One divergence from PHPMD 2.15.0, measured and pinned by
+        tests/fixtures/CyclomaticComplexitySniff/divergences.php: a method of an
+        anonymous class is reported here and is invisible to PHPMD, which never
+        surfaces those methods to the rule at all. The extra report keeps this
+        ruleset a superset — the direction a mapping may safely differ in.
+
+        PHPMD's `showClassesComplexity` property is vestigial in 2.15.0 (the
+        rule is FunctionAware and MethodAware, never ClassAware), so
+        class-level complexity is out of scope here. That aggregate is a
+        separate PHPMD rule, mapped to
+        CleanCode.Metrics.ExcessiveClassComplexity below.
+
+        Detection only, matching PHPMD. Breaking a declaration into smaller ones
+        is a design change with no mechanical rewrite.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessiveClassComplexity (#87) —
         docs/phpmd/codesize-excessiveclasscomplexity.md.
 
@@ -1025,6 +1199,53 @@
         Detection only: collapsing a parameter list into an object means
         introducing that object and rewriting every call site, which is a
         design change with no mechanical rewrite. PHPMD offers no fix either.
+    -->
+
+    <!--
+        PHPMD Design: CouplingBetweenObjects (#114) —
+        docs/phpmd/design-couplingbetweenobjects.md.
+
+        No PHPCS or Slevomat sniff counts the distinct types a class names.
+        SlevomatCodingStandard.Namespaces.UnusedUses below sees imports but only
+        to reject the unused ones, SlevomatCodingStandard.Complexity.Cognitive
+        scores one method's control flow, and Generic.Metrics.* cover cyclomatic
+        complexity and nesting depth. So this is the custom
+        CleanCode.Metrics.CouplingBetweenObjects sniff, picked up automatically
+        via the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/CouplingBetweenObjectsTest.php asserts the
+        sniff resolves from this master ruleset.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        maximum=13, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        The threshold is inclusive, matching PHPMD: its rule class reports when
+        the metric is greater than or equal to maximum, so exactly 13
+        dependencies is already a violation. phpmd.org's "maximum number of
+        acceptable dependencies" and #114's acceptance criteria both read like a
+        strict `>`; a live PHPMD 2.15.0 run disagrees with them, and the tool is
+        what this package replaces. tests/fixtures/CouplingBetweenObjectsSniff/
+        boundaries.php pins 12/13/14 against PHPMD's measured output.
+
+        As with the sniffs above, no <type> override is needed: the sniff raises
+        errors already, so a violation fails a phpcs run the way it fails a
+        phpmd run.
+
+        Four shapes diverge from PHPMD 2.15.0, all deliberate and all measured
+        against a live install. An unused import is counted here and not there —
+        #114 makes imports a dependency source, and the gap is unobservable in
+        code this ruleset passes, because UnusedUses below already rejects an
+        unused import. A nested anonymous class is scored as its own scope
+        rather than folded into its host, matching what ExcessivePublicCount and
+        TooManyFields above already do. `mixed` and `object` are not counted,
+        though PDepend models both as class types. Docblock-only types are not
+        read, because the TypeHints rules above already require the declaration.
+        All four are pinned by tests/fixtures/CouplingBetweenObjectsSniff/ and
+        set out in docs/phpmd/design-couplingbetweenobjects.md.
+
+        Detection only: cutting a class's dependencies means moving behaviour to
+        another object, which is a design decision and not a mechanical rewrite.
+        PHPMD offers no fix either.
     -->
 
     <!--
@@ -1569,4 +1790,58 @@
             <property name="ignorepattern" value="(^(set|get|is|has|with))i"/>
         </properties>
     </rule>
+
+    <!--
+        PHPMD Controversial: Superglobals (#90) —
+        docs/phpmd/controversial-superglobals.md.
+
+        Two sniffs come close and neither matches, so this is the custom
+        CleanCode.Controversial.Superglobals sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above. No block is needed here to
+        enable it; this one records why the vendor candidates were rejected,
+        which is the question a reader of this file will have.
+
+        SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable was run
+        against tests/fixtures/SuperglobalsSniff/ — where it reports 12 of the
+        26 accesses in failing.php — and misses PHPMD's rule at both ends. It
+        carries nine names where PHPMD carries sixteen, so every
+        PHP 4 long-form alias ($HTTP_POST_VARS and its six siblings) goes
+        unreported, and it never looks inside a double-quoted string or a
+        heredoc, so all seven interpolated accesses go unreported too. Its
+        twelve are those nine modern names plus three unusual bare-variable
+        contexts — a variable-variable $$_GET, a dynamic property read
+        $this->{$_POST['field']}, and a backtick shell-exec — which it matches
+        because it keys on the T_VARIABLE token alone, whatever encloses it. In
+        the other direction it reports both member *declarations* in
+        passing.php (`public $_GET = [];`), which read no superglobal and which
+        PHPMD does not report. The sniff exposes no property, so none of that
+        is configurable away.
+
+        Generic.PHP.DisallowRequestSuperglobal is narrower still. Its name and
+        its message both read as though it covered several, but it matches the
+        single name $_REQUEST and recommends $_GET, $_POST and $_COOKIE as the
+        replacement — the very names PHPMD's rule exists to forbid. Run against
+        tests/fixtures/SuperglobalsSniff/failing.php it reports 1 of 26.
+
+        The sniff reports errors, not warnings, for the reason Squiz.PHP.Eval
+        and VariableAnalysis above are raised to error: PHPMD fails a run on
+        this violation, and a warning would leave phpcs exiting 0, so phpmd
+        would still have to run separately for this rule.
+
+        PHPMD's rule has no threshold and no configurable property, so there is
+        nothing to pin here the way TooManyMethods above pins its two.
+
+        Detection only, matching PHPMD: replacing a superglobal read with an
+        injected request abstraction depends on which abstraction the project
+        uses and on what the value is for.
+
+        Stricter than PHPMD on two shapes — file-scope access, which PHPMD's
+        MethodAware/FunctionAware rule never inspects, and the ${name}
+        interpolation form, which PDepend does not model. Both are true
+        superglobal reads and both are kept, for the same reason the extra
+        VariableAnalysis and DisallowExitExpression reports are kept. Narrower
+        on one — `self::$_POST`, where `::` binds the name to a static property
+        and PHPMD's three reports are false positives. All three shapes are
+        pinned by tests/fixtures/SuperglobalsSniff/divergences.php.
+    -->
 </ruleset>

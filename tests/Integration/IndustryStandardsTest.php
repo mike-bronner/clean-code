@@ -27,6 +27,14 @@ const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
 /**
+ * The short-variable rule (#106). This fixture assigns a two-letter `$id`,
+ * which is one character below the rule's default minimum, so it is reported
+ * where the name first occurs — the same kind of structural fixture noise as
+ * UNDEFINED above, pinned rather than seeded away for the same reason.
+ */
+const SHORT_NAME = 'CleanCode.Naming.ShortVariable.TooShort';
+
+/**
  * The DRY standard's block comparison (#134). Both exception fixtures below are
  * built from five near-identical try/catch blocks that differ only in the type
  * they catch, so a copy-paste detector reporting them is the two standards
@@ -251,7 +259,7 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
             20 => [UNDEFINED],
             23 => [UNDEFINED],
             25 => [ACCESSOR, UNDEFINED],
-            30 => [ACCESSOR, UNDEFINED],
+            30 => [ACCESSOR, SHORT_NAME, UNDEFINED],
             38 => [UNDEFINED],
             41 => [ACCESSOR, UNDEFINED],
             45 => [UNDEFINED, UNDEFINED],
