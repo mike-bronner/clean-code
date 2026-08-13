@@ -1,6 +1,5 @@
 <?php
 
-
 declare(strict_types=1);
 
 const SWEPT_SNIFFS = [
@@ -48,11 +47,6 @@ const SWEPT_SNIFFS = [
     'VariableAnalysis.CodeAnalysis.VariableAnalysis',
 ];
 
-/**
- * The same floor, for sniffs that report warnings instead of errors. Kept as
- * its own list purely so the failing-fixture assertion can read the right
- * violation list; every other assertion treats the two alike.
- */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
@@ -85,14 +79,6 @@ dataset('autofixable sniffs', [
     'SlevomatCodingStandard.Namespaces.UnusedUses',
 ]);
 
-/**
- * Every autofixable sniff except CleanCode.Conditionals.OneConditionPerLine,
- * whose failing.php deliberately includes a split single condition wrapping a
- * comment: that violation is reported but withheld from the fixer, because
- * rejoining the condition would have to decide where the comment goes. Its
- * autofixed.php therefore legitimately retains one non-fixable error, pinned
- * exactly in tests/Standards/OneConditionPerLineTest.php.
- */
 dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Operators.NotOperatorSpacing',

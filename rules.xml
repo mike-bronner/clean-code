@@ -550,6 +550,61 @@
     </rule>
 
     <!--
+        Testing: Development Process (TDD) (#57), test-existence slice (#128) —
+        docs/standards/testing-development-process-tdd.md.
+
+        The custom CleanCode.Testing.RequireTestFile sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the standard's other
+        catchable slice: a concrete class under the source directory with no
+        companion test file is out of compliance whatever process produced it.
+        Test-first *order* is not recoverable from a file and stays with code
+        review, as it does for the classes-only slice above.
+
+        No <include-pattern>, and this is deliberately unlike the
+        NoProceduralCode block above. That sniff never looks at the file's path,
+        so the ruleset has to scope it; this one resolves a companion *from* the
+        path and so has to read it anyway. Its sourceDirectories property is
+        both the scope and the mapping's anchor, which keeps the two from
+        disagreeing — the same arrangement CleanCode.Testing.NoReflectionAccess
+        uses for the inverse case. A project whose classes live elsewhere
+        retunes the property instead of overriding this ruleset.
+
+        Nothing shipped covers this, and nothing could without touching the
+        filesystem: the answer is not in the file being linted. Of every sniff
+        in PHP_CodeSniffer 3.x and Slevomat 8.x, exactly two read the disk at
+        all — Generic.VersionControl.SubversionProperties reads .svn/props and
+        Generic.Debug.ESLint shells out to a linter — and neither knows what a
+        test file is. No sniff in either standard mentions companion tests,
+        coverage, or a source-to-test mapping.
+
+        No <properties> are configured. The shipped mapping is the PSR-4 mirror
+        (src/Foo/Bar.php -> tests/Foo/BarTest.php, with app/ as the second
+        source root), and each half is retuned on its own. A Laravel application
+        splitting its suite into Unit/ and Feature/ points the test root one
+        level deeper, and framework scaffolding is opted out by path:
+
+            <rule ref="CleanCode.Testing.RequireTestFile">
+                <properties>
+                    <property name="testDirectory" value="tests/*"/>
+                    <property name="excludePatterns" type="array">
+                        <element value="*/Providers/*"/>
+                        <element value="*/database/migrations/*"/>
+                    </property>
+                </properties>
+            </rule>
+
+        excludePatterns ships empty on purpose: which scaffolding is exempt is a
+        property of the application, not of the standard.
+
+        Warnings, not errors, matching NoReflectionAccess and the rest of the
+        Testing standards. The rule reads a project's layout off a configurable
+        convention and cannot prove it guessed right, so a misread must not fail
+        a consumer's build. Detection only — the fix is writing the test, and no
+        fixer can write it.
+    -->
+
+    <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
