@@ -72,6 +72,68 @@ it('flags every superfluous blank line at its own line', function (): void {
     ])->and($file->getWarnings())->toBe([]);
 });
 
+/**
+ * The two brace edges are driven from one table in checkBraces(), whose rows
+ * carry the diagnostic's code and message alongside the scan geometry. Only
+ * the geometry — start line, direction, limit — steers detection and the
+ * fixer, so swapping the two rows' labels would leave every reported line,
+ * every count and every auto-fixed byte identical while each violation named
+ * the opposite edge. The codes are the sniff's public contract (a consumer
+ * silences one edge with `phpcs:ignore
+ * CleanCode.WhiteSpace.BlankLines.AfterOpeningBrace`), so they are pinned
+ * here per line: a run below an opening brace reports AfterOpeningBrace, a run
+ * above a closing brace reports BeforeClosingBrace, and a run touching
+ * neither reports ConsecutiveBlankLines.
+ */
+it('labels every violation with the code for the edge it sits at', function (): void {
+    $file = analyzeFixture(BLANK_LINES, 'failing.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        41 => [BLANK_LINES . '.ConsecutiveBlankLines'],
+        48 => [BLANK_LINES . '.ConsecutiveBlankLines'],
+        52 => [BLANK_LINES . '.ConsecutiveBlankLines'],
+        60 => [BLANK_LINES . '.AfterOpeningBrace'],
+        71 => [BLANK_LINES . '.BeforeClosingBrace'],
+        76 => [BLANK_LINES . '.AfterOpeningBrace'],
+        78 => [BLANK_LINES . '.BeforeClosingBrace'],
+        83 => [BLANK_LINES . '.AfterOpeningBrace'],
+        87 => [BLANK_LINES . '.BeforeClosingBrace'],
+        94 => [BLANK_LINES . '.AfterOpeningBrace'],
+        98 => [BLANK_LINES . '.BeforeClosingBrace'],
+        104 => [BLANK_LINES . '.AfterOpeningBrace'],
+        106 => [BLANK_LINES . '.BeforeClosingBrace'],
+        110 => [BLANK_LINES . '.AfterOpeningBrace'],
+        112 => [BLANK_LINES . '.BeforeClosingBrace'],
+        117 => [BLANK_LINES . '.AfterOpeningBrace'],
+        122 => [BLANK_LINES . '.AfterOpeningBrace'],
+        131 => [BLANK_LINES . '.ConsecutiveBlankLines'],
+        135 => [BLANK_LINES . '.AfterOpeningBrace'],
+        142 => [BLANK_LINES . '.AfterOpeningBrace'],
+        144 => [BLANK_LINES . '.BeforeClosingBrace'],
+        148 => [BLANK_LINES . '.AfterOpeningBrace'],
+        152 => [BLANK_LINES . '.BeforeClosingBrace'],
+        157 => [BLANK_LINES . '.BeforeClosingBrace'],
+        165 => [BLANK_LINES . '.BeforeClosingBrace'],
+    ]);
+});
+
+/**
+ * The message half of the same table row, which a code-only assertion cannot
+ * see: the opener wording lands on a run below an opening brace and the closer
+ * wording on a run above a closing brace, each carrying its own blank-line
+ * count. Both a single-line run (60, 71) and a multi-line one (122, 165) are
+ * pinned, so a message swapped between the rows and a count read from the
+ * wrong end are both caught.
+ */
+it('words every brace diagnostic for the edge it sits at', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(BLANK_LINES, 'failing.php')->getErrors());
+
+    expect($messages[60])->toBe(['Expected no blank lines after an opening brace; found 1'])
+        ->and($messages[122])->toBe(['Expected no blank lines after an opening brace; found 2'])
+        ->and($messages[71])->toBe(['Expected no blank lines before a closing brace; found 1'])
+        ->and($messages[165])->toBe(['Expected no blank lines before a closing brace; found 2']);
+});
+
 it('auto-fixes the failing fixture into the autofixed fixture', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 
