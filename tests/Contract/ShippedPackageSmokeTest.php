@@ -23,12 +23,12 @@
  *   canned message — would pass every positive assertion in the file.
  *
  * The coverage is derived from SWEPT_SNIFFS and SWEPT_WARNING_SNIFFS in
- * tests/Contract/SniffContractTest.php rather than listed here, so a
- * CleanCode.* sniff added to those datasets is swept from the moment it lands
- * and this gap cannot reopen one sniff at a time. Third-party entries in those
- * same datasets are out of scope: this package configures Generic.*,
- * SlevomatCodingStandard.*, Squiz.PHP.Eval and VariableAnalysis.* but did not
- * author them, and their own suites cover their own shipping.
+ * tests/Sniffs.php rather than listed here, so a CleanCode.* sniff added to
+ * those datasets is swept from the moment it lands and this gap cannot reopen
+ * one sniff at a time. Third-party entries in those same datasets are out of
+ * scope: this package configures Generic.*, SlevomatCodingStandard.*,
+ * Squiz.PHP.Eval and VariableAnalysis.* but did not author them, and their own
+ * suites cover their own shipping.
  *
  * The two path-scoped custom sniffs are not in those datasets at all —
  * PHP_CodeSniffer decides their scoping from the file's real location, so they
@@ -159,19 +159,33 @@ it('sweeps every custom sniff the swept datasets carry', function (): void {
 
 /**
  * An exclusion is only ever legitimate while the sniff it names is still swept
- * and still reaches the shipped binary somewhere. Both halves are checked here
- * rather than taken on the comment's word, so an entry left behind by a sniff
- * that was renamed, retired, or quietly stopped being registered fails instead
- * of shrinking the sweep by one.
+ * and still reaches the shipped binary in both directions. All three are checked
+ * here rather than taken on the comment's word, so an entry left behind by a
+ * sniff that was renamed, retired, or quietly stopped being registered fails
+ * instead of shrinking the sweep by one.
  *
- * Deliberately thin: what the excluded sniff reports, line by line, is its own
- * test's subject and is not restated here.
+ * Both directions, not just the failing one, because one direction is exactly
+ * what an exclusion must not be able to buy its way out with: the sweep this
+ * list removes a sniff from asserts the pair, and a sniff covered elsewhere by
+ * a positive assertion alone is covered by something weaker than what it left.
+ * That gap was real — CleanCode.Metrics.CyclomaticComplexity carried only the
+ * positive half when it was first excluded here.
+ *
+ * The negative half deliberately restates what the excluded sniff's own file
+ * also asserts, because the two answer different questions: that file covers
+ * that sniff, this one holds the bar every future entry has to clear. An
+ * exclusion whose sole coverage was later weakened or deleted elsewhere fails
+ * here regardless. The positive half stays thin — what the sniff reports, line
+ * by line, is its own test's subject and is not restated.
  */
 it('keeps every excluded sniff justified', function (string $sniffCode): void {
-    $run = installedSniffFixtureRun($sniffCode, 'failing.php');
+    $failing = installedSniffFixtureRun($sniffCode, 'failing.php');
+    $passing = installedSniffFixtureRun($sniffCode, 'passing.php');
 
     expect(array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS))->toContain($sniffCode)
-        ->and(array_column($run['messages'], 'source'))->not->toBeEmpty()
+        ->and($passing['messages'])->toBe([])
+        ->and($passing['status'])->toBe(0)
+        ->and(array_column($failing['messages'], 'source'))->not->toBeEmpty()
         ->each->toStartWith($sniffCode . '.');
 })->with('shipped smoke exclusions');
 

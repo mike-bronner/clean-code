@@ -110,15 +110,18 @@ const AUTOFIXABLE_SNIFFS = [
  * because it already carries that exact end-to-end coverage of its own.
  *
  * An entry here removes a sniff from the sweep, so the bar for adding one is
- * that the sniff is smoke-tested somewhere else in full. That is enforced, not
- * left to this comment: the sweep's own tests re-read this list, fail when an
- * entry stops being swept or stops reaching the shipped binary, and fail again
- * on any entry the list did not already carry.
+ * that the sniff is smoke-tested somewhere else in full — both directions
+ * through the shipped binary, which is what the sweep gives up on its behalf.
+ * That is enforced, not left to this comment: the sweep's own tests re-read this
+ * list, fail when an entry stops being swept or stops reaching the shipped
+ * binary in either direction, and fail again on any entry the list did not
+ * already carry.
  */
 const SHIPPED_SMOKE_EXCLUSIONS = [
-    // tests/Standards/CyclomaticComplexityTest.php's
-    // 'reports the violation end to end through the installed package', which
-    // landed with #88 and additionally runs the standard by name.
+    // tests/Standards/CyclomaticComplexityTest.php's 'reports the violation end
+    // to end through the installed package', which landed with #88 and
+    // additionally runs the standard by name, paired with its 'stays silent on
+    // its compliant fixture through the installed package'.
     'CleanCode.Metrics.CyclomaticComplexity',
 ];
 
