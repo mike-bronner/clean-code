@@ -941,6 +941,37 @@
     -->
 
     <!--
+        PHPMD Naming: LongVariable (#108) —
+        docs/phpmd/naming-longvariable.md.
+
+        No PHPCS, Generic, or Slevomat sniff measures a variable name's length.
+        The three ValidVariableName sniffs (PEAR, Zend, Squiz) all check casing
+        and the underscore convention instead, and Slevomat's Variables sniffs
+        are about usefulness and reuse, not names. So the custom
+        CleanCode.Naming.LongVariable sniff carries this rule. It is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no configuration is wanted. The sniff's defaults already
+        are PHPMD's (maximum 20, no subtracted prefixes or suffixes), and it
+        reports an error out of the box, so — as with LongClassName above —
+        there is no <type>error</type> override to make for phpcs to fail the
+        run the way phpmd does.
+
+        The sniff matches PHPMD 2.15.0 on every fixture under
+        tests/fixtures/LongVariableSniff/ except divergences.php, which exists
+        to pin the two places it deliberately does not: a trait's parameters and
+        locals are reported once here and twice by PHPMD, and a name that only
+        ever appears interpolated into a string is reported by PHPMD and not
+        here, PHPCS having tokenised the string whole. A PHP 8.4 property hook
+        is a gap rather than a divergence — PHPMD cannot parse one — and
+        property-hooks.php pins that a hooked property is measured while the
+        insides of its hooks are not.
+
+        Detection only, matching PHPMD: renaming a variable means rewriting
+        every reference to it, and for a field every reference across the
+        codebase, which a single-file, token-based fixer cannot do safely.
+    -->
+
+    <!--
         PHPMD CleanCode: ErrorControlOperator (#82) —
         docs/phpmd/cleancode-errorcontroloperator.md.
 
