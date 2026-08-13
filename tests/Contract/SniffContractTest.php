@@ -1,68 +1,11 @@
 <?php
 
+/**
+ * The floor every sniff wired into rules.xml has to clear, swept across the
+ * enumerations in tests/Sniffs.php rather than restated here.
+ */
+
 declare(strict_types=1);
-
-const SWEPT_SNIFFS = [
-    'CleanCode.Arrays.ArrayAccessors',
-    'CleanCode.Arrays.DuplicatedArrayKey',
-    'CleanCode.Classes.DisallowStaticMembers',
-    'CleanCode.Classes.ExcessiveClassLength',
-    'CleanCode.Classes.TooManyPublicMethods',
-    'CleanCode.ClearCode.OneThoughtPerLine',
-    'CleanCode.CodeSize.TooManyMethods',
-    'CleanCode.Conditionals.DisallowElse',
-    'CleanCode.Conditionals.OneConditionPerLine',
-    'CleanCode.ControlStructures.DisallowCountInLoopExpression',
-    'CleanCode.ControlStructures.DisallowExitExpression',
-    'CleanCode.Controversial.Superglobals',
-    'CleanCode.Debug.DisallowDebugFunctions',
-    'CleanCode.Functions.DisallowBooleanArgumentFlag',
-    'CleanCode.Functions.ExcessiveMethodLength',
-    'CleanCode.Functions.ExcessiveParameterList',
-    'CleanCode.Metrics.CouplingBetweenObjects',
-    'CleanCode.Metrics.CyclomaticComplexity',
-    'CleanCode.Metrics.ExcessiveClassComplexity',
-    'CleanCode.Metrics.ExcessivePublicCount',
-    'CleanCode.Metrics.TooManyFields',
-    'CleanCode.Naming.BooleanGetMethodName',
-    'CleanCode.Naming.LongClassName',
-    'CleanCode.Naming.LongVariable',
-    'CleanCode.Naming.ShortClassName',
-    'CleanCode.Naming.ShortMethodName',
-    'CleanCode.Naming.ShortVariable',
-    'CleanCode.Operators.NotOperatorSpacing',
-    'CleanCode.Operators.OperatorLineBreak',
-    'CleanCode.Routes.ApiControllerNamespace',
-    'CleanCode.Strings.MultilineStrings',
-    'CleanCode.WhiteSpace.BlankLines',
-    'Generic.ControlStructures.InlineControlStructure',
-    'Generic.Files.LineLength',
-    'Generic.NamingConventions.ConstructorName',
-    'Generic.PHP.DiscourageGoto',
-    'Generic.PHP.NoSilencedErrors',
-    'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
-    'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
-    'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
-    'SlevomatCodingStandard.Namespaces.UnusedUses',
-    'Squiz.PHP.Eval',
-    'VariableAnalysis.CodeAnalysis.VariableAnalysis',
-];
-
-const SWEPT_WARNING_SNIFFS = [
-    'CleanCode.Arrays.ConvertToCollection',
-    'CleanCode.Classes.DisallowConstructorInstantiation',
-    'CleanCode.Conditionals.AvoidConditionals',
-    'CleanCode.Controllers.ManualModelResolution',
-    'CleanCode.Constructors.PrimaryConstructorDelegation',
-    'CleanCode.Conditionals.CombinableConditions',
-    'CleanCode.Conditionals.MappingArrayCandidate',
-    'CleanCode.Controllers.NoCustomActions',
-    'CleanCode.Models.DisallowAlwaysOnEagerLoading',
-    'CleanCode.Models.RequireLazyLoadingPrevention',
-    'CleanCode.Naming.DisallowMagicNumbers',
-    'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
-    'CleanCode.Testing.NoReflectionAccess',
-];
 
 dataset('every swept sniff', array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS));
 
@@ -70,18 +13,7 @@ dataset('error-reporting sniffs', SWEPT_SNIFFS);
 
 dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 
-dataset('autofixable sniffs', [
-    'CleanCode.ClearCode.OneThoughtPerLine',
-    'CleanCode.Conditionals.OneConditionPerLine',
-    'CleanCode.Operators.NotOperatorSpacing',
-    'CleanCode.Strings.MultilineStrings',
-    'CleanCode.WhiteSpace.BlankLines',
-    'Generic.ControlStructures.InlineControlStructure',
-    'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
-    'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
-    'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
-    'SlevomatCodingStandard.Namespaces.UnusedUses',
-]);
+dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
 dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.ClearCode.OneThoughtPerLine',
