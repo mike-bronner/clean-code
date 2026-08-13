@@ -1594,4 +1594,58 @@
             <property name="ignorepattern" value="(^(set|get|is|has|with))i"/>
         </properties>
     </rule>
+
+    <!--
+        PHPMD Controversial: Superglobals (#90) —
+        docs/phpmd/controversial-superglobals.md.
+
+        Two sniffs come close and neither matches, so this is the custom
+        CleanCode.Controversial.Superglobals sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above. No block is needed here to
+        enable it; this one records why the vendor candidates were rejected,
+        which is the question a reader of this file will have.
+
+        SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable was run
+        against tests/fixtures/SuperglobalsSniff/ — where it reports 12 of the
+        26 accesses in failing.php — and misses PHPMD's rule at both ends. It
+        carries nine names where PHPMD carries sixteen, so every
+        PHP 4 long-form alias ($HTTP_POST_VARS and its six siblings) goes
+        unreported, and it never looks inside a double-quoted string or a
+        heredoc, so all seven interpolated accesses go unreported too. Its
+        twelve are those nine modern names plus three unusual bare-variable
+        contexts — a variable-variable $$_GET, a dynamic property read
+        $this->{$_POST['field']}, and a backtick shell-exec — which it matches
+        because it keys on the T_VARIABLE token alone, whatever encloses it. In
+        the other direction it reports both member *declarations* in
+        passing.php (`public $_GET = [];`), which read no superglobal and which
+        PHPMD does not report. The sniff exposes no property, so none of that
+        is configurable away.
+
+        Generic.PHP.DisallowRequestSuperglobal is narrower still. Its name and
+        its message both read as though it covered several, but it matches the
+        single name $_REQUEST and recommends $_GET, $_POST and $_COOKIE as the
+        replacement — the very names PHPMD's rule exists to forbid. Run against
+        tests/fixtures/SuperglobalsSniff/failing.php it reports 1 of 26.
+
+        The sniff reports errors, not warnings, for the reason Squiz.PHP.Eval
+        and VariableAnalysis above are raised to error: PHPMD fails a run on
+        this violation, and a warning would leave phpcs exiting 0, so phpmd
+        would still have to run separately for this rule.
+
+        PHPMD's rule has no threshold and no configurable property, so there is
+        nothing to pin here the way TooManyMethods above pins its two.
+
+        Detection only, matching PHPMD: replacing a superglobal read with an
+        injected request abstraction depends on which abstraction the project
+        uses and on what the value is for.
+
+        Stricter than PHPMD on two shapes — file-scope access, which PHPMD's
+        MethodAware/FunctionAware rule never inspects, and the ${name}
+        interpolation form, which PDepend does not model. Both are true
+        superglobal reads and both are kept, for the same reason the extra
+        VariableAnalysis and DisallowExitExpression reports are kept. Narrower
+        on one — `self::$_POST`, where `::` binds the name to a static property
+        and PHPMD's three reports are false positives. All three shapes are
+        pinned by tests/fixtures/SuperglobalsSniff/divergences.php.
+    -->
 </ruleset>
