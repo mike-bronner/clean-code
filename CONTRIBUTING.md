@@ -64,6 +64,14 @@ Anything beyond the three gets a **descriptive** name saying what it exercises �
 a `<name>.fixed.php` sibling if it has expected fixer output. Never a numeric
 suffix.
 
+A sniff that reads the file's **path** puts those extra fixtures in a
+subdirectory spelling the path out, because the three fixed names also fix the
+directory the fixture sits in, and that directory is not the one the sniff needs
+to see. `ApiControllerNamespaceSniff/app/Http/Controllers/API/` is the example:
+`passing.php` and `failing.php` can only ever exercise the namespace half of
+that rule, so the path half lives one level down. Subdirectories are invisible
+to the contract sweep, which looks only for the three fixed names.
+
 A standard implemented by **several** sniffs at once (TypeHints, the operator
 spacing pair, the naming casing conventions) has no single owning sniff, so its
 fixtures live in `tests/fixtures/_rulesets/<Standard>/` under the same names.
@@ -104,6 +112,13 @@ you will reach for:
   cover the case?" — the one a new custom sniff has to settle, and the one a
   vendor upgrade can quietly change the answer to.
 - `buildRuleset()` — `[$config, $ruleset]`, for asserting a sniff is registered.
+- `installedPhpcsViolations($standard, $path, $sniffCode)` — the only helper
+  that leaves this process: it runs the installed `vendor/bin/phpcs` binary,
+  from a working directory outside the package, and returns what one sniff
+  reported. Use it for a smoke test that the *shipped* package works, and
+  nothing else — every in-process helper here supplies the standards
+  registration itself, so none of them can tell a registered package from an
+  unregistered one.
 - `violationSourcesByLine()`, `violationCountsByLine()`, `violationTuples()`,
   `allViolationSourcesByLine()`, `violationFixableFlags()` — collapse PHPCS's
   nested `line => column => violations` structure into something assertable.
@@ -136,12 +151,20 @@ in and what applies the `<properties>` configured there.
    `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
 
-   A sniff **scoped by path** in `rules.xml` is the one exception: the sweep
-   processes each fixture where it lives, under `tests/`, and PHPCS decides
-   path scoping from the file's path alone, so the failing fixture would report
-   nothing. Leave it out of the datasets, record why in the sweep's docblock
-   beside the sniffs already listed there, and drive its fixtures from
-   `stageFixtureOutsideTests()` in its own test file instead.
+   A sniff **scoped by path** is the one exception: the sweep processes each
+   fixture where it lives, under `tests/`, and the scoping is decided from the
+   file's path alone, so the failing fixture would report nothing. That covers
+   a sniff scoped by `rules.xml` with an `<include-pattern>`/`<exclude-pattern>`
+   and one that scopes itself from its own property — the sweep configures
+   nothing, so a property-scoped sniff cannot even be pointed at its own
+   fixtures there. Leave it out of the datasets, record why in the sweep's
+   docblock beside the sniffs already listed there, and reach its fixtures from
+   its own test file instead: `stageFixtureOutsideTests()` when the path only
+   has to *match* a rule, or a small committed project under the fixture
+   directory when the rule's answer depends on other files really being there.
+   `CleanCode.Testing.RequireTestFile` is the second shape — it resolves a
+   companion test, so `tests/fixtures/RequireTestFileSniff/` holds `src/`,
+   `app/` and `tests/` trees whose contents are the thing under test.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and

@@ -15,6 +15,7 @@
 declare(strict_types=1);
 
 use PHP_CodeSniffer\Config;
+use PHP_CodeSniffer\Files\DummyFile;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -197,6 +198,26 @@ function analyzeWithSniffs(array $sniffCodes, string $path, ?callable $configure
 }
 
 /**
+ * Processes source through a ruleset narrowed to the given sniff codes, as
+ * piped input with no path — PHPCS reports the file name as STDIN.
+ *
+ * A sniff that reads the file's location has to say nothing when there is no
+ * location to read, and that behaviour cannot be reached through a fixture on
+ * disk: every fixture has a path.
+ *
+ * @param array<int, string> $sniffCodes
+ */
+function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
+{
+    [$config, $ruleset] = buildRuleset($sniffCodes);
+
+    $file = new DummyFile($source, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, resolving the
  * fixture directory from the sniff code.
  *
@@ -209,6 +230,22 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
         fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
         $configure
     );
+}
+
+/**
+ * Processes a fixture through a ruleset narrowed to one sniff, with a single
+ * public property set the way a consuming ruleset's <properties> would set it.
+ * The shorthand for the common case of exercising one configurable threshold.
+ */
+function analyzeFixtureWithProperty(
+    string $sniffCode,
+    string $fixture,
+    string $property,
+    mixed $value
+): LocalFile {
+    return analyzeFixture($sniffCode, $fixture, static function (object $sniff) use ($property, $value): void {
+        $sniff->{$property} = $value;
+    });
 }
 
 /**
@@ -332,6 +369,116 @@ function analyzeWithConfiguredRuleset(
     $file->process();
 
     return $file;
+}
+
+/**
+ * Runs the *installed* phpcs binary out of process and returns the violations
+ * it reports for one sniff, as a list of `['line' => int, 'message' => string]`
+ * in report order.
+ *
+ * Every other helper above drives PHPCS in process through ConfigDouble, which
+ * blanks the CodeSniffer.conf Composer wrote at install time and has
+ * restoreInstalledPaths() put the standards back by hand. That is the right
+ * harness for asserting what a sniff measures, but it cannot answer whether the
+ * *shipped* package works: the scaffolding supplies the registration a consumer
+ * gets from Composer, so a package that never registered itself would pass all
+ * the same. This helper uses none of it — it executes vendor/bin/phpcs the way
+ * a consumer does, reading the real CodeSniffer.conf.
+ *
+ * $standard is passed to `--standard` verbatim, so it takes either a ruleset
+ * file's path (rules.xml, the file a consumer points at) or an installed
+ * standard's name (CleanCode). The run happens from a working directory
+ * *outside* the package, which is what keeps those two distinct: PHPCS resolves
+ * `--standard=CleanCode` against the working directory first, so run from the
+ * package root the name would find ./CleanCode/ruleset.xml as a plain relative
+ * path and prove nothing about the package being installed at all. Measured,
+ * not assumed — from the package root the name still resolves with the
+ * package's installed_paths entry deleted; from outside it does not.
+ *
+ * Nothing narrows the run to one sniff, because narrowing is what a consumer
+ * does not do; $sniffCode filters the report afterwards instead.
+ *
+ * Every way this can fail to measure anything throws rather than returning an
+ * empty list: a missing binary, a process that will not start, output that is
+ * not the expected JSON report, or a report naming other than exactly the one
+ * file asked about. An assertion of "no violations" must never be satisfiable
+ * by a run that never happened.
+ *
+ * @return array<int, array{line: int, message: string}>
+ */
+function installedPhpcsViolations(string $standard, string $path, string $sniffCode): array
+{
+    $report = installedPhpcsReport($standard, $path);
+    $violations = [];
+
+    foreach ($report as $message) {
+        if ($message['source'] === $sniffCode) {
+            $violations[] = ['line' => (int) $message['line'], 'message' => (string) $message['message']];
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * The messages the installed phpcs reports for $path, unfiltered.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function installedPhpcsReport(string $standard, string $path): array
+{
+    $binary = cleanCodeRoot() . '/vendor/bin/phpcs';
+
+    if (is_file($binary) === false) {
+        throw new RuntimeException("the installed phpcs binary is missing at {$binary}; run composer install");
+    }
+
+    $arguments = [PHP_BINARY, $binary, '--standard=' . $standard, '--report=json', '--no-cache', $path];
+    [$stdout, $stderr] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
+
+    $decoded = json_decode($stdout, true);
+    $files = is_array($decoded) === true ? $decoded['files'] ?? null : null;
+
+    if (is_array($files) === false) {
+        throw new RuntimeException("phpcs produced no JSON report for {$path}; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    if (count($files) !== 1) {
+        throw new RuntimeException('phpcs reported on ' . count($files) . " files, expected only {$path}");
+    }
+
+    return reset($files)['messages'] ?? [];
+}
+
+/**
+ * Runs $command from a working directory outside the package and returns its
+ * stdout and stderr.
+ *
+ * phpcs exits non-zero whenever it reports anything at all, so the exit status
+ * says nothing a caller can use and is deliberately not returned; what a failed
+ * run leaves behind is unparseable stdout, which installedPhpcsReport() throws
+ * on.
+ *
+ * @return array{0: string, 1: string}
+ */
+function runOutsidePackage(string $command): array
+{
+    $pipes = [];
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open($command, $descriptors, $pipes, sys_get_temp_dir());
+
+    if (is_resource($process) === false) {
+        throw new RuntimeException("could not start: {$command}");
+    }
+
+    $stdout = (string) stream_get_contents($pipes[1]);
+    $stderr = (string) stream_get_contents($pipes[2]);
+
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+
+    return [$stdout, $stderr];
 }
 
 /**
@@ -497,6 +644,28 @@ function allViolationSourcesByLine(LocalFile $file): array
 }
 
 /**
+ * Every violation message on a processed file's errors, in line order, so a
+ * test can assert what a message *says* — the metric a threshold sniff counted,
+ * the name it resolved — rather than only that it was raised.
+ *
+ * @return array<int, string>
+ */
+function violationMessages(LocalFile $file): array
+{
+    $messages = [];
+
+    foreach ($file->getErrors() as $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                $messages[] = $violation['message'];
+            }
+        }
+    }
+
+    return $messages;
+}
+
+/**
  * Every `fixable` flag on a processed file's errors, so a test can assert a
  * rule is detection-only without reaching into PHPCS's nested structure.
  *
@@ -535,6 +704,37 @@ function violationFixableFlags(LocalFile $file): array
  */
 function stageFixtureOutsideTests(string $path, string $subdirectory = ''): string
 {
+    $directory = stagingDirectory($subdirectory);
+    $staged = $directory . '/' . basename($path);
+    copy($path, $staged);
+
+    return $staged;
+}
+
+/**
+ * Writes generated source to a staged fixture and returns its path, for the
+ * cases where a fixture's *size* is the point — committing thousands of
+ * mechanical lines would bury the one thing the test is about.
+ */
+function stageGeneratedFixture(string $filename, string $contents): string
+{
+    $staged = stagingDirectory() . '/' . $filename;
+
+    if (file_put_contents($staged, $contents) === false) {
+        throw new RuntimeException("could not write a generated fixture to {$staged}");
+    }
+
+    return $staged;
+}
+
+/**
+ * A fresh directory outside the repository, tracked by whichever staging
+ * helper called for it. $subdirectory nests the returned path below the
+ * staging root, so a path-scoped sniff can be driven against a path that
+ * matches its rule and against one that does not.
+ */
+function stagingDirectory(string $subdirectory = ''): string
+{
     $root = sys_get_temp_dir() . '/' . uniqid('cleancode-fixture-', true);
     $directory = $subdirectory === '' ? $root : $root . '/' . $subdirectory;
 
@@ -544,8 +744,61 @@ function stageFixtureOutsideTests(string $path, string $subdirectory = ''): stri
 
     stagedFixtures($root);
 
-    $staged = $directory . '/' . basename($path);
-    copy($path, $staged);
+    return $directory;
+}
+
+/**
+ * Builds a small project outside the repository from a map of
+ * `<path relative to the project root> => <file contents>`, and returns the
+ * absolute path of the first entry.
+ *
+ * For the sniffs that read the *filesystem* rather than one file's tokens, and
+ * whose subject is the directory name itself: a directory called `Od*d` or
+ * `Foo[Bar]` is legal on the platforms this package is tested on but not on
+ * Windows, so committing one under tests/fixtures/ would break a checkout
+ * rather than exercise a rule. Staging it at run time keeps the name where it
+ * has to be — on disk, in a real path handed to PHPCS — without putting it in
+ * the tree.
+ *
+ * @param array<string, string> $files
+ */
+function stageProjectOutsideTests(array $files): string
+{
+    $root = stagingDirectory();
+
+    foreach ($files as $relativePath => $contents) {
+        $path = $root . '/' . $relativePath;
+        $directory = dirname($path);
+
+        if (is_dir($directory) === false && mkdir($directory, 0700, true) === false) {
+            throw new RuntimeException("could not stage a project directory at {$directory}");
+        }
+
+        if (file_put_contents($path, $contents) === false) {
+            throw new RuntimeException("could not stage a project file at {$path}");
+        }
+    }
+
+    return $root . '/' . array_key_first($files);
+}
+
+/**
+ * Writes $source to a file named $filename in a directory outside the
+ * repository and returns the path, so a test can compare a sniff's verdict on
+ * the same bytes at a real path and with no path at all.
+ */
+function stageSourceOutsideTests(string $source, string $filename): string
+{
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    stagedFixtures($directory);
+
+    $staged = $directory . '/' . $filename;
+    file_put_contents($staged, $source);
 
     return $staged;
 }
@@ -608,6 +861,32 @@ function removeStagedDirectory(string $directory): void
 }
 
 /**
+ * Reads the complexity CleanCode.Metrics.CyclomaticComplexity measured back out
+ * of each of its reports, keyed by the declaration the message names
+ * ("method process()", "function nested()"), in report order.
+ *
+ * Reading the number rather than only the presence of a report is what makes a
+ * single counting rule discriminating: a test asserting which declarations were
+ * reported holds just as well against a sniff that measures every one of them
+ * wrongly and still lands above the level. A report whose message does not
+ * carry a measurement is skipped rather than guessed at.
+ *
+ * @return array<string, int>
+ */
+function measuredComplexities(LocalFile $file): array
+{
+    $measured = [];
+
+    foreach (violationMessages($file) as $message) {
+        if (preg_match('/^The (\S+ \S+\(\)) has a cyclomatic complexity of (\d+),/', $message, $matches) === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
+        }
+    }
+
+    return $measured;
+}
+
+/**
  * Executes a fixture in an isolated scope and returns the variables it
  * defined, so a fixer's before/after string values can be compared directly.
  *
@@ -625,4 +904,50 @@ function evaluateFixtureVariables(string $path): array
     };
 
     return $load($path);
+}
+
+/**
+ * Source for a file of $depth brace-less single-branch `if`s nested inside one
+ * another, followed by one qualifying if/elseif chain.
+ *
+ * Generated rather than committed because the depth is the whole point: this is
+ * what the mapping-array sniff's nesting-scale test measures against, and
+ * thousands of mechanical lines in tests/fixtures/ would bury it. Returned with
+ * the line its chain heads on, which follows from the depth.
+ *
+ * @return array{0: string, 1: int}
+ */
+function nestedChainFixture(int $depth): array
+{
+    $indent = str_repeat(' ', 8);
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'final class DeepNesting', '{'];
+    $lines[] = '    public function nested(int $code): int';
+    $lines[] = '    {';
+
+    for ($level = 0; $level < $depth; $level++) {
+        $lines[] = $indent . 'if ($code === ' . $level . ')';
+    }
+
+    $lines[] = $indent . 'return 0;';
+    $lines[] = '    }';
+    $lines[] = '';
+    $lines[] = '    public function chain(int $code): int';
+    $lines[] = '    {';
+
+    $chainLine = count($lines) + 1;
+
+    $lines = array_merge($lines, [
+        $indent . 'if ($code === 1) {',
+        $indent . '    return 1;',
+        $indent . '} elseif ($code === 2) {',
+        $indent . '    return 2;',
+        $indent . '} else {',
+        $indent . '    return 3;',
+        $indent . '}',
+        '    }',
+        '}',
+        '',
+    ]);
+
+    return [implode("\n", $lines), $chainLine];
 }
