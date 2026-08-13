@@ -12,6 +12,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+  # #293: manual fallback, so a run missed by a dropped `pull_request` delivery
+  # can be started by hand. GitHub only exposes `workflow_dispatch` after the
+  # definition reaches the default branch, so it is not invokable from this
+  # PR's own branch — see the PR description for the deferred verification.
+  workflow_dispatch:
+
 permissions:
   contents: read
 
