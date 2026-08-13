@@ -40,15 +40,33 @@ it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
-        // exactly-1-space spacing — Squiz supersedes PSR12, no stacking
+        // The preamble's own two one-letter names, reported by the master
+        // ruleset's short-variable rule (#106). Listed for the same reason as
+        // the DisallowMagicNumbers entries below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
+        7 => [
+            'CleanCode.Naming.ShortVariable.TooShort',
+            'CleanCode.Naming.ShortVariable.TooShort',
+        ],
+        // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
+        // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands
+        // this line uses to carry a spacing defect are numeric literals, and
+        // #136 speaks about the one not on its ignore list. Listed for the
+        // same reason as AvoidConditionals below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
         9 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
             'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
         ],
         // concatenation spacing — ConcatenationSpacing only, no PSR12
         10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
-        // padding before "=" — the ignoreSpacingBeforeAssignments knob
-        11 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
+        // padding before "=" — the ignoreSpacingBeforeAssignments knob, plus
+        // #136 on the "3" that line assigns
+        11 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
+            'Squiz.WhiteSpace.OperatorSpacing.SpacingBefore',
+        ],
         // dangling "." outside a condition — OperatorLineBreak's to own
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
         // the three "if" keywords the operator fixtures wrap their conditions
@@ -61,6 +79,10 @@ it('reports every operator violation exactly once', function (): void {
         // dangling "||" inside the if — OneConditionPerLine only
         17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
         // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
+        // `$ok`, the body of the multi-line condition on 20, is two
+        // characters — the short-variable rule (#106) again, and structural
+        // fixture noise for the same reason as line 7 above.
+        20 => ['CleanCode.Naming.ShortVariable.TooShort'],
         23 => [
             'CleanCode.Conditionals.AvoidConditionals.IfStatement',
             'PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace',
