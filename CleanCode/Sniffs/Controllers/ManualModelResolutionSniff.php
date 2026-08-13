@@ -34,6 +34,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * (findNext, getTokensAsString, getCondition) rather than the token array,
  * because CleanCode.Arrays.ArrayAccessors forbids direct element access and its
  * data_get() replacement is a Laravel helper this package does not ship.
+ * Arrays are folded by hand rather than through array_map()/array_filter() for
+ * the same reason: CleanCode.Arrays.ConvertToCollection asks for collect(),
+ * another helper this package does not ship.
+ *
+ * tests/Standards/ManualModelResolutionTest.php asserts that, so a sibling
+ * standard landing later cannot falsify it unnoticed — which is what
+ * CleanCode.Arrays.ConvertToCollection did before the assertion existed.
  */
 class ManualModelResolutionSniff implements Sniff
 {
@@ -78,6 +85,13 @@ class ManualModelResolutionSniff implements Sniff
         T_FUNCTION,
         T_CLOSURE,
     ];
+
+    /**
+     * Stands in for "no enclosing scope of this kind" while scopes are folded
+     * together. PHPCS numbers tokens from zero, so a negative sentinel loses
+     * every max() against a real pointer.
+     */
+    private const NO_POINTER = -1;
 
     /**
      * Tokens that end a call's first argument, so the argument is the bare
@@ -336,7 +350,7 @@ class ManualModelResolutionSniff implements Sniff
 
         return match ($classPtr) {
             null => false,
-            default => $classPtr > ($enclosingPtr ?? -1),
+            default => $classPtr > ($enclosingPtr ?? self::NO_POINTER),
         };
     }
 
@@ -344,25 +358,28 @@ class ManualModelResolutionSniff implements Sniff
      * Pointer to the nearest enclosing scope of any of the given types, null
      * when the token is inside none of them.
      *
+     * Folded with max() rather than mapped and filtered, because
+     * CleanCode.Arrays.ConvertToCollection rejects array_map() and
+     * array_filter() in favour of collect(), a Laravel helper this package does
+     * not ship — the same constraint CleanCode.Arrays.ArrayAccessors already
+     * puts on the rest of this file.
+     *
      * @param array<int|string> $types
      */
     private function innermostConditionPointer(File $phpcsFile, int $stackPtr, array $types): ?int
     {
-        $pointers = array_filter(
-            array_map(
-                fn (int|string $type): ?int => $this->conditionPointer(
-                    $phpcsFile,
-                    $stackPtr,
-                    $type
-                ),
-                $types
-            ),
-            static fn (?int $pointer): bool => $pointer !== null
-        );
+        $innermost = self::NO_POINTER;
 
-        return match ($pointers) {
-            [] => null,
-            default => max($pointers),
+        foreach ($types as $type) {
+            $innermost = max(
+                $innermost,
+                $this->conditionPointer($phpcsFile, $stackPtr, $type) ?? self::NO_POINTER
+            );
+        }
+
+        return match ($innermost) {
+            self::NO_POINTER => null,
+            default => $innermost,
         };
     }
 
