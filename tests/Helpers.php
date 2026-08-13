@@ -427,14 +427,44 @@ function installedPhpcsViolations(string $standard, string $path, string $sniffC
  */
 function installedPhpcsReport(string $standard, string $path): array
 {
+    return installedPhpcsRun($standard, $path)['messages'];
+}
+
+/**
+ * The same run as installedPhpcsReport(), with the process exit status kept
+ * alongside the messages, and with room for extra phpcs flags.
+ *
+ * The status is what separates "phpcs looked and found nothing" from "phpcs
+ * never got as far as looking". PHP_CodeSniffer 3.13.6's Runner::runPHPCS()
+ * returns 0 when nothing was reported, 1 when something was and none of it is
+ * fixable, and 2 when something was and some of it is fixable; a
+ * DeepExitException — an uninstalled standard, a bad flag — returns 3 instead.
+ * Severity plays no part: an error-only run and a warning-only run both exit 1
+ * when nothing in them is fixable. So a caller asserting an *exact* status
+ * cannot be satisfied by the 3 a broken install exits with, which a "non-zero"
+ * check would swallow.
+ *
+ * Exit 3 also produces no JSON, so the report guards below fire first and the
+ * status never has to carry that case alone.
+ *
+ * @param array<int, string> $extraArguments Flags inserted before --report=json.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedPhpcsRun(string $standard, string $path, array $extraArguments = []): array
+{
     $binary = cleanCodeRoot() . '/vendor/bin/phpcs';
 
     if (is_file($binary) === false) {
         throw new RuntimeException("the installed phpcs binary is missing at {$binary}; run composer install");
     }
 
-    $arguments = [PHP_BINARY, $binary, '--standard=' . $standard, '--report=json', '--no-cache', $path];
-    [$stdout, $stderr] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
+    $arguments = array_merge(
+        [PHP_BINARY, $binary, '--standard=' . $standard],
+        $extraArguments,
+        ['--report=json', '--no-cache', $path]
+    );
+    [$stdout, $stderr, $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
 
     $decoded = json_decode($stdout, true);
     $files = is_array($decoded) === true ? $decoded['files'] ?? null : null;
@@ -447,19 +477,59 @@ function installedPhpcsReport(string $standard, string $path): array
         throw new RuntimeException('phpcs reported on ' . count($files) . " files, expected only {$path}");
     }
 
-    return reset($files)['messages'] ?? [];
+    return ['status' => $status, 'messages' => reset($files)['messages'] ?? []];
+}
+
+/**
+ * One sniff's end-to-end verdict from the installed package: the messages the
+ * shipped binary reported for it, and the status the process exited with.
+ *
+ * --standard points at rules.xml, the file the README tells a consumer to
+ * point at, so the run carries that ruleset's <properties> and its
+ * <include-pattern>/<exclude-pattern> path scoping — measured, not assumed: a
+ * fixture staged inside src/ reports 14 CleanCode.Files.NoProceduralCode errors
+ * through this route and the same fixture read at its in-repo path reports
+ * none.
+ *
+ * --sniffs narrows the run to $sniffCode, which installedPhpcsReport()'s own
+ * callers deliberately do not do. The difference is what each is asserting.
+ * Those tests ask what a consumer's whole run says, so narrowing would change
+ * the question. This one has to attribute a *status* to one sniff, and a status
+ * is a property of the run: with every sibling standard active, a passing
+ * fixture that trips any other rule exits non-zero, and a warning-only sniff's
+ * failing fixture exits 2 rather than 1 as soon as some other sniff finds
+ * something fixable in it. Narrowing is what makes the pass/fail land on the
+ * sniff named. It costs nothing in reach — the standard is still resolved from
+ * the installed package, and rules.xml is still parsed in full.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedSniffRun(string $sniffCode, string $path): array
+{
+    return installedPhpcsRun(cleanCodeRoot() . '/rules.xml', $path, ['--sniffs=' . $sniffCode]);
+}
+
+/**
+ * installedSniffRun() against one of the sniff's own fixtures, resolving the
+ * fixture directory the way the in-process harness does — through
+ * sniffFixtureDirectory(), so the shipped-binary test can never point at a
+ * different fixture than its in-process sibling.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedSniffFixtureRun(string $sniffCode, string $fixture): array
+{
+    return installedSniffRun($sniffCode, fixturePath(sniffFixtureDirectory($sniffCode), $fixture));
 }
 
 /**
  * Runs $command from a working directory outside the package and returns its
- * stdout and stderr.
+ * stdout, stderr, and exit status.
  *
- * phpcs exits non-zero whenever it reports anything at all, so the exit status
- * says nothing a caller can use and is deliberately not returned; what a failed
- * run leaves behind is unparseable stdout, which installedPhpcsReport() throws
- * on.
+ * The status is last because it was added after the two callers that take only
+ * the first two; see installedPhpcsRun() for what it is worth reading.
  *
- * @return array{0: string, 1: string}
+ * @return array{0: string, 1: string, 2: int}
  */
 function runOutsidePackage(string $command): array
 {
@@ -476,9 +546,8 @@ function runOutsidePackage(string $command): array
 
     fclose($pipes[1]);
     fclose($pipes[2]);
-    proc_close($process);
 
-    return [$stdout, $stderr];
+    return [$stdout, $stderr, proc_close($process)];
 }
 
 /**

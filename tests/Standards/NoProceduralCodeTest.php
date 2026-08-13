@@ -480,3 +480,47 @@ it('reports detection-only errors', function () use ($sourceRun): void {
         ->and($file->getWarningCount())->toBe(0)
         ->and(violationFixableFlags($file))->toBe(array_fill(0, 14, false));
 });
+
+/**
+ * The same verdict through the shipped, installed package.
+ *
+ * Every test above drives PHPCS in process through ConfigDouble, which supplies
+ * the registration Composer would have supplied — so a package that never
+ * registered itself with the installed standards passes all of them. This one
+ * executes the real vendor/bin/phpcs as a separate process from outside the
+ * package, against rules.xml, the file a consumer points --standard at. The
+ * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
+ * sniff: it drives each fixture where it lives, under tests/, and this sniff's
+ * <include-pattern> makes that path report nothing whatever the sniff does.
+ *
+ * Staged into src/ exactly as $sourceRun stages it, and asserted in the same
+ * paired shape as the scoping test above rather than only on the positive half:
+ *
+ * - failing.php inside src/ reports all 14, every message under this sniff's
+ *   own code, at status 1 — violations, none of them fixable, which is what
+ *   this detection-only rule owes. Status 2 would mean phpcbf had been offered
+ *   a fix, and 3 is what a broken install exits with.
+ * - the same bytes outside src/ report nothing and exit 0, so the reporting
+ *   half cannot be coming from a run that ignores rules.xml's path scoping.
+ * - passing.php inside src/ reports nothing and exits 0 — the negative control,
+ *   without which a shell-out that always reported would satisfy the first.
+ */
+it('reports the violation end to end through the installed package', function (): void {
+    $failing = fixturePath('NoProceduralCodeSniff', 'failing.php');
+
+    $inSource = installedSniffRun(PROCEDURAL, stageFixtureOutsideTests($failing, 'src'));
+    $outsideSource = installedSniffRun(PROCEDURAL, stageFixtureOutsideTests($failing, 'config'));
+    $passing = installedSniffRun(
+        PROCEDURAL,
+        stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', 'passing.php'), 'src')
+    );
+
+    expect(array_column($inSource['messages'], 'source'))->toHaveCount(14)
+        ->each->toStartWith(PROCEDURAL . '.')
+        ->and(array_unique(array_column($inSource['messages'], 'type')))->toBe(['ERROR'])
+        ->and($inSource['status'])->toBe(1)
+        ->and($outsideSource['messages'])->toBe([])
+        ->and($outsideSource['status'])->toBe(0)
+        ->and($passing['messages'])->toBe([])
+        ->and($passing['status'])->toBe(0);
+});
