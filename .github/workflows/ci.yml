@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+
+  # #293: the `types` list below is explicit for auditability — it matches
+  # GitHub's existing default for `pull_request`, so this change does NOT
+  # itself fix the missed-`synchronize`-trigger anomaly (recurred: PR #240,
+  # PR #291). Root cause remains unconfirmed and external to this file.
+  # checked for #293: no concurrency group and no paths/paths-ignore filter exist in this file — ruled out by direct inspection of this file only, not by delivery-log evidence.
   pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
