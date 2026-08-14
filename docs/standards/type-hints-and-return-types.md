@@ -2,7 +2,7 @@
 
 ## Standard
 
-- Type hint all method parameters and return values.
+- Type hint all parameters, return values, and properties.
 - Type hints serve as documentation, making code more fluent and readable.
 - Type hints and return types prevent some logic errors from propagating,
   catching them as close as possible to their source.
@@ -16,36 +16,43 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 1 (existing sniffs, configured)
 
-Enforced by three Slevomat sniffs wired into the master `rules.xml`
-([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)):
+This standard is split across two rules that together enforce it end to end:
 
-- `SlevomatCodingStandard.TypeHints.ParameterTypeHint` — every method
-  parameter (including promoted constructor properties and variadics)
-  carries a native type hint.
-- `SlevomatCodingStandard.TypeHints.ReturnTypeHint` — every method declares
-  a native return type (constructors and destructors excepted, per PHP).
-- `SlevomatCodingStandard.TypeHints.PropertyTypeHint` — every property
-  carries a native type hint.
+- **Parameter and return hints** are owned by the
+  [Methods: Type Hints](methods-type-hints.md) standard
+  ([#70](https://github.com/mike-bronner/phpcs-rules/issues/70)), which wires
+  `SlevomatCodingStandard.TypeHints.ParameterTypeHint` and
+  `SlevomatCodingStandard.TypeHints.ReturnTypeHint` into `rules.xml` for every
+  callable (class methods *and* free functions). See that doc for the
+  parameter/return details, the pinned `enable*` options, and the edge cases.
+- **Property hints** are owned by this standard, enforced by
+  `SlevomatCodingStandard.TypeHints.PropertyTypeHint` in the master `rules.xml`
+  ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)) — every
+  property carries a native type hint.
 
-Only the missing-hint codes (`MissingAnyTypeHint`, `MissingNativeTypeHint`)
-are enforced. The annotation-centric codes — traversable `@param`/`@var`
-specifications (`MissingTraversableTypeHintSpecification`), redundant-doc
-cleanup (`UselessAnnotation`), and `LessSpecificNativeTypeHint` — police doc
-blocks, which this standard does not mandate, and stay excluded.
+This split resolves the original overlap between #45 and #70: #70 is the single
+home for parameter/return hints across all callables, and #45 keeps the
+non-overlapping remainder (`PropertyTypeHint` plus docblock hygiene).
+
+Only the missing-hint codes (`MissingAnyTypeHint`, `MissingNativeTypeHint`) are
+enforced for properties. The annotation-centric codes — traversable `@var`
+specifications (`MissingTraversableTypeHintSpecification`) and redundant-doc
+cleanup (`UselessAnnotation`) — police doc blocks, which this standard does not
+mandate, and stay excluded.
 
 Sniff behaviour is pinned to the package's PHP floor via
-`<config name="php_version" value="80100"/>` so version-gated options
-(union/intersection hints, standalone `null`/`true`/`false`) resolve the
-same on every runtime. Nullable, union, and intersection native hints all
-satisfy the rule.
+`<config name="php_version" value="80100"/>` so version-gated options resolve
+the same on every runtime. Nullable, union, and intersection native property
+hints all satisfy the rule.
 
 ### Auto-fix
 
-`phpcbf` resolves every violation where the missing native hint can be
-inferred from an existing `@param`/`@return`/`@var` annotation
-(`MissingNativeTypeHint`). Violations with no annotation to infer from
-(`MissingAnyTypeHint`) are flagged but must be fixed by hand — the sniff
-cannot guess a type.
+`phpcbf` resolves every property violation where the missing native hint can be
+inferred from an existing `@var` annotation (`MissingNativeTypeHint`).
+Properties with no annotation to infer from (`MissingAnyTypeHint`) are flagged
+but must be hinted by hand — the sniff cannot guess a type. (Parameter and
+return auto-fix from `@param`/`@return` is documented under
+[Methods: Type Hints](methods-type-hints.md).)
 
 ## What remains code review
 
