@@ -147,9 +147,12 @@ it('reports the expected violations', function (
     // so the two standards now both speak about this fixture: PSR-12 about
     // where the keyword sits (line 11), CleanCode.Conditionals.DisallowElse
     // about the branch existing at all (line 12). Not a conflict — the fixture
-    // keeps its else because moving it would stop exercising brace placement,
-    // and its `.fixed.php` counterpart is unaffected (the else sniff has no
-    // fixer).
+    // keeps its else because moving it would stop exercising brace placement.
+    // Its `.fixed.php` counterpart no longer keeps the else, though: #14 gave
+    // the sniff a fixer, and this fixture's else is exactly the shape it
+    // rewrites (the `if` branch returns), so the whole-ruleset fixer unwraps
+    // it. Brace placement is still exercised — the fixer runs after PSR-12
+    // has already moved the braces onto their required lines.
     'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
