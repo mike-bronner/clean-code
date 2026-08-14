@@ -1,0 +1,84 @@
+<?php
+
+// Negative: catching the general \Exception must be flagged.
+try {
+    doRiskyThing();
+} catch (\Exception $caughtFqcn) {
+    report($caughtFqcn);
+}
+
+// Negative: unqualified Exception resolves to \Exception and is flagged.
+try {
+    doRiskyThing();
+} catch (Exception $caughtUnqualified) {
+    report($caughtUnqualified);
+}
+
+// Negative: \Exception inside a multi-catch is flagged.
+try {
+    doRiskyThing();
+} catch (\Exception | \RuntimeException $caughtMulti) {
+    report($caughtMulti);
+}
+
+// Positive: catching \Throwable is compliant.
+try {
+    doRiskyThing();
+} catch (\Throwable $caughtThrowable) {
+    report($caughtThrowable);
+}
+
+// Positive: catching a specific or custom exception is compliant.
+try {
+    doRiskyThing();
+} catch (\App\Exceptions\PaymentFailedException $caughtCustom) {
+    report($caughtCustom);
+}
+
+// Edge: multi-catch of specific exceptions is compliant.
+try {
+    doRiskyThing();
+} catch (\RuntimeException | \LogicException $caughtSpecific) {
+    report($caughtSpecific);
+}
+
+// Edge: catch (\Exception) is allowed when a later catch in the same try
+// references \Throwable — the general catch-all is still present.
+try {
+    doRiskyThing();
+} catch (\Exception $caughtBeforeThrowable) {
+    report($caughtBeforeThrowable);
+} catch (\Throwable $caughtAfterException) {
+    report($caughtAfterException);
+}
+
+// Edge: instantiating \Exception is outside this rule.
+$rethrown = new \Exception('wrapped');
+
+// Edge: nested try/catch — the inner general catch is flagged.
+try {
+    try {
+        doRiskyThing();
+    } catch (\Exception $caughtNested) {
+        report($caughtNested);
+    }
+} catch (\Throwable $caughtOuter) {
+    report($caughtOuter);
+}
+
+// Edge: try/catch inside a closure — the general catch is flagged.
+$handler = function (): void {
+    try {
+        doRiskyThing();
+    } catch (\Exception $caughtInClosure) {
+        report($caughtInClosure);
+    }
+};
+
+// Edge: extending \Exception is outside this rule — defining is not catching.
+class WrappedException extends \Exception
+{
+}
+
+// Edge: `instanceof \Exception` is outside this rule.
+$isBaseException = $rethrown instanceof \Exception;
