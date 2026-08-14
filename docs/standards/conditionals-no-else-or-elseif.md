@@ -57,7 +57,9 @@ of bending the tests.
 behavior and content — when **every** branch before the `else`/`elseif` ends in
 a terminating statement (`return`, `throw`, `continue`, `break`, `exit`) and
 the construct uses the canonical one-brace-per-line layout (`} else {` /
-`} elseif (…) {` with the closing brace first on its line):
+`} elseif (…) {` with the previous branch's closing brace first on its line
+and, for an `else`, a body that starts below the opening brace and a closing
+brace alone on its own line):
 
 - `} else { … }` — the wrapper is removed and its body dedented one level.
 - `} elseif (…) {` / `} else if (…) {` — rewritten as a standalone `if`.
@@ -73,7 +75,8 @@ content: chains with a non-terminating branch, empty branches, a branch whose
 last statement is a nested construct, braceless bodies, alternative syntax,
 comments adjacent to the keyword (before it, between `else` and its brace,
 between `else` and `if`) or trailing the `else` body's closing brace, and
-compact single-line or inline-body layouts.
+compact single-line layouts or an `else` body sharing a line with either of
+its own braces.
 
 Multi-line strings are safe from the dedent by construction: a heredoc's body
 and closing marker, and a double-quoted string's continuation lines, are all

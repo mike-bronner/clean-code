@@ -360,4 +360,54 @@ class FailingConditionals
 
         return $result;
     }
+
+    /**
+     * The opening-brace half of the inline-body guard. `inlineElseBody` above
+     * puts the whole body on the keyword's line, so the closing-brace guard
+     * catches it first; here the body opens on that line and closes on its
+     * own, which only the opening-brace guard sees. Unwrapping it would leave
+     * `} $log[] = 'first';`.
+     */
+    public function elseBodyOpeningOnTheKeywordLine(bool $flag): array
+    {
+        $log = [];
+
+        if ($flag) {
+            return ['early'];
+        } else { $log[] = 'first';
+            $log[] = 'second';
+        }
+
+        return $log;
+    }
+
+    // ------------------------------------------------------------------
+    // Two more shapes the fixer rewrites, kept apart from the block above
+    // because what they pin is the casing of its output rather than the
+    // gates: PHP keywords are case-insensitive, and the rewrite keeps
+    // whichever casing the source used. autofixed.php holds `IF` and `If`
+    // for these two, not `if`.
+    // ------------------------------------------------------------------
+
+    public function upperCaseElseIf(bool $flag, bool $other): int
+    {
+        if ($flag) {
+            return 1;
+        } ELSEIF ($other) {
+            return 2;
+        }
+
+        return 3;
+    }
+
+    public function mixedCaseElseSpaceIf(bool $flag, bool $other): int
+    {
+        if ($flag) {
+            return 1;
+        } ELSE If ($other) {
+            return 2;
+        }
+
+        return 3;
+    }
 }

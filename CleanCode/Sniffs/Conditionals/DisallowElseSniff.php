@@ -156,10 +156,11 @@ class DisallowElseSniff implements Sniff
      * A plain `else` wrapper is removed only when it has a curly-brace body,
      * the layout is canonical, nothing but whitespace sits between the `else`
      * and its opening brace (a comment there would be deleted with the
-     * wrapper), its closing brace sits alone on its own line (removing the
-     * brace of an inline body would splice the following line onto the
-     * statement; a comment trailing the brace would be detached from the
-     * construct it annotates), and every branch before it terminates.
+     * wrapper), its body starts on the line after that brace and its closing
+     * brace sits alone on its own line (either one shared with other code
+     * would splice that code onto a neighbouring statement; a comment trailing
+     * the brace would be detached from the construct it annotates), and every
+     * branch before it terminates.
      */
     private function isFixableElse(File $phpcsFile, int $stackPtr): bool
     {
@@ -174,6 +175,10 @@ class DisallowElseSniff implements Sniff
         }
 
         if ($this->hasCanonicalLayout($phpcsFile, $stackPtr) === false) {
+            return false;
+        }
+
+        if ($this->bodyStartsOnItsOwnLine($phpcsFile, $stackPtr) === false) {
             return false;
         }
 
@@ -207,6 +212,30 @@ class DisallowElseSniff implements Sniff
         }
 
         return $phpcsFile->findFirstOnLine(T_WHITESPACE, $previousCloser, true) === $previousCloser;
+    }
+
+    /**
+     * Whether the body of the construct at $stackPtr starts on the line below
+     * its opening brace — nothing but whitespace follows that brace. The brace
+     * is deleted along with the ` else ` before it and no newline is put back,
+     * so a body that starts on the brace's own line — `} else { $log[] = 'x';`
+     * — would be spliced onto the previous branch's closing brace. This is the
+     * opening-brace counterpart of closesOnOwnLine(): a fully inline body
+     * fails both, and each half fails on its own.
+     *
+     * The `=== false` honours findNext()'s int|false contract, mirroring
+     * closesOnOwnLine(). It is not a behavioural branch and carries no
+     * fixture: reaching it would need a file whose very last token is that
+     * opening brace, which is not parseable PHP.
+     */
+    private function bodyStartsOnItsOwnLine(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $scopeOpener = $tokens[$stackPtr]['scope_opener'];
+        $firstOfBody = $phpcsFile->findNext(T_WHITESPACE, ($scopeOpener + 1), null, true);
+
+        return $firstOfBody === false
+            || $tokens[$firstOfBody]['line'] !== $tokens[$scopeOpener]['line'];
     }
 
     /**
@@ -357,7 +386,14 @@ class DisallowElseSniff implements Sniff
         $phpcsFile->fixer->addContent($previousCloser, "\n" . $indent);
 
         if ($tokens[$stackPtr]['code'] === T_ELSEIF) {
-            $phpcsFile->fixer->replaceToken($stackPtr, 'if');
+            // The keyword is the six letters of `elseif` — PHP allows no
+            // whitespace inside it, that shape is the two-word form below — so
+            // its last two characters are the `if` the rewrite keeps. Taking
+            // them from the source rather than writing the literal `if` is
+            // what keeps `ELSEIF` from coming back as lowercase. The two-word
+            // form needs no equivalent: it deletes only the `else`, leaving
+            // the original `if` token untouched.
+            $phpcsFile->fixer->replaceToken($stackPtr, substr($tokens[$stackPtr]['content'], -2));
         }
 
         if ($tokens[$stackPtr]['code'] === T_ELSE) {

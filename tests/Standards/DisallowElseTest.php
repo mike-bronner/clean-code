@@ -116,6 +116,9 @@ it('flags every else and elseif at its own line and column', function (): void {
         ['line' => 334, 'column' => 11, 'source' => DISALLOW_ELSE_FOUND],
         ['line' => 345, 'column' => 9, 'source' => DISALLOW_ELSE_IF_FOUND],
         ['line' => 357, 'column' => 9, 'source' => DISALLOW_ELSE_IF_FOUND],
+        ['line' => 377, 'column' => 11, 'source' => DISALLOW_ELSE_FOUND],
+        ['line' => 396, 'column' => 11, 'source' => DISALLOW_ELSE_IF_FOUND],
+        ['line' => 407, 'column' => 11, 'source' => DISALLOW_ELSE_IF_FOUND],
     ]);
 });
 
@@ -132,7 +135,9 @@ it('flags every else and elseif at its own line and column', function (): void {
  * on its own line (287, 297), an inline body (308), a comment trailing the
  * body's closing brace (315), a nested construct as the branch's last
  * statement (326), an empty preceding branch (334), a braceless elseif (345),
- * and an alternative-syntax elseif (357).
+ * an alternative-syntax elseif (357), and a body opening on the keyword's own
+ * line (377). The last two entries are true again: the casing pair at 396 and
+ * 407 is fixable, and what it pins is the output rather than a gate.
  */
 it('offers a fixer only for the shapes it can rewrite safely', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'failing.php');
@@ -141,7 +146,7 @@ it('offers a fixer only for the shapes it can rewrite safely', function (): void
         false, false, true, false, false, false, false, false, false, false,
         false, true, true, true, true, true, true, true, true, true,
         true, false, false, false, false, false, false, false, false, false,
-        false, false, false, false,
+        false, false, false, false, false, true, true,
     ]);
 });
 
