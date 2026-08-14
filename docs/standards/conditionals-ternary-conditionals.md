@@ -25,7 +25,9 @@ Two rules in the master `rules.xml` enforce the two halves of the standard
 - **No nested ternaries — `CleanCode.Conditionals.DisallowNestedTernary`**
   (custom sniff). The candidate Slevomat rule named in the issue,
   `ControlStructures.DisallowNestedTernaryOperator`, does not exist in
-  slevomat/coding-standard 8.15, and PHP_CodeSniffer 3.13 ships no equivalent
+  slevomat/coding-standard 8.x — `tests/Ruleset/TernaryConditionalsTest.php`
+  asserts its absence, so a release that adds it fails the suite rather than
+  leaving this note to go stale — and PHP_CodeSniffer 3.13 ships no equivalent
   (`Squiz.PHP.DisallowInlineIf` bans *all* ternaries — the opposite of this
   standard), so the nesting half is a custom sniff. It flags a ternary nested
   in another ternary's condition, then-branch, or else-branch — parenthesized
@@ -55,6 +57,29 @@ when the construct sits in another ternary's branch — so
 Sibling ternaries (separate arguments, separate array elements, separate
 sides of a `match` arm's arrow, or grouped operands of a non-ternary
 operator) are not nesting.
+
+An arrow function bounds its body in both directions, including when it is
+immediately invoked and its result feeds another ternary — so
+`(fn ($x) => $x ? 1 : 2)($y) ? 'a' : 'b'` passes. The parenthesis there closes
+the body; it does not group the body's ternary together with the one outside
+it. Nesting *within* the body is still flagged
+(`fn ($x) => $x ? ($y ? 1 : 2) : 3`), at the inner operator as everywhere else:
+the construct bounds what it contains, it does not exempt it.
+
+Redundant grouping parentheses carry no nesting semantics either way. A
+grouped chain reports once, at its second operator
+(`($a ?: $b ?: $c)`), and a grouped ternary consumed by another ternary's
+condition is genuine nesting whether the group is compared, invoked, or added
+to (`($a ? 1 : 2) > 0 ? 'x' : 'y'`).
+
+## Relation to Conditionals: Avoid Conditionals
+
+[Conditionals: Avoid Conditionals](conditionals-avoid-conditionals.md) warns on
+every ternary, including the ones this standard asks for. The two are different
+advice, not a contradiction: avoid the branch where you can, and where you keep
+it, write it as one flat ternary. That standard warns rather than errors
+precisely because it is advisory, so a ternary written to satisfy this standard
+never fails a build.
 
 ## What remains code review
 

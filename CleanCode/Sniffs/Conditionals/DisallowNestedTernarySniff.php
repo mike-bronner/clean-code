@@ -175,7 +175,8 @@ class DisallowNestedTernarySniff implements Sniff
 
                 if ($code === T_CLOSE_PARENTHESIS) {
                     if (
-                        isset($tokens[$i]['parenthesis_opener']) === false
+                        $this->closesArrowFunctionBody($phpcsFile, $i, $stackPtr) === true
+                        || isset($tokens[$i]['parenthesis_opener']) === false
                         || $this->isGroupingParenthesis($phpcsFile, $tokens[$i]['parenthesis_opener']) === false
                     ) {
                         break;
@@ -196,6 +197,59 @@ class DisallowNestedTernarySniff implements Sniff
             }
 
             $i += $direction;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the closing parenthesis at $closerPtr ends the arrow-function
+     * body that holds the ternary at $stackPtr.
+     *
+     * The backward scan never leaves an arrow-function body — T_FN_ARROW is a
+     * segment boundary, so it stops at the arrow. The forward scan has no such
+     * marker to stop at: the body ends at whatever token closes it. Where that
+     * token is a parenthesis, it looks exactly like a redundant grouping
+     * parenthesis, so an immediately-invoked arrow function
+     * ((fn ($x) => $x ? 1 : 2)($y) ? 'a' : 'b') would be unwrapped and the
+     * outer ternary past it read as nesting the body's own — the one bounded
+     * construct the scan does not jump over wholesale. This is the forward
+     * counterpart of that boundary: the body's ternary reads on its own, so
+     * its segment ends where the body does.
+     *
+     * The arrow function is found by its T_FN_ARROW rather than by the closing
+     * parenthesis's own scope markers, because PHP_CodeSniffer ends an arrow
+     * function's scope at the last token of the body expression — which is the
+     * wrapping parenthesis only when the body ends in one. In
+     * (fn ($x) => $x ? ($y ? 1 : 2) : 3)($z) the scope closes on the "3", so
+     * reading the parenthesis would miss the body entirely.
+     *
+     * Candidate arrows are walked from $stackPtr back to the parenthesis being
+     * left, innermost first, and the first one whose scope still covers
+     * $stackPtr is the body holding it. Skipping the ones that have already
+     * closed is what separates the arrow function the ternary lives in from a
+     * sibling arrow function standing earlier in the same expression.
+     */
+    private function closesArrowFunctionBody(File $phpcsFile, int $closerPtr, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$closerPtr]['parenthesis_opener']) === false) {
+            return false;
+        }
+
+        $limit = $tokens[$closerPtr]['parenthesis_opener'] + 1;
+        $arrowPtr = $stackPtr - 1;
+
+        while (($arrowPtr = $phpcsFile->findPrevious(T_FN_ARROW, $arrowPtr, $limit)) !== false) {
+            // An arrow function always carries its scope; an unmapped one is
+            // treated as enclosing, so an unreadable body bounds the segment
+            // rather than opening the way to a report that cannot be trusted.
+            if (($tokens[$arrowPtr]['scope_closer'] ?? $stackPtr) >= $stackPtr) {
+                return true;
+            }
+
+            $arrowPtr--;
         }
 
         return false;
