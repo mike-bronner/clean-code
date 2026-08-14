@@ -1,0 +1,63 @@
+# Blank Lines
+
+## Standard
+
+- Should only be used to separate concepts.
+- At most there should be a single blank line; never multiple.
+- There should be no blank lines at the beginning or end of classes, methods,
+  or functions.
+
+**Why:** blank lines have meaning and should only be used where appropriate,
+providing consistency and improving parsing of code (mental debt, clear code).
+
+_Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
+
+## Enforceability — Tier 1 (custom sniff)
+
+Enforced by **`CleanCode.WhiteSpace.BlankLines`**, a custom, fully
+auto-fixable sniff with three error codes:
+
+- **`ConsecutiveBlankLines`** — two or more blank lines in a row within the
+  file's PHP code regions; the fixer collapses the run to a single blank line.
+- **`AfterOpeningBrace`** — blank line(s) directly after the opening brace of
+  a class, interface, trait, enum, function, closure, or method; the fixer
+  removes them.
+- **`BeforeClosingBrace`** — blank line(s) directly before the closing brace
+  of the same constructs; the fixer removes them.
+
+Lines inside multi-line tokens (heredocs/nowdocs, multi-line strings) and
+inside inline-HTML / template regions are never treated as blank, so the fixer
+never alters string contents or template whitespace — blank runs in HTML
+outside the PHP tags are out of scope by design. Empty and single-statement
+bodies produce no false positives.
+
+## Why not an existing sniff
+
+The candidate rules were evaluated against the full unit-test suite
+(`tests/fixtures/BlankLinesSniff/failing.php`, 25 violations, plus the open-tag
+fixtures `after-open-tag-two-blanks.php` / `after-open-tag-three-blanks.php`,
+one violation each);
+the best available combination catches only 14 of the 25 in the main fixture
+(Squiz 3, Slevomat 11) and neither open-tag violation:
+
+- **`Squiz.WhiteSpace.SuperfluousWhitespace`** — its `EmptyLines` check only
+  fires *inside* function/closure bodies (guarded by
+  `hasCondition([T_FUNCTION, T_CLOSURE])`), so consecutive blank lines at
+  file level or between class members are never flagged, and single blank
+  lines directly inside braces are ignored entirely.
+- **`SlevomatCodingStandard.Classes.EmptyLinesAroundClassBraces`** (configured
+  with `linesCountAfterOpeningBrace`/`linesCountBeforeClosingBrace` of `0`) —
+  covers class-like braces only; Slevomat ships no equivalent for function or
+  method bodies (nothing in `SlevomatCodingStandard.Functions.*` or
+  `SlevomatCodingStandard.Whitespaces.*` addresses blank lines around braces).
+
+No configuration of the existing sniffs closes those gaps, and PHPCS's sniff
+unit-test harness binds one sniff per test class, so the standard is enforced
+by one custom sniff covering all three rules uniformly.
+
+## What remains code review
+
+Whether a *single* blank line actually separates two distinct concepts — or
+splits one concept apart — is a semantic judgement no token analyzer can
+make. The sniff enforces the mechanical rules; the "concepts" half of the
+standard stays with code review.
