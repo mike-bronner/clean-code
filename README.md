@@ -96,6 +96,7 @@ what stays with code review.
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
+- [Clear Code: Encapsulate Related Classes in a Domain](docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md) — Tier 3, code review; partial slice: junk-drawer namespace sniff ([#190](https://github.com/mike-bronner/phpcs-rules/issues/190))
 - [Models: Structure (Attributes/Queries traits)](docs/standards/models-structure-attributes-queries-traits.md) — Tier 3, code review; partial slice: accessor/mutator/scope methods declared in a class body ([#192](https://github.com/mike-bronner/phpcs-rules/issues/192))
 - [Methods: Naming](docs/standards/methods-naming.md) — Tier 3, code review; narrow command–query slice tracked in [#172](https://github.com/mike-bronner/phpcs-rules/issues/172)
 - [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
