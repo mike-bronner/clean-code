@@ -76,6 +76,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *   exempts *every* parameter, because the body can reach them all through it.
  *   `func_num_args()` does not — PHPMD reports through it, and so does this.
  * - `compact('name')` exempts only the parameter it names, not its siblings.
+ * - Both calls have to *be* calls. One spelled out inside a comment, a string,
+ *   a heredoc, a nowdoc, a shell string or inline HTML is printed rather than
+ *   run, and exempts nothing — PHPMD matches a call node rather than a
+ *   substring, and reads them the same way.
  * - The magic methods whose signature PHP fixes are skipped. `__invoke`,
  *   `__construct` and `__unserialize` are *not* on that list in either tool —
  *   their signatures are the author's own.
@@ -132,19 +136,50 @@ class UnusedFormalParameterSniff implements Sniff
     ];
 
     /**
-     * Tokens that carry text rather than code, so a parameter name inside one
-     * is a mention and not a read: a comment cannot read anything, and neither
-     * a single-quoted string, a nowdoc body nor inline HTML interpolates.
+     * Every token that carries text rather than code. Nothing written inside
+     * one runs: a parameter name in one is a mention and not a read, and a
+     * `func_get_args()` or `compact('name')` spelled out in one is prose and
+     * not a call. The same restriction to code tokens is what
+     * CleanCode.Classes.UnusedPrivateElements applies when it collects the
+     * names a file uses.
      *
-     * A double-quoted string and a heredoc are deliberately absent, because
-     * both do interpolate and `"$name"` is a real read. The same restriction to
-     * code tokens is what CleanCode.Classes.UnusedPrivateElements applies when
-     * it collects the names a file uses.
+     * The two texts that keep part of this set are named below, and each keeps
+     * it for one reason only.
      */
-    private const NON_CODE_LITERALS = [
+    private const TEXT_TOKENS = [
         T_CONSTANT_ENCAPSED_STRING,
+        T_DOUBLE_QUOTED_STRING,
+        T_ENCAPSED_AND_WHITESPACE,
+        T_HEREDOC,
         T_INLINE_HTML,
         T_NOWDOC,
+    ];
+
+    /**
+     * The text tokens the read text keeps, because both interpolate and
+     * `"$name"` inside either is a real read.
+     *
+     * A shell string interpolates too and is absent all the same: PHPCS
+     * tokenizes the variables inside one apart from its
+     * T_ENCAPSED_AND_WHITESPACE text — as T_VARIABLE, or as
+     * T_DOLLAR_OPEN_CURLY_BRACES and T_STRING_VARNAME for `${name}` — so every
+     * read in a shell string survives without its text being kept.
+     */
+    private const INTERPOLATING_TEXT = [
+        T_DOUBLE_QUOTED_STRING,
+        T_HEREDOC,
+    ];
+
+    /**
+     * The text token the compact text keeps, because a `compact()` argument is
+     * written in one.
+     *
+     * A double-quoted argument is tokenized as one of these too: PHP produces
+     * T_DOUBLE_QUOTED_STRING only for a string that interpolates, and
+     * `compact("$name")` is the dynamic read neither tool resolves.
+     */
+    private const NAME_TEXT = [
+        T_CONSTANT_ENCAPSED_STRING,
     ];
 
     /**
@@ -166,16 +201,17 @@ class UnusedFormalParameterSniff implements Sniff
             return;
         }
 
-        $code = $this->bodyText($phpcsFile, $stackPtr, self::nonCodeTokens());
+        $code = $this->bodyText($phpcsFile, $stackPtr, self::codeExclusions());
 
         if ($this->isExempt($phpcsFile, $stackPtr, $code) === true) {
             return;
         }
 
-        $literals = $this->bodyText($phpcsFile, $stackPtr, self::commentTokens());
+        $reads = $this->bodyText($phpcsFile, $stackPtr, self::readExclusions());
+        $names = $this->bodyText($phpcsFile, $stackPtr, self::nameExclusions());
 
         foreach ($phpcsFile->getMethodParameters($stackPtr) as $parameter) {
-            $this->checkParameter($phpcsFile, $stackPtr, $parameter, $code, $literals);
+            $this->checkParameter($phpcsFile, $stackPtr, $parameter, $reads, $names);
         }
     }
 
@@ -215,8 +251,8 @@ class UnusedFormalParameterSniff implements Sniff
         File $phpcsFile,
         int $stackPtr,
         array $parameter,
-        string $code,
-        string $literals
+        string $reads,
+        string $names
     ): void {
         if ($this->isPromotedProperty($parameter) === true) {
             return;
@@ -224,7 +260,7 @@ class UnusedFormalParameterSniff implements Sniff
 
         $name = ltrim($parameter['name'], '$');
 
-        if ($this->bodyReads($code, $literals, $name) === true) {
+        if ($this->bodyReads($reads, $names, $name) === true) {
             return;
         }
 
@@ -274,30 +310,21 @@ class UnusedFormalParameterSniff implements Sniff
     private function bodyText(File $phpcsFile, int $stackPtr, array $excluded): string
     {
         $tokens = $phpcsFile->getTokens();
-        $opener = $tokens[$stackPtr]['scope_opener'];
-        $closer = $tokens[$stackPtr]['scope_closer'];
-        $skip = array_flip($excluded);
-        $text = '';
 
-        for ($pointer = $opener + 1; $pointer < $closer; $pointer++) {
-            if (isset($skip[$tokens[$pointer]['code']]) === true) {
-                continue;
-            }
-
-            $text .= $tokens[$pointer]['content'];
-        }
-
-        return $text;
+        return $this->textBetween(
+            $phpcsFile,
+            $tokens[$stackPtr]['scope_opener'] + 1,
+            $tokens[$stackPtr]['scope_closer'] - 1,
+            $excluded
+        );
     }
 
     /**
-     * Every comment token code, as the exclusion list for the literal text.
-     *
-     * `compact('name')` names its parameter in a single-quoted string, so the
-     * text the compact test reads has to keep string literals — but a
-     * commented-out `compact()` call is still not a call. PHPCS's own union is
-     * taken whole so that a `phpcs:` annotation, which is tokenized apart from
-     * the comment carrying it, is excluded with the rest.
+     * Every comment token code. No text this sniff searches keeps one: a
+     * commented-out call is not a call, and a name written in a comment is not
+     * read. PHPCS's own union is taken whole so that a `phpcs:` annotation,
+     * which is tokenized apart from the comment carrying it, is excluded with
+     * the rest.
      *
      * @return array<int, int|string>
      */
@@ -307,14 +334,39 @@ class UnusedFormalParameterSniff implements Sniff
     }
 
     /**
-     * Every token code whose text is not code, as the exclusion list for the
-     * body text a read is looked for in.
+     * The exclusion set for the code text, which is the one searched for a
+     * call: every comment and every token carrying text, so what is left is
+     * code. `func_get_args()` written into a heredoc, a string, a shell string
+     * or a comment is a mention of the call and exempts nothing — which is how
+     * PHPMD reads it too, since it matches a call node rather than a substring.
      *
      * @return array<int, int|string>
      */
-    private static function nonCodeTokens(): array
+    private static function codeExclusions(): array
     {
-        return array_merge(self::commentTokens(), self::NON_CODE_LITERALS);
+        return array_merge(self::commentTokens(), self::TEXT_TOKENS);
+    }
+
+    /**
+     * The exclusion set for the read text: the code exclusions, less the
+     * strings that interpolate, because `"$name"` inside one is a real read.
+     *
+     * @return array<int, int|string>
+     */
+    private static function readExclusions(): array
+    {
+        return array_values(array_diff(self::codeExclusions(), self::INTERPOLATING_TEXT));
+    }
+
+    /**
+     * The exclusion set for the compact text: the code exclusions, less the
+     * plain quoted string a `compact()` argument is written in.
+     *
+     * @return array<int, int|string>
+     */
+    private static function nameExclusions(): array
+    {
+        return array_values(array_diff(self::codeExclusions(), self::NAME_TEXT));
     }
 
     /**
@@ -331,16 +383,23 @@ class UnusedFormalParameterSniff implements Sniff
      * A dynamic read — `${'name'}` — counts in neither tool, and a nested
      * declaration that happens to reuse the name counts in both. Both are
      * recorded in the rule's doc rather than worked around.
+     *
+     * The two texts are separate because they keep different things: the read
+     * text keeps the strings that interpolate, so `"$name"` counts, and the
+     * compact text keeps the plain quoted string a `compact()` argument is
+     * written in. Neither keeps what the other does, so a name interpolated
+     * into a heredoc cannot pass as a compact argument, and a `compact()`
+     * spelled out inside a heredoc is not a call.
      */
-    private function bodyReads(string $code, string $literals, string $name): bool
+    private function bodyReads(string $reads, string $names, string $name): bool
     {
         $quoted = preg_quote($name, '/');
 
-        if (preg_match('/\$\{?' . $quoted . '\b/', $code) === 1) {
+        if (preg_match('/\$\{?' . $quoted . '\b/', $reads) === 1) {
             return true;
         }
 
-        preg_match_all('/\bcompact\s*\(([^)]*)\)/i', $literals, $matches);
+        preg_match_all('/\bcompact\s*\(([^)]*)\)/i', $names, $matches);
 
         foreach ($matches[1] as $arguments) {
             if (preg_match('/([\'"])' . $quoted . '\1/', $arguments) === 1) {
@@ -406,7 +465,10 @@ class UnusedFormalParameterSniff implements Sniff
      *
      * The two texts are kept apart so that neither signal can be satisfied by
      * the other's material: a docblock quoting `#[\Override]` in prose is not
-     * an attribute, and an attribute argument is not a docblock. For the same
+     * an attribute, and an attribute argument is not a docblock. The attribute
+     * text is collected as code for the same reason the body text is, so an
+     * argument that spells out the tail of an attribute list in a string —
+     * `#[Route('a, Override(b')]` — carries no weight either. For the same
      * reason a plain comment and a `phpcs:` annotation contribute no text — a
      * `// @inheritdoc` line comment is skipped as whitespace would be, and
      * exempts nothing. PHPMD agrees: it reads the method's doc comment, which
@@ -434,7 +496,12 @@ class UnusedFormalParameterSniff implements Sniff
 
             if ($code === T_ATTRIBUTE_END) {
                 $opener = $tokens[$pointer]['attribute_opener'] ?? $pointer;
-                $attributeText = $this->textBetween($phpcsFile, $opener, $pointer) . $attributeText;
+                $attributeText = $this->textBetween(
+                    $phpcsFile,
+                    $opener,
+                    $pointer,
+                    self::codeExclusions()
+                ) . $attributeText;
                 $pointer = $opener - 1;
 
                 continue;
@@ -456,14 +523,22 @@ class UnusedFormalParameterSniff implements Sniff
     }
 
     /**
-     * The raw source text between two pointers, inclusive.
+     * The source text between two pointers, inclusive, with the listed token
+     * codes left out.
+     *
+     * @param array<int, int|string> $excluded
      */
-    private function textBetween(File $phpcsFile, int $start, int $end): string
+    private function textBetween(File $phpcsFile, int $start, int $end, array $excluded): string
     {
         $tokens = $phpcsFile->getTokens();
+        $skip = array_flip($excluded);
         $text = '';
 
         for ($pointer = $start; $pointer <= $end; $pointer++) {
+            if (isset($skip[$tokens[$pointer]['code']]) === true) {
+                continue;
+            }
+
             $text .= $tokens[$pointer]['content'];
         }
 

@@ -228,6 +228,23 @@ function compactInSecondCall(string $omicron, string $xi): array
     return compact('xi');
 }
 
+// A compact() argument written in double quotes. PHP tokenizes a string with
+// nothing to interpolate as a plain quoted string whichever quote it carries,
+// so this is the same read as compactNamed() above.
+function compactDoubleQuoted(string $pi): array
+{
+    return compact("pi");
+}
+
+// A shell string interpolates, and PHPCS tokenizes the variables inside one
+// apart from its text — so the read survives even though the text around it is
+// discarded. Both spellings are here because they are tokenized differently.
+function shellStringRead(string $rho, string $sigma): void
+{
+    echo `echo $rho`;
+    echo `echo {$sigma}`;
+}
+
 // PHP resolves an attribute name case-insensitively, so this is the same
 // attribute as #[\Override] and carries the same proof.
 class LowercaseOverride extends \Vendor\Unknown\Base

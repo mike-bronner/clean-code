@@ -32,9 +32,14 @@ wired into the master `rules.xml`
 - **Detection** — a parameter no statement in the body reads is flagged at the
   parameter's own line and column, in functions, methods, constructors,
   closures, and arrow functions. A read counts whether it is plain (`$name`),
-  inside an interpolated string or heredoc, or inside a nested closure or arrow
-  function. A name that appears only in a comment, a single-quoted string, or
-  inline HTML is not a read: none of the three is code.
+  inside an interpolated string, a heredoc or a shell string, or inside a nested
+  closure or arrow function. A name that appears only in a comment, a
+  single-quoted string, a nowdoc, or inline HTML is not a read: none of the four
+  is code. For the same reason a `func_get_args()` or a `compact('name')`
+  spelled out inside any of those — or inside an interpolated string or a
+  heredoc, which do interpolate but still print what they carry — is a mention
+  and not a call, and exempts nothing. PHPMD reads them the same way, because it
+  matches a call node rather than a substring.
 - **Not auto-fixable** — deleting a parameter changes the signature and breaks
   every caller, so there is nothing safe for `phpcbf` to write. This matches
   PHPMD, which reports rather than rewrites.
@@ -106,7 +111,9 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Unused parameter in a plain function or an inheritance-free class | flags | flags |
 | Unused parameter named only in a docblock | flags | flags |
 | Unused constructor parameter that is not promoted | flags | flags |
-| Name appearing only in a comment, a single-quoted string, or inline HTML | flags | flags |
+| Name appearing only in a comment, a single-quoted string, a nowdoc, or inline HTML | flags | flags |
+| `func_get_args()` or `compact('name')` spelled out inside a heredoc, an interpolated string, or a shell string | flags | flags |
+| `Override` spelled out inside another attribute's string argument | flags | flags |
 | `@inheritdoc` written as a line comment rather than a docblock | flags | flags |
 | Method whose name collides with one from a trait the class uses itself | flags | flags |
 | Empty or comment-only body | flags | flags |
@@ -171,7 +178,7 @@ measured:
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-twenty-five findings, same lines, same parameters. On `passing.php` this
+thirty-two findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
 

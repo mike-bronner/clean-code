@@ -245,3 +245,67 @@ class UsesCollidingTrait
         return 'x';
     }
 }
+
+// A heredoc interpolates, so a name inside one is a read — but a call written
+// inside one is still printed rather than run. PHPMD matches a call node, so it
+// reports through this too.
+function heredocMentionsFuncGetArgs(string $unusedZ): void
+{
+    echo <<<TEXT
+    Example: func_get_args() would return every argument.
+    TEXT;
+}
+
+// The same heredoc, naming the parameter through a compact() that is text.
+function heredocMentionsCompact(string $unusedAA): void
+{
+    echo <<<TEXT
+    Example: compact('unusedAA') would build an array.
+    TEXT;
+}
+
+// An interpolated double-quoted string is text for the same reason. The local
+// variable is what makes PHP tokenize this as one: a string with nothing to
+// interpolate is a plain quoted string instead.
+function interpolationMentionsFuncGetArgs(string $unusedAB): void
+{
+    $note = 'documentation';
+
+    echo "Example ($note): func_get_args() would return every argument.";
+}
+
+// The same interpolated string, naming the parameter through a compact().
+function interpolationMentionsCompact(string $unusedAC): void
+{
+    $note = 'documentation';
+
+    echo "Example ($note): compact('unusedAC') would build an array.";
+}
+
+// A shell string is text too. Its variables are tokenized apart from that text,
+// which is why a read inside one still counts and this call does not.
+function shellStringMentionsFuncGetArgs(string $unusedAD): void
+{
+    echo `echo 'func_get_args() returns every argument'`;
+}
+
+// A nowdoc does not interpolate, so the name inside it is printed literally,
+// exactly like the single-quoted string above.
+function nowdocMentionOnly(string $unusedAE): void
+{
+    echo <<<'RAW'
+    $unusedAE is printed as written.
+    RAW;
+}
+
+class AttributeStringArgument
+{
+    // An attribute's string argument is text, whatever it spells out. This one
+    // spells out the tail of an attribute list; it is not the #[\Override]
+    // attribute, and PHP would not accept it as one.
+    #[Listens(handler: 'first, Override(second')]
+    public function handle(string $unusedAF): void
+    {
+        echo 'x';
+    }
+}

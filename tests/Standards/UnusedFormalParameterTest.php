@@ -13,10 +13,11 @@
  *     phpmd tests/fixtures/UnusedFormalParameterSniff/failing.php text only-ufp.xml
  *
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
- * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222 and 243 —
- * twenty-five findings, naming $unusedA through $unusedY (with $unusedJ absent,
- * since that one is read) plus $id. This sniff reproduces all twenty-five, on
- * the same lines, naming the same parameters.
+ * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222, 243,
+ * 252, 260, 270, 278, 287, 294 and 307 — thirty-two findings, naming $unusedA
+ * through $unusedAF (with $unusedJ absent, since that one is read) plus $id.
+ * This sniff reproduces all thirty-two, on the same lines, naming the same
+ * parameters.
  *
  * On passing.php this sniff is silent and PHPMD is not: it reports $eta,
  * $theta and $iota (its func_get_args() exemption misses an unqualified call
@@ -83,7 +84,12 @@ it('is registered in the master ruleset', function (): void {
  *   constructor properties, by visibility and by `readonly`;
  * - a closure and an arrow function reading the parameters they declare
  *   themselves — the compliant half of the two constructs PHPMD cannot see;
- * - a `compact()` call that is not the first one in its body;
+ * - a `compact()` call that is not the first one in its body, and one whose
+ *   argument is written in double quotes;
+ * - a read from inside a shell string, in both the `$name` and `{$name}`
+ *   spellings — the compliant half of failing.php's shell-string case, which
+ *   proves the sniff discards a shell string's *text* and not the reads inside
+ *   it. It reddens if that exclusion is ever widened to the whole construct;
  * - all seven fixed-signature magic methods.
  *
  * `prefixNearMiss()` is the one shape that is not an exemption: it reads
@@ -150,12 +156,51 @@ it('produces no violations on the compliant fixture', function (): void {
  *   gives the class's own declaration precedence over the trait's, so the
  *   method overrides nothing.
  *
+ * - lines 252 to 307, one per token whose content is text rather than code. A
+ *   name, a `func_get_args()` or a `compact()` written inside one of these is
+ *   printed and not run, and PHPMD — which matches a call node rather than a
+ *   substring — reports through every one of them. Each line pins one member
+ *   of the sniff's own TEXT_TOKENS list, through the scan that member is not
+ *   already pinned in elsewhere:
+ *
+ *     | Token                      | Line     | The scan it is pinned through |
+ *     |----------------------------|----------|-------------------------------|
+ *     | T_CONSTANT_ENCAPSED_STRING | 192, 307 | the read, the attribute       |
+ *     | T_INLINE_HTML              | 198      | the read                      |
+ *     | T_NOWDOC                   | 294      | the read                      |
+ *     | T_ENCAPSED_AND_WHITESPACE  | 287      | `func_get_args()`             |
+ *     | T_HEREDOC                  | 252, 260 | `func_get_args()`, `compact()`|
+ *     | T_DOUBLE_QUOTED_STRING     | 270, 278 | `func_get_args()`, `compact()`|
+ *
+ *   The last two are kept in the read text, because both interpolate, so only
+ *   the call scans can pin them. The other direction — that both are still
+ *   kept there — is pinned by passing.php's interpolatedRead() and
+ *   heredocRead().
+ * - line 307, a string argument inside an attribute group spelling out the tail
+ *   of an attribute list. It is text like any other, and it is not the
+ *   `#[\Override]` attribute.
+ *
  * Lines 184 to 243 were each mutation-checked, one defect at a time: taking the
  * body as unfiltered text drops 184, 192 and 198; walking `Tokens::$emptyTokens`
  * for the docblock drops 211; the unanchored `Override` match drops 222 and
  * flags passing.php's lowercase spelling instead; seeding the ancestor queue
  * with the class's own traits drops 243. Each mutation moved those lines and no
  * others.
+ *
+ * Lines 252 to 307 were mutation-checked the same way, one member at a time:
+ * deleting T_HEREDOC from TEXT_TOKENS drops 252 and 260, T_DOUBLE_QUOTED_STRING
+ * drops 270 and 278, T_ENCAPSED_AND_WHITESPACE drops 287, T_NOWDOC drops 294,
+ * T_CONSTANT_ENCAPSED_STRING drops 192 and 307 — the attribute text is
+ * collected with the same exclusions, which is why that one member moves both —
+ * and collecting the attribute text unfiltered drops 307 alone. Each mutation
+ * moved those lines and no others.
+ *
+ * The two exceptions those exclusions are derived through are checked from the
+ * other side, on passing.php, since each one is a keeping rather than a
+ * dropping: removing the INTERPOLATING_TEXT exception reddens its interpolated
+ * and heredoc reads, removing the NAME_TEXT exception reddens all three of its
+ * compact() reads, and widening the shell-string exclusion from that string's
+ * text to the whole construct reddens both parameters of shellStringRead().
  */
 it('flags every unused formal parameter in the failing fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
@@ -186,6 +231,13 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 211, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 222, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 243, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 252, 'column' => 44, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 260, 'column' => 40, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 270, 'column' => 50, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 278, 'column' => 46, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 287, 'column' => 48, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 294, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 307, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
