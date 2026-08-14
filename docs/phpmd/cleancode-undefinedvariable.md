@@ -68,7 +68,7 @@ The sixth code, `UnusedVariable`, is neither this rule's nor excluded: an
 `UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120),
 [docs](unusedcode-unusedformalparameter.md)) shares that same code, and stays
 silenced here by the `allowUnusedFunctionParameters` property: it ships through
-the custom sniff `CleanCode.UnusedCode.UnusedFormalParameter` instead, so
+the custom sniff `CleanCode.DeadCode.UnusedFormalParameter` instead, so
 leaving the property `true` is what stops the two sniffs reporting the same
 unused parameter twice.
 

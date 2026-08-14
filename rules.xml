@@ -1615,7 +1615,7 @@
           a FormalParameter. The sniff has no such split — one UnusedVariable
           code covers locals and parameters alike — so parameters are silenced
           here. #120 has since landed as the custom sniff
-          CleanCode.UnusedCode.UnusedFormalParameter, which owns the parameter
+          CleanCode.DeadCode.UnusedFormalParameter, which owns the parameter
           half outright, so this property stays true: flipping it to false
           would report every unused parameter twice.
         - allowUnusedForeachVariables=false — matches PHPMD's own default for

@@ -33,7 +33,8 @@ wired into the master `rules.xml`
   parameter's own line and column, in functions, methods, constructors,
   closures, and arrow functions. A read counts whether it is plain (`$name`),
   inside an interpolated string or heredoc, or inside a nested closure or arrow
-  function.
+  function. A name that appears only in a comment, a single-quoted string, or
+  inline HTML is not a read: none of the three is code.
 - **Not auto-fixable** — deleting a parameter changes the signature and breaks
   every caller, so there is nothing safe for `phpcbf` to write. This matches
   PHPMD, which reports rather than rewrites.
@@ -104,6 +105,10 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 |---|---|---|
 | Unused parameter in a plain function or an inheritance-free class | flags | flags |
 | Unused parameter named only in a docblock | flags | flags |
+| Unused constructor parameter that is not promoted | flags | flags |
+| Name appearing only in a comment, a single-quoted string, or inline HTML | flags | flags |
+| `@inheritdoc` written as a line comment rather than a docblock | flags | flags |
+| Method whose name collides with one from a trait the class uses itself | flags | flags |
 | Empty or comment-only body | flags | flags |
 | `__unserialize()` | flags | flags |
 | `__invoke()` | flags | flags |
@@ -123,7 +128,9 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Arrow-function parameter | silent | **flags** |
 | Method of an anonymous class | silent | **flags** |
 | Override of a parent in another file, unannotated | silent | **flags** |
+| Method colliding with a trait used by a *nested anonymous class* | silent | **flags** |
 | `#[\Override]` on a method that overrides nothing | flags | **silent** |
+| Unqualified `func_get_args()` inside a namespace | **flags** | silent |
 
 Reading the rows that disagree:
 
@@ -135,21 +142,38 @@ Reading the rows that disagree:
   on the same constructs, so the two sniffs stay consistent.
 - **An unannotated override of a parent in another file.** The cost set out
   above. Add `@inheritdoc` or `#[\Override]`.
+- **A method colliding with a trait used by a nested anonymous class.** A trait
+  a nested anonymous class imports belongs to that class. PDepend attributes the
+  import to the class around it, so PHPMD reads a same-named method on a child
+  as an override of the trait's and says nothing. It overrides nothing, and the
+  parameter is dead, so it is reported here.
 - **`#[\Override]` on a method that overrides nothing.** Only reachable in code
   PHP itself refuses to compile, so no coverage is lost on anything that runs.
+- **An unqualified `func_get_args()` inside a namespace.** This is the one row
+  where PHPMD reports and this ruleset does not, and it is a defect in PHPMD
+  rather than a gap here: `Rule/UnusedFormalParameter.php` matches the call by
+  its resolved name, so inside a namespace it takes `func_get_args()` for a
+  namespaced function and reports through it, while `\func_get_args()` on the
+  very next line exempts. The parameters really are read either way, so
+  reporting them would be a false positive on correct code. `compact()` is
+  unaffected, because PHPMD matches that one by suffix.
 
 Two boundaries worth naming, because both were assumed wrong before being
 measured:
 
 - **`func_get_args()` exempts the whole signature; `func_num_args()` exempts
   nothing.** PHPMD reports through `func_num_args()`. `func_get_args()` exempts
-  even when it is called from inside a nested closure.
-- **`compact()` exempts only the parameter it names**, not its siblings.
+  even when it is called from inside a nested closure — and, here, whether or
+  not the file declares a namespace.
+- **`compact()` exempts only the parameter it names**, not its siblings, and
+  every call in the body names its own, not only the first call.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-seventeen findings, same lines, same parameters.
+twenty-five findings, same lines, same parameters. On `passing.php` this
+ruleset is silent, and PHPMD reports the six parameters covered by the two
+divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
 
 Behaviour tests covering compliant code, per-line and per-column violation
 reporting, the message wording, the error severity, the absence of a fixer, and
