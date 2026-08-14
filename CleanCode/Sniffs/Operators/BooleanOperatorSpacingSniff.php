@@ -23,8 +23,21 @@ use PHP_CodeSniffer\Util\Tokens;
  * Registering any of those here as well would report each of their violations
  * twice. PHP_CodeSniffer's "a later rule's configuration of the *same* sniff
  * wins" merge cannot collapse diagnostics from two *different* sniffs, so the
- * split is load-bearing rather than stylistic, and is pinned by
- * tests/Integration/OperatorRulesIntegrationTest.php.
+ * split is load-bearing rather than stylistic.
+ *
+ * What pins it is tests/Standards/BooleanOperatorSpacingTest.php, which
+ * intersects this register() against each sibling's directly — fixture-free,
+ * so it holds for every token either side claims rather than for whichever
+ * ones an example happens to use. tests/Integration/OperatorRulesIntegrationTest.php
+ * pins the same property end-to-end for the *siblings'* operators, but not for
+ * this sniff's: the only boolean operator in its fixture is newline-wrapped,
+ * which $ignoreNewlines below deliberately suppresses here.
+ *
+ * The narrowing is only half the story. Two spacing sniffs in the tree do
+ * register these same five tokens, and nothing about their behaviour keeps
+ * them from doubling every diagnostic this sniff reports — only their absence
+ * from the master ruleset does. That absence is asserted, alongside the
+ * overlap itself, by the same test.
  *
  * Squiz.WhiteSpace.OperatorSpacing is extended rather than reimplemented: its
  * spacing checks and fixers are exactly the behaviour this standard wants, and

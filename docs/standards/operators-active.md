@@ -45,11 +45,31 @@ configuration, but it cannot collapse diagnostics from two *different* sniffs.
 Narrowing the new sniff to the one group nothing else covers is what keeps
 exactly one diagnostic per violation.
 
-`tests/Integration/OperatorRulesIntegrationTest.php` pins this end-to-end: it
-runs the whole master ruleset over one fixture and asserts an exhaustive
-line → source map, so a re-broadened `register()` here fails the suite.
-`tests/Standards/BooleanOperatorSpacingTest.php` pins it directly as well, by
-asserting this sniff shares no registered token with any of the other three.
+`tests/Standards/BooleanOperatorSpacingTest.php` pins this directly, by
+intersecting this sniff's `register()` against each of the other three — no
+fixture involved, so it holds for every token either side claims rather than
+for whichever ones an example happens to use.
+`tests/Integration/OperatorRulesIntegrationTest.php` pins the same property
+end-to-end over the whole master ruleset, though for the *other three* sniffs'
+operators rather than these five: its only boolean operator is newline-wrapped,
+which `ignoreNewlines` deliberately suppresses here.
+
+### The exclusions the split also rests on
+
+Narrowing `register()` prevents this sniff from doubling its siblings. It does
+nothing about the reverse — two sniffs cover these same five tokens outright,
+and only their absence from `rules.xml` keeps each violation to one diagnostic:
+
+| Sniff | Overlap | Kept out by |
+|---|---|---|
+| `PSR12.Operators.OperatorSpacing` | adds `Tokens::$booleanOperators` to the Squiz set it inherits | the blanket `<exclude>` on the `PSR12` ref — which must stay unscoped |
+| `Squiz.WhiteSpace.LogicalOperatorSpacing` | the same "exactly one space" rule on the same five tokens | never referenced, individually or via the whole `Squiz` standard |
+
+`BooleanOperatorSpacingTest.php` asserts both — that each still overlaps, and
+that each is still absent from the master ruleset — plus that no *other* active
+sniff registers these tokens beyond the two that deliberately do for unrelated
+concerns (`CleanCode.Operators.OperatorLineBreak` for where a wrapped
+expression breaks, `Generic.PHP.LowerCaseKeyword` for the word forms' casing).
 
 ### Behaviour
 
