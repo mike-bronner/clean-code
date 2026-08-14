@@ -114,9 +114,12 @@ Its fixtures follow the contract CONTRIBUTING.md prescribes, under
 `tests/fixtures/VariableAnalysisSniff/`: `passing.php` for code the rule must
 stay silent on and `failing.php` for the parity set, plus `divergences.php` and
 `excluded-codes.php` for the shapes that belong to neither. There is no
-`autofixed.php`, because the rule is not fixable — a test runs the real fixer
-over `failing.php` and asserts its output is byte-identical to the input, so
-"unfixable" is measured rather than assumed.
+`autofixed.php`, because the rule is not fixable. That is measured by asserting
+the fixable count is zero and that every single report carries no fixer hook;
+the companion test that runs the real fixer over `failing.php` and finds its
+output byte-identical adds no proof on top of that — the fixer exits before
+touching a file with nothing fixable — and stands only as a tokenizer
+round-trip check.
 
 ## What remains code review
 
