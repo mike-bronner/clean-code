@@ -21,7 +21,7 @@ use PHP_CodeSniffer\Util\Tokens;
  * while PHPMD flags it. Short-list destructuring (`if ([$a, $b] = $data)`)
  * ends in "]" and is already covered, so only the long form needs this sniff.
  * That exclusion depends on the Generic sniff, so it is pinned rather than
- * assumed: tests/Ruleset/Fixtures/IfStatementAssignment/violations.inc holds a
+ * assumed: tests/fixtures/AssignmentInConditionSniff/failing.php holds a
  * short-list condition, and the ruleset test asserts the Generic sniff is what
  * reports it.
  *

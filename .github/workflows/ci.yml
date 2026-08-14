@@ -3,7 +3,20 @@ name: CI
 on:
   push:
     branches: [main]
+
+  # #293: the `types` list below is explicit for auditability — it matches
+  # GitHub's existing default for `pull_request`, so this change does NOT
+  # itself fix the missed-`synchronize`-trigger anomaly (recurred: PR #240,
+  # PR #291). Root cause remains unconfirmed and external to this file.
+  # checked for #293: no concurrency group and no paths/paths-ignore filter exist in this file — ruled out by direct inspection of this file only, not by delivery-log evidence.
   pull_request:
+    types: [opened, synchronize, reopened]
+
+  # #293: manual fallback, so a run missed by a dropped `pull_request` delivery
+  # can be started by hand. GitHub only exposes `workflow_dispatch` after the
+  # definition reaches the default branch, so it is not invokable from this
+  # PR's own branch — see the PR description for the deferred verification.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,5 +44,5 @@ jobs:
       - name: Self-lint (PSR-12)
         run: composer lint
 
-      - name: Sniff unit tests
+      - name: Sniff test suite (Pest)
         run: composer test
