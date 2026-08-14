@@ -148,12 +148,20 @@ it('reports the expected violations', function (
     // where the keyword sits (line 11), CleanCode.Conditionals.DisallowElse
     // about the branch existing at all (line 12). Not a conflict — the fixture
     // keeps its else because moving it would stop exercising brace placement.
-    // Its `.fixed.php` counterpart no longer keeps the else, though: #14 gave
-    // the sniff a fixer, and this fixture's else is exactly the shape it
-    // rewrites (the `if` branch returns), so the whole-ruleset fixer unwraps
-    // it. Brace placement is still exercised — the fixer runs after PSR-12
-    // has already moved the braces onto their required lines.
-    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], [9 => 1]],
+    // The third line-9 error is the Ternary Conditionals standard (#20):
+    // Slevomat's RequireTernaryOperator reads this fixture's if/else as one
+    // that only returns, so a third standard now speaks about the same line.
+    // It also owns the fixture's `.fixed.php`. Two fixers can claim this
+    // fixture now — #14 gave DisallowElse a fixer, and this else is exactly
+    // the shape it rewrites (the `if` branch returns) — but the ternary
+    // collapse is what `phpcbf` converges on, so the else never survives to be
+    // unwrapped. Excluding RequireTernaryOperator from the ruleset yields the
+    // unwrapped early-return form instead; the DisallowElse fixer's own
+    // output is pinned directly by tests/fixtures/DisallowElseSniff/. Brace
+    // placement is still fixed on the way there, and the "brace placement is
+    // auto-fixable" dataset below pins that fixer on a fixture no ternary rule
+    // can swallow.
+    'malformed control structures' => ['control-structures.php', [9 => 3, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
 /**
