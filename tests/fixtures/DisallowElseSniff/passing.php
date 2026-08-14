@@ -1,11 +1,14 @@
 <?php
 
 /**
- * Compliant conditionals — no `else` branch anywhere — plus the near-miss
- * shapes CleanCode.Conditionals.DisallowElse must stay silent on: `elseif`
- * and the two-word `else if`, both of which PHPMD leaves alone, and the member
- * names PHP allows the reserved word `else` to carry (a method or class
- * constant since 7.0, an enum case since 8.1).
+ * Compliant conditionals — no `else` and no `elseif` anywhere — plus the
+ * near-miss shapes CleanCode.Conditionals.DisallowElse must stay silent on:
+ * the member names PHP allows the reserved words `else` and `elseif` to carry
+ * (a method or class constant since 7.0, an enum case since 8.1).
+ *
+ * The `elseif`/`else if` chains this file used to carry as near-misses moved
+ * to failing.php with #14: both are violations now, so a compliant fixture is
+ * the wrong place for them.
  */
 
 declare(strict_types=1);
@@ -13,11 +16,15 @@ declare(strict_types=1);
 enum Branch
 {
     case else;
+
+    case elseif;
 }
 
 class PassingConditionals
 {
     public const else = 'reserved words are legal class-constant names';
+
+    public const elseif = 'and that holds for elseif too';
 
     public function earlyReturn(bool $flag): int
     {
@@ -42,40 +49,25 @@ class PassingConditionals
         return $flag ? 1 : 2;
     }
 
-    public function elseIfChainWithoutElse(bool $flag, bool $other): int
+    public function separateGuards(bool $flag, bool $other): int
     {
-        $result = 0;
-
         if ($flag) {
-            $result = 1;
-        } elseif ($other) {
-            $result = 2;
+            return 1;
         }
 
-        return $result;
-    }
-
-    public function elseSpaceIfChainWithoutElse(bool $flag, bool $other): int
-    {
-        $result = 0;
-
-        if ($flag) {
-            $result = 1;
-        } else if ($other) {
-            $result = 2;
+        if ($other) {
+            return 2;
         }
 
-        return $result;
+        return 3;
     }
 
-    public function alternativeSyntaxElseIfWithoutElse(bool $flag, bool $other): int
+    public function alternativeSyntaxWithoutElse(bool $flag): int
     {
         $result = 0;
 
         if ($flag):
             $result = 1;
-        elseif ($other):
-            $result = 2;
         endif;
 
         return $result;
@@ -86,6 +78,11 @@ class PassingConditionals
         return 'a method may be named after a reserved word';
     }
 
+    public function elseif(): string
+    {
+        return 'and that reserved word may be elseif';
+    }
+
     public function memberReferences(object $subject): array
     {
         return [
@@ -93,6 +90,10 @@ class PassingConditionals
             self::else,
             Branch::else,
             self::else(),
+            $subject->elseif(),
+            self::elseif,
+            Branch::elseif,
+            self::elseif(),
         ];
     }
 }

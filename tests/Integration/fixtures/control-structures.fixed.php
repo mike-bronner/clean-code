@@ -6,10 +6,6 @@ class ControlStructuresExample
 {
     public function run(int $value): string
     {
-        if ($value > 0) {
-            return 'positive';
-        } else {
-            return 'other';
-        }
+        return $value > 0 ? 'positive' : 'other';
     }
 }
