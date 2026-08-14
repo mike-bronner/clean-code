@@ -151,10 +151,16 @@ it('reports the expected violations', function (
     // The third line-9 error is the Ternary Conditionals standard (#20):
     // Slevomat's RequireTernaryOperator reads this fixture's if/else as one
     // that only returns, so a third standard now speaks about the same line.
-    // It also owns the fixture's `.fixed.php`, because its fixer collapses the
-    // whole if/else into a ternary and so runs last — brace placement is still
-    // fixed on the way there, and the "brace placement is auto-fixable"
-    // dataset below pins that fixer on a fixture no ternary rule can swallow.
+    // It also owns the fixture's `.fixed.php`. Two fixers can claim this
+    // fixture now — #14 gave DisallowElse a fixer, and this else is exactly
+    // the shape it rewrites (the `if` branch returns) — but the ternary
+    // collapse is what `phpcbf` converges on, so the else never survives to be
+    // unwrapped. Excluding RequireTernaryOperator from the ruleset yields the
+    // unwrapped early-return form instead; the DisallowElse fixer's own
+    // output is pinned directly by tests/fixtures/DisallowElseSniff/. Brace
+    // placement is still fixed on the way there, and the "brace placement is
+    // auto-fixable" dataset below pins that fixer on a fixture no ternary rule
+    // can swallow.
     'malformed control structures' => ['control-structures.php', [9 => 3, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
