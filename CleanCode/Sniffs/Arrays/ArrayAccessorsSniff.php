@@ -101,6 +101,26 @@ class ArrayAccessorsSniff implements Sniff
     private const VERDICT_OFFSET = 'offset';
 
     /**
+     * outwardStep(): the construct reached decides nothing, so the walk steps
+     * over it and carries on outward.
+     */
+    private const STEP_TRANSPARENT = 'transparent';
+
+    /**
+     * outwardStep(): an unterminated construct stands between the two, so what
+     * encloses the chain past it cannot be told and the walk ends undecided.
+     */
+    private const STEP_UNDECIDABLE = 'undecidable';
+
+    /**
+     * outwardStep(): the construct reached is a `foreach` header whose `as`
+     * lies *inside* the construct being stepped out of, so it decides
+     * differently for roots on either side of it. The only step that cannot be
+     * answered once for every root; the walk falls back to hop-by-hop there.
+     */
+    private const STEP_ROOT_DEPENDENT = 'root-dependent';
+
+    /**
      * The property-access operators. `?->` is included: it guards against a
      * null *object*, not against a missing property, so the standard's fallback
      * argument applies to it just as it does to `->`.
@@ -147,11 +167,11 @@ class ArrayAccessorsSniff implements Sniff
     ];
 
     /**
-     * The token stream the three maps below were built from, so a stream they
-     * do not describe is never answered from. PHP_CodeSniffer re-tokenizes a
-     * file on every `phpcbf` pass, and the maps hold pointers into one
-     * particular stream: the fixer's loop counter is part of the key for that
-     * reason, alongside the file and its token count.
+     * The token stream every map below was built from, so a stream they do not
+     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
+     * every `phpcbf` pass, and the maps hold pointers into one particular
+     * stream: the fixer's loop counter is part of the key for that reason,
+     * alongside the file and its token count.
      */
     private ?string $enclosureMapKey = null;
 
@@ -194,6 +214,44 @@ class ArrayAccessorsSniff implements Sniff
      * @var array<int, int>
      */
     private array $lastUnterminatedOpener = [];
+
+    /**
+     * Construct closer => what stepping out of it into the construct enclosing
+     * it produces, as outwardStep() classifies it. Filled on demand.
+     *
+     * @var array<int, string>
+     */
+    private array $outwardSteps = [];
+
+    /**
+     * Construct closer => the nearest construct at or outside it whose outward
+     * step is not STEP_TRANSPARENT, or null when every step outward from it is.
+     * This is the compression: a run of constructs that decide nothing is
+     * crossed in one lookup instead of one hop each.
+     *
+     * @var array<int, int|null>
+     */
+    private array $decidingSteps = [];
+
+    /**
+     * `foreach` parentheses closer => the `as` in its header, or null when the
+     * closer ends something else or the header has no `as`. The one lookup in
+     * the walk that scans, so it is answered once per header rather than once
+     * per read inside it.
+     *
+     * @var array<int, int|null>
+     */
+    private array $foreachClauseAsPtrs = [];
+
+    /**
+     * Parenthesis opener => whether it, or any parenthesis enclosing it, opens
+     * an existence check. Chains of enclosing parentheses are shared between
+     * the reads inside them, so the answer is memoised for every opener the
+     * walk crosses rather than recomputed per read.
+     *
+     * @var array<int, bool>
+     */
+    private array $existenceCheckOpeners = [];
 
     /**
      * @return array<int|string>
@@ -494,6 +552,16 @@ class ArrayAccessorsSniff implements Sniff
      * and anonymous classes are all expressions, so an offset can be computed
      * inside one and the brace ending it is not the end of the enclosing
      * expression.
+     *
+     * Only the first construct is entered from the chain root. Every step after
+     * it goes from one construct to the construct enclosing *that*, and both of
+     * the tests the walk makes are then settled by the token stream alone —
+     * outwardStep() says why. That is what lets decidingStep() cross a whole run
+     * of transparent constructs in one lookup: reads at n increasing depths in
+     * one chain share the run above them, so the first read to walk it pays for
+     * the whole chain and the rest read the answer back. Hop by hop the same
+     * file cost O(n²), which is what the enclosure map alone did not fix — the
+     * map made each hop O(1) without reducing the number of hops (#292).
      */
     private function enclosureVerdict(File $phpcsFile, int $rootPtr): ?string
     {
@@ -517,11 +585,148 @@ class ArrayAccessorsSniff implements Sniff
                 return $verdict;
             }
 
-            $searchPtr = $closerPtr;
-            $closerPtr = $this->parentCloser[$closerPtr] ?? null;
+            $steppedPtr = $this->decidingStep($phpcsFile, $closerPtr);
+
+            if ($steppedPtr === null) {
+                return null;
+            }
+
+            $step = $this->outwardSteps[$steppedPtr];
+
+            if ($step === self::STEP_UNDECIDABLE) {
+                return null;
+            }
+
+            if ($step !== self::STEP_ROOT_DEPENDENT) {
+                return $step;
+            }
+
+            // The one step that cannot be answered for every root at once. The
+            // walk resumes from the construct it reaches, classified against
+            // this chain's own root exactly as the loop above does.
+            $searchPtr = $steppedPtr;
+            $closerPtr = $this->parentCloser[$steppedPtr];
         }
 
         return null;
+    }
+
+    /**
+     * The nearest construct at or outside $closerPtr whose outward step decides
+     * something, ends the walk, or cannot be answered for every root at once —
+     * or null when every step outward from it is transparent and the walk runs
+     * out of enclosing constructs.
+     *
+     * The answer is recorded for every construct crossed on the way, so the
+     * chain above a construct is walked once however many reads sit beneath it.
+     */
+    private function decidingStep(File $phpcsFile, int $closerPtr): ?int
+    {
+        $walkedPtrs = [];
+        $ptr = $closerPtr;
+        $steppedPtr = null;
+
+        while (true) {
+            if (array_key_exists($ptr, $this->decidingSteps) === true) {
+                $steppedPtr = $this->decidingSteps[$ptr];
+
+                break;
+            }
+
+            $walkedPtrs[] = $ptr;
+            $parentPtr = $this->parentCloser[$ptr] ?? null;
+
+            if ($parentPtr === null) {
+                break;
+            }
+
+            if ($this->outwardStep($phpcsFile, $ptr, $parentPtr) !== self::STEP_TRANSPARENT) {
+                $steppedPtr = $ptr;
+
+                break;
+            }
+
+            $ptr = $parentPtr;
+        }
+
+        foreach ($walkedPtrs as $walkedPtr) {
+            $this->decidingSteps[$walkedPtr] = $steppedPtr;
+        }
+
+        return $steppedPtr;
+    }
+
+    /**
+     * What stepping out of $closerPtr into $parentPtr's construct produces: a
+     * verdict, STEP_UNDECIDABLE, STEP_TRANSPARENT, or STEP_ROOT_DEPENDENT.
+     *
+     * Answered once per construct, because a step taken *from a construct*
+     * settles both of the position-dependent tests the walk makes, neither of
+     * which is a static property of the construct being reached:
+     *
+     * - the unterminated-opener test compares against where the walk stands,
+     *   which past the chain root is this closer and nothing else;
+     * - isForeachTargetClause() compares `as` against the chain root, and every
+     *   root reaching this step lies inside this construct — so the construct
+     *   is wholly on one side of `as` and every one of those roots is on that
+     *   side with it. The exception is an `as` *within* the construct, which
+     *   only a `foreach` header nested in the clause can produce: there the
+     *   roots genuinely differ, and the step is answered STEP_ROOT_DEPENDENT so
+     *   the walk decides it per root rather than caching either answer.
+     *
+     * The rest of classifyEnclosure() is a property of the closer alone, so it
+     * carries over unchanged.
+     */
+    private function outwardStep(File $phpcsFile, int $closerPtr, int $parentPtr): string
+    {
+        return $this->outwardSteps[$closerPtr]
+            ??= $this->classifyOutwardStep($phpcsFile, $closerPtr, $parentPtr);
+    }
+
+    /**
+     * classifyEnclosure() rewritten for the one caller that enters the
+     * construct from another construct rather than from the chain root, and so
+     * can answer for every root at once. The order of the tests, and every
+     * answer they give, matches it exactly.
+     */
+    private function classifyOutwardStep(File $phpcsFile, int $closerPtr, int $parentPtr): string
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (($this->lastUnterminatedOpener[$parentPtr] ?? -1) > $closerPtr) {
+            return self::STEP_UNDECIDABLE;
+        }
+
+        $code = $tokens[$parentPtr]['code'];
+
+        if ($code === T_CLOSE_SQUARE_BRACKET) {
+            return self::VERDICT_OFFSET;
+        }
+
+        if ($code === T_CLOSE_CURLY_BRACKET) {
+            return $this->isDynamicMemberBrace($phpcsFile, $tokens[$parentPtr]['bracket_opener']) === true
+                ? self::VERDICT_OFFSET
+                : self::STEP_TRANSPARENT;
+        }
+
+        $asPtr = $this->foreachClauseAs($phpcsFile, $parentPtr);
+
+        if ($asPtr !== null) {
+            $openerPtr = $tokens[$closerPtr]['bracket_opener'] ?? $tokens[$closerPtr]['parenthesis_opener'];
+
+            if ($asPtr < $openerPtr) {
+                return self::VERDICT_TARGET;
+            }
+
+            // A `foreach` clause that is not a target decides nothing else:
+            // its parentheses are owned by `foreach` and never by `list()`, so
+            // isAssignedPattern() cannot answer for them either.
+            return $asPtr > $closerPtr ? self::STEP_TRANSPARENT : self::STEP_ROOT_DEPENDENT;
+        }
+
+        return $this->isAssignedPattern($phpcsFile, $parentPtr) === true
+            ? self::VERDICT_TARGET
+            : self::STEP_TRANSPARENT;
     }
 
     /**
@@ -574,17 +779,37 @@ class ArrayAccessorsSniff implements Sniff
      */
     private function isForeachTargetClause(File $phpcsFile, int $rootPtr, int $closerPtr): bool
     {
-        $tokens = $phpcsFile->getTokens();
-        $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
+        $asPtr = $this->foreachClauseAs($phpcsFile, $closerPtr);
 
-        if ($ownerPtr === null || $tokens[$ownerPtr]['code'] !== T_FOREACH) {
-            return false;
+        return $asPtr !== null && $asPtr < $rootPtr;
+    }
+
+    /**
+     * The `as` of the `foreach` header this closer ends, or null when it ends
+     * something else — or a header with no `as` at all, which assigns into
+     * nothing and so decides exactly as a header that is not a target does.
+     *
+     * The lookup scans the header, which is the whole of it: a header holding a
+     * staircase of reads would be rescanned once per read without this, which is
+     * the O(n²) the outward walk itself no longer has.
+     */
+    private function foreachClauseAs(File $phpcsFile, int $closerPtr): ?int
+    {
+        if (array_key_exists($closerPtr, $this->foreachClauseAsPtrs) === true) {
+            return $this->foreachClauseAsPtrs[$closerPtr];
         }
 
-        $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
-        $asPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
+        $tokens = $phpcsFile->getTokens();
+        $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
+        $asPtr = null;
 
-        return $asPtr !== false && $asPtr < $rootPtr;
+        if ($ownerPtr !== null && $tokens[$ownerPtr]['code'] === T_FOREACH) {
+            $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
+            $foundPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
+            $asPtr = $foundPtr === false ? null : $foundPtr;
+        }
+
+        return $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
     }
 
     /**
@@ -671,6 +896,9 @@ class ArrayAccessorsSniff implements Sniff
      *
      * The maps stay valid only for the token stream they were built from, so
      * they are rebuilt whenever self::$enclosureMapKey no longer matches it.
+     * Everything derived from them — the outward steps, the compressed runs of
+     * transparent ones, the `foreach` headers' `as`, and the existence checks —
+     * holds pointers into the same stream, so it is discarded with them.
      *
      * The pass is deliberately unbounded, for the same reason the rescan was.
      * PHP_CodeSniffer's `$local` flag stops at the first `;` in the token
@@ -696,6 +924,10 @@ class ArrayAccessorsSniff implements Sniff
         $this->innermostCloser = [];
         $this->parentCloser = [];
         $this->lastUnterminatedOpener = [];
+        $this->outwardSteps = [];
+        $this->decidingSteps = [];
+        $this->foreachClauseAsPtrs = [];
+        $this->existenceCheckOpeners = [];
 
         // The null standing at the bottom of the stack is "nothing encloses
         // this", so the innermost construct is always the last entry and the
@@ -810,20 +1042,80 @@ class ArrayAccessorsSniff implements Sniff
      */
     private function isInsideExistenceCheck(File $phpcsFile, int $rootPtr): bool
     {
+        $this->buildEnclosureMap($phpcsFile);
+
         $tokens = $phpcsFile->getTokens();
+        $enclosingPtrs = $tokens[$rootPtr]['nested_parenthesis'] ?? [];
 
-        foreach (array_keys($tokens[$rootPtr]['nested_parenthesis'] ?? []) as $openerPtr) {
-            $ownerPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
-
-            if ($ownerPtr === false) {
-                continue;
-            }
-
-            if (isset(self::EXISTENCE_CHECKS[strtolower($tokens[$ownerPtr]['content'])]) === true) {
-                return true;
-            }
+        if ($enclosingPtrs === []) {
+            return false;
         }
 
-        return false;
+        return $this->isEnclosedByExistenceCheck($phpcsFile, array_key_last($enclosingPtrs));
+    }
+
+    /**
+     * Whether $openerPtr, or any parenthesis enclosing it, opens an existence
+     * check. PHP_CodeSniffer records the whole chain of enclosing parentheses on
+     * every token inside them, so reading the chain off the innermost one tests
+     * exactly the parentheses reading it off the chain root does.
+     *
+     * The answer is recorded for every opener crossed, which is what keeps the
+     * question off the O(n²) path the outward walk left: n reads at n increasing
+     * depths share one chain of parentheses, and testing it per read tests the
+     * same openers over and over (#292).
+     */
+    private function isEnclosedByExistenceCheck(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $walkedPtrs = [];
+        $ptr = $openerPtr;
+        $enclosed = false;
+
+        while (true) {
+            if (array_key_exists($ptr, $this->existenceCheckOpeners) === true) {
+                $enclosed = $this->existenceCheckOpeners[$ptr];
+
+                break;
+            }
+
+            $walkedPtrs[] = $ptr;
+
+            if ($this->isExistenceCheckOpener($phpcsFile, $ptr) === true) {
+                $enclosed = true;
+
+                break;
+            }
+
+            $enclosingPtrs = $tokens[$ptr]['nested_parenthesis'] ?? [];
+
+            if ($enclosingPtrs === []) {
+                break;
+            }
+
+            $ptr = array_key_last($enclosingPtrs);
+        }
+
+        foreach ($walkedPtrs as $walkedPtr) {
+            $this->existenceCheckOpeners[$walkedPtr] = $enclosed;
+        }
+
+        return $enclosed;
+    }
+
+    /**
+     * Whether the parentheses at $openerPtr are an existence check's own, which
+     * is decided by the construct or function name directly in front of them.
+     */
+    private function isExistenceCheckOpener(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ownerPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
+
+        if ($ownerPtr === false) {
+            return false;
+        }
+
+        return isset(self::EXISTENCE_CHECKS[strtolower($tokens[$ownerPtr]['content'])]) === true;
     }
 }
