@@ -50,6 +50,7 @@ section, and summarizes how the standard is enforced.
 Where a rule covers only part of a standard, that standard's document records
 what stays with code review.
 
+- [Code Style: Linters (config & no auto-formatter)](docs/standards/code-style-linters-config--no-auto-formatter.md) — Tier 3, not statically enforceable
 - [Debt: Technical Debt](docs/standards/debt-technical-debt.md) — Tier 3, not statically enforceable
 - [Boy Scout Rule](docs/standards/boy-scout-rule.md) — Tier 3, not statically enforceable
 - [Don't Optimize Early](docs/standards/dont-optimize-early.md) — Tier 3, not statically enforceable
