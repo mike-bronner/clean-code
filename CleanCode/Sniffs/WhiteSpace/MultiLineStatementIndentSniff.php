@@ -165,6 +165,14 @@ class MultiLineStatementIndentSniff implements Sniff
     public int $indent = 4;
 
     /**
+     * For every token that sits inside a comment which opened before it, the
+     * token that opened that comment. Rebuilt per file by mapCommentOpeners().
+     *
+     * @var array<int, int>
+     */
+    private array $commentOpeners = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -180,6 +188,7 @@ class MultiLineStatementIndentSniff implements Sniff
     public function process(File $phpcsFile, $stackPtr)
     {
         $tokens = $phpcsFile->getTokens();
+        $this->mapCommentOpeners($phpcsFile);
         $i = $stackPtr;
 
         while ($i < $phpcsFile->numTokens) {
@@ -510,11 +519,13 @@ class MultiLineStatementIndentSniff implements Sniff
      * per-physical-line split this file already handles for heredocs and
      * strings. So a fragment says nothing on its own about whether it is the
      * comment's first line, and the answer has to be carried forward from the
-     * fragment before it. checkStatement() reads it while walking the tokens it
-     * already walks, which is also why it is carried rather than recomputed:
-     * scanning back to the start of the comment for each of its lines is
-     * quadratic, and a long commented-out block inside one statement is enough
-     * to stall the run.
+     * fragment before it. Both callers carry it rather than recompute it, for
+     * the same reason: scanning back to the start of the comment for each of its
+     * lines is quadratic, and a long comment is enough to stall the run.
+     * checkStatement() carries it along the token walk it already makes;
+     * mapCommentOpeners() carries it along one pass over the file, for
+     * lineFirstToken(), which reads lines in no order it could carry anything
+     * along.
      *
      * Carrying the state is also what tells apart two shapes that look
      * identical at the fragment: a body line whose text begins with a slash
@@ -591,14 +602,31 @@ class MultiLineStatementIndentSniff implements Sniff
      * A line that opens *inside* a comment has no indent of its own — what
      * stands in front of its code is the comment's body, whose alignment is the
      * comment's business. The indent governing it is the one on the line that
-     * comment opened, so the search continues there. Every measurement this
-     * sniff makes runs through here, which is why the rule lives here rather
-     * than at each caller: the same line reads the same way whether it is being
-     * checked, used as an anchor, or read as the statement's own base indent.
+     * comment opened, so the search moves there in one step, whatever the
+     * comment's length. Every measurement this sniff makes runs through here,
+     * which is why the rule lives here rather than at each caller: the same line
+     * reads the same way whether it is being checked, used as an anchor, or read
+     * as the statement's own base indent.
      */
     private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
         $tokens = $phpcsFile->getTokens();
+        $first = $this->lineStart($tokens, $ptr);
+
+        while (isset($this->commentOpeners[$first]) === true) {
+            $first = $this->lineStart($tokens, $this->commentOpeners[$first]);
+        }
+
+        return $first;
+    }
+
+    /**
+     * The first token past the indent on the line the token at $ptr sits on.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function lineStart(array $tokens, int $ptr): int
+    {
         $first = $ptr;
 
         while ($first > 0 && $tokens[$first - 1]['line'] === $tokens[$ptr]['line']) {
@@ -609,45 +637,50 @@ class MultiLineStatementIndentSniff implements Sniff
             $first++;
         }
 
-        if ($first > 0 && $this->opensInsideComment($tokens, $first) === true) {
-            return $this->lineFirstToken($phpcsFile, $first - 1);
-        }
-
         return $first;
     }
 
     /**
-     * Whether the token at $ptr sits inside a comment that opened before it.
+     * Records, for every token sitting inside a comment that opened before it,
+     * the token that opened that comment.
      *
-     * Replays the comment run $ptr belongs to from its start, which is where
-     * commentStaysOpen() explains the state has to come from. checkStatement()
-     * carries that state forward instead of replaying it, because it asks the
-     * question of every token; here it is asked only of a line being measured,
-     * of which a statement has few.
-     *
-     * @param array<int, array<string, mixed>> $tokens
+     * Whether a comment fragment continues the one above it is a question about
+     * the fragment before it, so the answer has to come from the state carried
+     * along the run — commentStaysOpen() says why. lineFirstToken() reads lines
+     * in no particular order and cannot carry anything, and recovering the state
+     * per line by replaying the comment from its start costs one pass per line:
+     * quadratic in the comment's length, and a doc comment of a few thousand
+     * lines in front of a wrapped statement is then enough to stall the run.
+     * Filling this map is one pass over the file, and every later reading is a
+     * lookup. process() rebuilds it per file, which includes once per `phpcbf`
+     * pass, so it never outlives the tokens it was built from.
      */
-    private function opensInsideComment(array $tokens, int $ptr): bool
+    private function mapCommentOpeners(File $phpcsFile): void
     {
-        $comments = Tokens::$commentTokens;
+        $this->commentOpeners = [];
+        $opener = null;
 
-        if (isset($comments[$tokens[$ptr]['code']]) === false) {
-            return false;
+        foreach ($phpcsFile->getTokens() as $i => $token) {
+            $code = $token['code'];
+
+            if (isset(Tokens::$commentTokens[$code]) === false) {
+                $opener = null;
+
+                continue;
+            }
+
+            if ($opener !== null) {
+                $this->commentOpeners[$i] = $opener;
+            }
+
+            $stillOpen = $this->commentStaysOpen($opener !== null, $code, $token['content']);
+
+            if ($stillOpen === false) {
+                $opener = null;
+            } elseif ($opener === null) {
+                $opener = $i;
+            }
         }
-
-        $first = $ptr;
-
-        while (isset($tokens[$first - 1]) === true && isset($comments[$tokens[$first - 1]['code']]) === true) {
-            $first--;
-        }
-
-        $open = false;
-
-        for ($i = $first; $i < $ptr; $i++) {
-            $open = $this->commentStaysOpen($open, $tokens[$i]['code'], $tokens[$i]['content']);
-        }
-
-        return $open;
     }
 
     /**

@@ -119,6 +119,10 @@ it('flags each misindented line at its own line and column', function (): void {
         ['line' => 282, 'column' => 5, 'source' => $incorrect],
         ['line' => 290, 'column' => 5, 'source' => $incorrect],
         ['line' => 300, 'column' => 5, 'source' => $incorrect],
+        ['line' => 308, 'column' => 9, 'source' => $incorrect],
+        ['line' => 317, 'column' => 5, 'source' => $incorrect],
+        ['line' => 318, 'column' => 5, 'source' => $incorrect],
+        ['line' => 326, 'column' => 5, 'source' => $incorrect],
     ]);
 });
 
@@ -268,6 +272,10 @@ it('anchors each line on the construct that owns it', function (int $failingLine
     'continuation: value below a leading `=>`' => [282, 8, 4],
     'continuation: below a line that opens inside a comment' => [290, 8, 4],
     'sibling: argument of a statement starting inside a comment' => [300, 8, 4],
+    'sibling: `||` operand, opener alone on its line' => [308, 4, 8],
+    'continuation: ternary consequent below its operand' => [317, 8, 4],
+    'continuation: ternary alternative below its operand' => [318, 8, 4],
+    'sibling: argument of a call nested in a call' => [326, 8, 4],
 ]);
 
 /**
@@ -292,13 +300,16 @@ it('anchors each line on the construct that owns it', function (int $failingLine
  * `T_COALESCE` sits in `Tokens::$operators` *and* `Tokens::$comparisonTokens`
  * and takes both. Each row still swaps its pair either way.
  *
- * Two kinds of member are deliberately elsewhere. The ones whose job is to
- * *suppress* a line rather than anchor it — `RAW_CONTENT` and
- * `STRING_LITERALS` — are pinned by the raw-content test below, since for
+ * Three kinds of member are deliberately elsewhere. The ones whose job is to
+ * *suppress* a line rather than anchor it — `RAW_CONTENT`, `STRING_LITERALS`,
+ * and `EXPRESSION_SCOPES` — are pinned by the branch test above, since for
  * those the compliant and failing lines are both silent and it is the
- * neighbouring opener that reports. And an unreachable member is pinned by its
- * docblock instead of a fixture: `T_MATCH_ARROW` and `T_INLINE_HTML` both say
- * why in the sniff. No member appears in two arrays at once — whichever copy
+ * neighbouring line that reports. The ones the anchor test above already names
+ * as a pair — `T_STRING_CONCAT`, and `T_FN_ARROW` in both the trailing and the
+ * leading position — are pinned by those rows, which are the same mutation trap
+ * under another name. And an unreachable member is pinned by its docblock
+ * instead of a fixture: `T_MATCH_ARROW` and `T_INLINE_HTML` both say why in the
+ * sniff. No member appears in two arrays at once — whichever copy
  * checkLine() reads first would answer for both, leaving neither testable,
  * which is why `continuationTokens()` no longer repeats CHAIN_OPERATORS or
  * anything `Tokens::$operators` already carries.
@@ -329,11 +340,17 @@ it('reaches every member of its hand-maintained token arrays', function (
     'CHAIN_OPERATORS: T_OBJECT_OPERATOR' => [85, 76, '->prepare()'],
     'CHAIN_OPERATORS: T_NULLSAFE_OBJECT_OPERATOR' => [209, 186, '?->getProfile()'],
     'CHAIN_OPERATORS: T_DOUBLE_COLON' => [215, 191, "::make('first')"],
+    'BRACKET_OPENERS: T_OPEN_PARENTHESIS' => [364, 326, '$value'],
     'BRACKET_OPENERS: T_OPEN_SQUARE_BRACKET' => [223, 198, '$key'],
+    'BRACKET_OPENERS: T_OPEN_SHORT_ARRAY' => [52, 90, "'flag' => true,"],
     'BRACKET_OPENERS: T_ATTRIBUTE' => [267, 239, 'Route('],
+    'SIBLING_OPERATORS: T_BOOLEAN_AND' => [36, 32, '&& $second === 2'],
+    'SIBLING_OPERATORS: T_BOOLEAN_OR' => [346, 308, '|| $second === 2'],
     'SIBLING_OPERATORS: T_LOGICAL_AND' => [232, 206, 'and $second === 2'],
     'SIBLING_OPERATORS: T_LOGICAL_OR' => [233, 207, 'or $third === 3'],
     'SIBLING_OPERATORS: T_LOGICAL_XOR' => [234, 208, 'xor $fourth === 4'],
+    'continuationTokens(): T_INLINE_THEN' => [355, 317, "? 'active'"],
+    'continuationTokens(): T_INLINE_ELSE' => [356, 318, ": 'inactive'"],
     'continuationTokens(): T_INSTANCEOF' => [243, 217, 'instanceof Probe'],
     'delegated to a union: T_COALESCE' => [306, 275, '?? $fallback'],
     'delegated to a union: T_DOUBLE_ARROW' => [313, 282, "=> 'App\\Http\\Controllers\\HomeController'"],
@@ -376,6 +393,46 @@ it('reads a long comment inside a statement in linear time', function (): void {
     }
 
     expect($file->getErrorCount())->toBe(0, 'the comment holds its own lines')
+        ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
+});
+
+/**
+ * The same cost in the other reader of that state. A line opening inside a
+ * comment is measured on the line the comment opened, so every reading of it —
+ * the statement's own base indent, and the anchor under each continuation line
+ * below it — asks how far back that comment began. Recovering the answer by
+ * replaying the comment costs one pass per reading, and each pass is the whole
+ * comment: quadratic again, and this time also one stack frame per line.
+ * mapCommentOpeners() answers it in one lookup.
+ *
+ * The shape is deliberately the one the sibling test above cannot reach: there
+ * the comment sits inside an argument list, where the comma resets the anchor
+ * before any line has to be measured back through it. Here the statement itself
+ * *starts* on the line the comment closes on, and a chain hangs below it, so
+ * every line measured runs back through the comment.
+ *
+ * Same generated fixture and same generous budget as above: the carried state
+ * answers n=10,000 in about a tenth of a second here, while replaying needs
+ * upwards of a minute.
+ */
+it('anchors lines on a long comment\'s opening line in linear time', function (): void {
+    $size = 10000;
+    $source = "<?php\n\n/** explain\n"
+        . str_repeat(" * filler\n", $size)
+        . " */ \$result = \$queryBuilder\n    ->select('*')\n    ->from('users');\n";
+
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-anchor-scale-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    expect($file->getErrorCount())->toBe(0, 'the chain hangs below the line the comment opened')
         ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
 });
 

@@ -279,7 +279,7 @@ doSomething(
 
 // A comment that runs onto the line below carries its own body onto that line,
 // so what precedes the code there is the comment rather than the line's indent.
-// The comment's opening line is the one that gets checked.
+// Neither that line nor the comment's opening line is measured here.
 doSomething(
     /* explains the flag
        across two lines */ $first,
@@ -337,3 +337,30 @@ function annotated(): void
         $context
     );
 }
+
+// `||` is a sibling operator exactly as `&&` is: with the opener alone on its
+// line — the one layout where the two anchors differ — it sits a level in from
+// the line `if (` opens on rather than from the condition above it.
+if (
+    $first === 1
+    || $second === 2
+) {
+    $matched = true;
+}
+
+// A ternary's branches continue the operand above them, so inside a call they
+// hang below that operand's own line rather than below the opener.
+report(
+    $isActive
+        ? 'active'
+        : 'inactive',
+    $context
+);
+
+// A call nested inside a call is a bracket of its own: its arguments anchor on
+// the line it opens on rather than on the statement's.
+outer(
+    inner(
+        $value
+    )
+);

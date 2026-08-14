@@ -248,15 +248,15 @@ doSomething(
   /* explains the flag */ $flag,
 );
 
-// The opening line of a comment that runs onto the line below is the line that
-// carries the indent, so it is the one that reports; the code sharing the
-// comment's tail line reports nothing.
+// Neither line of a comment that runs onto the line below reports here: a
+// comment line is never measured, and the code sharing the comment's tail line
+// follows the comment's own body. Under the shipped rules PSR2 has the opener.
 doSomething(
   /* explains the flag
      across two lines */ $first,
 );
 
-// A doc comment reports the same way, on its opening line.
+// A doc comment splits per physical line the same way, and reads the same.
 doSomething(
   /** explains the flag
    * across two lines */ $second,
@@ -300,3 +300,29 @@ function annotated(): void
     $context
     );
 }
+
+// A `||` operand a level deeper than the first condition, which is its sibling
+// rather than the expression it continues.
+if (
+    $first === 1
+        || $second === 2
+) {
+    $matched = true;
+}
+
+// Ternary branches indented as sibling arguments instead of continuations of
+// the operand above them.
+report(
+    $isActive
+    ? 'active'
+    : 'inactive',
+    $context
+);
+
+// An argument of a nested call anchored on the statement's line instead of on
+// the call that opens it.
+outer(
+    inner(
+    $value
+    )
+);
