@@ -51,6 +51,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Naming.ShortVariable',
+    'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
@@ -97,6 +98,7 @@ const SWEPT_WARNING_SNIFFS = [
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Conditionals.OneConditionPerLine',
+    'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
     'CleanCode.WhiteSpace.BlankLines',

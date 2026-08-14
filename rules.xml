@@ -346,6 +346,33 @@
     </rule>
 
     <!--
+        Operators: Active (#62) — docs/standards/operators-active.md.
+
+        That standard asks for exactly 1 space around every "active" operator,
+        and the three rules directly above already deliver three quarters of
+        its list: the assignment operators, concatenation, and the not
+        operator. The one group nothing covered is the boolean connectives
+        (&&, ||, and, or, xor) — Squiz.WhiteSpace.OperatorSpacing's register()
+        targets comparison, arithmetic/bitwise and assignment tokens, and
+        leaves Tokens::$booleanOperators out. CleanCode.Operators.
+        BooleanOperatorSpacing adds exactly those five, and nothing else. It
+        needs no <rule> element of its own — custom CleanCode sniffs arrive via
+        the ./CleanCode/ruleset.xml ref above — so this comment is the only
+        entry #62 makes here.
+
+        Narrowing it to that group is load-bearing, not tidiness. A sniff
+        covering the whole standard reports every assignment, concatenation and
+        "!" violation twice: the "same-sniff configuration wins" merge noted at
+        the top of this file dedupes configuration of one sniff, never
+        diagnostics from two different ones. If either Squiz rule above is
+        narrowed or removed, the operators it owns stop being checked
+        altogether — they must be re-homed, not assumed covered by #62.
+        Pinned by tests/Integration/OperatorRulesIntegrationTest.php and by the
+        disjointness assertions in
+        tests/Standards/BooleanOperatorSpacingTest.php.
+    -->
+
+    <!--
         Arrays: Array Accessors (#33) —
         docs/standards/arrays-array-accessors.md.
 
