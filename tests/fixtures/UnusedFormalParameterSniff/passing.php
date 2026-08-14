@@ -198,6 +198,47 @@ class Annotated extends \Vendor\Unknown\Base
     }
 }
 
+// A constructor's own parameter, read in the body like any other. The promoted
+// spelling below is exempt without being read; this one is not.
+class PlainConstructorReads
+{
+    public function __construct(string $reason)
+    {
+        echo $reason;
+    }
+}
+
+// A closure and an arrow function reading the parameters they declare
+// themselves. Both constructs are reported by this sniff when the parameter is
+// dead, so the compliant shape of each belongs here.
+$closureReads = function (string $mu): string {
+    return $mu;
+};
+
+$arrowReads = fn (string $nu): string => $nu;
+
+// Every compact() call in the body names its parameters, not just the first
+// one: $xi is named by the second call and by nothing else.
+function compactInSecondCall(string $omicron, string $xi): array
+{
+    if ($omicron === 'first') {
+        return compact('omicron');
+    }
+
+    return compact('xi');
+}
+
+// PHP resolves an attribute name case-insensitively, so this is the same
+// attribute as #[\Override] and carries the same proof.
+class LowercaseOverride extends \Vendor\Unknown\Base
+{
+    #[\override]
+    public function handle(string $sixth): void
+    {
+        echo 'x';
+    }
+}
+
 class Promoted
 {
     // A promoted property is class state whatever the body does, in each of

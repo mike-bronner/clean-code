@@ -167,3 +167,81 @@ function prefixIsNotARead(string $id): void
 
     echo $idleTimer;
 }
+
+// A constructor parameter that is not promoted is the author's own, exactly
+// like any other. Only promotion turns one into class state.
+class PlainConstructor
+{
+    public function __construct(string $unusedS)
+    {
+        echo 'x';
+    }
+}
+
+// A comment naming the parameter is not a read of it. The body is read as
+// code, not as raw text, so a name that appears only in a comment leaves the
+// parameter as dead as it was.
+function commentMentionOnly(string $unusedT): void
+{
+    // $unusedT is named here and nowhere else.
+    echo 'x';
+}
+
+// A single-quoted string does not interpolate, so the name inside it is
+// printed rather than read.
+function stringLiteralMentionOnly(string $unusedU): void
+{
+    echo 'this prints $unusedU literally';
+}
+
+// Inline HTML is output too, for the same reason.
+function inlineHtmlMentionOnly(string $unusedV): void
+{
+    ?>
+    <p>$unusedV</p>
+    <?php
+}
+
+class LineCommentAnnotation
+{
+    // A line comment is not a docblock, and only a docblock carries the
+    // annotation. PHPMD reads the method's doc comment, which is the same
+    // distinction.
+    // @inheritdoc
+    public function handle(string $unusedW): void
+    {
+        echo 'x';
+    }
+}
+
+class AttributeArgument
+{
+    // Override named inside another attribute's argument list is a class
+    // reference, not the #[\Override] attribute.
+    #[Listens(handler: Override::class)]
+    public function handle(string $unusedX): void
+    {
+        echo 'x';
+    }
+}
+
+trait CollidingTrait
+{
+    public function collide(string $value): string
+    {
+        return $value;
+    }
+}
+
+// A trait the class uses itself does not make the class's own method an
+// override: PHP gives the class's own declaration precedence over the trait's,
+// and PHPMD asks only about the parent chain.
+class UsesCollidingTrait
+{
+    use CollidingTrait;
+
+    public function collide(string $unusedY): string
+    {
+        return 'x';
+    }
+}

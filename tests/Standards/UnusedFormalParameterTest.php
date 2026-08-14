@@ -13,13 +13,22 @@
  *     phpmd tests/fixtures/UnusedFormalParameterSniff/failing.php text only-ufp.xml
  *
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
- * 91, 112, 122, 128, 136, 144, 154 and 164 — eighteen findings, naming $unusedA
- * through $unusedR (with $unusedJ absent, since that one is read) plus $id.
- * This sniff reproduces all eighteen, on the same lines, naming the same
- * parameters. On
- * passing.php both tools are silent. On divergences.php PHPMD reports three of
- * the six this sniff reports, and the three it skips are the constructs
- * PDepend never surfaces to a MethodAware rule.
+ * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222 and 243 —
+ * twenty-five findings, naming $unusedA through $unusedY (with $unusedJ absent,
+ * since that one is read) plus $id. This sniff reproduces all twenty-five, on
+ * the same lines, naming the same parameters.
+ *
+ * On passing.php this sniff is silent and PHPMD is not: it reports $eta,
+ * $theta and $iota (its func_get_args() exemption misses an unqualified call
+ * inside a namespace) and $fourth, $fifth and $sixth (it does not honour
+ * #[\Override] at all). Both are rows in the divergence table in
+ * docs/phpmd/unusedcode-unusedformalparameter.md.
+ *
+ * On divergences.php PHPMD reports three of the seven this sniff reports. The
+ * four it skips are the three constructs PDepend never surfaces to a
+ * MethodAware rule, and a child of a class whose nested anonymous class uses a
+ * trait — which PDepend attributes to the enclosing class, so PHPMD reads the
+ * child as an override.
  *
  * That parity is the whole point of #120: the rule exists so that `phpmd` no
  * longer has to run, and a shape this sniff stays silent on where PHPMD speaks
@@ -67,9 +76,14 @@ it('is registered in the master ruleset', function (): void {
  * - same-file override resolution, at one level, transitively at two, through
  *   an interface reached via the parent's own `implements` clause, and onto a
  *   method the parent draws from a trait;
- * - `@inheritdoc` bare, braced and mixed-case, and `#[\Override]` both alone
- *   and below a second attribute;
- * - promoted constructor properties, by visibility and by `readonly`;
+ * - `@inheritdoc` bare, braced and mixed-case, and `#[\Override]` both alone,
+ *   below a second attribute, and in the lowercase spelling PHP resolves to
+ *   the same attribute;
+ * - a constructor's own unpromoted parameter, read in the body, and promoted
+ *   constructor properties, by visibility and by `readonly`;
+ * - a closure and an arrow function reading the parameters they declare
+ *   themselves — the compliant half of the two constructs PHPMD cannot see;
+ * - a `compact()` call that is not the first one in its body;
  * - all seven fixed-signature magic methods.
  *
  * `prefixNearMiss()` is the one shape that is not an exemption: it reads
@@ -122,6 +136,26 @@ it('produces no violations on the compliant fixture', function (): void {
  *   makes the word boundary in the sniff's read test load-bearing: without it
  *   the prefix match counts as a read and this finding disappears silently.
  *   Mutation-checked — removing the `\b` reddens this test and nothing else.
+ * - line 175, a constructor's own, unpromoted parameter. Promotion is what
+ *   exempts a constructor parameter; declaring one plainly is not.
+ * - lines 184, 192 and 198: the name appears only in a line comment, only in a
+ *   single-quoted string, and only in inline HTML. None of the three is code,
+ *   so none is a read — reading the body as unfiltered text would silence all
+ *   three, which is coverage PHPMD has and this sniff would not.
+ * - line 211, `// @inheritdoc` written as a line comment. Only a docblock
+ *   carries the annotation, in this sniff and in PHPMD.
+ * - line 222, `Override` named inside another attribute's argument list. It is
+ *   a class reference, not the `#[\Override]` attribute.
+ * - line 243, a class whose own trait declares a method of the same name. PHP
+ *   gives the class's own declaration precedence over the trait's, so the
+ *   method overrides nothing.
+ *
+ * Lines 184 to 243 were each mutation-checked, one defect at a time: taking the
+ * body as unfiltered text drops 184, 192 and 198; walking `Tokens::$emptyTokens`
+ * for the docblock drops 211; the unanchored `Override` match drops 222 and
+ * flags passing.php's lowercase spelling instead; seeding the ancestor queue
+ * with the class's own traits drops 243. Each mutation moved those lines and no
+ * others.
  */
 it('flags every unused formal parameter in the failing fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
@@ -145,6 +179,13 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 144, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 154, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 164, 'column' => 34, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 175, 'column' => 40, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 184, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 192, 'column' => 42, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 198, 'column' => 39, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 211, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 222, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 243, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
@@ -158,13 +199,17 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
  *   anonymous class. PHPMD is silent on all three; each is the same defect in
  *   a construct PDepend never hands to a MethodAware rule, so the extra
  *   reports are kept and this sniff stays a superset.
- * - line 59, a method of a class extending a base declared in another file.
+ * - line 62, a child of a class whose nested anonymous class uses a trait.
+ *   PHPMD is silent: PDepend attributes the trait import to the enclosing
+ *   class, so the child's method reads as an override of it. It overrides
+ *   nothing, and the parameter is dead, so this sniff reports it.
+ * - line 89, a method of a class extending a base declared in another file.
  *   Both tools report it *here*, because PHPMD running over one file cannot
  *   see that base either.
- * - line 84, the second parameter of a signature spread across three lines.
+ * - line 114, the second parameter of a signature spread across three lines.
  *   Column 12 is what proves the anchor is the parameter and not the
  *   declaration: the `function` keyword is two lines above, at column 1.
- * - line 94, a dynamic read. Neither tool resolves `${'unusedG'}`.
+ * - line 124, a dynamic read. Neither tool resolves `${'unusedG'}`.
  *
  * `shadowedName()` is the sixth shape and is absent from this list on purpose:
  * both tools stay silent on it, so it asserts by *not* appearing.
@@ -176,9 +221,10 @@ it('reports the documented divergences, and only those', function (): void {
         ['line' => 21, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 26, 'column' => 27, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 32, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
-        ['line' => 59, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
-        ['line' => 84, 'column' => 12, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
-        ['line' => 94, 'column' => 29, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 62, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 89, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 114, 'column' => 12, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 124, 'column' => 29, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 

@@ -35,6 +35,36 @@ $anonymous = new class {
     }
 };
 
+// PHPMD: silent. A trait used inside a nested anonymous class is not the outer
+// class's, and collide() below overrides nothing — but PDepend attributes the
+// import to the enclosing class, so PHPMD reads the child as an override and
+// says nothing. Reported here: the parameter really is dead.
+trait NestedTrait
+{
+    public function collide(string $value): string
+    {
+        return $value;
+    }
+}
+
+class NestsAnonymousClass
+{
+    public function build(): object
+    {
+        return new class {
+            use NestedTrait;
+        };
+    }
+}
+
+class InheritsNestedAnonymousClass extends NestsAnonymousClass
+{
+    public function collide(string $unusedH): string
+    {
+        return 'x';
+    }
+}
+
 // --- The cost #120 accepted when it chose full parity ---
 
 /**
