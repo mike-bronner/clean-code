@@ -317,8 +317,23 @@ class ArrayAccessorsSniff implements Sniff
      */
     private function isChainMember(File $phpcsFile, int $rootPtr): bool
     {
+        return $this->followsObjectOperator($phpcsFile, $rootPtr);
+    }
+
+    /**
+     * Whether the token before $stackPtr — skipping whitespace and comments —
+     * is an object operator.
+     *
+     * Both questions this sniff asks of a preceding token reduce to this one:
+     * an accessor chain's link and a dynamic member's brace are each
+     * recognised by the `->`/`?->`/`::` that introduces them. A token opening
+     * the file has nothing before it, which answers neither question, so the
+     * walk stops there rather than reading past the start of the token stack.
+     */
+    private function followsObjectOperator(File $phpcsFile, int $stackPtr): bool
+    {
         $tokens = $phpcsFile->getTokens();
-        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($rootPtr - 1), null, true);
+        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if ($previousPtr === false) {
             return false;
@@ -608,14 +623,7 @@ class ArrayAccessorsSniff implements Sniff
      */
     private function isDynamicMemberBrace(File $phpcsFile, int $openerPtr): bool
     {
-        $tokens = $phpcsFile->getTokens();
-        $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
-
-        if ($previousPtr === false) {
-            return false;
-        }
-
-        return in_array($tokens[$previousPtr]['code'], self::OBJECT_OPERATORS, true);
+        return $this->followsObjectOperator($phpcsFile, $openerPtr);
     }
 
     /**
