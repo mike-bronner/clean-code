@@ -4,11 +4,12 @@
  * Integration test for the Slevomat TypeHints rules wired into the master
  * ruleset (rules.xml) for the "Type Hints and Return Types" standard (#45).
  *
- * Fixtures live in Fixtures/TypeHints/: compliant.inc must produce zero
- * TypeHints violations, violations.inc must be flagged at the exact lines
- * below, and violations.inc.fixed is the expected phpcbf output — every
- * violation the sniff can infer a native hint for is resolved, the rest
- * remain flagged.
+ * Fixtures live in tests/fixtures/_rulesets/TypeHints/ — the standard is
+ * implemented by three sniffs rather than one, so it gets a _rulesets bucket
+ * rather than a per-sniff directory. passing.php must produce zero TypeHints
+ * violations, failing.php must be flagged at the exact lines below, and
+ * autofixed.php is the expected phpcbf output: every violation the sniff can
+ * infer a native hint for is resolved, the rest remain flagged.
  *
  * Only SlevomatCodingStandard.TypeHints.* sources are asserted on. The
  * fixtures deliberately pack interface/abstract/class cases into a single
@@ -20,219 +21,116 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\CleanCode\Tests\Ruleset;
+const PARAMETER_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
 
-use PHP_CodeSniffer\Config;
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
+const PARAMETER_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
 
-class TypeHintsRulesetTest extends TestCase
-{
-    private const PARAMETER_MISSING_ANY =
-        'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
-    private const PARAMETER_MISSING_NATIVE =
-        'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
-    private const RETURN_MISSING_ANY =
-        'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint';
-    private const RETURN_MISSING_NATIVE =
-        'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint';
-    private const PROPERTY_MISSING_ANY =
-        'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingAnyTypeHint';
-    private const PROPERTY_MISSING_NATIVE =
-        'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingNativeTypeHint';
+const RETURN_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint';
 
-    private static ?Config $config = null;
+const RETURN_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint';
 
-    private static ?Ruleset $ruleset = null;
+const PROPERTY_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingAnyTypeHint';
 
-    public function testCompliantFixtureProducesNoViolations(): void
-    {
-        $file = $this->processFixture('compliant.inc');
+const PROPERTY_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingNativeTypeHint';
 
-        $this->assertSame([], $this->sourcesByLine($file));
-    }
+const TYPE_HINTS_SNIFFS = [
+    'SlevomatCodingStandard.TypeHints.ParameterTypeHint',
+    'SlevomatCodingStandard.TypeHints.ReturnTypeHint',
+    'SlevomatCodingStandard.TypeHints.PropertyTypeHint',
+];
 
-    public function testViolationsAreFlaggedAtTheExactLine(): void
-    {
-        $file = $this->processFixture('violations.inc');
+// Reporting runs through the whole master ruleset and is then scoped to the
+// TypeHints sources; only the fixer assertion narrows the ruleset, so no other
+// auto-fixing rule can alter the byte-compared output.
+$typeHintsReport = static function (string $fixture): array {
+    $file = analyzeWithMasterRuleset(fixturePath('_rulesets/TypeHints', $fixture));
+    $sources = [];
 
-        $this->assertSame(
-            [
-                5 => [self::PROPERTY_MISSING_ANY],
-                10 => [self::PROPERTY_MISSING_NATIVE],
-                12 => [self::PARAMETER_MISSING_ANY],
-                20 => [self::PARAMETER_MISSING_NATIVE],
-                25 => [self::RETURN_MISSING_ANY],
-                35 => [self::RETURN_MISSING_NATIVE],
-                40 => [self::PARAMETER_MISSING_ANY],
-                48 => [self::PARAMETER_MISSING_ANY],
-                55 => [self::RETURN_MISSING_ANY],
-                63 => [self::PARAMETER_MISSING_NATIVE],
-            ],
-            $this->sourcesByLine($file)
-        );
-        $this->assertSame([], $file->getWarnings());
-    }
-
-    public function testInferrableViolationsAreMarkedFixable(): void
-    {
-        $file = $this->processFixture('violations.inc');
-
-        $this->assertSame(
-            [10, 20, 35, 63],
-            $this->fixableLines($file),
-            'Exactly the annotated (inferrable) violations must be fixable.'
-        );
-    }
-
-    public function testFixerResolvesEveryInferrableHint(): void
-    {
-        $file = $this->processFixtureWithTypeHintsFixerOnly('violations.inc');
-        $file->fixer->fixFile();
-
-        $this->assertStringEqualsFile(
-            __DIR__ . '/Fixtures/TypeHints/violations.inc.fixed',
-            $file->fixer->getContents()
-        );
-    }
-
-    public function testOnlyUninferrableViolationsRemainAfterFixing(): void
-    {
-        $file = $this->processFixture('violations.inc.fixed');
-
-        $this->assertSame(
-            [
-                5 => [self::PROPERTY_MISSING_ANY],
-                12 => [self::PARAMETER_MISSING_ANY],
-                25 => [self::RETURN_MISSING_ANY],
-                40 => [self::PARAMETER_MISSING_ANY],
-                48 => [self::PARAMETER_MISSING_ANY],
-                55 => [self::RETURN_MISSING_ANY],
-            ],
-            $this->sourcesByLine($file)
-        );
-    }
-
-    private function processFixture(string $fixture): LocalFile
-    {
-        if (self::$ruleset === null) {
-            $root = dirname(__DIR__, 2);
-
-            // ConfigDouble isolates PHPCS's static config state per suite
-            // (the CleanCode sniff suite blanks it), so the installer-written
-            // installed_paths is gone by the time this suite runs — point
-            // PHPCS at the Slevomat standard explicitly.
-            self::$config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
-            Config::setConfigData(
-                'installed_paths',
-                $root . '/vendor/slevomat/coding-standard',
-                true
-            );
-            self::$ruleset = new Ruleset(self::$config);
-        }
-
-        $file = new LocalFile(
-            __DIR__ . '/Fixtures/TypeHints/' . $fixture,
-            self::$ruleset,
-            self::$config
-        );
-        $file->process();
-
-        return $file;
-    }
-
-    /**
-     * Like processFixture, but on a ruleset narrowed to the TypeHints sniffs
-     * (keeping their master-ruleset configuration, e.g. the UselessAnnotation
-     * excludes). The whole-file fixer output is asserted verbatim, so any other
-     * auto-fixing rule wired into the shared master ruleset would otherwise
-     * alter it — restricting to the sniffs under test keeps this test immune to
-     * unrelated additions, matching the reporting assertions above.
-     */
-    private function processFixtureWithTypeHintsFixerOnly(string $fixture): LocalFile
-    {
-        $root = dirname(__DIR__, 2);
-
-        $config = new ConfigDouble(['--standard=' . $root . '/rules.xml']);
-        Config::setConfigData(
-            'installed_paths',
-            $root . '/vendor/slevomat/coding-standard',
-            true
-        );
-
-        $ruleset = new Ruleset($config);
-
-        foreach (array_keys($ruleset->sniffs) as $sniffClass) {
-            if (strpos($sniffClass, 'Sniffs\\TypeHints\\') === false) {
-                unset($ruleset->sniffs[$sniffClass]);
-            }
-        }
-
-        $ruleset->populateTokenListeners();
-
-        $file = new LocalFile(
-            __DIR__ . '/Fixtures/TypeHints/' . $fixture,
-            $ruleset,
-            $config
-        );
-        $file->process();
-
-        return $file;
-    }
-
-    /**
-     * @return array<int, array<int, string>> line number => sorted TypeHints violation sources
-     */
-    private function sourcesByLine(LocalFile $file): array
-    {
-        $sources = [];
-
-        foreach ($file->getErrors() as $line => $columns) {
-            foreach ($columns as $errors) {
-                foreach ($errors as $error) {
-                    if (self::isTypeHintsSource($error['source'])) {
-                        $sources[$line][] = $error['source'];
-                    }
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $errors) {
+            foreach ($errors as $error) {
+                if (str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.') === true) {
+                    $sources[$line][] = $error['source'];
                 }
             }
         }
-
-        foreach ($sources as &$lineSources) {
-            sort($lineSources);
-        }
-        unset($lineSources);
-
-        ksort($sources);
-
-        return $sources;
     }
 
-    /**
-     * @return array<int, int> line numbers carrying at least one fixable TypeHints violation
-     */
-    private function fixableLines(LocalFile $file): array
-    {
-        $lines = [];
+    foreach ($sources as &$lineSources) {
+        sort($lineSources);
+    }
 
-        foreach ($file->getErrors() as $line => $columns) {
-            foreach ($columns as $errors) {
-                foreach ($errors as $error) {
-                    if ($error['fixable'] && self::isTypeHintsSource($error['source'])) {
-                        $lines[] = $line;
-                    }
+    unset($lineSources);
+    ksort($sources);
+
+    return $sources;
+};
+
+it('registers every TypeHints rule in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    foreach (TYPE_HINTS_SNIFFS as $sniff) {
+        expect($ruleset->sniffCodes)->toHaveKey($sniff);
+    }
+});
+
+it('produces no violations on the compliant fixture', function () use ($typeHintsReport): void {
+    expect($typeHintsReport('passing.php'))->toBe([]);
+});
+
+it('flags violations at the exact line', function () use ($typeHintsReport): void {
+    expect($typeHintsReport('failing.php'))->toBe([
+        5 => [PROPERTY_MISSING_ANY],
+        10 => [PROPERTY_MISSING_NATIVE],
+        12 => [PARAMETER_MISSING_ANY],
+        20 => [PARAMETER_MISSING_NATIVE],
+        25 => [RETURN_MISSING_ANY],
+        35 => [RETURN_MISSING_NATIVE],
+        40 => [PARAMETER_MISSING_ANY],
+        48 => [PARAMETER_MISSING_ANY],
+        55 => [RETURN_MISSING_ANY],
+        63 => [PARAMETER_MISSING_NATIVE],
+    ]);
+
+    expect(analyzeWithMasterRuleset(fixturePath('_rulesets/TypeHints', 'failing.php'))->getWarnings())->toBe([]);
+});
+
+it('marks exactly the inferrable violations fixable', function (): void {
+    $file = analyzeWithMasterRuleset(fixturePath('_rulesets/TypeHints', 'failing.php'));
+    $lines = [];
+
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $errors) {
+            foreach ($errors as $error) {
+                $isTypeHints = str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.');
+
+                if ($error['fixable'] === true && $isTypeHints === true) {
+                    $lines[] = $line;
                 }
             }
         }
-
-        sort($lines);
-
-        return array_values(array_unique($lines));
     }
 
-    private static function isTypeHintsSource(string $source): bool
-    {
-        return str_starts_with($source, 'SlevomatCodingStandard.TypeHints.');
-    }
-}
+    sort($lines);
+
+    expect(array_values(array_unique($lines)))
+        ->toBe([10, 20, 35, 63], 'Exactly the annotated (inferrable) violations must be fixable.');
+});
+
+it('resolves every inferrable hint when fixed', function (): void {
+    $file = analyzeRulesetFixture(TYPE_HINTS_SNIFFS, 'TypeHints', 'failing.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('_rulesets/TypeHints', 'autofixed.php')));
+});
+
+it('leaves only the uninferrable violations after fixing', function () use ($typeHintsReport): void {
+    expect($typeHintsReport('autofixed.php'))->toBe([
+        5 => [PROPERTY_MISSING_ANY],
+        12 => [PARAMETER_MISSING_ANY],
+        25 => [RETURN_MISSING_ANY],
+        40 => [PARAMETER_MISSING_ANY],
+        48 => [PARAMETER_MISSING_ANY],
+        55 => [RETURN_MISSING_ANY],
+    ]);
+});
