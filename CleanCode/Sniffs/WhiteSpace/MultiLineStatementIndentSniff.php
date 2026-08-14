@@ -51,6 +51,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * content and are never checked, and neither are the tail lines of a quoted
  * string that spans lines — PHPCS splits such a string into one token per
  * physical line, and those lines are the string's own value, not code.
+ *
+ * A comment is never measured, but it never exempts a line either: a line
+ * that opens with a comment and then carries code is checked on the code, at
+ * the indent the comment sits at.
  */
 class MultiLineStatementIndentSniff implements Sniff
 {
@@ -102,8 +106,17 @@ class MultiLineStatementIndentSniff implements Sniff
     ];
 
     /**
-     * Tokens whose lines carry raw content (heredoc/nowdoc bodies, inline
-     * HTML) where indentation is data, not code style.
+     * Tokens whose lines carry raw content (heredoc/nowdoc bodies, backtick
+     * strings, inline HTML) where indentation is data, not code style.
+     *
+     * `T_ENCAPSED_AND_WHITESPACE` survives as its own token only for a
+     * backtick string: PHPCS folds the double-quoted case into
+     * `T_DOUBLE_QUOTED_STRING` (see STRING_LITERALS) but leaves the backtick
+     * delimiter alone. `T_INLINE_HTML` is unreachable in the same way
+     * `T_MATCH_ARROW` is — findStatementEnd() stops at `T_CLOSE_TAG` before
+     * any inline HTML begins, and findStatementStart() skips it outright — and
+     * is kept only so the list reads as the complete set of raw-content
+     * tokens.
      */
     private const RAW_CONTENT = [
         T_HEREDOC,
@@ -284,13 +297,21 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $isLineFirst = $token['line'] > $line;
-            $line = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
-
             $isRawContent = in_array($code, self::RAW_CONTENT, true) === true
                 || $this->isStringTail($tokens, $i) === true;
+            $isComment = isset(Tokens::$emptyTokens[$code]) === true && $isRawContent === false;
+            $isLineFirst = $token['line'] > $line;
+            $lastLine = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
 
-            if (isset(Tokens::$emptyTokens[$code]) === true || $isRawContent === true) {
+            // A comment is not the statement's own content, so it must not
+            // take the first-token slot from code that shares its line — that
+            // code's indent would then never be checked. Its last line stays
+            // open unless the comment ran onto that line from above, where
+            // what precedes the code is the comment's own body.
+            $holdsLastLine = $isComment === false || $lastLine > $token['line'];
+            $line = max($line, $holdsLastLine === true ? $lastLine : $lastLine - 1);
+
+            if ($isComment === true || $isRawContent === true) {
                 continue;
             }
 
@@ -357,7 +378,8 @@ class MultiLineStatementIndentSniff implements Sniff
     ): void {
         $tokens = $phpcsFile->getTokens();
         $token = $tokens[$ptr];
-        $actual = $token['column'] - 1;
+        $lineStart = $this->lineFirstToken($phpcsFile, $ptr);
+        $actual = $tokens[$lineStart]['column'] - 1;
         $closedOpener = $this->closedOpener($token);
 
         if ($closedOpener !== null) {
@@ -394,7 +416,7 @@ class MultiLineStatementIndentSniff implements Sniff
             return;
         }
 
-        $fix = $phpcsFile->addFixableError($error, $ptr, $errorCode, [$expected, $actual]);
+        $fix = $phpcsFile->addFixableError($error, $lineStart, $errorCode, [$expected, $actual]);
 
         if ($fix === false) {
             return;
@@ -402,10 +424,10 @@ class MultiLineStatementIndentSniff implements Sniff
 
         $padding = str_repeat(' ', $expected);
 
-        if ($token['column'] === 1) {
-            $phpcsFile->fixer->addContentBefore($ptr, $padding);
+        if ($tokens[$lineStart]['column'] === 1) {
+            $phpcsFile->fixer->addContentBefore($lineStart, $padding);
         } else {
-            $phpcsFile->fixer->replaceToken($ptr - 1, $padding);
+            $phpcsFile->fixer->replaceToken($lineStart - 1, $padding);
         }
     }
 
@@ -500,9 +522,15 @@ class MultiLineStatementIndentSniff implements Sniff
     }
 
     /**
-     * The indent (in spaces) of the line the token at $ptr sits on.
+     * The first token that is not the indent on the line the token at $ptr
+     * sits on.
+     *
+     * What indents a line is whatever opens it, which is not always the code
+     * the line is checked for: a comment may sit in front of that code on the
+     * same line. Measuring and padding here rather than at the code token
+     * keeps both halves reading the one thing the line actually has.
      */
-    private function lineIndent(File $phpcsFile, int $ptr): int
+    private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
         $tokens = $phpcsFile->getTokens();
         $first = $ptr;
@@ -515,12 +543,32 @@ class MultiLineStatementIndentSniff implements Sniff
             $first++;
         }
 
-        return $tokens[$first]['column'] - 1;
+        return $first;
+    }
+
+    /**
+     * The indent (in spaces) of the line the token at $ptr sits on.
+     */
+    private function lineIndent(File $phpcsFile, int $ptr): int
+    {
+        return $phpcsFile->getTokens()[$this->lineFirstToken($phpcsFile, $ptr)]['column'] - 1;
     }
 
     /**
      * Operator tokens that mark a line as continuing the expression begun
      * on an earlier line.
+     *
+     * Only tokens no PHPCS union already carries are listed, and only ones
+     * checkLine() can still reach. A member that duplicates either source is
+     * unreachable *and* untestable — the surviving copy answers first, so no
+     * fixture can ever tell whether this one is load-bearing. `T_COALESCE` and
+     * `T_DOUBLE_ARROW` are therefore absent (`Tokens::$operators` carries
+     * both), as are the three CHAIN_OPERATORS members (checkLine() tests that
+     * constant first). `T_FN_ARROW` stays: no union carries it, and
+     * TRAILING_OPERATORS only reads it in the *trailing* position, so a
+     * leading one reaches this list alone. `T_MATCH_ARROW` is the one arrow
+     * missing for neither reason — no union carries it either, but a match
+     * body is a scope block this sniff skips whole, so nothing reaches it.
      *
      * @return array<int|string, int|string>
      */
@@ -532,14 +580,9 @@ class MultiLineStatementIndentSniff implements Sniff
             + Tokens::$assignmentTokens
             + [
                 T_STRING_CONCAT => T_STRING_CONCAT,
-                T_OBJECT_OPERATOR => T_OBJECT_OPERATOR,
-                T_NULLSAFE_OBJECT_OPERATOR => T_NULLSAFE_OBJECT_OPERATOR,
-                T_DOUBLE_COLON => T_DOUBLE_COLON,
                 T_INLINE_THEN => T_INLINE_THEN,
                 T_INLINE_ELSE => T_INLINE_ELSE,
-                T_COALESCE => T_COALESCE,
                 T_INSTANCEOF => T_INSTANCEOF,
-                T_DOUBLE_ARROW => T_DOUBLE_ARROW,
                 T_FN_ARROW => T_FN_ARROW,
             ];
     }

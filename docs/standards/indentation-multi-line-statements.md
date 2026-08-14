@@ -65,12 +65,22 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
   with the declaration it decorates into one statement.
 - **Heredoc and nowdoc bodies are raw content** — their indentation is data,
   never checked or fixed. The same holds for the second and later lines of a
-  quoted string written across lines: those lines are the string's own value.
-  The opening fragment is still the argument or operand its line begins with,
-  and is indented as one. Writing a string that way is itself a violation of
-  [Multiline Strings (HEREDOC)](code-style-multiline-strings-heredoc.md), which
-  rewrites it — measuring its interior here would only leave the two rules
-  fighting over the same lines.
+  quoted string written across lines, in every form it takes: single-quoted,
+  double-quoted, interpolated, or backtick. Those lines are the string's own
+  value. The opening fragment is still the argument or operand its line begins
+  with, and is indented as one. Writing a string that way is itself a violation
+  of [Multiline Strings (HEREDOC)](code-style-multiline-strings-heredoc.md),
+  which rewrites it — measuring its interior here would only leave the two
+  rules fighting over the same lines.
+- **A comment never exempts a line.** A comment's own indent is not this
+  sniff's to measure, but a line that opens with one and then carries code is
+  checked on that code, at the indent the comment sits at:
+
+  ```php
+  doSomething(
+      /* explains the flag */ $flag,
+  );
+  ```
 
 ### Why a custom sniff
 

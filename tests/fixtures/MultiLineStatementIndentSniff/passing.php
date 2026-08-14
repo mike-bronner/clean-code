@@ -200,3 +200,79 @@ report(
 across two lines",
     $context
 );
+
+// The other two chain operators anchor the way `->` does. Inside a call that
+// is the receiver's own line, so both hang a level below it rather than below
+// the opener — the layout that tells the two anchors apart.
+run(
+    $user
+        ?->getProfile()
+        ?->getName()
+);
+
+run(
+    SomeFactory
+        ::make('first')
+        ->build()
+);
+
+// An index access is a bracket of its own, distinct from a short array: a
+// nested one anchors its contents on itself, not on the call around it.
+processData(
+    $data[
+        $key
+    ]
+);
+
+// The keyword forms of the boolean operators are siblings exactly as `&&` and
+// `||` are. The opener is alone on its line because that is the only layout
+// where the sibling and continuation anchors differ.
+if (
+    $first === 1
+    and $second === 2
+    or $third === 3
+    xor $fourth === 4
+) {
+    $matched = true;
+}
+
+// `instanceof` continues the expression above it, so inside a call it hangs
+// below the argument's own line.
+check(
+    $subject
+        instanceof Probe,
+    $context
+);
+
+// A backtick string is the one quoted string PHPCS still splits into
+// T_ENCAPSED_AND_WHITESPACE, so its tail lines are raw content like a
+// heredoc body.
+$output = `echo one
+echo two`;
+
+// Interpolation only changes which token PHPCS splits the string into —
+// T_DOUBLE_QUOTED_STRING rather than T_CONSTANT_ENCAPSED_STRING — not that
+// the tail lines are the string's own value.
+report(
+    "a message that runs {$user->name}
+across two lines",
+    $context
+);
+
+// An attribute group in a parameter list is a bracket inside the statement
+// rather than the statement's own start, so its contents anchor on it and not
+// on the parameter list around it.
+function decorated(
+    #[
+        Route('/away'),
+    ]
+    int $second,
+) {
+    return $second;
+}
+
+// A comment never exempts the line it opens: the code sharing that line is
+// checked, at the indent the comment sits at.
+doSomething(
+    /* explains the flag */ $flag,
+);

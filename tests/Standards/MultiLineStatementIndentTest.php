@@ -37,15 +37,19 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * passing.php carries the compliant form of every construct the sniff walks —
- * chains, array literals, argument lists, boolean conditions with the opener
- * both shared and alone on its line, concatenation, arithmetic, ternaries,
- * nested brackets and chains, a deeper base indent — plus the near-miss shapes
- * it must stay silent on: closure, anonymous-class, and match bodies
- * (scope-indent rules own those), heredoc and nowdoc bodies, the tail lines of
- * a quoted string that spans lines, attribute groups, and single-line
- * statements. Arrow functions appear in all three positions their `=>` can
- * take — trailing, leading, and at statement level — because that arrow is a
- * distinct token from an array's.
+ * chains in all three of their operators (`->`, `?->`, `::`), array literals,
+ * index access, argument lists, boolean conditions in both their symbol and
+ * keyword forms with the opener shared and alone on its line, concatenation,
+ * arithmetic, `instanceof`, ternaries, nested brackets and chains, a deeper
+ * base indent — plus the near-miss shapes it must stay silent on: closure,
+ * anonymous-class, and match bodies (scope-indent rules own those), heredoc
+ * and nowdoc bodies, the tail lines of a quoted string that spans lines in
+ * each form PHPCS tokenizes separately (plain, interpolated, backtick),
+ * attribute groups both at statement level and nested in a parameter list, a
+ * comment sharing its line with code, and single-line statements. Arrow
+ * functions appear in all three positions their `=>` can take — trailing,
+ * leading, and at statement level — because that arrow is a distinct token
+ * from an array's.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'passing.php');
@@ -96,6 +100,17 @@ it('flags each misindented line at its own line and column', function (): void {
         ['line' => 161, 'column' => 1, 'source' => $incorrect],
         ['line' => 171, 'column' => 1, 'source' => $incorrect],
         ['line' => 177, 'column' => 1, 'source' => $incorrect],
+        ['line' => 186, 'column' => 5, 'source' => $incorrect],
+        ['line' => 191, 'column' => 5, 'source' => $incorrect],
+        ['line' => 198, 'column' => 5, 'source' => $incorrect],
+        ['line' => 206, 'column' => 9, 'source' => $incorrect],
+        ['line' => 207, 'column' => 9, 'source' => $incorrect],
+        ['line' => 208, 'column' => 9, 'source' => $incorrect],
+        ['line' => 217, 'column' => 5, 'source' => $incorrect],
+        ['line' => 224, 'column' => 1, 'source' => $incorrect],
+        ['line' => 231, 'column' => 1, 'source' => $incorrect],
+        ['line' => 239, 'column' => 5, 'source' => $incorrect],
+        ['line' => 248, 'column' => 3, 'source' => $incorrect],
     ]);
 });
 
@@ -118,6 +133,18 @@ it('flags each misindented line at its own line and column', function (): void {
  * - **multi-line quoted string**: only its *tail* lines are content. The
  *   opening fragment is the argument and reports when under-indented (177);
  *   the tail (178) never does, so no tuple names it.
+ * - **backtick string** (`RAW_CONTENT`'s `T_ENCAPSED_AND_WHITESPACE`): the one
+ *   quoted string PHPCS still splits into that token. Same split as above —
+ *   opener (224) reports, tail (225) does not.
+ * - **interpolated multi-line string** (`STRING_LITERALS`'s
+ *   `T_DOUBLE_QUOTED_STRING`): interpolation changes only which token PHPCS
+ *   splits the string into, not that the tail is the string's own value.
+ *   Opener (231) reports, tail (232) does not. Dropping the member does not
+ *   merely add a false positive — it deadlocks `phpcbf`, exactly as the plain
+ *   string did, which is what the convergence test below guards.
+ * - **inline leading comment**: a comment never exempts the line it opens, so
+ *   a misindented line that starts with one still reports (248) — at the
+ *   comment's own column, because that is where the line's indent is.
  */
 it('reaches every scope-block and statement-boundary branch it documents', function (
     int $line,
@@ -132,6 +159,11 @@ it('reaches every scope-block and statement-boundary branch it documents', funct
     'an arrow-function body stays inside its statement' => [161, true],
     'the opening fragment of a multi-line string is code' => [177, true],
     'the tail lines of a multi-line string are content' => [178, false],
+    'the opening fragment of a backtick string is code' => [224, true],
+    'the tail lines of a backtick string are content' => [225, false],
+    'the opening fragment of an interpolated string is code' => [231, true],
+    'the tail lines of an interpolated string are content' => [232, false],
+    'a comment does not exempt the line it shares with code' => [248, true],
 ]);
 
 /**
@@ -193,6 +225,72 @@ it('anchors each line on the construct that owns it', function (int $failingLine
     'continuation: chain below its receiver' => [76, 8, 4],
     'continuation: arrow-function body below a trailing `=>`' => [146, 8, 4],
     'continuation: arrow-function body below a leading `=>`' => [153, 8, 4],
+    'continuation: nullsafe chain below its receiver' => [186, 8, 4],
+    'continuation: static chain below its receiver' => [191, 8, 4],
+    'continuation: `instanceof` below its operand' => [217, 8, 4],
+    'sibling: item of a nested index access' => [198, 8, 4],
+    'sibling: `and` operand, opener alone on its line' => [206, 4, 8],
+    'sibling: `or` operand, opener alone on its line' => [207, 4, 8],
+    'sibling: `xor` operand, opener alone on its line' => [208, 4, 8],
+    'sibling: member of a nested attribute group' => [239, 8, 4],
+]);
+
+/**
+ * One row per *anchoring* member of the sniff's hand-maintained token arrays,
+ * each naming the compliant line that reaches it and the near miss that
+ * reports.
+ *
+ * These arrays are where this sniff's defects keep landing: a member is added,
+ * no fixture reaches it, and whether it is load-bearing stays unknown until a
+ * rewrite silently drops it. Every row is a mutation trap — delete the named
+ * member and the compliant line starts reporting while the failing line stops,
+ * so neither half can pass by luck. Each pair uses the layout where the two
+ * anchors actually differ, because the obvious layout for most of these
+ * constructs puts both anchors on one line and discriminates nothing.
+ *
+ * Two kinds of member are deliberately elsewhere. The ones whose job is to
+ * *suppress* a line rather than anchor it — `RAW_CONTENT` and
+ * `STRING_LITERALS` — are pinned by the raw-content test below, since for
+ * those the compliant and failing lines are both silent and it is the
+ * neighbouring opener that reports. And an unreachable member is pinned by its
+ * docblock instead of a fixture: `T_MATCH_ARROW` and `T_INLINE_HTML` both say
+ * why in the sniff. No member appears in two arrays at once — whichever copy
+ * checkLine() reads first would answer for both, leaving neither testable,
+ * which is why `continuationTokens()` no longer repeats CHAIN_OPERATORS or
+ * anything `Tokens::$operators` already carries.
+ */
+it('reaches every member of its hand-maintained token arrays', function (
+    int $passingLine,
+    int $failingLine,
+    string $construct
+): void {
+    $lineOf = static function (string $fixture, int $line): string {
+        $lines = file(fixturePath('MultiLineStatementIndentSniff', $fixture));
+
+        return trim($lines[$line - 1]);
+    };
+
+    // Both fixtures reach the member, at the one indent apart that tells the
+    // sibling anchor from the continuation one.
+    expect($lineOf('passing.php', $passingLine))->toContain($construct)
+        ->and($lineOf('failing.php', $failingLine))->toContain($construct);
+
+    // The compliant one is silent and the near miss reports; delete the member
+    // from the sniff and the two swap.
+    expect(analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'passing.php')->getErrors())
+        ->not->toHaveKey($passingLine)
+        ->and(analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'failing.php')->getErrors())
+        ->toHaveKey($failingLine);
+})->with([
+    'CHAIN_OPERATORS: T_OBJECT_OPERATOR' => [85, 76, '->prepare()'],
+    'CHAIN_OPERATORS: T_NULLSAFE_OBJECT_OPERATOR' => [209, 186, '?->getProfile()'],
+    'CHAIN_OPERATORS: T_DOUBLE_COLON' => [215, 191, "::make('first')"],
+    'BRACKET_OPENERS: T_OPEN_SQUARE_BRACKET' => [223, 198, '$key'],
+    'BRACKET_OPENERS: T_ATTRIBUTE' => [267, 239, 'Route('],
+    'SIBLING_OPERATORS: T_LOGICAL_AND' => [232, 206, 'and $second === 2'],
+    'SIBLING_OPERATORS: T_LOGICAL_OR' => [233, 207, 'or $third === 3'],
+    'SIBLING_OPERATORS: T_LOGICAL_XOR' => [234, 208, 'xor $fourth === 4'],
+    'continuationTokens(): T_INSTANCEOF' => [243, 217, 'instanceof Probe'],
 ]);
 
 /**

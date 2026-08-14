@@ -178,3 +178,72 @@ report(
 across two lines",
     $context
 );
+
+// The other two chain operators at the sibling depth instead of hanging below
+// the receiver's own line.
+run(
+    $user
+        ?->getProfile()
+);
+
+run(
+    SomeFactory
+        ::make('first')
+);
+
+// A nested index access anchored on the call around it instead of on its own
+// bracket.
+processData(
+    $data[
+        $key
+    ]
+);
+
+// The keyword boolean operators are siblings of the first condition, so one
+// level deeper than it is wrong for them too.
+if (
+    $first === 1
+    and $second === 2
+    or $third === 3
+    xor $fourth === 4
+) {
+    $matched = true;
+}
+
+// `instanceof` indented as a sibling argument instead of a continuation of
+// the argument above it.
+check(
+    $subject
+        instanceof Probe,
+    $context
+);
+
+// An under-indented backtick opener: the opener is code, even though the body
+// it introduces is not.
+run(
+    `echo one
+echo two`,
+);
+
+// Only the tail lines of an interpolated string are content: the opening
+// fragment is the argument, and an under-indented one still reports.
+report(
+    "a message that runs {$user->name}
+across two lines",
+    $context
+);
+
+// An under-indented member of an attribute group nested in a parameter list.
+function decorated(
+    #[
+        Route('/home'),
+    ]
+    int $first,
+) {
+    return $first;
+}
+
+// A comment does not exempt the line it shares with code either.
+doSomething(
+    /* explains the flag */ $flag,
+);
