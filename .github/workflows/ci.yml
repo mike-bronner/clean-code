@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+  # #293: the `types` list below is explicit for auditability — it matches
+  # GitHub's existing default for `pull_request`, so this change does NOT
+  # itself fix the missed-`synchronize`-trigger anomaly (recurred: PR #240,
+  # PR #291). Root cause remains unconfirmed and external to this file.
+  # checked for #293: no concurrency group and no paths/paths-ignore filter exist in this file — ruled out by direct inspection of this file only, not by delivery-log evidence.
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+  # #293: manual fallback, so a run missed by a dropped `pull_request` delivery
+  # can be started by hand. GitHub only exposes `workflow_dispatch` after the
+  # definition reaches the default branch, so it is not invokable from this
+  # PR's own branch — see the PR description for the deferred verification.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Standard auto-registers with PHPCS
+        run: vendor/bin/phpcs -i | grep -q CleanCode
+
+      - name: Master ruleset loads and runs
+        run: vendor/bin/phpcs --standard=rules.xml tests/bootstrap.php
+
+      - name: Self-lint (PSR-12)
+        run: composer lint
+
+      - name: Sniff test suite (Pest)
+        run: composer test
