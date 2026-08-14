@@ -43,6 +43,16 @@
         the "same-sniff configuration wins" mechanism above cannot dedupe them
         — left in, both fire and every operator-spacing violation is reported
         twice. The exclude keeps exactly one diagnostic per violation.
+
+        Keep the exclude unscoped. It now carries a second load: PSR12's sniff
+        also adds Tokens::$booleanOperators on top of the Squiz set it
+        inherits, which is the whole of what
+        CleanCode.Operators.BooleanOperatorSpacing registers for #62 — so this
+        exclude is the only thing keeping *those* five operators to one
+        diagnostic too, and narrowing it to the #35 codes above would double
+        every one of them. tests/Standards/BooleanOperatorSpacingTest.php's
+        "keeps the spacing sniffs that do overlap out of the master ruleset"
+        fails if that happens.
     -->
     <rule ref="PSR12">
         <exclude name="PSR12.Operators.OperatorSpacing"/>
@@ -388,6 +398,44 @@
             <property name="ignoreNewlines" value="true"/>
         </properties>
     </rule>
+
+    <!--
+        Operators: Active (#62) — docs/standards/operators-active.md.
+
+        That standard asks for exactly 1 space around every "active" operator,
+        and the three rules directly above already deliver three quarters of
+        its list: the assignment operators, concatenation, and the not
+        operator. The one group nothing covered is the boolean connectives
+        (&&, ||, and, or, xor) — Squiz.WhiteSpace.OperatorSpacing's register()
+        targets comparison, arithmetic/bitwise and assignment tokens, and
+        leaves Tokens::$booleanOperators out. CleanCode.Operators.
+        BooleanOperatorSpacing adds exactly those five, and nothing else. It
+        needs no <rule> element of its own — custom CleanCode sniffs arrive via
+        the ./CleanCode/ruleset.xml ref above — so this comment is the only
+        entry #62 makes here.
+
+        Narrowing it to that group is load-bearing, not tidiness. A sniff
+        covering the whole standard reports every assignment, concatenation and
+        "!" violation twice: the "same-sniff configuration wins" merge noted at
+        the top of this file dedupes configuration of one sniff, never
+        diagnostics from two different ones. If either Squiz rule above is
+        narrowed or removed, the operators it owns stop being checked
+        altogether — they must be re-homed, not assumed covered by #62.
+        Pinned by the disjointness assertions in
+        tests/Standards/BooleanOperatorSpacingTest.php, which intersect the
+        four register()s directly. tests/Integration/OperatorRulesIntegrationTest.php
+        pins the same property end-to-end, but over the three sniffs above:
+        both boolean operators in its fixture are newline-wrapped, which #62's
+        ignoreNewlines suppresses.
+
+        Narrowing is not the whole guard, though: two spacing sniffs cover
+        these five tokens outright, and only their absence from this file keeps
+        them from doubling every #62 diagnostic. PSR12.Operators.OperatorSpacing
+        is held out by the exclude near the top (see the note there);
+        Squiz.WhiteSpace.LogicalOperatorSpacing is simply never referenced, and
+        must not be — individually or by reffing the whole Squiz standard. Both
+        are asserted absent by the same test file.
+    -->
 
     <!--
         Arrays: Array Accessors (#33) —
