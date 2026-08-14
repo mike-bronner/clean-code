@@ -50,6 +50,7 @@ section, and summarizes how the standard is enforced.
 Where a rule covers only part of a standard, that standard's document records
 what stays with code review.
 
+- [Debt: Technical Debt](docs/standards/debt-technical-debt.md) — Tier 3, not statically enforceable
 - [Boy Scout Rule](docs/standards/boy-scout-rule.md) — Tier 3, not statically enforceable
 - [Don't Optimize Early](docs/standards/dont-optimize-early.md) — Tier 3, not statically enforceable
 - [Arrays: Array Accessors (`data_get`)](docs/standards/arrays-array-accessors.md) — Tier 2, custom sniff `CleanCode.Arrays.ArrayAccessors`: flags direct element (`$array['key']`) and property (`$object->property`) reads once per accessor chain, leaving write-side access, existence checks, array literals, `$this`-rooted access, and method calls alone, detection-only ([#33](https://github.com/mike-bronner/phpcs-rules/issues/33))
