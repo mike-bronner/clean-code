@@ -14,10 +14,10 @@
  *
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
  * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222, 243,
- * 252, 260, 270, 278, 287, 294 and 307 — thirty-two findings, naming $unusedA
- * through $unusedAF (with $unusedJ absent, since that one is read) plus $id.
- * This sniff reproduces all thirty-two, on the same lines, naming the same
- * parameters.
+ * 252, 260, 270, 278, 287, 294, 307, 317, 325, 333, 344, 349, 354, 362, 369,
+ * 378 and 400 — forty-two findings, naming $unusedA through $unusedAP (with
+ * $unusedJ absent, since that one is read) plus $id. This sniff reproduces all
+ * forty-two, on the same lines, naming the same parameters.
  *
  * On passing.php this sniff is silent and PHPMD is not: it reports $eta,
  * $theta and $iota (its func_get_args() exemption misses an unqualified call
@@ -69,6 +69,11 @@ it('is registered in the master ruleset', function (): void {
  *
  * - the three interpolation spellings and a multi-line heredoc, whose body is
  *   tokenized one token per physical line;
+ * - an escaped backslash in front of a read, in a double-quoted string and in a
+ *   heredoc. A backslash cancels the interpolation that follows it, but a
+ *   backslash can itself be escaped, so what cancels a read is one left spare
+ *   once the run is paired off — both runs here are even, and both names are
+ *   read. PHPMD and PHP agree;
  * - a read that happens only inside a nested closure, and one only inside a
  *   nested arrow function;
  * - `func_get_args()` both directly and from inside a nested closure;
@@ -84,20 +89,21 @@ it('is registered in the master ruleset', function (): void {
  *   constructor properties, by visibility and by `readonly`;
  * - a closure and an arrow function reading the parameters they declare
  *   themselves — the compliant half of the two constructs PHPMD cannot see;
- * - a `compact()` call that is not the first one in its body, and one whose
- *   argument is written in double quotes;
- * - a read from inside a shell string, in both the `$name` and `{$name}`
+ * - a `compact()` call that is not the first one in its body, one whose
+ *   argument is written in double quotes, and one naming a parameter from
+ *   inside a nested array, which `compact()` accepts and PHPMD reads too;
+ * - a read from inside a shell string, in the `$name`, `{$name}` and `${name}`
  *   spellings — the compliant half of failing.php's shell-string case, which
  *   proves the sniff discards a shell string's *text* and not the reads inside
- *   it. It reddens if that exclusion is ever widened to the whole construct;
+ *   it. PHPCS tokenizes the first two as T_VARIABLE and the third as
+ *   T_STRING_VARNAME, so between them they pin both branches of the walk;
  * - all seven fixed-signature magic methods.
  *
  * `prefixNearMiss()` is the one shape that is not an exemption: it reads
  * `$lambdaExtra`, which contains `$lambda` as a prefix, and reads `$lambda`
- * itself on its own line. Delete that second line and the word boundary in the
- * sniff's read test is the only thing standing between silence and a correct
- * report — which is what makes the boundary load-bearing rather than
- * decorative.
+ * itself on its own line. Delete that second line and matching a name by
+ * anything looser than the whole of it is the only thing standing between
+ * silence and a correct report.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'passing.php');
@@ -139,9 +145,9 @@ it('produces no violations on the compliant fixture', function (): void {
  * - line 128, `__invoke()`, which is magic but whose signature is the
  *   author's own — in both tools.
  * - line 164, `$id`, where the body reads `$idleTimer`. This is the shape that
- *   makes the word boundary in the sniff's read test load-bearing: without it
- *   the prefix match counts as a read and this finding disappears silently.
- *   Mutation-checked — removing the `\b` reddens this test and nothing else.
+ *   makes whole-name matching load-bearing: match a parameter against anything
+ *   a read merely starts with and this finding disappears silently.
+ *   Mutation-checked — matching by prefix drops this line and nothing else.
  * - line 175, a constructor's own, unpromoted parameter. Promotion is what
  *   exempts a constructor parameter; declaring one plainly is not.
  * - lines 184, 192 and 198: the name appears only in a line comment, only in a
@@ -156,29 +162,34 @@ it('produces no violations on the compliant fixture', function (): void {
  *   gives the class's own declaration precedence over the trait's, so the
  *   method overrides nothing.
  *
- * - lines 252 to 307, one per token whose content is text rather than code. A
- *   name, a `func_get_args()` or a `compact()` written inside one of these is
- *   printed and not run, and PHPMD — which matches a call node rather than a
- *   substring — reports through every one of them. Each line pins one member
- *   of the sniff's own TEXT_TOKENS list, through the scan that member is not
- *   already pinned in elsewhere:
- *
- *     | Token                      | Line     | The scan it is pinned through |
- *     |----------------------------|----------|-------------------------------|
- *     | T_CONSTANT_ENCAPSED_STRING | 192, 307 | the read, the attribute       |
- *     | T_INLINE_HTML              | 198      | the read                      |
- *     | T_NOWDOC                   | 294      | the read                      |
- *     | T_ENCAPSED_AND_WHITESPACE  | 287      | `func_get_args()`             |
- *     | T_HEREDOC                  | 252, 260 | `func_get_args()`, `compact()`|
- *     | T_DOUBLE_QUOTED_STRING     | 270, 278 | `func_get_args()`, `compact()`|
- *
- *   The last two are kept in the read text, because both interpolate, so only
- *   the call scans can pin them. The other direction — that both are still
- *   kept there — is pinned by passing.php's interpolatedRead() and
- *   heredocRead().
- * - line 307, a string argument inside an attribute group spelling out the tail
- *   of an attribute list. It is text like any other, and it is not the
- *   `#[\Override]` attribute.
+ * - lines 252 to 317, one per construct that carries text rather than code: a
+ *   heredoc, an interpolated string, a shell string, a nowdoc and a plain
+ *   quoted string. A `func_get_args()` or a `compact('name')` written inside
+ *   one of them is printed and not run, so it exempts nothing, and PHPMD —
+ *   which matches a call node rather than a substring — reports through every
+ *   one of them.
+ * - lines 325 and 333, a name behind a backslash, in a double-quoted string and
+ *   in a heredoc. Both interpolate, so both are searched for reads, and the
+ *   backslash is what cancels this one: PHP prints the name instead of reading
+ *   it, and PHPMD reports the parameter. The other direction — that an *even*
+ *   run of backslashes leaves the read live — is pinned from the compliant side
+ *   by passing.php's escapedBackslashRead().
+ * - lines 344 to 369, a name that is not a call to the global function it
+ *   spells. Four are calls to something else — a method, a nullsafe method, a
+ *   static method, and a constructor of a class named `Compact`, which PHP
+ *   resolves case-insensitively — and the fifth is a method named
+ *   `func_get_args()`, which exempts nothing, not even its own signature. PHPMD
+ *   matches a FunctionPostfix and reports through all five.
+ * - line 378, the name `func_get_args` with no parenthesis after it: a constant
+ *   of that name, which is a read of nothing. Without the parenthesis
+ *   requirement this one name would exempt the whole signature.
+ * - line 400, a bare `Override` inside another attribute's argument list. The
+ *   comma before it separates that attribute's arguments, not one attribute
+ *   name from the next, so it is a constant and not the `#[\Override]`
+ *   attribute.
+ * - lines 222 and 307, the two other shapes that spell `Override` where it is
+ *   not the attribute: as a class reference in an argument list, and inside an
+ *   argument's string.
  *
  * Lines 184 to 243 were each mutation-checked, one defect at a time: taking the
  * body as unfiltered text drops 184, 192 and 198; walking `Tokens::$emptyTokens`
@@ -187,20 +198,27 @@ it('produces no violations on the compliant fixture', function (): void {
  * with the class's own traits drops 243. Each mutation moved those lines and no
  * others.
  *
- * Lines 252 to 307 were mutation-checked the same way, one member at a time:
- * deleting T_HEREDOC from TEXT_TOKENS drops 252 and 260, T_DOUBLE_QUOTED_STRING
- * drops 270 and 278, T_ENCAPSED_AND_WHITESPACE drops 287, T_NOWDOC drops 294,
- * T_CONSTANT_ENCAPSED_STRING drops 192 and 307 — the attribute text is
- * collected with the same exclusions, which is why that one member moves both —
- * and collecting the attribute text unfiltered drops 307 alone. Each mutation
- * moved those lines and no others.
+ * The lines that pin the sniff's own decisions were mutation-checked the same
+ * way, one decision at a time. Each mutation moved the lines named and no
+ * others:
  *
- * The two exceptions those exclusions are derived through are checked from the
- * other side, on passing.php, since each one is a keeping rather than a
- * dropping: removing the INTERPOLATING_TEXT exception reddens its interpolated
- * and heredoc reads, removing the NAME_TEXT exception reddens all three of its
- * compact() reads, and widening the shell-string exclusion from that string's
- * text to the whole construct reddens both parameters of shellStringRead().
+ *     | Mutation applied to the sniff                          | Lines dropped        |
+ *     |--------------------------------------------------------|----------------------|
+ *     | read a name by prefix rather than whole                 | 164                  |
+ *     | find `compact()` by searching a quoted string's text    | 317                  |
+ *     | drop the escape-pair run from the interpolation pattern | 325, 333             |
+ *     | drop the preceding-token guard from the call test       | 344, 349, 354, 362, 369 |
+ *     | drop the parenthesis requirement from the call test     | 378                  |
+ *     | stop skipping an attribute's argument list              | 400                  |
+ *
+ * The decisions that are a keeping rather than a dropping are checked from the
+ * other side, on passing.php, where each mutation reddens the compliant
+ * fixture: removing T_DOUBLE_QUOTED_STRING from the searched text reddens its
+ * three interpolation spellings and one half of escapedBackslashRead(),
+ * removing T_HEREDOC reddens heredocRead() and the other half, dropping the
+ * T_STRING_VARNAME read reddens shellStringRead()'s `${name}` spelling, and
+ * collecting a `compact()` argument only at the call's own depth reddens
+ * compactNestedNames().
  */
 it('flags every unused formal parameter in the failing fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
@@ -238,6 +256,16 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 287, 'column' => 48, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 294, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 307, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 317, 'column' => 44, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 325, 'column' => 46, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 333, 'column' => 40, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 344, 'column' => 43, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 349, 'column' => 45, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 354, 'column' => 46, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 362, 'column' => 42, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 369, 'column' => 43, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 378, 'column' => 45, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 400, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 

@@ -309,3 +309,96 @@ class AttributeStringArgument
         echo 'x';
     }
 }
+
+// A plain string is text as well, and this one prints a compact() call rather
+// than making one. The string is the one place a compact() argument is written,
+// which is why the call is found by its tokens and not by searching the body
+// for the spelling.
+function plainStringMentionsCompact(string $unusedAG): void
+{
+    echo "See compact('unusedAG') elsewhere for how this is done.";
+}
+
+// A backslash cancels the interpolation that follows it, so this string prints
+// the name instead of reading it. The local variable is what makes PHP
+// interpolate the string at all.
+function escapedDollarInInterpolation(string $unusedAH): void
+{
+    $note = 'documentation';
+
+    echo "$note: write \$unusedAH to print the name itself.";
+}
+
+// The same escape, in a heredoc, which interpolates on the same terms.
+function escapedDollarInHeredoc(string $unusedAI): void
+{
+    echo <<<TEXT
+    Write \$unusedAI to print the name itself.
+    TEXT;
+}
+
+class MethodsNamedLikeFunctions
+{
+    // A method named compact() is not the global compact(). PHPMD matches the
+    // global function, so it reports through every one of these four.
+    public function objectOperator(string $unusedAJ): void
+    {
+        $this->compact('unusedAJ');
+    }
+
+    public function nullsafeOperator(string $unusedAK): void
+    {
+        $this?->compact('unusedAK');
+    }
+
+    public static function staticCall(string $unusedAL): void
+    {
+        self::compact('unusedAL');
+    }
+
+    // A class named Compact is not the global compact() either: PHP resolves
+    // class names case-insensitively, so this constructor call carries the
+    // parameter's name and still reads nothing.
+    public function instantiation(string $unusedAM): void
+    {
+        new Compact('unusedAM');
+    }
+
+    // And a method named func_get_args() is not the global func_get_args(), so
+    // it exempts nothing — including the parameter of this very method.
+    public function ownFuncGetArgs(string $unusedAN): void
+    {
+        $this->func_get_args();
+    }
+
+    // A constant named func_get_args is not a call to the function of that
+    // name: a call is the name with an opening parenthesis after it, and this
+    // one is followed by a semicolon. Drop that requirement and this whole
+    // signature would be exempt.
+    public function bareConstantName(string $unusedAO): void
+    {
+        echo func_get_args;
+    }
+
+    public function compact(string $name): void
+    {
+        echo $name;
+    }
+
+    public function func_get_args(): array
+    {
+        return [];
+    }
+}
+
+class AttributeConstantArgument
+{
+    // A bare Override inside another attribute's argument list is a constant,
+    // not the #[\Override] attribute: the comma before it separates that
+    // attribute's arguments, not one attribute name from the next.
+    #[Listens(Handler::class, Override)]
+    public function handle(string $unusedAP): void
+    {
+        echo 'x';
+    }
+}

@@ -35,11 +35,17 @@ wired into the master `rules.xml`
   inside an interpolated string, a heredoc or a shell string, or inside a nested
   closure or arrow function. A name that appears only in a comment, a
   single-quoted string, a nowdoc, or inline HTML is not a read: none of the four
-  is code. For the same reason a `func_get_args()` or a `compact('name')`
-  spelled out inside any of those — or inside an interpolated string or a
-  heredoc, which do interpolate but still print what they carry — is a mention
-  and not a call, and exempts nothing. PHPMD reads them the same way, because it
-  matches a call node rather than a substring.
+  is code. Nor is one a backslash cancels — `"\$name"` prints the name, while
+  `"\\$name"` prints a backslash and reads it, because a backslash can itself be
+  escaped. A `func_get_args()` or a `compact('name')` has to *be* a call: the
+  name, with an opening parenthesis after it, and nothing in front of it that
+  makes it something else. So one spelled out inside any of the constructs above
+  — or inside an interpolated string or a heredoc, which do interpolate but
+  still print what they carry — is a mention and not a call, and a method, a
+  static method or a constructor of the same name (`$this->compact('x')`,
+  `Helper::compact('x')`, `new Compact('x')`) is a different function
+  altogether. None of them exempts anything. PHPMD reads them all the same way,
+  because it matches a call node rather than a substring.
 - **Not auto-fixable** — deleting a parameter changes the signature and breaks
   every caller, so there is nothing safe for `phpcbf` to write. This matches
   PHPMD, which reports rather than rewrites.
@@ -112,7 +118,11 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Unused parameter named only in a docblock | flags | flags |
 | Unused constructor parameter that is not promoted | flags | flags |
 | Name appearing only in a comment, a single-quoted string, a nowdoc, or inline HTML | flags | flags |
-| `func_get_args()` or `compact('name')` spelled out inside a heredoc, an interpolated string, or a shell string | flags | flags |
+| `func_get_args()` or `compact('name')` spelled out inside a heredoc, an interpolated string, a shell string, or a plain quoted string | flags | flags |
+| A method, static method or constructor named `compact` or `func_get_args` | flags | flags |
+| The name `func_get_args` with no parenthesis after it — a constant | flags | flags |
+| Name behind a backslash in an interpolated string or a heredoc — `"\$name"` | flags | flags |
+| `Override` written as a bare constant in another attribute's argument list | flags | flags |
 | `Override` spelled out inside another attribute's string argument | flags | flags |
 | `@inheritdoc` written as a line comment rather than a docblock | flags | flags |
 | Method whose name collides with one from a trait the class uses itself | flags | flags |
@@ -173,12 +183,14 @@ measured:
   even when it is called from inside a nested closure — and, here, whether or
   not the file declares a namespace.
 - **`compact()` exempts only the parameter it names**, not its siblings, and
-  every call in the body names its own, not only the first call.
+  every call in the body names its own, not only the first call. A name nested
+  in an array argument — `compact('a', ['b'])` — is named as much as a bare one,
+  in both tools.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-thirty-two findings, same lines, same parameters. On `passing.php` this
+forty-two findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
 

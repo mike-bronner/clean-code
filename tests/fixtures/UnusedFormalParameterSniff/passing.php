@@ -75,7 +75,19 @@ function compactNamed(string $kappa): array
     return compact('kappa');
 }
 
-// The near-miss that makes the word boundary load-bearing: the body reads
+// A backslash cancels an interpolation, but a backslash can itself be escaped:
+// what cancels the read is a backslash left spare once the run is paired off.
+// Here both runs are even, so both names are read — PHPMD reads them the same
+// way, and so does PHP.
+function escapedBackslashRead(string $tau, string $upsilon): void
+{
+    echo "a literal backslash, then a live read: \\$tau";
+    echo <<<TEXT
+    the same in a heredoc: \\$upsilon
+    TEXT;
+}
+
+// The near-miss that makes whole-name matching load-bearing: the body reads
 // $lambdaExtra, which contains "$lambda" as a prefix. $lambda itself is read
 // too, on its own line — delete that line and this fixture must redden.
 function prefixNearMiss(string $lambda): void
@@ -228,6 +240,14 @@ function compactInSecondCall(string $omicron, string $xi): array
     return compact('xi');
 }
 
+// compact() takes arrays of names as well as bare names, and a name nested in
+// one is read like any other — PHPMD collects the literals of the whole call
+// the same way.
+function compactNestedNames(string $phi, string $chi): array
+{
+    return compact('phi', ['chi']);
+}
+
 // A compact() argument written in double quotes. PHP tokenizes a string with
 // nothing to interpolate as a plain quoted string whichever quote it carries,
 // so this is the same read as compactNamed() above.
@@ -239,10 +259,11 @@ function compactDoubleQuoted(string $pi): array
 // A shell string interpolates, and PHPCS tokenizes the variables inside one
 // apart from its text — so the read survives even though the text around it is
 // discarded. Both spellings are here because they are tokenized differently.
-function shellStringRead(string $rho, string $sigma): void
+function shellStringRead(string $rho, string $sigma, string $psi): void
 {
     echo `echo $rho`;
     echo `echo {$sigma}`;
+    echo `echo ${psi}`;
 }
 
 // PHP resolves an attribute name case-insensitively, so this is the same

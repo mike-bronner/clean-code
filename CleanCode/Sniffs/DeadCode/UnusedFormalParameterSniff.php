@@ -76,10 +76,19 @@ use PHP_CodeSniffer\Util\Tokens;
  *   exempts *every* parameter, because the body can reach them all through it.
  *   `func_num_args()` does not — PHPMD reports through it, and so does this.
  * - `compact('name')` exempts only the parameter it names, not its siblings.
- * - Both calls have to *be* calls. One spelled out inside a comment, a string,
- *   a heredoc, a nowdoc, a shell string or inline HTML is printed rather than
- *   run, and exempts nothing — PHPMD matches a call node rather than a
- *   substring, and reads them the same way.
+ * - Both calls have to *be* calls, and a call is recognised by its tokens: the
+ *   name, immediately followed by an opening parenthesis, and preceded by
+ *   nothing that makes it something else. So one spelled out inside a comment,
+ *   a string, a heredoc, a nowdoc, a shell string or inline HTML is printed
+ *   rather than run, and a method or a static method of the same name —
+ *   `$this->compact('x')`, `Helper::compact('x')` — is a different function
+ *   altogether. None of them exempts anything. PHPMD reads them the same way,
+ *   because it matches a call node rather than a substring.
+ * - A read has to *be* a read. Every read PHP compiles as a variable is one
+ *   here, and the two constructs that hide a read inside their text — a
+ *   double-quoted string and a heredoc — are searched for a live
+ *   interpolation, which a backslash cancels: `"\$name"` prints the name and
+ *   reads nothing, while `"\\$name"` prints a backslash and reads it.
  * - The magic methods whose signature PHP fixes are skipped. `__invoke`,
  *   `__construct` and `__unserialize` are *not* on that list in either tool —
  *   their signatures are the author's own.
@@ -136,34 +145,18 @@ class UnusedFormalParameterSniff implements Sniff
     ];
 
     /**
-     * Every token that carries text rather than code. Nothing written inside
-     * one runs: a parameter name in one is a mention and not a read, and a
-     * `func_get_args()` or `compact('name')` spelled out in one is prose and
-     * not a call. The same restriction to code tokens is what
-     * CleanCode.Classes.UnusedPrivateElements applies when it collects the
-     * names a file uses.
+     * The two constructs whose text PHPCS hands back with the reads still
+     * inside it. A double-quoted string arrives whole, and a heredoc one token
+     * per physical line, so the variables interpolated into either are part of
+     * that text and not tokens of their own — which is why these two, and only
+     * these two, are searched as text.
      *
-     * The two texts that keep part of this set are named below, and each keeps
-     * it for one reason only.
-     */
-    private const TEXT_TOKENS = [
-        T_CONSTANT_ENCAPSED_STRING,
-        T_DOUBLE_QUOTED_STRING,
-        T_ENCAPSED_AND_WHITESPACE,
-        T_HEREDOC,
-        T_INLINE_HTML,
-        T_NOWDOC,
-    ];
-
-    /**
-     * The text tokens the read text keeps, because both interpolate and
-     * `"$name"` inside either is a real read.
-     *
-     * A shell string interpolates too and is absent all the same: PHPCS
-     * tokenizes the variables inside one apart from its
+     * Every other construct that carries text is left alone: a single-quoted
+     * string, a nowdoc and inline HTML do not interpolate at all, and a shell
+     * string does but has its variables tokenized apart from its
      * T_ENCAPSED_AND_WHITESPACE text — as T_VARIABLE, or as
-     * T_DOLLAR_OPEN_CURLY_BRACES and T_STRING_VARNAME for `${name}` — so every
-     * read in a shell string survives without its text being kept.
+     * T_DOLLAR_OPEN_CURLY_BRACES and T_STRING_VARNAME for `${name}` — so its
+     * reads are found by the walk like any other.
      */
     private const INTERPOLATING_TEXT = [
         T_DOUBLE_QUOTED_STRING,
@@ -171,16 +164,42 @@ class UnusedFormalParameterSniff implements Sniff
     ];
 
     /**
-     * The text token the compact text keeps, because a `compact()` argument is
-     * written in one.
+     * What a name is not a call to a global function after.
      *
-     * A double-quoted argument is tokenized as one of these too: PHP produces
-     * T_DOUBLE_QUOTED_STRING only for a string that interpolates, and
-     * `compact("$name")` is the dynamic read neither tool resolves.
+     * PHPMD matches `func_get_args()` and `compact()` as a FunctionPostfix —
+     * the global function, not a method that happens to share its name — so
+     * `$this->compact('x')`, `$service?->compact('x')` and `Helper::compact('x')`
+     * call something else entirely and exempt nothing. `new Compact('x')` is a
+     * constructor, and PHP resolves class names case-insensitively, so it is
+     * one of those too.
+     *
+     * A *declaration* — `function compact()` — needs no entry here: PHP refuses
+     * to redeclare either built-in, so it cannot stand in code that runs.
      */
-    private const NAME_TEXT = [
-        T_CONSTANT_ENCAPSED_STRING,
+    private const NOT_A_FUNCTION_CALL = [
+        T_DOUBLE_COLON,
+        T_NEW,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_OBJECT_OPERATOR,
     ];
+
+    /**
+     * Matches one interpolated read — `$name`, `${name}`, or the `$name` inside
+     * `{$name}` — and captures the name it reads.
+     *
+     * The leading `(?<!\\)(?:\\\\)*` consumes a complete run of escape pairs, so
+     * `"\$name"` — where the backslash cancels the interpolation and PHP prints
+     * the name instead of reading it — does not match, while `"\\$name"` — an
+     * escaped backslash followed by a live read — still does. The sibling
+     * CleanCode.Controversial.Superglobals sniff reads interpolation with the
+     * same pattern, and PHPMD agrees with both.
+     *
+     * The name is captured whole rather than bounded after the fact, so a
+     * longer name that merely starts with a parameter's spelling yields
+     * `idleTimer` and never `id`.
+     */
+    private const INTERPOLATION_PATTERN =
+        '/(?<!\\\\)(?:\\\\\\\\)*\K\$\{?(?P<name>[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/';
 
     /**
      * @return array<int|string>
@@ -197,21 +216,23 @@ class UnusedFormalParameterSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        if (isset($phpcsFile->getTokens()[$stackPtr]['scope_opener']) === false) {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$stackPtr]['scope_opener']) === false) {
             return;
         }
 
-        $code = $this->bodyText($phpcsFile, $stackPtr, self::codeExclusions());
+        $start = $tokens[$stackPtr]['scope_opener'] + 1;
+        $end = $tokens[$stackPtr]['scope_closer'] - 1;
 
-        if ($this->isExempt($phpcsFile, $stackPtr, $code) === true) {
+        if ($this->isExempt($phpcsFile, $stackPtr, $start, $end) === true) {
             return;
         }
 
-        $reads = $this->bodyText($phpcsFile, $stackPtr, self::readExclusions());
-        $names = $this->bodyText($phpcsFile, $stackPtr, self::nameExclusions());
+        $reads = $this->namesRead($phpcsFile, $start, $end);
 
         foreach ($phpcsFile->getMethodParameters($stackPtr) as $parameter) {
-            $this->checkParameter($phpcsFile, $stackPtr, $parameter, $reads, $names);
+            $this->checkParameter($phpcsFile, $stackPtr, $parameter, $reads);
         }
     }
 
@@ -223,7 +244,7 @@ class UnusedFormalParameterSniff implements Sniff
      * override resolution attempted. The bodyless test runs before this, in
      * process(), because a declaration with no body has no text to collect.
      */
-    private function isExempt(File $phpcsFile, int $stackPtr, string $code): bool
+    private function isExempt(File $phpcsFile, int $stackPtr, int $start, int $end): bool
     {
         if ($this->hasFixedSignature($phpcsFile, $stackPtr) === true) {
             return true;
@@ -237,7 +258,7 @@ class UnusedFormalParameterSniff implements Sniff
             return true;
         }
 
-        return $this->callsFuncGetArgs($code);
+        return $this->callsFuncGetArgs($phpcsFile, $start, $end);
     }
 
     /**
@@ -246,13 +267,14 @@ class UnusedFormalParameterSniff implements Sniff
      * A promoted constructor property is skipped before the read test runs:
      * it is class state whatever the constructor body does with it, and both
      * PHPMD and every candidate wiring stay silent on one.
+     *
+     * @param array<string, bool> $reads
      */
     private function checkParameter(
         File $phpcsFile,
         int $stackPtr,
         array $parameter,
-        string $reads,
-        string $names
+        array $reads
     ): void {
         if ($this->isPromotedProperty($parameter) === true) {
             return;
@@ -260,7 +282,7 @@ class UnusedFormalParameterSniff implements Sniff
 
         $name = ltrim($parameter['name'], '$');
 
-        if ($this->bodyReads($reads, $names, $name) === true) {
+        if (isset($reads[$name]) === true) {
             return;
         }
 
@@ -291,123 +313,156 @@ class UnusedFormalParameterSniff implements Sniff
     }
 
     /**
-     * The body's source text, from the scope opener to the scope closer, with
-     * the listed token codes left out.
+     * Every name the body reads, as a set, collected in one walk of the tokens
+     * between the scope opener and the scope closer.
      *
-     * Taken as text rather than walked as tokens because every read this rule
-     * recognises — a plain `$name`, an interpolated `"$name"` or `"{$name}"`,
-     * a `${name}` in a heredoc — is the same substring, and a token walk would
-     * have to re-join the per-physical-line pieces a multi-line string is
-     * tokenized into. The tokens are still the source, in two ways: the range
-     * is bounded by PHPCS's own scope pointers, so a nested closure's body is
-     * included (a read there is a real read, and PHPMD counts it too) and
-     * nothing outside the declaration is; and each token's *type* decides
-     * whether its text is code at all, which is what keeps a comment or a
-     * single-quoted string from passing as a read.
+     * The range is PHPCS's own scope pointers, so a nested closure's body is
+     * included — a read there is a real read, and PHPMD counts it too — and
+     * nothing outside the declaration is.
      *
-     * @param array<int, int|string> $excluded
-     */
-    private function bodyText(File $phpcsFile, int $stackPtr, array $excluded): string
-    {
-        $tokens = $phpcsFile->getTokens();
-
-        return $this->textBetween(
-            $phpcsFile,
-            $tokens[$stackPtr]['scope_opener'] + 1,
-            $tokens[$stackPtr]['scope_closer'] - 1,
-            $excluded
-        );
-    }
-
-    /**
-     * Every comment token code. No text this sniff searches keeps one: a
-     * commented-out call is not a call, and a name written in a comment is not
-     * read. PHPCS's own union is taken whole so that a `phpcs:` annotation,
-     * which is tokenized apart from the comment carrying it, is excluded with
-     * the rest.
+     * A name gets into the set three ways, and each of the three is decided by
+     * token *type* rather than by searching the body as one string:
      *
-     * @return array<int, int|string>
-     */
-    private static function commentTokens(): array
-    {
-        return array_values(Tokens::$commentTokens);
-    }
-
-    /**
-     * The exclusion set for the code text, which is the one searched for a
-     * call: every comment and every token carrying text, so what is left is
-     * code. `func_get_args()` written into a heredoc, a string, a shell string
-     * or a comment is a mention of the call and exempts nothing — which is how
-     * PHPMD reads it too, since it matches a call node rather than a substring.
+     * - a T_VARIABLE, which is every read PHP compiles as one, including the
+     *   variables inside a shell string and inside `{$name}`;
+     * - a T_STRING_VARNAME, the `${name}` spelling of the same;
+     * - a name interpolated into the text of a double-quoted string or a
+     *   heredoc, which PHPCS leaves inside that text rather than tokenizing
+     *   apart, and which INTERPOLATION_PATTERN reads out of it.
      *
-     * @return array<int, int|string>
-     */
-    private static function codeExclusions(): array
-    {
-        return array_merge(self::commentTokens(), self::TEXT_TOKENS);
-    }
-
-    /**
-     * The exclusion set for the read text: the code exclusions, less the
-     * strings that interpolate, because `"$name"` inside one is a real read.
+     * A `compact('name')` adds the name it names, because PHPMD resolves the
+     * string argument of that call rather than exempting the whole signature
+     * the way `func_get_args()` does. Every call in the body is inspected, not
+     * only the first.
      *
-     * @return array<int, int|string>
-     */
-    private static function readExclusions(): array
-    {
-        return array_values(array_diff(self::codeExclusions(), self::INTERPOLATING_TEXT));
-    }
-
-    /**
-     * The exclusion set for the compact text: the code exclusions, less the
-     * plain quoted string a `compact()` argument is written in.
-     *
-     * @return array<int, int|string>
-     */
-    private static function nameExclusions(): array
-    {
-        return array_values(array_diff(self::codeExclusions(), self::NAME_TEXT));
-    }
-
-    /**
-     * Whether the body reads the named parameter.
-     *
-     * The word boundary is what keeps `$id` from being satisfied by `$idle`.
-     * `\$\{?` covers the plain and `${name}` spellings; `{$name}` contains the
-     * plain one. A `compact('name')` counts as a read of *that* name only,
-     * matching PHPMD, which resolves the string argument rather than exempting
-     * the whole signature the way `func_get_args()` does. Every `compact()`
-     * call in the body is inspected, not just the first: a parameter named by
-     * the second call is read exactly as much as one named by the first.
+     * Nothing else contributes: a name written in a comment, a single-quoted
+     * string, a nowdoc or inline HTML is not a token of any of these types, so
+     * it is not a read — and no walk of an attribute's arguments is needed
+     * either, since PHP allows only constant expressions there, and a variable
+     * is not one.
      *
      * A dynamic read — `${'name'}` — counts in neither tool, and a nested
      * declaration that happens to reuse the name counts in both. Both are
      * recorded in the rule's doc rather than worked around.
      *
-     * The two texts are separate because they keep different things: the read
-     * text keeps the strings that interpolate, so `"$name"` counts, and the
-     * compact text keeps the plain quoted string a `compact()` argument is
-     * written in. Neither keeps what the other does, so a name interpolated
-     * into a heredoc cannot pass as a compact argument, and a `compact()`
-     * spelled out inside a heredoc is not a call.
+     * @return array<string, bool>
      */
-    private function bodyReads(string $reads, string $names, string $name): bool
+    private function namesRead(File $phpcsFile, int $start, int $end): array
     {
-        $quoted = preg_quote($name, '/');
+        $tokens = $phpcsFile->getTokens();
+        $names = [];
 
-        if (preg_match('/\$\{?' . $quoted . '\b/', $reads) === 1) {
-            return true;
-        }
+        for ($pointer = $start; $pointer <= $end; $pointer++) {
+            $code = $tokens[$pointer]['code'];
 
-        preg_match_all('/\bcompact\s*\(([^)]*)\)/i', $names, $matches);
+            if ($code === T_VARIABLE) {
+                $names[ltrim($tokens[$pointer]['content'], '$')] = true;
 
-        foreach ($matches[1] as $arguments) {
-            if (preg_match('/([\'"])' . $quoted . '\1/', $arguments) === 1) {
-                return true;
+                continue;
+            }
+
+            if ($code === T_STRING_VARNAME) {
+                $names[$tokens[$pointer]['content']] = true;
+
+                continue;
+            }
+
+            if (in_array($code, self::INTERPOLATING_TEXT, true) === true) {
+                $names += $this->interpolatedNames($tokens[$pointer]['content']);
+
+                continue;
+            }
+
+            if ($this->isCallTo($phpcsFile, $pointer, 'compact') === true) {
+                $names += $this->compactedNames($phpcsFile, $pointer);
             }
         }
 
-        return false;
+        return $names;
+    }
+
+    /**
+     * The names interpolated into one string's text.
+     *
+     * @return array<string, bool>
+     */
+    private function interpolatedNames(string $text): array
+    {
+        preg_match_all(self::INTERPOLATION_PATTERN, $text, $matches);
+
+        return array_fill_keys($matches['name'], true);
+    }
+
+    /**
+     * Whether this token is a call to the named global function.
+     *
+     * The name has to be a T_STRING immediately followed by an opening
+     * parenthesis, which is what tells a call from every other place the same
+     * spelling can appear: inside a comment or a string it is not a T_STRING at
+     * all, and as a constant or a property it is followed by something else.
+     * What precedes it settles the rest — see NOT_A_FUNCTION_CALL — so a method
+     * or a static method of the same name is not mistaken for the global
+     * function PHPMD matches. A leading `\` or a namespace qualifier is left
+     * alone: PHPMD matches `compact` by the last segment of the name, and
+     * `\func_get_args()` is the global function spelled out.
+     *
+     * The comparison is case-insensitive because PHP resolves function names
+     * that way, and PHPMD compares with strcasecmp for the same reason.
+     */
+    private function isCallTo(File $phpcsFile, int $pointer, string $name): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (
+            $tokens[$pointer]['code'] !== T_STRING
+            || strtolower($tokens[$pointer]['content']) !== $name
+        ) {
+            return false;
+        }
+
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+        if ($next === false || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS) {
+            return false;
+        }
+
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+
+        return $previous === false
+            || in_array($tokens[$previous]['code'], self::NOT_A_FUNCTION_CALL, true) === false;
+    }
+
+    /**
+     * The names one `compact()` call names.
+     *
+     * Every plain quoted string anywhere inside the call's parentheses counts,
+     * at any depth, because `compact()` takes arrays of names as well as names
+     * and PHPMD collects the literals of the whole call the same way. Only a
+     * plain quoted string is a name: PHP tokenizes a string that interpolates
+     * as a T_DOUBLE_QUOTED_STRING instead, and `compact("$name")` is the
+     * dynamic read neither tool resolves — though the name interpolated into it
+     * is a read of its own, and is collected as one.
+     *
+     * @return array<string, bool>
+     */
+    private function compactedNames(File $phpcsFile, int $pointer): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $opener = (int) $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+        $closer = $tokens[$opener]['parenthesis_closer'] ?? null;
+        $names = [];
+
+        if ($closer === null) {
+            return $names;
+        }
+
+        for ($argument = $opener + 1; $argument < $closer; $argument++) {
+            if ($tokens[$argument]['code'] === T_CONSTANT_ENCAPSED_STRING) {
+                $names[trim($tokens[$argument]['content'], '\'"')] = true;
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -415,7 +470,7 @@ class UnusedFormalParameterSniff implements Sniff
      *
      * Measured against PHPMD 2.15.0: `func_get_args()` exempts the whole
      * signature, and does so from inside a nested closure as well, which is
-     * why the whole body text is searched. `func_num_args()` does *not* exempt
+     * why the whole body is walked. `func_num_args()` does *not* exempt
      * anything there, so it is deliberately not matched here.
      *
      * PHPMD only honours the call when it resolves to the global function —
@@ -424,9 +479,15 @@ class UnusedFormalParameterSniff implements Sniff
      * behaviour worth copying: the parameters really are read. The divergence
      * is recorded in the rule's doc.
      */
-    private function callsFuncGetArgs(string $code): bool
+    private function callsFuncGetArgs(File $phpcsFile, int $start, int $end): bool
     {
-        return preg_match('/\bfunc_get_args\s*\(/i', $code) === 1;
+        for ($pointer = $start; $pointer <= $end; $pointer++) {
+            if ($this->isCallTo($phpcsFile, $pointer, 'func_get_args') === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -455,32 +516,26 @@ class UnusedFormalParameterSniff implements Sniff
      * Whether the declaration is annotated as inheriting its signature.
      *
      * Both signals sit in the same place — between the previous statement and
-     * the `function` keyword — so one backward walk collects both, into two
-     * separate texts. The walk skips whitespace, comments and the declaration
-     * modifiers, and hops each attribute group whole: an attribute group's
-     * tokens are not empty tokens, so a plain walk would stop dead at the
-     * group's `]` and never reach a docblock above it. PHPCS records
-     * `attribute_opener` on the group's closer, which is the pointer the hop
-     * uses.
+     * the `function` keyword — so one backward walk looks for both. The walk
+     * skips whitespace, comments and the declaration modifiers, and hops each
+     * attribute group whole: an attribute group's tokens are not empty tokens,
+     * so a plain walk would stop dead at the group's `]` and never reach a
+     * docblock above it. PHPCS records `attribute_opener` on the group's
+     * closer, which is the pointer the hop uses.
      *
-     * The two texts are kept apart so that neither signal can be satisfied by
-     * the other's material: a docblock quoting `#[\Override]` in prose is not
-     * an attribute, and an attribute argument is not a docblock. The attribute
-     * text is collected as code for the same reason the body text is, so an
-     * argument that spells out the tail of an attribute list in a string —
-     * `#[Route('a, Override(b')]` — carries no weight either. For the same
-     * reason a plain comment and a `phpcs:` annotation contribute no text — a
-     * `// @inheritdoc` line comment is skipped as whitespace would be, and
-     * exempts nothing. PHPMD agrees: it reads the method's doc comment, which
-     * is the docblock alone. `Tokens::$emptyTokens` cannot be used as the
-     * collection set for that reason: it carries `T_COMMENT` too.
+     * The two signals are read from separate material, so neither can be
+     * satisfied by the other's: a docblock quoting `#[\Override]` in prose is
+     * not an attribute, and an attribute's argument is not a docblock. Only
+     * doc-comment tokens contribute to the docblock text, so a plain comment
+     * and a `phpcs:` annotation contribute nothing — a `// @inheritdoc` line
+     * comment is skipped as whitespace would be, and exempts nothing. PHPMD
+     * agrees: it reads the method's doc comment, which is the docblock alone.
+     * `Tokens::$emptyTokens` cannot be used as the collection set for that
+     * reason: it carries `T_COMMENT` too.
      *
      * `@inheritdoc` is matched case-insensitively and in the `{@inheritdoc}`
-     * spelling, exactly as PHPMD matches it. `Override` is matched only where
-     * an attribute *name* can stand — right after the group's `#[` or after a
-     * comma separating names — and case-insensitively, because PHP resolves
-     * attribute names case-insensitively and `#[\override]` is the same
-     * attribute.
+     * spelling, exactly as PHPMD matches it. The attribute is found by walking
+     * the group's tokens rather than its text — see isOverrideAttribute().
      */
     private function hasInheritanceAnnotation(File $phpcsFile, int $stackPtr): bool
     {
@@ -488,7 +543,6 @@ class UnusedFormalParameterSniff implements Sniff
         $skippable = Tokens::$methodPrefixes + Tokens::$emptyTokens;
         $undocumented = Tokens::$phpcsCommentTokens + [T_COMMENT => T_COMMENT];
         $docText = '';
-        $attributeText = '';
         $pointer = $stackPtr - 1;
 
         while ($pointer >= 0) {
@@ -496,12 +550,11 @@ class UnusedFormalParameterSniff implements Sniff
 
             if ($code === T_ATTRIBUTE_END) {
                 $opener = $tokens[$pointer]['attribute_opener'] ?? $pointer;
-                $attributeText = $this->textBetween(
-                    $phpcsFile,
-                    $opener,
-                    $pointer,
-                    self::codeExclusions()
-                ) . $attributeText;
+
+                if ($this->isOverrideAttribute($phpcsFile, $opener, $pointer) === true) {
+                    return true;
+                }
+
                 $pointer = $opener - 1;
 
                 continue;
@@ -518,31 +571,68 @@ class UnusedFormalParameterSniff implements Sniff
             $pointer--;
         }
 
-        return preg_match('/\{?@inheritdoc\b/i', $docText) === 1
-            || preg_match('/(?:#\[|,)\s*\\\\?Override\s*[],(]/i', $attributeText) === 1;
+        return preg_match('/\{?@inheritdoc\b/i', $docText) === 1;
     }
 
     /**
-     * The source text between two pointers, inclusive, with the listed token
-     * codes left out.
+     * Whether one attribute group carries `#[\Override]`.
      *
-     * @param array<int, int|string> $excluded
+     * The group's own tokens answer this, so nothing written inside it can
+     * stand in for the attribute: an argument list is skipped whole, by its
+     * parenthesis pointers, which leaves out both `#[Listens(handler:
+     * Override::class)]` — a class reference — and `#[Listens(handler: 'first,
+     * Override(second')]`, a string that spells out the tail of an attribute
+     * list. Only where an attribute *name* can stand is the name read.
+     *
+     * The match is case-insensitive, because PHP resolves attribute names that
+     * way and `#[\override]` is the same attribute.
      */
-    private function textBetween(File $phpcsFile, int $start, int $end, array $excluded): string
+    private function isOverrideAttribute(File $phpcsFile, int $opener, int $closer): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $skip = array_flip($excluded);
-        $text = '';
 
-        for ($pointer = $start; $pointer <= $end; $pointer++) {
-            if (isset($skip[$tokens[$pointer]['code']]) === true) {
+        for ($pointer = $opener + 1; $pointer < $closer; $pointer++) {
+            if ($tokens[$pointer]['code'] === T_OPEN_PARENTHESIS) {
+                $pointer = $tokens[$pointer]['parenthesis_closer'] ?? $closer;
+
                 continue;
             }
 
-            $text .= $tokens[$pointer]['content'];
+            if (
+                $tokens[$pointer]['code'] !== T_STRING
+                || strtolower($tokens[$pointer]['content']) !== 'override'
+            ) {
+                continue;
+            }
+
+            if ($this->isAttributeName($phpcsFile, $pointer) === true) {
+                return true;
+            }
         }
 
-        return $text;
+        return false;
+    }
+
+    /**
+     * Whether this name stands where an attribute name stands: right after the
+     * group's `#[`, or after a comma separating one name from the next, in
+     * either case with an optional leading `\`.
+     *
+     * The leading `\` is hopped rather than ignored, so that `#[\Override]`
+     * matches and `#[Vendor\Override]` — a different attribute class, in
+     * another namespace — does not.
+     */
+    private function isAttributeName(File $phpcsFile, int $pointer): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+
+        if ($previous !== false && $tokens[$previous]['code'] === T_NS_SEPARATOR) {
+            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
+        }
+
+        return $previous !== false
+            && in_array($tokens[$previous]['code'], [T_ATTRIBUTE, T_COMMA], true) === true;
     }
 
     /**
