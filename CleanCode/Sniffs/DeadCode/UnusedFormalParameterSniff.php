@@ -167,17 +167,38 @@ class UnusedFormalParameterSniff implements Sniff
      * What a name is not a call to a global function after.
      *
      * PHPMD matches `func_get_args()` and `compact()` as a FunctionPostfix —
-     * the global function, not a method that happens to share its name — so
-     * `$this->compact('x')`, `$service?->compact('x')` and `Helper::compact('x')`
-     * call something else entirely and exempt nothing. `new Compact('x')` is a
-     * constructor, and PHP resolves class names case-insensitively, so it is
-     * one of those too.
+     * the global function, not something else that happens to share its
+     * spelling. The list is the whole enumeration of what can stand in front of
+     * a `T_STRING` that an opening parenthesis follows and still not be that
+     * call, derived by working through the grammar once rather than by adding a
+     * case at a time:
      *
-     * A *declaration* — `function compact()` — needs no entry here: PHP refuses
-     * to redeclare either built-in, so it cannot stand in code that runs.
+     * - `$this->compact('x')` and `$service?->compact('x')` call a method, and
+     *   `Helper::compact('x')` a static one — T_OBJECT_OPERATOR,
+     *   T_NULLSAFE_OBJECT_OPERATOR and T_DOUBLE_COLON.
+     * - `new Compact('x')` calls a constructor. PHP resolves class names
+     *   case-insensitively, so the spelling matches there too — T_NEW.
+     * - `function compact()` *declares* something of that name — T_FUNCTION.
+     *   The earlier reasoning that PHP refuses to redeclare a built-in holds
+     *   only for a bare global function: a method of a nested or anonymous
+     *   class may be named either one freely.
+     *
+     * Two more shapes are settled before this list is consulted, because
+     * neither is decided by the token immediately in front of the name:
+     *
+     * - A qualified reference — `new \Compact('x')`, `new \Vendor\Compact('x')`
+     *   — puts a T_NS_SEPARATOR there instead, so isCallTo() steps over the
+     *   whole qualified name first and asks what precedes *that*. PHP_CodeSniffer
+     *   splits a fully-qualified name back into separators and T_STRINGs, so
+     *   this is the shape every such reference arrives in.
+     * - An attribute name — `#[Compact('x')]` — is not a call at all, and is
+     *   ruled out structurally by the group its token belongs to. An
+     *   attribute's arguments are constant expressions, so no genuine call is
+     *   lost with it.
      */
     private const NOT_A_FUNCTION_CALL = [
         T_DOUBLE_COLON,
+        T_FUNCTION,
         T_NEW,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_OBJECT_OPERATOR,
@@ -200,6 +221,31 @@ class UnusedFormalParameterSniff implements Sniff
      */
     private const INTERPOLATION_PATTERN =
         '/(?<!\\\\)(?:\\\\\\\\)*\K\$\{?(?P<name>[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/';
+
+    /**
+     * The token stream self::$declarations and self::$declarationNamespace were
+     * built from, so that both are discarded when the stream changes.
+     *
+     * The same key CleanCode.Arrays.ArrayAccessors builds for its own map: the
+     * file, its token count and the fixer's loop counter together change
+     * whenever the pointers held here could mean something else.
+     */
+    private ?string $declarationsKey = null;
+
+    /**
+     * Every named class-like in the file, keyed by namespace and short name.
+     *
+     * @var array<string, int>
+     */
+    private array $declarations = [];
+
+    /**
+     * The namespace each class-like in the file is declared under, keyed by its
+     * pointer.
+     *
+     * @var array<int, string>
+     */
+    private array $declarationNamespace = [];
 
     /**
      * @return array<int|string>
@@ -400,11 +446,19 @@ class UnusedFormalParameterSniff implements Sniff
      * parenthesis, which is what tells a call from every other place the same
      * spelling can appear: inside a comment or a string it is not a T_STRING at
      * all, and as a constant or a property it is followed by something else.
-     * What precedes it settles the rest — see NOT_A_FUNCTION_CALL — so a method
-     * or a static method of the same name is not mistaken for the global
-     * function PHPMD matches. A leading `\` or a namespace qualifier is left
-     * alone: PHPMD matches `compact` by the last segment of the name, and
-     * `\func_get_args()` is the global function spelled out.
+     * What precedes it settles the rest — see NOT_A_FUNCTION_CALL — so neither a
+     * method, a static method, a constructor nor a declaration of the same name
+     * is mistaken for the global function PHPMD matches.
+     *
+     * Two things are decided before that list is reached. An attribute name is
+     * ruled out by the group it sits in rather than by what precedes it,
+     * because `#[Override, Compact('x')]` puts a comma there — the same token a
+     * genuine `f($a, compact('b'))` does. And a qualified reference is stepped
+     * over whole, together with a return-by-reference `&`, so
+     * `new \Vendor\Compact('x')` is read as the constructor it is and
+     * `function &compact()` as the declaration it is; the name that remains is
+     * the last segment, which is what PHPMD matches `compact` by, leaving
+     * `\func_get_args()` the global function spelled out.
      *
      * The comparison is case-insensitive because PHP resolves function names
      * that way, and PHPMD compares with strcasecmp for the same reason.
@@ -416,6 +470,7 @@ class UnusedFormalParameterSniff implements Sniff
         if (
             $tokens[$pointer]['code'] !== T_STRING
             || strtolower($tokens[$pointer]['content']) !== $name
+            || isset($tokens[$pointer]['attribute_opener']) === true
         ) {
             return false;
         }
@@ -426,10 +481,58 @@ class UnusedFormalParameterSniff implements Sniff
             return false;
         }
 
-        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+        $previous = $this->beforeName($phpcsFile, $pointer);
 
         return $previous === false
             || in_array($tokens[$previous]['code'], self::NOT_A_FUNCTION_CALL, true) === false;
+    }
+
+    /**
+     * The first significant token in front of a name, with everything that
+     * merely decorates the name stepped over.
+     *
+     * Two decorations sit between a name and the token that says what the name
+     * means, and neither says anything itself:
+     *
+     * - a qualifier. PHP_CodeSniffer hands back a fully-qualified name as
+     *   alternating T_NS_SEPARATOR and T_STRING tokens rather than as one name
+     *   token, so the token in front of the last segment of
+     *   `new \Vendor\Compact()` is a separator and not the `new` that decides
+     *   it. Each `separator, segment` pair is stepped over, and a `namespace\`
+     *   prefix on the same terms — it is one more way of writing the qualifier,
+     *   and the name it qualifies still ends in the segment being matched.
+     * - a return-by-reference `&`. `function &compact()` declares something;
+     *   `$mask & compact('x')` and `$ref = &compact('x')` call something. The
+     *   `&` is common to all three, so it is stepped over and the token behind
+     *   it — `function`, a variable, an `=` — is what settles the difference.
+     *
+     * A `&` cannot appear inside a qualified name, so stepping over the
+     * qualifier first and the `&` after it reaches the same token whichever
+     * decorations are present.
+     */
+    private function beforeName(File $phpcsFile, int $pointer): int|false
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+
+        while ($previous !== false && $tokens[$previous]['code'] === T_NS_SEPARATOR) {
+            $segment = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
+
+            if (
+                $segment === false
+                || in_array($tokens[$segment]['code'], [T_NAMESPACE, T_STRING], true) === false
+            ) {
+                return $segment;
+            }
+
+            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $segment - 1, null, true);
+        }
+
+        if ($previous !== false && $tokens[$previous]['code'] === T_BITWISE_AND) {
+            return $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
+        }
+
+        return $previous;
     }
 
     /**
@@ -694,12 +797,14 @@ class UnusedFormalParameterSniff implements Sniff
      * `getAllMethods()` reaches a *parent's* trait methods, which is why the
      * queue picks those up as it walks.
      *
-     * Names are reduced to their last namespace segment because that is all a
-     * same-file lookup can compare: the file declares its class-likes under one
-     * namespace, so a `Foo\Bar` reference and a `Bar` declaration in this file
-     * are the same type whenever the reference resolves at all. A reference
-     * that genuinely points elsewhere simply finds no declaration here and
-     * falls through to being reported, which is the conservative direction.
+     * Names are reduced to their last segment and read under the namespace of
+     * the class that names them, which is all a same-file lookup can honestly
+     * compare: a `Foo\Bar` reference and a `Bar` declaration in the same
+     * namespace of this file are the same type whenever the reference resolves
+     * at all, while a `Bar` in some *other* namespace of the file is a
+     * different type and no longer answers for it. A reference that genuinely
+     * points elsewhere finds no declaration here and falls through to being
+     * reported, which is the conservative direction.
      *
      * @return array<int, string>
      */
@@ -713,30 +818,36 @@ class UnusedFormalParameterSniff implements Sniff
             $names[] = $parent;
         }
 
-        return $this->shortNames($names);
+        return $this->qualifiedNames($phpcsFile, $classPtr, $names);
     }
 
     /**
-     * The short, lowercased names of the traits a class-like uses.
+     * The lookup keys of the traits a class-like uses.
      *
      * @return array<int, string>
      */
     private function traitNames(File $phpcsFile, int $classPtr): array
     {
-        return $this->shortNames($this->usedTraitNames($phpcsFile, $classPtr));
+        return $this->qualifiedNames($phpcsFile, $classPtr, $this->usedTraitNames($phpcsFile, $classPtr));
     }
 
     /**
-     * Each name reduced to its last namespace segment, lowercased.
+     * Each name reduced to its last segment and keyed under the namespace of
+     * the class-like that refers to it, which is how buildDeclarations() keys
+     * what it records.
      *
      * @param array<int, string> $names
      *
      * @return array<int, string>
      */
-    private function shortNames(array $names): array
+    private function qualifiedNames(File $phpcsFile, int $classPtr, array $names): array
     {
+        $this->buildDeclarations($phpcsFile);
+        $namespace = $this->declarationNamespace[$classPtr] ?? '';
+
         return array_map(
-            static fn (string $name): string => strtolower(substr((string) strrchr('\\' . $name, '\\'), 1)),
+            static fn (string $name): string => $namespace . '\\'
+                . strtolower(substr((string) strrchr('\\' . $name, '\\'), 1)),
             $names
         );
     }
@@ -806,26 +917,100 @@ class UnusedFormalParameterSniff implements Sniff
     }
 
     /**
-     * Every named class-like in the file, keyed by its short lowercased name.
+     * Indexes every named class-like in the file, once per token stream.
+     *
+     * Keying by the short name alone let two class-likes of the same name under
+     * different `namespace` blocks of one file overwrite each other, so an
+     * ancestor resolved by name could be the wrong class entirely — silently,
+     * and in the direction that reports a parameter the override exemption
+     * covers. The namespace each one is declared under is part of the key, and
+     * a reference is looked up under the namespace of the class that makes it.
+     *
+     * The walk visits namespace declarations and class-likes in the one order
+     * they appear, so the namespace in hand is always the one governing the
+     * declaration being recorded. It runs once per stream rather than once per
+     * method: it used to be re-run for every method of every class, which cost
+     * a file of n methods O(n²) — measured at 0.58s for 250 methods, 1.47s for
+     * 500 and 5.01s for 1,000, better than 3x per doubling, on shapes the
+     * repo's own TooManyMethods sniffs exempt by ignorepattern and real entity
+     * classes reach easily.
+     */
+    private function buildDeclarations(File $phpcsFile): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $key = $phpcsFile->getFilename()
+            . '|' . count($tokens)
+            . '|' . ($phpcsFile->fixer->loops ?? 0);
+
+        if ($this->declarationsKey === $key) {
+            return;
+        }
+
+        $this->declarationsKey = $key;
+        $this->declarations = [];
+        $this->declarationNamespace = [];
+
+        $targets = array_merge([T_NAMESPACE], self::CLASS_LIKE);
+        $namespace = '';
+        $pointer = $phpcsFile->findNext($targets, 0);
+
+        while ($pointer !== false) {
+            if ($tokens[$pointer]['code'] === T_NAMESPACE) {
+                $namespace = $this->namespaceName($phpcsFile, $pointer) ?? $namespace;
+            } else {
+                $name = $phpcsFile->getDeclarationName($pointer);
+                $this->declarationNamespace[$pointer] = $namespace;
+
+                if ($name !== null && $name !== '') {
+                    $this->declarations[$namespace . '\\' . strtolower($name)] = $pointer;
+                }
+            }
+
+            $pointer = $phpcsFile->findNext($targets, $pointer + 1);
+        }
+    }
+
+    /**
+     * The namespace a `namespace` token declares, lowercased, or null when it
+     * declares none.
+     *
+     * `namespace\f()` is the operator form — a name qualified against the
+     * current namespace — and a T_NS_SEPARATOR directly after the keyword is
+     * what tells it from a declaration. A braced `namespace {` declares the
+     * global namespace and yields the empty string, which is the same key an
+     * unnamespaced file's declarations are recorded under.
+     */
+    private function namespaceName(File $phpcsFile, int $pointer): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+        if ($next === false || $tokens[$next]['code'] === T_NS_SEPARATOR) {
+            return null;
+        }
+
+        $end = $phpcsFile->findNext([T_SEMICOLON, T_OPEN_CURLY_BRACKET], $next);
+        $name = '';
+
+        for ($segment = $next; $end !== false && $segment < $end; $segment++) {
+            if (in_array($tokens[$segment]['code'], [T_NS_SEPARATOR, T_STRING], true) === true) {
+                $name .= $tokens[$segment]['content'];
+            }
+        }
+
+        return strtolower($name);
+    }
+
+    /**
+     * Every named class-like in the file, keyed by namespace and short name.
      *
      * @return array<string, int>
      */
     private function declarationsByName(File $phpcsFile): array
     {
-        $declarations = [];
-        $pointer = $phpcsFile->findNext(self::CLASS_LIKE, 0);
+        $this->buildDeclarations($phpcsFile);
 
-        while ($pointer !== false) {
-            $name = $phpcsFile->getDeclarationName($pointer);
-
-            if ($name !== null && $name !== '') {
-                $declarations[strtolower($name)] = $pointer;
-            }
-
-            $pointer = $phpcsFile->findNext(self::CLASS_LIKE, $pointer + 1);
-        }
-
-        return $declarations;
+        return $this->declarations;
     }
 
     /**

@@ -402,3 +402,114 @@ class AttributeConstantArgument
         echo 'x';
     }
 }
+
+class NestedDeclarationNamedLikeTheFunction
+{
+    // A nested declaration of the name is not a call to it. PHP refuses to
+    // redeclare a global function, but a method of an anonymous class may be
+    // named func_get_args() freely, and declaring one runs nothing.
+    public function nestedFuncGetArgs(string $unusedAQ): string
+    {
+        return get_class(new class () {
+            public function func_get_args(): array
+            {
+                return [];
+            }
+        });
+    }
+
+    // The same for compact(), whose declared parameter's default is a quoted
+    // string: read as a call, its argument would exempt the outer parameter.
+    public function nestedCompact(string $unusedAR): string
+    {
+        return get_class(new class () {
+            public function compact(string $name = 'unusedAR'): void
+            {
+                echo $name;
+            }
+        });
+    }
+}
+
+class QualifiedReferenceNamedLikeTheFunction
+{
+    // new \Compact('unusedAS') is a constructor. PHP_CodeSniffer splits the
+    // fully-qualified name into a separator and a name, so the token in front
+    // of `Compact` is the separator and not the `new` that decides it.
+    public function fullyQualifiedCompact(string $unusedAS): string
+    {
+        return get_class(new \Compact('unusedAS'));
+    }
+
+    // The same with a qualifier of more than one segment, which puts a whole
+    // run of separators and names in front of it.
+    public function namespacedCompact(string $unusedAT): string
+    {
+        return get_class(new \Vendor\Package\Compact('unusedAT'));
+    }
+
+    // A constructor of a class named for the other function. It exempts
+    // nothing, because it is not a call to the function.
+    public function fullyQualifiedFuncGetArgs(string $unusedAU): string
+    {
+        return get_class(new \Func_get_args());
+    }
+}
+
+class AttributeNamedLikeTheFunction
+{
+    // An attribute is not a call, and an attribute's arguments are constant
+    // expressions, so #[Compact('unusedAV')] runs nothing and exempts nothing.
+    public function attributeCompact(string $unusedAV): string
+    {
+        return get_class(new class () {
+            #[Compact('unusedAV')]
+            public function handle(): void
+            {
+            }
+        });
+    }
+
+    // The same attribute written second in its group, where the token in front
+    // of the name is the comma that separates one attribute from the next —
+    // the same token a genuine call's preceding argument leaves there.
+    public function secondAttributeCompact(string $unusedAW): string
+    {
+        return get_class(new class () {
+            #[Listens(Handler::class), Compact('unusedAW')]
+            public function handle(): void
+            {
+            }
+        });
+    }
+}
+
+class ByReferenceDeclarationNamedLikeTheFunction
+{
+    // `function &compact()` declares by reference. The `&` sits between the
+    // name and the `function` that says it is a declaration, so a check on the
+    // single token in front of the name sees the `&` and nothing else.
+    public function byReferenceCompact(string $unusedAX): string
+    {
+        return get_class(new class () {
+            public function &compact(string $name = 'unusedAX'): array
+            {
+                $names = [$name];
+
+                return $names;
+            }
+        });
+    }
+
+    public function byReferenceFuncGetArgs(string $unusedAY): string
+    {
+        return get_class(new class () {
+            public function &func_get_args(): array
+            {
+                $arguments = [];
+
+                return $arguments;
+            }
+        });
+    }
+}

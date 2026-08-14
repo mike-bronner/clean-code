@@ -190,9 +190,25 @@ measured:
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-forty-two findings, same lines, same parameters. On `passing.php` this
+fifty-one findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
+On `namespaces.php` both are silent.
+
+Matching the call PHPMD matches is what the last nine of those findings turn
+on. PHPMD resolves a `FunctionPostfix` — the global function — so a name that
+merely *spells* `func_get_args` or `compact` exempts nothing, and neither tool
+is fooled by a method or static method of that name, a constructor of a class
+of that name (PHP resolves class names case-insensitively), a *declaration* of
+that name inside the body, a qualified reference such as
+`new \Vendor\Package\Compact()`, or an attribute written `#[Compact('x')]`.
+A declaration that returns by reference — `function &compact()` — is the same
+case once more. Four of these are the ones a check on the single token in front
+of the name cannot settle on its own: a plain declaration puts `function`
+there, a by-reference one puts `&` there, a qualified reference puts a
+namespace separator there rather than the `new` that decides it, and an
+attribute name may be preceded by the same comma that separates a genuine
+call's arguments.
 
 Behaviour tests covering compliant code, per-line and per-column violation
 reporting, the message wording, the error severity, the absence of a fixer, and

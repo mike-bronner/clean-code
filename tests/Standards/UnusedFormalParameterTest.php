@@ -15,9 +15,15 @@
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
  * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222, 243,
  * 252, 260, 270, 278, 287, 294, 307, 317, 325, 333, 344, 349, 354, 362, 369,
- * 378 and 400 — forty-two findings, naming $unusedA through $unusedAP (with
- * $unusedJ absent, since that one is read) plus $id. This sniff reproduces all
- * forty-two, on the same lines, naming the same parameters.
+ * 378, 400, 411, 423, 439, 446, 453, 463, 476, 492 and 504 — fifty-one
+ * findings, naming $unusedA through $unusedAY (with $unusedJ absent, since
+ * that one is read) plus $id. This sniff reproduces all fifty-one, on the same
+ * lines, naming the same parameters.
+ *
+ * On namespaces.php both are silent, which is the point of that fixture: every
+ * method in it overrides one declared in its own namespace, and both tools
+ * resolve the ancestor rather than the same-named class in the other namespace
+ * block.
  *
  * On passing.php this sniff is silent and PHPMD is not: it reports $eta,
  * $theta and $iota (its func_get_args() exemption misses an unqualified call
@@ -50,6 +56,8 @@
  */
 
 declare(strict_types=1);
+
+use PHP_CodeSniffer\Files\LocalFile;
 
 const UNUSED_FORMAL_PARAMETER = 'CleanCode.DeadCode.UnusedFormalParameter';
 
@@ -190,6 +198,23 @@ it('produces no violations on the compliant fixture', function (): void {
  * - lines 222 and 307, the two other shapes that spell `Override` where it is
  *   not the attribute: as a class reference in an argument list, and inside an
  *   argument's string.
+ * - lines 411 to 476, the remaining ways a name can be spelled where it is not
+ *   a call to the global function. Two are *declarations* of the name — a
+ *   method of an anonymous class may be called `func_get_args()` or
+ *   `compact()` freely, where a bare global function may not be redeclared, so
+ *   declaring one runs nothing. Three are qualified references —
+ *   `new \Compact()`, `new \Vendor\Package\Compact()` and
+ *   `new \Func_get_args()` — which PHP_CodeSniffer splits into separators and
+ *   names, putting a separator rather than the deciding `new` in front of the
+ *   matched segment. Two are attribute names, `#[Compact('...')]` written
+ *   alone and written second in its group, where the token in front is the
+ *   comma that also separates a genuine call's arguments. PHPMD matches a
+ *   FunctionPostfix and reports through all seven.
+ * - lines 492 and 504, a declaration of the name that returns by reference.
+ *   The `&` stands between the name and the `function` that says it is a
+ *   declaration, so it is stepped over rather than listed: the same `&` also
+ *   stands in `$mask & compact('x')` and `$ref = &compact('x')`, which are
+ *   genuine calls, and only the token behind it tells the three apart.
  *
  * Lines 184 to 243 were each mutation-checked, one defect at a time: taking the
  * body as unfiltered text drops 184, 192 and 198; walking `Tokens::$emptyTokens`
@@ -210,6 +235,10 @@ it('produces no violations on the compliant fixture', function (): void {
  *     | drop the preceding-token guard from the call test       | 344, 349, 354, 362, 369 |
  *     | drop the parenthesis requirement from the call test     | 378                  |
  *     | stop skipping an attribute's argument list              | 400                  |
+ *     | drop T_FUNCTION from the call test's preceder list      | 411, 423             |
+ *     | drop the qualified-name hop from the call test          | 439, 446, 453        |
+ *     | drop the attribute-group guard from the call test       | 463, 476             |
+ *     | drop the by-reference `&` hop from the call test        | 492, 504             |
  *
  * The decisions that are a keeping rather than a dropping are checked from the
  * other side, on passing.php, where each mutation reddens the compliant
@@ -266,7 +295,42 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 369, 'column' => 43, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 378, 'column' => 45, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 400, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 411, 'column' => 46, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 423, 'column' => 42, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 439, 'column' => 50, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 446, 'column' => 46, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 453, 'column' => 54, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 463, 'column' => 45, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 476, 'column' => 51, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 492, 'column' => 47, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 504, 'column' => 51, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
+});
+
+/**
+ * Same-file override resolution across more than one namespace block.
+ *
+ * The parity fixtures answer what the sniff must report; this one answers what
+ * it must not. Two class-likes named `Origin` and two named `Contract` are
+ * declared in one file, one of each per namespace, and every method here is an
+ * override of the one in its *own* namespace.
+ *
+ * Indexed by short name, the second `Origin` overwrote the first, so `Child`
+ * resolved to a class declaring no `handle()`, the override exemption broke,
+ * and correct code was reported. Mutation-checked: dropping the namespace from
+ * the declaration key and from the lookup reddens this test at lines 44 and 51
+ * — the two First\Child methods whose ancestor is shadowed — and moves nothing
+ * in failing.php or passing.php.
+ *
+ * This cannot live in passing.php: two namespaces in one file require the
+ * braced form, and that fixture's declarations sit under a single unbraced
+ * namespace.
+ */
+it('resolves a same-file ancestor within its own namespace', function (): void {
+    $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'namespaces.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
 });
 
 /**
@@ -355,4 +419,89 @@ it('leaves the failing fixture untouched when the fixer runs', function (): void
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
 
     expect(autofixedContents($file))->toBe(file_get_contents($fixture));
+});
+
+/**
+ * The same-file ancestor index is built once per token stream, not once per
+ * method.
+ *
+ * It used to be rebuilt inside every override check, and each rebuild walked
+ * the whole file, so a class of n methods scanned the file n times: measured
+ * here at 0.58s for 250 methods, 1.47s for 500, 5.01s for 1,000 and better
+ * than 3x per doubling throughout. Accessors are exactly the shape that
+ * reaches it — this repo's own TooManyMethods and TooManyPublicMethods sniffs
+ * exempt `get*`/`set*`/`is*`/`has*` by ignorepattern, so a class may carry any
+ * number of them and no other rule objects — which is why the fixture below is
+ * built from them.
+ *
+ * Two things are asserted per size, and they answer different questions:
+ *
+ * - Every method is still read, and the one unused parameter still reported.
+ *   An index that had stopped resolving would run fast for the wrong reason.
+ * - The sniff costs less than twice PHP_CodeSniffer's own parse of the same
+ *   file. That is the scale-free half: the parse is the work the file
+ *   inherently needs, so a sniff that stays within a constant factor of it at
+ *   every size is not walking anything quadratic. The sibling
+ *   CleanCode.Arrays.ArrayAccessors scale tests make the same claim the same
+ *   way.
+ *
+ * Mutation-checked by deleting the memoization guard from buildDeclarations():
+ * the rebuild returns and this test reddens at the smallest size measured,
+ * n=250, where the sniff costs 0.66s against a parse of 0.02s — thirty times
+ * the parse, against a bound of twice it. Measured the same way outside the
+ * harness, the rebuild runs a file of 1,000 methods in 10.76s where the index
+ * built once runs it in 0.37s.
+ */
+it('indexes same-file ancestors once per file, not once per method', function (): void {
+    $sizes = [250, 500, 1000];
+    $sniffedBySize = [];
+
+    foreach ($sizes as $size) {
+        $accessors = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $accessors .= "    public function getThing{$index}(): int\n"
+                . "    {\n        return {$index};\n    }\n\n";
+        }
+
+        $source = "<?php\n\nclass Big\n{\n" . $accessors
+            . "    public function unusedOne(int \$unused): int\n    {\n        return 1;\n    }\n}\n";
+
+        [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
+        $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-scale-', true) . '.php';
+        file_put_contents($path, $source);
+
+        try {
+            $file = new LocalFile($path, $ruleset, $config);
+
+            $parseAt = hrtime(true);
+            $file->parse();
+            $parsed = (hrtime(true) - $parseAt) / 1e9;
+
+            $sniffAt = hrtime(true);
+            $file->process();
+            $sniffed = (hrtime(true) - $sniffAt) / 1e9;
+            $reported = $file->getErrorCount();
+        } finally {
+            unlink($path);
+        }
+
+        $sniffedBySize[$size] = $sniffed;
+
+        expect($reported)->toBe(1, "n={$size} still reports the one unused parameter")
+            ->and($sniffed)->toBeLessThan(
+                ($parsed * 2.0),
+                "n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
+            );
+    }
+
+    // The growth half, which the parse-relative bound above cannot state on its
+    // own. Four times the methods costs four times the work when the index is
+    // built once and sixteen when it is rebuilt per method, so the bound sits
+    // between the two: 8x is twice the headroom linear growth needs and half of
+    // what the rebuild spends. Measured at 4.8x with the index in place.
+    expect($sniffedBySize[1000])->toBeLessThan(
+        ($sniffedBySize[250] * 8.0),
+        "1000 methods took {$sniffedBySize[1000]}s against 250 at {$sniffedBySize[250]}s"
+    );
 });
