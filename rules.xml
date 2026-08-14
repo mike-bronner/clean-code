@@ -129,6 +129,20 @@
         </properties>
     </rule>
 
+    <!-- No Dead Code (mikebronner.dev/clean-code): no commented-out or unused
+         code. Unused private methods/properties are covered by the custom
+         CleanCode.DeadCode.UnusedPrivateElements sniff above (Slevomat's
+         Classes.UnusedPrivateElements was removed in slevomat/coding-standard
+         7.0). -->
+    <rule ref="Squiz.PHP.CommentedOutCode"/>
+    <rule ref="SlevomatCodingStandard.Functions.UnusedParameter"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
+        <properties>
+            <!-- Imports referenced only in doc-block annotations are used —
+                 without this, phpcbf would strip them and break the docs. -->
+            <property name="searchAnnotations" value="true"/>
+        </properties>
+    </rule>
     <!--
         Conditionals: No Inline If-Statements (#9) —
         docs/standards/conditionals-no-inline-if-statements.md. PSR12 (above)
