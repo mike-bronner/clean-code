@@ -26,11 +26,49 @@ tests/
 │   ├── <Name>Sniff/                       # per-sniff fixtures, named for the sniff class
 │   └── _rulesets/<Standard>/              # fixtures for standards carried by several sniffs
 ├── Contract/                              # the generic three-fixture sweep
-├── Standards/                             # per-sniff behaviour of the custom CleanCode sniffs
-├── Rules/                                 # rules.xml's *configuration* of third-party sniffs
-├── Ruleset/                               # third-party & custom sniffs as wired into rules.xml
+├── Standards/                             # a custom sniff's own behaviour — one file per sniff
+├── Rules/                                 # four older files doing tests/Ruleset/'s job
+├── Ruleset/                               # a standard as rules.xml wires and configures it
 └── Integration/                           # whole-ruleset behaviour, with its own fixtures/
 ```
+
+### Which suite a test goes in
+
+`tests/Standards/`, `tests/Ruleset/` and `tests/Rules/` all hold per-rule tests.
+They divide by what the test is a verdict about:
+
+| Suite | The question it answers | Put new tests here? |
+|---|---|---|
+| `tests/Standards/` | Does this **sniff** behave correctly? One file per custom CleanCode sniff, driven by `analyzeFixture()` against `tests/fixtures/<Name>Sniff/`. | Yes — every new custom sniff. |
+| `tests/Ruleset/` | Does **`rules.xml`** wire and configure this standard correctly? Registration, the configured `<properties>`, the `<exclude>`s, and the several sniffs of one standard together. | Yes — every standard carried by third-party sniffs. |
+| `tests/Rules/` | The same question as `tests/Ruleset/`, under an older name. | No — `tests/Ruleset/` is the canonical home. |
+
+`tests/Rules/`'s four files stay where they are: they pass, and moving them buys
+nothing but a diff.
+
+Open a wiring test with a registration assertion — `buildRuleset()`, then
+`expect($ruleset->sniffCodes)->toHaveKey(…)`, as
+`tests/Ruleset/UnusedUsesTest.php` does. That assertion is what makes a dropped
+or misspelled `<rule ref>` fail the build instead of quietly disabling the
+standard. Four older files reach the same verdict indirectly, by scoping a
+ruleset built from `rules.xml` down to the sniffs under test
+(`CasingConventionsRulesetTest`, `NoDeadCodeRulesetTest`,
+`UnusedLocalVariableTest`, `LineLengthRulesTest`) — a sniff removed from
+`rules.xml` drops out of the report, and their violation assertions fail.
+Prefer the explicit `sniffCodes` key check: it names the missing rule instead
+of reporting an absent violation.
+
+One sniff can need a file in **both** suites. `ExcessiveClassLengthTest` exists
+twice: the `tests/Standards/` file pins the sniff's own arithmetic against live
+PHPMD output, the `tests/Ruleset/` file pins the thresholds `rules.xml` ships.
+Each docblock names the half it owns. Split a sniff that way only when
+`rules.xml` configures it; otherwise one file covers it.
+
+Three files sit outside the table and stay where they are:
+`tests/Standards/NoInlineIfStatementsTest.php` covers a third-party sniff, and
+`tests/Ruleset/DisallowStaticMembersTest.php` and
+`tests/Ruleset/MultilineStringsTest.php` cover custom ones. Follow the table
+rather than these three.
 
 ### The fixture contract
 
@@ -170,13 +208,21 @@ in and what applies the `<properties>` configured there.
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and
    `tests/Standards/ArrayAccessorsTest.php` for a thoroughly documented one.
    Tests are auto-discovered; nothing to register.
+
+   Add a second file at `tests/Ruleset/<Name>Test.php` only when `rules.xml`
+   configures the sniff with a `<properties>` block — that file pins the
+   shipped configuration, which the behaviour test above cannot see. See
+   "Which suite a test goes in" and `tests/Ruleset/ExcessiveClassLengthTest.php`.
 5. **Wire third-party rules into `rules.xml`** when a standard is enforced by an
    existing sniff instead of a custom one, e.g.
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`. Custom
    CleanCode sniffs are already picked up via the
-   `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the configured
-   thresholds/behaviour with a test in `tests/Rules/` — see
-   `tests/Rules/LineLengthRulesTest.php` as the template.
+   `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the registration and the
+   configured thresholds/behaviour with a test in `tests/Ruleset/` — see
+   `tests/Ruleset/UnusedUsesTest.php` for the single-sniff shape,
+   `tests/Ruleset/ExcessiveClassLengthTest.php` for pinning a `<properties>`
+   block, and `tests/Ruleset/TypeHintsRulesetTest.php` for a standard carried
+   by several sniffs at once.
 
    A sniff from a **new Composer package** needs that package's path added to
    the `installed_paths` list in `restoreInstalledPaths()` (`tests/Helpers.php`)
