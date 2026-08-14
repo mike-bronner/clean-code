@@ -3,10 +3,11 @@
 /**
  * Tests the custom CleanCode.Debug.DisallowDebugFunctions sniff.
  *
- * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the line =>
- * error-count map below is preserved verbatim from that test's getErrorList().
- * The fixture moved from CleanCode/Tests/Debug/DisallowDebugFunctionsUnitTest.inc
- * to tests/fixtures/DisallowDebugFunctionsSniff/failing.php.
+ * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the fixture
+ * moved from CleanCode/Tests/Debug/DisallowDebugFunctionsUnitTest.inc to
+ * tests/fixtures/DisallowDebugFunctionsSniff/failing.php, and the line =>
+ * error-count map below carried over from that test's getErrorList(). Lines 26
+ * onward were added for the PHPMD DevelopmentCodeFragment names (#86).
  *
  * The rule is detection-only — removing a debug call is a judgement about what
  * the code was meant to do — so there is no autofixed fixture, and the
@@ -48,6 +49,13 @@ it('flags every debug call at its own line', function (): void {
         6 => 1,
         7 => 1,
         24 => 1,
+        26 => 1,
+        27 => 1,
+        28 => 1,
+        29 => 1,
+        30 => 1,
+        31 => 1,
+        32 => 1,
     ])->and($file->getWarnings())->toBe([]);
 });
 

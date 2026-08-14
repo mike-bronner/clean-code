@@ -57,6 +57,19 @@ class MultilineStringsSniff implements Sniff
      */
     private const MARKER = 'TEXT';
 
+    /**
+     * HEREDOC honours the same escape sequences as a double-quoted string
+     * except `\"`, which is not special there — so `"` is the only character
+     * whose backslash is dropped when a double-quoted body is rewritten.
+     */
+    private const HEREDOC_RESOLVED_ESCAPES = '"';
+
+    /**
+     * NOWDOC is fully literal, so both escapes a single-quoted string
+     * recognises — `\\` and `\'` — resolve to the bare character.
+     */
+    private const NOWDOC_RESOLVED_ESCAPES = '\\\'';
+
     private const MESSAGE_STRING =
         'Multi-line strings must use HEREDOC/NOWDOC syntax instead of a quoted string spanning multiple lines';
 
@@ -264,10 +277,10 @@ class MultilineStringsSniff implements Sniff
         $inner = substr($raw, 1, -1);
 
         if ($quote === "'") {
-            $body = $this->nowdocBody($inner);
+            $body = $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES);
             $opener = "<<<'" . self::MARKER . "'";
         } else {
-            $body = $this->heredocBody($inner);
+            $body = $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES);
             $opener = '<<<' . self::MARKER;
         }
 
@@ -306,12 +319,18 @@ class MultilineStringsSniff implements Sniff
     }
 
     /**
-     * Rewrites the inner text of a double-quoted string as a HEREDOC body.
-     * HEREDOC honours the same escape sequences as double quotes except `\"`,
-     * which is not special there — so only `\"` is unescaped to `"`; every
-     * other escape (and any interpolation) is preserved verbatim.
+     * Rewrites the inner text of a quoted string as a doc-string body: the
+     * escapes named in $resolved lose their backslash, and every other escape
+     * — plus any interpolation — is preserved verbatim.
+     *
+     * The escape walk itself is the same for both target forms; only the set
+     * of escapes the target resolves differs, so that set is the parameter.
+     * A trailing lone backslash has no character to pair with and is emitted
+     * as-is, which is what keeps the value byte-for-byte identical.
+     *
+     * @param string $resolved The characters whose `\` prefix is dropped.
      */
-    private function heredocBody(string $inner): string
+    private function docStringBody(string $inner, string $resolved): string
     {
         $out = '';
         $length = strlen($inner);
@@ -319,32 +338,7 @@ class MultilineStringsSniff implements Sniff
         for ($i = 0; $i < $length; $i++) {
             if ($inner[$i] === '\\' && ($i + 1) < $length) {
                 $next = $inner[$i + 1];
-                $out .= ($next === '"') ? '"' : '\\' . $next;
-                $i++;
-
-                continue;
-            }
-
-            $out .= $inner[$i];
-        }
-
-        return $out;
-    }
-
-    /**
-     * Rewrites the inner text of a single-quoted string as a NOWDOC body.
-     * NOWDOC is fully literal, so the two single-quote escapes are resolved
-     * (`\\` to `\`, `\'` to `'`) and every other character is kept as-is.
-     */
-    private function nowdocBody(string $inner): string
-    {
-        $out = '';
-        $length = strlen($inner);
-
-        for ($i = 0; $i < $length; $i++) {
-            if ($inner[$i] === '\\' && ($i + 1) < $length) {
-                $next = $inner[$i + 1];
-                $out .= ($next === '\\' || $next === "'") ? $next : '\\' . $next;
+                $out .= (strpos($resolved, $next) !== false) ? $next : '\\' . $next;
                 $i++;
 
                 continue;
