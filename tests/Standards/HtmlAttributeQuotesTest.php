@@ -1,91 +1,108 @@
 <?php
 
+/**
+ * Tests the custom CleanCode.Strings.HtmlAttributeQuotes sniff (Strings:
+ * Interpolation, quoting, HereDocs, #25). Fixtures live in
+ * tests/fixtures/HtmlAttributeQuotesSniff/ and follow the three-fixture
+ * contract.
+ *
+ * The sniff is isolated from the rest of the master ruleset, which matters
+ * more here than usual: failing.php carries a multi-line double-quoted string,
+ * and CleanCode.Strings.MultilineStrings would rewrite it to a HEREDOC under
+ * the full ruleset. The interaction between the two is pinned in
+ * tests/Ruleset/StringsStandardTest.php; this file is about this sniff alone.
+ */
+
 declare(strict_types=1);
 
-namespace MikeBronner\CleanCode\Tests\Standards;
+const HTML_ATTRIBUTE_QUOTES = 'CleanCode.Strings.HtmlAttributeQuotes';
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(HTML_ATTRIBUTE_QUOTES);
+});
+
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
 
 /**
- * Behaviour tests for the CleanCode.Strings.HtmlAttributeQuotes sniff (#25):
- * HTML attributes inside string literals must use double quotes, not
- * apostrophes.
- *
- * compliant.inc guards the important non-matches — already-double-quoted
- * attributes (in both double- and single-quoted PHP strings), tags without
- * attributes, and non-HTML SQL such as `name = 'admin'`. violations.inc flags
- * one error per string token regardless of how many apostrophe attributes it
- * holds, and covers every context: a double-quoted PHP string, a single-quoted
- * PHP string with escaped-apostrophe attributes (line 6), a continuation line
- * of a multi-line string (line 9), and a value carrying a double quote (line 7)
- * that is reported but not auto-fixable. The fixer rewrites the fixable ones,
- * escaping the replacement quotes only where the PHP string context requires.
+ * Every violation is reported on the string token that carries it, so the
+ * column is where the literal opens — column 1 on line 24, which is a
+ * *continuation* line of the multi-line string starting on line 23, since
+ * PHP_CodeSniffer splits such a string into one token per physical line and
+ * the continuation token begins at the start of its line.
  */
-class HtmlAttributeQuotesTest extends StringsSniffTestCase
-{
-    protected function sniffCode(): string
-    {
-        return 'CleanCode.Strings.HtmlAttributeQuotes';
-    }
+it('flags every violation at its own line and column', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-    protected function fixtureDirectory(): string
-    {
-        return 'HtmlAttributeQuotes';
-    }
+    expect(violationTuples($file))->toBe([
+        ['line' => 3, 'column' => 11, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 4, 'column' => 10, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 11, 'column' => 10, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 15, 'column' => 23, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 19, 'column' => 20, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 24, 'column' => 1, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 29, 'column' => 15, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+    ]);
+});
 
-    public function testViolationsAreFlaggedAtTheExpectedLines(): void
-    {
-        $file = $this->processFixture('violations.inc');
+/**
+ * Six of the seven are fixable. The seventh — line 29's `title='say "hi"'` —
+ * has a double quote inside the value, so re-delimiting it is ambiguous and
+ * the sniff reports without offering a fix. Pinned as a count so a fixer that
+ * started attempting that case would fail here.
+ */
+it('leaves the ambiguous value unfixable', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-        self::assertSame(
-            [
-                3 => 1,
-                4 => 1,
-                5 => 1,
-                6 => 1,
-                7 => 1,
-                9 => 1,
-            ],
-            $this->errorCountsByLine($file)
-        );
-    }
+    expect($file->getErrorCount())->toBe(7)
+        ->and($file->getFixableCount())->toBe(6);
+});
 
-    public function testViolationsAreFlaggedAtTheExpectedColumns(): void
-    {
-        $file = $this->processFixture('violations.inc');
+/**
+ * The combined-token path: one apostrophe attribute and one already-compliant
+ * double-quoted attribute inside a single tag, in a single string token. This
+ * drives the per-tag callback wrapping the per-attribute callback, where a
+ * regression would most plausibly double-escape or drop the sibling
+ * `class="wrap"`. Asserted on the fixer's actual output rather than on the
+ * violation count, because the count is identical either way.
+ */
+it('rewrites only the apostrophe attribute of a combined tag', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-        self::assertSame(
-            [
-                3 => [11],
-                4 => [10],
-                5 => [10],
-                6 => [20],
-                7 => [15],
-                9 => [1],
-            ],
-            $this->errorColumnsByLine($file)
-        );
-    }
+    expect(autofixedContents($file))
+        ->toContain('$mixed = "<div id=\\"main\\" class=\\"wrap\\">x</div>";');
+});
 
-    public function testOnlyValuesWithoutDoubleQuotesAreAutoFixable(): void
-    {
-        $file = $this->processFixture('violations.inc');
+/**
+ * The regression this pins: the tag-span pattern used to end at the first
+ * literal `>`, so in `<a data-x="a>b" class='y'>` the span stopped inside
+ * `data-x` and the trailing `class='y'` was never seen — the string came back
+ * from the fixer unchanged. Both halves are asserted: the `>`-bearing value is
+ * preserved verbatim, and the attribute after it is converted.
+ */
+it('does not end a tag span at a greater-than inside an attribute value', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-        // Lines 3-6 and 9 are fixable; line 7's value contains a double quote,
-        // so it is reported (addError) but left for manual conversion.
-        self::assertSame(5, $file->getFixableCount());
-    }
+    expect(autofixedContents($file))
+        ->toContain('$greaterThanInValue = "<a data-x=\\"a>b\\" class=\\"y\\">link</a>";');
+});
 
-    public function testFixerRewritesApostrophesToDoubleQuotes(): void
-    {
-        self::assertStringEqualsFile(
-            $this->fixturePath('autofix-after.inc'),
-            $this->fixedContent('autofix-before.inc')
-        );
-    }
+/**
+ * The apostrophe has to delimit an attribute *inside* a tag to count. Prose,
+ * SQL, and body text between tags keep theirs — the false positive that an
+ * earlier revision produced by rewriting the whole string rather than its tag
+ * spans. All three shapes are in passing.php, so silence there is the
+ * assertion.
+ */
+it('leaves apostrophes outside a tag span alone', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'passing.php');
 
-    public function testFixedFixturePassesWithNoViolations(): void
-    {
-        $file = $this->processFixture('autofix-after.inc');
-
-        self::assertSame([], $this->errorCountsByLine($file));
-    }
-}
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('HtmlAttributeQuotesSniff', 'passing.php')));
+});

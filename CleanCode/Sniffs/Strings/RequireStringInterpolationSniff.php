@@ -28,10 +28,11 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * Detection-only — everything else that is still interpolatable but not a
  * mechanical rewrite: multi-expression chains (`'a' . $b . 'c'`), complex
- * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), and any operand
- * that is itself an already-interpolated double-quoted string (`"Hi {$a}" .
- * $b`) — which the standard wants written with `{...}` but whose safe rewrite
- * is a judgement call left to the developer.
+ * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), operands wrapped
+ * in grouping parentheses (`($b) . 'y'`), and any operand that is itself an
+ * already-interpolated double-quoted string (`"Hi {$a}" . $b`) — which the
+ * standard wants written with `{...}` but whose safe rewrite is a judgement
+ * call left to the developer.
  */
 class RequireStringInterpolationSniff implements Sniff
 {
@@ -43,6 +44,20 @@ class RequireStringInterpolationSniff implements Sniff
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
+    ];
+
+    /**
+     * Token codes that, sitting immediately before a `(` or `[`, make that
+     * pair part of the operand to its left — a call or an index rather than a
+     * bare grouping. `$arr['k']`, `foo()`, `$obj->run()`, `$fn()()`,
+     * `${'x'}['k']` all end in one of these; `= ($b)` ends in none of them.
+     */
+    private const CHAIN_HEADS = [
+        T_STRING,
+        T_VARIABLE,
+        T_CLOSE_SQUARE_BRACKET,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_CURLY_BRACKET,
     ];
 
     /**
@@ -182,7 +197,7 @@ class RequireStringInterpolationSniff implements Sniff
     private function hasNonInterpolatableOperand(array $tokens, array $operands): bool
     {
         foreach ($operands as $operand) {
-            $code = $tokens[$operand['start']]['code'];
+            $code = $this->operandCode($tokens, $operand);
 
             if (in_array($code, self::STRING_LITERALS, true) === false && $code !== T_VARIABLE) {
                 return true;
@@ -190,6 +205,71 @@ class RequireStringInterpolationSniff implements Sniff
         }
 
         return false;
+    }
+
+    /**
+     * The code of the token that decides an operand's kind.
+     *
+     * Normally that is simply the operand's first token. The exception is an
+     * operand wrapped in grouping parentheses, which are transparent to the
+     * standard: `($b) . 'y'` says exactly what `$b . 'y'` says, and reads as
+     * `"{$b}y"` either way.
+     *
+     * The parentheses are unwrapped **only when they contain a single token**.
+     * That restriction is the whole point: `($count + 1)` also opens with a
+     * `T_VARIABLE`, but `"total: {$count + 1}"` is not valid PHP, so unwrapping
+     * on the first token alone would report a concatenation that has no
+     * interpolated form. A compound parenthesized expression therefore keeps
+     * its `T_OPEN_PARENTHESIS` code and is classified non-interpolatable, which
+     * is what keeps the sniff silent on it.
+     *
+     * Unwrapping never makes an operand *fixable* — singleTokenOfCode() still
+     * requires the operand's own span to be one token, and a parenthesized one
+     * never is — so these land on ComplexConcatenation.
+     *
+     * @param array{start: int, end: int} $operand
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return int|string
+     */
+    private function operandCode(array $tokens, array $operand)
+    {
+        $outer = $tokens[$operand['start']]['code'];
+
+        if ($outer !== T_OPEN_PARENTHESIS) {
+            return $outer;
+        }
+
+        $head = $this->skipGrouping($tokens, $operand['start'], $operand['end'], T_OPEN_PARENTHESIS, 1);
+        $tail = $this->skipGrouping($tokens, $operand['end'], $operand['start'], T_CLOSE_PARENTHESIS, -1);
+
+        return $head === $tail ? $tokens[$head]['code'] : $outer;
+    }
+
+    /**
+     * Walks from $from towards $limit in $step increments, stepping over
+     * grouping parentheses of type $grouping and over whitespace/comments, and
+     * returns the first token that is neither. Used from both ends of an
+     * operand so `( $b )` and `(($a))` collapse to the token they wrap.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param int|string $grouping
+     */
+    private function skipGrouping(array $tokens, int $from, int $limit, $grouping, int $step): int
+    {
+        $pointer = $from;
+
+        while ($pointer !== $limit) {
+            $code = $tokens[$pointer]['code'];
+
+            if ($code !== $grouping && isset(Tokens::$emptyTokens[$code]) === false) {
+                break;
+            }
+
+            $pointer += $step;
+        }
+
+        return $pointer;
     }
 
     /**
@@ -205,7 +285,7 @@ class RequireStringInterpolationSniff implements Sniff
         $count = 0;
 
         foreach ($operands as $operand) {
-            if (in_array($tokens[$operand['start']]['code'], self::STRING_LITERALS, true) === true) {
+            if (in_array($this->operandCode($tokens, $operand), self::STRING_LITERALS, true) === true) {
                 $count++;
             }
         }
@@ -326,6 +406,17 @@ class RequireStringInterpolationSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $end = $start;
 
+        // An operand that *begins* with a grouping parenthesis — `($b) . 'y'` —
+        // spans to that parenthesis's closer before any call/index chain is
+        // walked. Without this the operand would end on the `(` itself and the
+        // chain would be misread.
+        if (
+            $tokens[$end]['code'] === T_OPEN_PARENTHESIS
+            && isset($tokens[$end]['parenthesis_closer']) === true
+        ) {
+            $end = $tokens[$end]['parenthesis_closer'];
+        }
+
         while (true) {
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($end + 1), null, true);
 
@@ -379,9 +470,9 @@ class RequireStringInterpolationSniff implements Sniff
             $code = $tokens[$start]['code'];
 
             if ($code === T_CLOSE_SQUARE_BRACKET && isset($tokens[$start]['bracket_opener']) === true) {
-                $start = $tokens[$start]['bracket_opener'];
+                $opener = $tokens[$start]['bracket_opener'];
             } elseif ($code === T_CLOSE_PARENTHESIS && isset($tokens[$start]['parenthesis_opener']) === true) {
-                $start = $tokens[$start]['parenthesis_opener'];
+                $opener = $tokens[$start]['parenthesis_opener'];
             } else {
                 $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
 
@@ -400,9 +491,17 @@ class RequireStringInterpolationSniff implements Sniff
                 break;
             }
 
-            $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
+            $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($opener - 1), null, true);
 
-            if ($prev === false) {
+            // A bracket or parenthesis pair only extends the operand further
+            // left when something callable or subscriptable sits immediately
+            // before it — `foo(…)`, `$obj->run(…)`, `$arr[…]`. A *bare*
+            // grouping parenthesis has no such head, so the operand starts at
+            // the opener itself; stepping past it would swallow the assignment
+            // operator before it and leave the whole chain unrecognisable.
+            if ($prev === false || in_array($tokens[$prev]['code'], self::CHAIN_HEADS, true) === false) {
+                $start = $opener;
+
                 break;
             }
 
