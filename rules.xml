@@ -323,6 +323,12 @@
         they would flag operators that lead a wrapped continuation line (the
         very layout the line-break standard mandates). Newline placement is
         owned by CleanCode.Operators.OperatorLineBreak instead.
+
+        A dangling evaluative operator (===, <, instanceof, …) is additionally
+        reported by CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators
+        (#56) — a deliberate overlap: the same newline breaks both standards,
+        and the #56 auto-fix (joining the operands onto one line) satisfies
+        both. Pinned by tests/Integration/OperatorRulesIntegrationTest.php.
     -->
     <rule ref="Squiz.WhiteSpace.OperatorSpacing">
         <properties>
