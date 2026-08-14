@@ -92,6 +92,8 @@ what stays with code review.
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
+- [Methods: Naming](docs/standards/methods-naming.md) — Tier 3, code review; narrow command–query slice tracked in [#172](https://github.com/mike-bronner/phpcs-rules/issues/172)
+- [Pattern: Don't Repeat Yourself (DRY)](docs/standards/pattern-dont-repeat-yourself-dry.md) — Tier 2, custom sniff: repeated-block detection ([#134](https://github.com/mike-bronner/phpcs-rules/issues/134))
 - [CleanCode: BooleanArgumentFlag](docs/phpmd/cleancode-booleanargumentflag.md) — Tier 2, custom sniff `CleanCode.Functions.DisallowBooleanArgumentFlag`, error severity, report-only; stricter than PHPMD on three shapes ([#76](https://github.com/mike-bronner/phpcs-rules/issues/76))
 - [CleanCode: DuplicatedArrayKey](docs/phpmd/cleancode-duplicatedarraykey.md) — Tier 2, custom sniff `CleanCode.Arrays.DuplicatedArrayKey`: flags an array literal that declares the same key twice, comparing the key PHP stores rather than the literal's spelling, report-only; stricter than PHPMD on four shapes, drops one PHPMD false positive, and one shape neither tool catches ([#81](https://github.com/mike-bronner/phpcs-rules/issues/81))
 - [CleanCode: ElseExpression](docs/phpmd/cleancode-elseexpression.md) — Tier 1, custom sniff `CleanCode.Conditionals.DisallowElse`: reports every `else` branch, report-only; Slevomat `ControlStructures.EarlyExit` covers only the mechanically fixable subset, so it is not used ([#77](https://github.com/mike-bronner/phpcs-rules/issues/77))
