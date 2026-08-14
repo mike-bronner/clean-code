@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
 use MikeBronner\CleanCode\Support\Markup;
+use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -175,10 +176,14 @@ class HtmlAttributeQuotesSniff implements Sniff
     /**
      * The PHP-source delimiter (`"` or `'`) of the string literal $stackPtr
      * belongs to. A multi-line string splits into several tokens; only the
-     * first begins with a quote, so a continuation token is resolved by walking
+     * first opens with a quote, so a continuation token is resolved by walking
      * back over the contiguous string tokens to that opener. An unresolved
      * continuation defaults to `"` — a single-quoted literal cannot interpolate,
      * so continuation tokens of an interpolated string are always double-quoted.
+     *
+     * The opener is read through StringLiteral, not off the token's first
+     * character, so a binary-string prefix (`B'<a class=\'x\'>'`) does not hide
+     * the delimiter and send the whole literal down the double-quoted path.
      */
     private function phpStringDelimiter(File $phpcsFile, int $stackPtr): string
     {
@@ -186,10 +191,10 @@ class HtmlAttributeQuotesSniff implements Sniff
         $pointer = $stackPtr;
 
         while ($pointer >= 0 && in_array($tokens[$pointer]['code'], self::STRING_TOKENS, true) === true) {
-            $content = $tokens[$pointer]['content'];
+            $delimiter = StringLiteral::delimiter($tokens[$pointer]['content']);
 
-            if ($content !== '' && ($content[0] === '"' || $content[0] === "'")) {
-                return $content[0];
+            if ($delimiter !== null) {
+                return $delimiter;
             }
 
             $pointer--;

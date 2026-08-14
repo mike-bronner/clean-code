@@ -27,3 +27,11 @@ $interpolatedOperand = "Hello {$a}" . $b;
 $parenthesized = ($b) . 'y';
 $doubleParenthesized = (($c)) . 'x';
 $spacedParenthesized = ( $d ) . 'q';
+
+// Fixable, and load-bearing: an uppercase binary-string prefix stays inside the
+// token's content, so the literal's first character is `B`, not its delimiter.
+// Reading the delimiter off that character sends a double-quoted literal down
+// the single-quoted branch, which escapes the real opening quote into the
+// value: `B"Count: " . $n` came out as `"\"Count: {$n}"`.
+$binaryDouble = B"Total: " . $sum;
+$binarySingle = B'Total: ' . $sum;

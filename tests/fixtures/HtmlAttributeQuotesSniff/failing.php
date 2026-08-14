@@ -27,3 +27,9 @@ $multiline = "<ul>
 // Not fixable: the value already carries a double quote, so re-delimiting it
 // is ambiguous. Reported for manual conversion instead.
 $nonFixable = "<a title='say \"hi\"'>x</a>";
+
+// An uppercase binary-string prefix stays inside the token's content, so
+// reading the first character as the delimiter reports `B`, and this
+// single-quoted literal was scanned as if it were double-quoted — its escaped
+// attribute apostrophes never matched and the violation went unreported.
+$binaryPrefixed = B'<a class=\'card\'>link</a>';

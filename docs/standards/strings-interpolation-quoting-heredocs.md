@@ -98,6 +98,19 @@ escape; otherwise the violation is reported for manual conversion.
   every fragment carrying a tag is reported. The sibling
   `CleanCode.Strings.MultilineStrings` reports the same string once, and its
   auto-fix to a HereDoc resolves all of them together.
+- **A literal spanning several source lines is never re-delimited or merged.**
+  `RequireStringInterpolation` and `EscapeNestedQuotes` both rewrite a whole
+  literal, and no single token holds one that spans lines — so both stay silent
+  on that shape and leave it to `CleanCode.Strings.MultilineStrings`, whose
+  HereDoc conversion is the rewrite that shape actually wants.
+  `HtmlAttributeQuotes` is unaffected: it edits inside a fragment and never
+  touches the delimiters, so it still converts an attribute on any line.
+- **A binary-string prefix is carried over, not dropped.** `b'x'` / `B"y"` are
+  handled in all three fixers, and the prefix survives the rewrite
+  (`B"Total: " . $sum` → `B"Total: {$sum}"`). Worth knowing when reading the
+  code: PHPCS splits a lowercase `b` off into its own token but leaves an
+  uppercase `B` inside the literal's content, so the delimiter is read through
+  `Support\StringLiteral` rather than off the token's first character.
 
 ## Tests
 

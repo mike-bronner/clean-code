@@ -58,11 +58,13 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 27, 'column' => 23, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 28, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 29, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 36, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 37, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
     ]);
 });
 
 /**
- * Only the five direct two-operand cases are fixable; the eight detection-only
+ * Only the seven direct two-operand cases are fixable; the eight detection-only
  * ones are not. Asserted as a count rather than a boolean so a fixer that
  * started claiming the complex cases would fail here rather than silently
  * widening its reach.
@@ -70,8 +72,49 @@ it('flags every violation at its own line and column', function (): void {
 it('marks only the direct two-operand cases fixable', function (): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(13)
-        ->and($file->getFixableCount())->toBe(5);
+    expect($file->getErrorCount())->toBe(15)
+        ->and($file->getFixableCount())->toBe(7);
+});
+
+/**
+ * The regression this pins: the literal's delimiter was read off the token's
+ * first character, which for `B"Total: "` is the binary-string prefix rather
+ * than the quote. The literal took the single-quoted branch, whose job is to
+ * escape double quotes for their new context — so it escaped the literal's own
+ * opening quote into the value, and `B"Total: " . $sum` was fixed to
+ * `"\"Total: {$sum}"`: a different string at runtime.
+ *
+ * Asserted on the fixer's output, because the violation was reported correctly
+ * either way. Both delimiters are covered under that prefix: the double-quoted
+ * literal is the one the defect corrupted, and the single-quoted one pins that
+ * the prefix is carried over rather than dropped on the branch that already
+ * re-encoded its inner text. Only the uppercase spelling can exercise either —
+ * PHP_CodeSniffer splits a lowercase `b` off into its own token and leaves an
+ * uppercase `B` inside the literal's content.
+ */
+it('keeps a binary-string prefix out of the interpolated value', function (): void {
+    $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
+
+    expect(autofixedContents($file))
+        ->toContain('$binaryDouble = B"Total: {$sum}";')
+        ->and(autofixedContents($file))
+        ->toContain('$binarySingle = B"Total: {$sum}";');
+});
+
+/**
+ * A literal whose source spans several physical lines is tokenized one token
+ * per line, so no single token holds it. The fixer replaces one token, which
+ * on the last fragment of such a literal left `$multi = 'line one` above a
+ * rewritten second line — a parse error, produced silently by phpcbf. The
+ * shape now reports nothing at all and is left to
+ * CleanCode.Strings.MultilineStrings, so the assertion is that passing.php's
+ * two multi-line cases come back from the fixer byte-for-byte.
+ */
+it('never rewrites one fragment of a multi-line literal', function (): void {
+    $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'passing.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('RequireStringInterpolationSniff', 'passing.php')));
 });
 
 /**

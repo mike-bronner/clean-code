@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
+use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -27,6 +28,10 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * carries no `$` or `{` (which would start interpolation under double quotes)
  * and no backslash escape (whose meaning differs between quote styles).
  * Otherwise the violation is reported for manual conversion.
+ *
+ * Only a whole literal is considered, and its delimiter is read past any
+ * binary-string prefix — see the Support\StringLiteral docblock for why the
+ * token's first character answers neither question.
  */
 class EscapeNestedQuotesSniff implements Sniff
 {
@@ -48,11 +53,11 @@ class EscapeNestedQuotesSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $content = $tokens[$stackPtr]['content'];
 
-        if ($content[0] !== "'") {
+        if (StringLiteral::isComplete($content) === false || StringLiteral::delimiter($content) !== "'") {
             return;
         }
 
-        $inner = substr($content, 1, -1);
+        $inner = StringLiteral::inner($content);
 
         if (strpos($inner, '"') === false) {
             return;
@@ -80,7 +85,10 @@ class EscapeNestedQuotesSniff implements Sniff
             return;
         }
 
-        $phpcsFile->fixer->replaceToken($stackPtr, '"' . str_replace('"', '\\"', $inner) . '"');
+        $phpcsFile->fixer->replaceToken(
+            $stackPtr,
+            StringLiteral::prefix($content) . '"' . str_replace('"', '\\"', $inner) . '"'
+        );
     }
 
     /**

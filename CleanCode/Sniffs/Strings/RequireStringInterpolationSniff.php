@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
+use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -33,6 +34,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * already-interpolated double-quoted string (`"Hi {$a}" . $b`) — which the
  * standard wants written with `{...}` but whose safe rewrite is a judgement
  * call left to the developer.
+ *
+ * Silent — a literal operand whose source spans several physical lines. It
+ * tokenizes one token per line, so no single token holds the literal and
+ * rewriting one of them would leave the string unterminated; that shape belongs
+ * to CleanCode.Strings.MultilineStrings, which converts it to a HEREDOC.
  */
 class RequireStringInterpolationSniff implements Sniff
 {
@@ -191,15 +197,29 @@ class RequireStringInterpolationSniff implements Sniff
      * expression — a function call, constant, or magic constant that cannot
      * live inside an interpolated string.
      *
+     * A literal that is only one physical-line fragment of a multi-line string
+     * counts as non-interpolatable too. Such a fragment is a string token like
+     * any other, so nothing in its token code says the rest of the literal
+     * lives in its neighbours; replacing it alone would cut a string in half.
+     *
      * @param array<int, array{start: int, end: int}> $operands
      * @param array<int, array<string, mixed>> $tokens
      */
     private function hasNonInterpolatableOperand(array $tokens, array $operands): bool
     {
         foreach ($operands as $operand) {
-            $code = $this->operandCode($tokens, $operand);
+            $pointer = $this->operandPointer($tokens, $operand);
+            $code = $tokens[$pointer]['code'];
 
-            if (in_array($code, self::STRING_LITERALS, true) === false && $code !== T_VARIABLE) {
+            if (in_array($code, self::STRING_LITERALS, true) === true) {
+                if (StringLiteral::isComplete($tokens[$pointer]['content']) === false) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if ($code !== T_VARIABLE) {
                 return true;
             }
         }
@@ -234,16 +254,28 @@ class RequireStringInterpolationSniff implements Sniff
      */
     private function operandCode(array $tokens, array $operand)
     {
-        $outer = $tokens[$operand['start']]['code'];
+        return $tokens[$this->operandPointer($tokens, $operand)]['code'];
+    }
 
-        if ($outer !== T_OPEN_PARENTHESIS) {
-            return $outer;
+    /**
+     * The token that decides an operand's kind — the operand's own first token,
+     * or the single token a grouping parenthesis wraps. Callers that need the
+     * token's *content* as well as its code go through this rather than
+     * operandCode(), so both read the same token.
+     *
+     * @param array{start: int, end: int} $operand
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function operandPointer(array $tokens, array $operand): int
+    {
+        if ($tokens[$operand['start']]['code'] !== T_OPEN_PARENTHESIS) {
+            return $operand['start'];
         }
 
         $head = $this->skipGrouping($tokens, $operand['start'], $operand['end'], T_OPEN_PARENTHESIS, 1);
         $tail = $this->skipGrouping($tokens, $operand['end'], $operand['start'], T_CLOSE_PARENTHESIS, -1);
 
-        return $head === $tail ? $tokens[$head]['code'] : $outer;
+        return $head === $tail ? $head : $operand['start'];
     }
 
     /**
@@ -317,17 +349,22 @@ class RequireStringInterpolationSniff implements Sniff
             return null;
         }
 
-        $inner = $this->literalInnerAsDoubleQuoted($tokens[$literal]['content']);
+        $content = $tokens[$literal]['content'];
+        $inner = $this->literalInnerAsDoubleQuoted($content);
 
         if ($inner === null) {
             return null;
         }
 
         $interpolated = '{' . $tokens[$variable]['content'] . '}';
+        // A binary-string prefix is carried over rather than dropped, so the
+        // rewrite is meaning-preserving without resting on the argument that
+        // the prefix is a no-op.
+        $prefix = StringLiteral::prefix($content);
 
         return $literal < $variable
-            ? '"' . $inner . $interpolated . '"'
-            : '"' . $interpolated . $inner . '"';
+            ? $prefix . '"' . $inner . $interpolated . '"'
+            : $prefix . '"' . $interpolated . $inner . '"';
     }
 
     /**
@@ -352,15 +389,22 @@ class RequireStringInterpolationSniff implements Sniff
     }
 
     /**
-     * Re-encodes a string-literal token's inner text (its content minus the
-     * surrounding quotes) so it is safe to embed in a double-quoted string,
-     * or null when the literal is single-quoted and carries backslash escapes
-     * whose meaning conversion could change.
+     * Re-encodes a string-literal token's inner text (its content minus any
+     * binary-string prefix and the surrounding quotes) so it is safe to embed
+     * in a double-quoted string, or null when the literal is single-quoted and
+     * carries backslash escapes whose meaning conversion could change.
+     *
+     * The delimiter is read past the prefix: `B"Count: "` is double-quoted, and
+     * reading its `B` as the delimiter would send it down the single-quoted
+     * branch, which escapes the real opening quote into the string's content.
+     *
+     * Only whole literals reach here — hasNonInterpolatableOperand() has
+     * already rejected a fragment of a multi-line one.
      */
     private function literalInnerAsDoubleQuoted(string $content): ?string
     {
-        $delimiter = $content[0];
-        $inner = substr($content, 1, -1);
+        $delimiter = StringLiteral::delimiter($content);
+        $inner = StringLiteral::inner($content);
 
         if ($delimiter === '"') {
             return $this->escapeTrailingDollar($inner);

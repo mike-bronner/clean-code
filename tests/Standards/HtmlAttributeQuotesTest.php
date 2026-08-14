@@ -48,20 +48,37 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 19, 'column' => 20, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
         ['line' => 24, 'column' => 1, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
         ['line' => 29, 'column' => 15, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
+        ['line' => 35, 'column' => 19, 'source' => HTML_ATTRIBUTE_QUOTES . '.Apostrophe'],
     ]);
 });
 
 /**
- * Six of the seven are fixable. The seventh — line 29's `title='say "hi"'` —
- * has a double quote inside the value, so re-delimiting it is ambiguous and
- * the sniff reports without offering a fix. Pinned as a count so a fixer that
- * started attempting that case would fail here.
+ * The regression this pins: the PHP string's own delimiter was read off the
+ * token's first character, which for `B'<a class=\'card\'>'` is the
+ * binary-string prefix. The literal was then scanned as a double-quoted one,
+ * whose attribute apostrophes are bare rather than escaped — so the escaped
+ * apostrophes here matched nothing and the violation went unreported. The
+ * single-quoted context takes its replacement quotes unescaped, and the prefix
+ * survives the rewrite.
+ */
+it('reads the php delimiter past a binary-string prefix', function (): void {
+    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
+
+    expect(autofixedContents($file))
+        ->toContain('$binaryPrefixed = B\'<a class="card">link</a>\';');
+});
+
+/**
+ * Seven of the eight are fixable. The odd one out — line 29's
+ * `title='say "hi"'` — has a double quote inside the value, so re-delimiting it
+ * is ambiguous and the sniff reports without offering a fix. Pinned as a count
+ * so a fixer that started attempting that case would fail here.
  */
 it('leaves the ambiguous value unfixable', function (): void {
     $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(7)
-        ->and($file->getFixableCount())->toBe(6);
+    expect($file->getErrorCount())->toBe(8)
+        ->and($file->getFixableCount())->toBe(7);
 });
 
 /**

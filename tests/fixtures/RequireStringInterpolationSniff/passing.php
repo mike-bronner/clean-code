@@ -20,3 +20,14 @@ $nestedConcat = 'sum: ' . ($x . $y);
 // One of each kind is required before interpolation is even a question.
 $literalOnly = 'foo' . 'bar';
 $variablesOnly = $first . $last;
+
+// A literal spanning several physical lines is tokenized one token per line, so
+// no single token holds it: the first opens the string, the last closes it.
+// Rewriting either fragment on its own leaves the file unparseable, so this
+// shape stays silent here and belongs to CleanCode.Strings.MultilineStrings.
+// Both operand positions, because only one of them is the token the sniff
+// reaches first.
+$multilineLeft = 'line one
+line two ' . $name;
+$multilineRight = $name . 'line one
+line two ';

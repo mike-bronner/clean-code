@@ -14,3 +14,8 @@ $withEscape = 'path "C:\\temp"';
 
 // Not fixable: a brace opens interpolation under double quotes.
 $withBrace = 'render "{name}" now';
+
+// Fixable, and load-bearing: an uppercase binary-string prefix stays inside the
+// token's content, so a sniff reading the first character as the delimiter sees
+// `B` and skips the literal entirely. The prefix is carried over by the fixer.
+$binaryPrefixed = B"He said \"hi\" to me";
