@@ -64,6 +64,14 @@ Anything beyond the three gets a **descriptive** name saying what it exercises �
 a `<name>.fixed.php` sibling if it has expected fixer output. Never a numeric
 suffix.
 
+A sniff that reads the file's **path** puts those extra fixtures in a
+subdirectory spelling the path out, because the three fixed names also fix the
+directory the fixture sits in, and that directory is not the one the sniff needs
+to see. `ApiControllerNamespaceSniff/app/Http/Controllers/API/` is the example:
+`passing.php` and `failing.php` can only ever exercise the namespace half of
+that rule, so the path half lives one level down. Subdirectories are invisible
+to the contract sweep, which looks only for the three fixed names.
+
 A standard implemented by **several** sniffs at once (TypeHints, the operator
 spacing pair, the naming casing conventions) has no single owning sniff, so its
 fixtures live in `tests/fixtures/_rulesets/<Standard>/` under the same names.
@@ -84,19 +92,41 @@ you will reach for:
   through a ruleset narrowed to one sniff, resolving the fixture directory from
   the sniff code. `$configure` receives the sniff instance so a test can set its
   public properties the way a consuming ruleset would.
+- `analyzeFixtureWithRulesetProperties($sniffCode, $fixture, $properties)` — the
+  same, but setting the properties the way a *consuming ruleset* does: string
+  values through `Ruleset::setSniffProperty()`, exactly as parsing a
+  `<property>` element does. Not interchangeable with `$configure` above, which
+  assigns to the property directly and so always hands over a correctly typed
+  value: only the XML path trims the value and turns an empty string into
+  `null`, which is what decides whether an empty `<property>` element
+  configures the sniff or aborts the ruleset parse with a `TypeError`.
 - `analyzeRulesetFixture([$sniffCodes], $directory, $fixture)` — the
   `_rulesets/` equivalent, for a standard carried by several sniffs.
 - `analyzeWithMasterRuleset($path)` — the *whole* ruleset, every sniff active.
   Use it when the point is how rules interact; scope the assertions to the
   sources under test so unrelated additions to `rules.xml` cannot break them.
+- `analyzeWithStandard($standard, $path)` — a whole *vendor* standard by name,
+  outside `rules.xml`. Narrow: `rules.xml` references vendor sniffs one at a
+  time, so the master ruleset can only report on what is already wired in. Use
+  this when the question is "does anything in this vendor standard already
+  cover the case?" — the one a new custom sniff has to settle, and the one a
+  vendor upgrade can quietly change the answer to.
 - `buildRuleset()` — `[$config, $ruleset]`, for asserting a sniff is registered.
+- `installedPhpcsViolations($standard, $path, $sniffCode)` — the only helper
+  that leaves this process: it runs the installed `vendor/bin/phpcs` binary,
+  from a working directory outside the package, and returns what one sniff
+  reported. Use it for a smoke test that the *shipped* package works, and
+  nothing else — every in-process helper here supplies the standards
+  registration itself, so none of them can tell a registered package from an
+  unregistered one.
 - `violationSourcesByLine()`, `violationCountsByLine()`, `violationTuples()`,
   `allViolationSourcesByLine()`, `violationFixableFlags()` — collapse PHPCS's
   nested `line => column => violations` structure into something assertable.
 - `autofixedContents($file)` — run the fixer and return the result.
 
-Every helper builds the master ruleset and *then* narrows `$ruleset->sniffs`,
-rather than restricting PHPCS via `$config->sniffs`. This is load-bearing: under
+Every helper that narrows to particular sniffs builds the master ruleset and
+*then* narrows `$ruleset->sniffs`, rather than restricting PHPCS via
+`$config->sniffs`. This is load-bearing: under
 `PHP_CODESNIFFER_IN_TESTS` a `$config->sniffs` restriction makes `Ruleset` skip
 parsing `rules.xml` altogether — which is what pulls the custom CleanCode sniffs
 in and what applies the `<properties>` configured there.
@@ -120,6 +150,21 @@ in and what applies the `<properties>` configured there.
    `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
    generic passing/failing/autofix/idempotence coverage.
+
+   A sniff **scoped by path** is the one exception: the sweep processes each
+   fixture where it lives, under `tests/`, and the scoping is decided from the
+   file's path alone, so the failing fixture would report nothing. That covers
+   a sniff scoped by `rules.xml` with an `<include-pattern>`/`<exclude-pattern>`
+   and one that scopes itself from its own property — the sweep configures
+   nothing, so a property-scoped sniff cannot even be pointed at its own
+   fixtures there. Leave it out of the datasets, record why in the sweep's
+   docblock beside the sniffs already listed there, and reach its fixtures from
+   its own test file instead: `stageFixtureOutsideTests()` when the path only
+   has to *match* a rule, or a small committed project under the fixture
+   directory when the rule's answer depends on other files really being there.
+   `CleanCode.Testing.RequireTestFile` is the second shape — it resolves a
+   companion test, so `tests/fixtures/RequireTestFileSniff/` holds `src/`,
+   `app/` and `tests/` trees whose contents are the thing under test.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and
@@ -134,7 +179,8 @@ in and what applies the `<properties>` configured there.
    `tests/Rules/LineLengthRulesTest.php` as the template.
 
    A sniff from a **new Composer package** needs that package's path added to
-   the `installed_paths` list in `buildRuleset()` (`tests/Helpers.php`) as well.
+   the `installed_paths` list in `restoreInstalledPaths()` (`tests/Helpers.php`)
+   as well.
    Composer writes the path into `CodeSniffer.conf` on install, but every test
    builds its `Config` through `ConfigDouble`, which blanks that file — so a
    package missing from the list does not fail on its own sniff, it makes the
