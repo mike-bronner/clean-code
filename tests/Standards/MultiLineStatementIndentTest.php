@@ -40,9 +40,12 @@ it('is registered in the master ruleset', function (): void {
  * chains, array literals, argument lists, boolean conditions with the opener
  * both shared and alone on its line, concatenation, arithmetic, ternaries,
  * nested brackets and chains, a deeper base indent — plus the near-miss shapes
- * it must stay silent on: closure and match bodies (scope-indent rules own
- * those), heredoc and nowdoc bodies, attribute groups, and single-line
- * statements.
+ * it must stay silent on: closure, anonymous-class, and match bodies
+ * (scope-indent rules own those), heredoc and nowdoc bodies, the tail lines of
+ * a quoted string that spans lines, attribute groups, and single-line
+ * statements. Arrow functions appear in all three positions their `=>` can
+ * take — trailing, leading, and at statement level — because that arrow is a
+ * distinct token from an array's.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'passing.php');
@@ -88,7 +91,67 @@ it('flags each misindented line at its own line and column', function (): void {
         ['line' => 121, 'column' => 3, 'source' => $closeBracket],
         ['line' => 131, 'column' => 1, 'source' => $incorrect],
         ['line' => 136, 'column' => 1, 'source' => $incorrect],
+        ['line' => 146, 'column' => 5, 'source' => $incorrect],
+        ['line' => 153, 'column' => 5, 'source' => $incorrect],
+        ['line' => 161, 'column' => 1, 'source' => $incorrect],
+        ['line' => 171, 'column' => 1, 'source' => $incorrect],
+        ['line' => 177, 'column' => 1, 'source' => $incorrect],
     ]);
+});
+
+/**
+ * Three constructs the sniff names in its own docblock as deliberate
+ * decisions, each pinned by the pair of lines the exhaustive list above
+ * already carries — a fixture reaching the construct compliantly in
+ * passing.php, and the near miss in failing.php. Named here because the list
+ * alone does not say *which* branch each tuple defends, and each of these
+ * branches was previously load-bearing with no fixture reaching it at all.
+ *
+ * - **anonymous class** (`EXPRESSION_SCOPES`): its body is a scope block and
+ *   is skipped whole — no tuple falls between 165 and 170 — while the
+ *   argument after it (171) is still checked. Dropping `T_ANON_CLASS` from
+ *   the constant makes the body lines report.
+ * - **arrow function** (the `T_FN` exception in `findStatementEnd()`): the
+ *   body stays inside the statement, so an un-indented one (161) reports.
+ *   Dropping the exception ends the statement at the arrow, splitting it into
+ *   two single-line fragments that both evade the multi-line check.
+ * - **multi-line quoted string**: only its *tail* lines are content. The
+ *   opening fragment is the argument and reports when under-indented (177);
+ *   the tail (178) never does, so no tuple names it.
+ */
+it('reaches every scope-block and statement-boundary branch it documents', function (
+    int $line,
+    bool $reports
+): void {
+    $errors = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'failing.php')->getErrors();
+
+    expect(array_key_exists($line, $errors))->toBe($reports);
+})->with([
+    'anonymous-class body is a skipped scope block' => [168, false],
+    'the argument after an anonymous class is still checked' => [171, true],
+    'an arrow-function body stays inside its statement' => [161, true],
+    'the opening fragment of a multi-line string is code' => [177, true],
+    'the tail lines of a multi-line string are content' => [178, false],
+]);
+
+/**
+ * The cost of getting the string case wrong is not a false positive, it is a
+ * fixer that never converges: padding injected into a string's value changes
+ * nothing the sniff measures, so it re-reports on the next pass until `phpcbf`
+ * gives up with `FAILED TO FIX` — taking every *other* sniff's fixes in the
+ * file down with it. `fixFile()` returns false exactly in that case.
+ *
+ * Run with `CleanCode.Strings.MultilineStrings` active because that is the
+ * sniff which actually rewrites the shape, and the pair is what deadlocked:
+ * one sniff converting the string to a heredoc while the other re-indented it.
+ */
+it('converges with the sniff that rewrites multi-line strings', function (): void {
+    $file = analyzeWithSniffs(
+        [MULTI_LINE_STATEMENT_INDENT, 'CleanCode.Strings.MultilineStrings'],
+        fixturePath('MultiLineStatementIndentSniff', 'passing.php')
+    );
+
+    expect($file->fixer->fixFile())->toBeTrue();
 });
 
 /**
@@ -128,6 +191,8 @@ it('anchors each line on the construct that owns it', function (int $failingLine
     'continuation: arithmetic below a wrapped operand' => [58, 8, 4],
     'continuation: value below a trailing `=>`' => [19, 8, 4],
     'continuation: chain below its receiver' => [76, 8, 4],
+    'continuation: arrow-function body below a trailing `=>`' => [146, 8, 4],
+    'continuation: arrow-function body below a leading `=>`' => [153, 8, 4],
 ]);
 
 /**

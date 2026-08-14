@@ -137,3 +137,44 @@ $secondLabel = match (
 ) {
     default => 'unknown',
 };
+
+// An arrow function's body indented as a sibling argument instead of a
+// continuation of the line its `fn` sits on. The two anchors differ here, so
+// this fails unless T_FN_ARROW is read as a trailing operator.
+$incremented = array_map(
+    fn (int $value): int =>
+        $value + 1,
+    $numbers
+);
+
+// The same arrow leading its line, at the sibling depth instead.
+$doubled = array_map(
+    fn ($value)
+        => $value * 2,
+    $numbers
+);
+
+// An arrow function at statement level with an un-indented body. Only the
+// `fn` exception in findStatementEnd() keeps the body inside the statement;
+// without it the arrow ends the statement and both halves look single-line.
+$callback = fn ($item) =>
+    $item * 2;
+
+// An anonymous class body is skipped, but the argument after it is not.
+$adapted = array_map(
+    new class {
+        public function map($item)
+        {
+            return $item * 2;
+        }
+    },
+    $items
+);
+
+// Only the *tail* lines of a multi-line string are content: the opening
+// fragment is the argument, and an under-indented one still reports.
+report(
+    "a message that runs
+across two lines",
+    $context
+);

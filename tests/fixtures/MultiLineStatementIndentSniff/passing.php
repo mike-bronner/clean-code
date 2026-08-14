@@ -146,5 +146,57 @@ $firstLabel = match (
     default => 'unknown',
 };
 
+// An arm's `=>` is T_MATCH_ARROW, the third of the three arrow tokens. It is
+// never read as a trailing operator because the arms are a scope block that
+// is skipped whole — so a wrapped arm body is not this sniff's to measure,
+// whatever depth it sits at.
+$secondLabel = match ($state) {
+    'first' =>
+            'the first state',
+    default => 'unknown',
+};
+
 // A single-line statement has no continuation line to check.
 $single = doSomething($first, $second);
+
+// An arrow function's `=>` is T_FN_ARROW, not T_DOUBLE_ARROW, but trails the
+// same way: its body continues the line the `fn` sits on. The body is an
+// expression, not a scope block, so it stays inside the statement.
+$incremented = array_map(
+    fn (int $value): int =>
+        $value + 1,
+    $numbers
+);
+
+// The same arrow, leading its line instead of trailing the one above.
+$doubled = array_map(
+    fn ($value)
+        => $value * 2,
+    $numbers
+);
+
+// An arrow function at statement level, its body wrapped below the arrow.
+$callback = fn ($item) =>
+    $item * 2;
+
+// An anonymous class body is a scope block like a closure's; the argument
+// list around it is still checked.
+$adapted = array_map(
+    new class {
+        public function map($item)
+        {
+            return $item * 2;
+        }
+    },
+    $items
+);
+
+// PHPCS splits a quoted string that spans lines into one token per physical
+// line. Those tail lines are the string's value, not code, so they are never
+// measured — `CleanCode.Strings.MultilineStrings` is what forbids this shape.
+// The opening fragment is still the argument, and is indented as one.
+report(
+    "a message that runs
+across two lines",
+    $context
+);

@@ -31,18 +31,26 @@ use PHP_CodeSniffer\Util\Tokens;
  * - a closing bracket on its own line matches the indent of the line that
  *   opened the bracket.
  *
- * `=>` is the only operator whose *trailing* position is read here; every
- * other dangling operator is `CleanCode.Operators.OperatorLineBreak`'s to
- * report, and re-anchoring around one would put a second violation on a line
- * that already has its own.
+ * `=>` is the only operator whose *trailing* position is read here — in both
+ * of the tokens PHPCS emits for it, `T_DOUBLE_ARROW` (array key, named
+ * argument) and `T_FN_ARROW` (arrow function). Every other dangling operator
+ * is `CleanCode.Operators.OperatorLineBreak`'s to report, and re-anchoring
+ * around one would put a second violation on a line that already has its own.
+ * The third arrow token, `T_MATCH_ARROW`, is unreachable here: a match body is
+ * a scope block, skipped whole.
  *
  * Bodies of closures, anonymous classes, and match expressions are scope
  * blocks governed by scope-indent rules, so their inner lines are skipped;
- * their headers (parameter lists, match subjects) are still checked.
+ * their headers (parameter lists, match subjects) are still checked. An arrow
+ * function is the exception: its body is an expression, not a scope block, so
+ * it stays inside the statement and is checked as a continuation of the line
+ * its `fn` sits on.
  *
  * A PHP attribute (`#[…]`) is a construct of its own: the declaration it
  * decorates starts a fresh statement. Heredoc and nowdoc bodies are raw
- * content and are never checked.
+ * content and are never checked, and neither are the tail lines of a quoted
+ * string that spans lines — PHPCS splits such a string into one token per
+ * physical line, and those lines are the string's own value, not code.
  */
 class MultiLineStatementIndentSniff implements Sniff
 {
@@ -104,6 +112,35 @@ class MultiLineStatementIndentSniff implements Sniff
         T_END_NOWDOC,
         T_ENCAPSED_AND_WHITESPACE,
         T_INLINE_HTML,
+    ];
+
+    /**
+     * Token types PHPCS emits for a quoted string literal.
+     *
+     * A quoted string whose source spans lines is split into one token per
+     * physical line, all of these types. Every fragment after the first is the
+     * string's own value rather than a line of code, so it carries raw content
+     * the same way a heredoc body does — see isStringTail(). The opening
+     * fragment stays code: it is the argument or operand the line begins with.
+     */
+    private const STRING_LITERALS = [
+        T_CONSTANT_ENCAPSED_STRING,
+        T_DOUBLE_QUOTED_STRING,
+    ];
+
+    /**
+     * The `=>` tokens whose *trailing* position leaves an element open, so the
+     * line below continues it.
+     *
+     * PHPCS emits a distinct token per context: `T_DOUBLE_ARROW` for an array
+     * key or named argument, `T_FN_ARROW` for an arrow function. Both read the
+     * same way here. `T_MATCH_ARROW` is deliberately absent — a match body is
+     * an expression scope this sniff skips whole, so no match arm is ever
+     * reached.
+     */
+    private const TRAILING_OPERATORS = [
+        T_DOUBLE_ARROW,
+        T_FN_ARROW,
     ];
 
     /**
@@ -250,7 +287,10 @@ class MultiLineStatementIndentSniff implements Sniff
             $isLineFirst = $token['line'] > $line;
             $line = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
 
-            if (isset(Tokens::$emptyTokens[$code]) === true || in_array($code, self::RAW_CONTENT, true) === true) {
+            $isRawContent = in_array($code, self::RAW_CONTENT, true) === true
+                || $this->isStringTail($tokens, $i) === true;
+
+            if (isset(Tokens::$emptyTokens[$code]) === true || $isRawContent === true) {
                 continue;
             }
 
@@ -401,7 +441,35 @@ class MultiLineStatementIndentSniff implements Sniff
             return false;
         }
 
-        return $phpcsFile->getTokens()[$previous]['code'] === T_DOUBLE_ARROW;
+        return in_array($phpcsFile->getTokens()[$previous]['code'], self::TRAILING_OPERATORS, true);
+    }
+
+    /**
+     * Whether the token at $ptr is a tail fragment of a quoted string that
+     * spans lines — a string token whose immediate predecessor is also one.
+     *
+     * PHPCS gives a multi-line quoted string one token per physical line, so
+     * without this the string's second and later lines read as code lines
+     * needing statement indent. Reporting them is not merely a false positive:
+     * `phpcbf` then injects the padding *into the string's value*, which
+     * changes nothing the sniff measures, so it re-reports on the next pass and
+     * the fixer never converges — the whole file comes back `FAILED TO FIX`,
+     * including violations from every other sniff.
+     *
+     * `CleanCode.Strings.MultilineStrings` is what actually forbids this shape
+     * (rewriting it to a heredoc/nowdoc), so silence here is the correct
+     * division of labour rather than a gap.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function isStringTail(array $tokens, int $ptr): bool
+    {
+        if (in_array($tokens[$ptr]['code'], self::STRING_LITERALS, true) === false) {
+            return false;
+        }
+
+        return isset($tokens[$ptr - 1]) === true
+            && in_array($tokens[$ptr - 1]['code'], self::STRING_LITERALS, true) === true;
     }
 
     /**
@@ -472,6 +540,7 @@ class MultiLineStatementIndentSniff implements Sniff
                 T_COALESCE => T_COALESCE,
                 T_INSTANCEOF => T_INSTANCEOF,
                 T_DOUBLE_ARROW => T_DOUBLE_ARROW,
+                T_FN_ARROW => T_FN_ARROW,
             ];
     }
 }

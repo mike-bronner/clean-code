@@ -38,8 +38,18 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
   );
   ```
 
-  `=>` is the only operator read in *trailing* position. Every other
-  dangling operator is
+  `=>` is the only operator read in *trailing* position, in every form it
+  takes — an array key, a named argument, or an arrow function:
+
+  ```php
+  $incremented = array_map(
+      fn (int $value): int =>
+          $value + 1,
+      $numbers
+  );
+  ```
+
+  Every other dangling operator is
   [`CleanCode.Operators.OperatorLineBreak`](arrays-operator-spacing-and-line-breaks.md)'s
   to report, and re-anchoring around one here would put a second violation on
   a line that already carries its own.
@@ -48,11 +58,19 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
 - **Scope bodies are out of scope**: lines inside the bodies of closures,
   anonymous classes, and match expressions are governed by scope-indent
   rules, not by this sniff — but their headers (parameter lists, match
-  subjects) are continuation lines and are checked.
+  subjects) are continuation lines and are checked. An arrow function is not
+  one of these: its body is an expression rather than a scope block, so it
+  stays part of the statement and is checked as a continuation.
 - **Attributes are their own construct**: a `#[…]` attribute never merges
   with the declaration it decorates into one statement.
 - **Heredoc and nowdoc bodies are raw content** — their indentation is data,
-  never checked or fixed.
+  never checked or fixed. The same holds for the second and later lines of a
+  quoted string written across lines: those lines are the string's own value.
+  The opening fragment is still the argument or operand its line begins with,
+  and is indented as one. Writing a string that way is itself a violation of
+  [Multiline Strings (HEREDOC)](code-style-multiline-strings-heredoc.md), which
+  rewrites it — measuring its interior here would only leave the two rules
+  fighting over the same lines.
 
 ### Why a custom sniff
 
