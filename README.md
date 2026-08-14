@@ -98,6 +98,7 @@ what stays with code review.
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 
+- [Clear Code: Group Code By Concepts](docs/standards/clear-code-group-code-by-concepts.md) — Tier 3, not lintable; enforced via code review (partial blank-line heuristic noted, follow-up sniff issue left to a human)
 - [Debt: Mental Debt](docs/standards/debt-mental-debt.md) — Tier 3, code review only; measurable sub-rules tracked separately
 - [Clear Code: One Idea Per Statement](docs/standards/clear-code-one-idea-per-statement.md) — Tier 3, code review; partial enforcement via chained-assignment / assignment-in-condition sniffs ([#157](https://github.com/mike-bronner/phpcs-rules/issues/157))
 - [Clear Code: Encapsulate Each Concept in a Method](docs/standards/clear-code-encapsulate-each-concept-in-a-method.md) — Tier 3, code review; partial enforcement via section-labelling-comment sniff ([#159](https://github.com/mike-bronner/phpcs-rules/issues/159))
