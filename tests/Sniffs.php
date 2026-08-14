@@ -36,6 +36,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.ControlStructures.DisallowCountInLoopExpression',
     'CleanCode.ControlStructures.DisallowExitExpression',
+    'CleanCode.DeadCode.UnusedFormalParameter',
     'CleanCode.Controversial.Superglobals',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',

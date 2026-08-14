@@ -23,160 +23,162 @@ private function bar($howdy) {
 
 _Source: [phpmd.org/rules/unusedcode.html](https://phpmd.org/rules/unusedcode.html)_
 
-## Enforceability — Tier 1 (existing sniff)
+## Enforceability — Tier 2 (custom sniff)
 
-PHP_CodeSniffer ships this rule as `Generic.CodeAnalysis.UnusedFunctionParameter`,
+The custom sniff `CleanCode.DeadCode.UnusedFormalParameter` carries this rule,
 wired into the master `rules.xml`
-([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)). No custom
-sniff and no Slevomat rule is needed.
+([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)).
 
-- **Detection** — a parameter no statement in the body reads is flagged on the
-  declaration line, in functions, methods, constructors, closures, and arrow
-  functions. A read counts whether it is plain (`$name`), inside an interpolated
-  string or heredoc, or inside a nested closure. A *dynamic* read — `${'name'}`
-  — does not count in either tool; both report the parameter as unused.
+- **Detection** — a parameter no statement in the body reads is flagged at the
+  parameter's own line and column, in functions, methods, constructors,
+  closures, and arrow functions. A read counts whether it is plain (`$name`),
+  inside an interpolated string or heredoc, or inside a nested closure or arrow
+  function.
 - **Not auto-fixable** — deleting a parameter changes the signature and breaks
-  every caller, so there is nothing safe for `phpcbf` to write. Every code is
-  reported without a fixer hook, matching PHPMD, which reports rather than
-  rewrites.
-- **Reported as an error, not a warning** — the sniff reports warnings out of
-  the box; `rules.xml` raises the severity, as it does for `Squiz.PHP.Eval` and
-  `VariableAnalysis`. A warning leaves `phpcs` exiting 0 on an unused parameter,
-  which would mean `phpmd` still had to run for this rule — the one thing this
-  issue exists to stop.
-- **Exemptions both tools already share** — a bodyless declaration (an interface
-  method or an `abstract` method) cannot use anything, so neither tool speaks
-  about it; a promoted constructor property becomes class state, so an
-  unmentioning body is not a defect; and the magic methods whose signature PHP
-  fixes (`__get`, `__set`, `__isset`, `__unset`, `__call`, `__callStatic`,
-  `__set_state`) are skipped. `__invoke` and `__construct` are *not* magic for
-  this purpose in either tool — their signatures are the author's own.
-- **`ignoreTypeHints`** — the sniff's only property, an allowlist of type hints
-  to exempt. PHPMD has no equivalent concept, so it is left at its empty
-  default.
+  every caller, so there is nothing safe for `phpcbf` to write. This matches
+  PHPMD, which reports rather than rewrites.
+- **Reported as an error, not a warning** — a warning leaves `phpcs` exiting 0
+  on an unused parameter, which would mean `phpmd` still had to run for this
+  rule: the one thing this issue exists to stop.
+- **No properties** — PHPMD's rule has no thresholds, so there is nothing to
+  transfer and nothing to drift.
 
-### Codes deliberately excluded
+### Why a custom sniff, and not a wiring
 
-The sniff emits nine codes. It never changes its *verdict* for an inherited
-signature — it changes the error *code*, to a `FoundInExtendedClass…` or
-`FoundInImplementedInterface…` variant, whenever the enclosing class extends a
-class or implements an interface. PHPMD instead stays **silent** on a parameter
-that only exists to satisfy an inherited signature.
+Both candidate wirings were built, measured against a live PHPMD 2.15.0, and
+rejected. Each stays **silent on shapes PHPMD reports**, which is the one
+direction that puts `phpmd` back in the pipeline:
 
-Excluding those six codes is what buys that exemption, and it is the whole
-reason the sniff needs configuring:
-
-| Excluded code | Why it is excluded |
+| Candidate | Why it was rejected |
 |---|---|
-| `FoundInExtendedClass` | The class extends another, so the signature may be the parent's. PHPMD exempts an override. |
-| `FoundInExtendedClassBeforeLastUsed` | Same case; the sniff only distinguishes where the unused parameter sits. |
-| `FoundInExtendedClassAfterLastUsed` | Same case. |
-| `FoundInImplementedInterface` | The class implements an interface, so the signature may be the interface's. PHPMD exempts an implementation. |
-| `FoundInImplementedInterfaceBeforeLastUsed` | Same case. |
-| `FoundInImplementedInterfaceAfterLastUsed` | Same case. |
+| `Generic.CodeAnalysis.UnusedFunctionParameter` | It never changes its *verdict* for an inherited signature — it changes the error *code*, to a `FoundInExtendedClass…` or `FoundInImplementedInterface…` variant, whenever the enclosing class extends or implements anything. Excluding those six codes to buy PHPMD's override exemption also silences the class's own **non-inherited** methods. It additionally exempts an empty or comment-only body and `__unserialize()`, both of which PHPMD reports. |
+| `SlevomatCodingStandard.Functions.UnusedParameter` | It has no inherited-signature exemption at all, so it reports **every** override — the false positive [#120's acceptance criteria](https://github.com/mike-bronner/phpcs-rules/issues/120) explicitly forbid. It was wired here for the No Dead Code standard ([#29](https://github.com/mike-bronner/phpcs-rules/issues/29)) and is replaced by this sniff, which is a strict superset of it apart from the two annotations below. |
 
-The three plain codes stay — `Found`, `FoundBeforeLastUsed`,
-`FoundAfterLastUsed` — because they fire on a plain function, a closure, or a
-method of a class that inherits nothing, where no signature is imposed from
-outside and an unused parameter is simply dead.
+### How the inherited-signature exemption is decided
+
+This is the whole difficulty of the rule, and it is worth stating exactly.
+
+PHPMD exempts a parameter that only exists to satisfy an inherited signature,
+and resolves that through PDepend's **whole-project type map**:
+`PHPMD\Node\MethodNode::isDeclaration()` asks PDepend for the parent class and
+each interface, then looks the method name up in `getAllMethods()`. A PHPCS
+sniff sees one file at a time and has no such map.
+
+The exemption is genuinely cross-file, measured on PHPMD 2.15.0:
+
+| Shape | PHPMD |
+|---|---|
+| Parent and child in the same file, method overridden | silent |
+| Parent and child in two files, both analyzed | silent |
+| Child analyzed alone, parent outside the analyzed set | **flags** |
+
+Three signals stand in for that map, and between them they cover every override
+an author can actually declare:
+
+- **A same-file resolvable override.** When the parent class or interface is
+  declared in the same file, the lookup PHPMD does is available and is done —
+  transitively, and including methods a resolved parent draws from a trait,
+  because PDepend's `getAllMethods()` includes those too. The class's *own*
+  traits are deliberately not consulted: PHP gives a class's own method
+  precedence over a trait's, and PHPMD asks only about the parent chain.
+- **`@inheritdoc`.** PHPMD honours it on its own
+  (`Rule/UnusedFormalParameter.php::isInheritedSignature()`), in the bare,
+  mixed-case, and `{@inheritdoc}` spellings. Confirmed against a live run.
+- **`#[\Override]`.** PHPMD does *not* honour this — it reports a parameter
+  under an `#[\Override]` whose parent it cannot see. Honouring it loses no
+  coverage on code that runs, because PHP 8.3 itself rejects the attribute at
+  compile time unless the method genuinely overrides something. The attribute is
+  a compiler-checked proof of the very fact PHPMD needs a type map to establish.
+
+What is left over is the deliberate cost this rule accepted: **an override of a
+parent this file cannot see, carrying neither annotation, is reported here and
+not by a whole-project PHPMD run.** Annotating it is the fix, and the annotation
+is worth having on its own.
 
 ### Where the sniff and PHPMD differ
 
-The sniff is not a drop-in match for PHPMD, and no property makes it one:
-`ignoreTypeHints` exempts by type hint and cannot express any of the shapes
-below. Rather than weaken a fixture to force agreement, the differences are
-recorded here and pinned by
-`tests/fixtures/UnusedFunctionParameterSniff/divergences.php`.
-
-The two tools decide the inheritance exemption differently. PHPMD asks whether
-this exact method is the *first declaration* of its name — walking the parent
-class and interfaces — and also exempts any method whose docblock carries
-`@inheritdoc`. The sniff asks only whether the *enclosing class* extends or
-implements anything, so its answer is per-class, not per-method. The excludes
-above adopt the sniff's coarser answer.
+Rather than weaken a fixture to force agreement, the differences are recorded
+here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 
 | Shape | PHPMD 2.15.0 | This ruleset |
 |---|---|---|
 | Unused parameter in a plain function or an inheritance-free class | flags | flags |
 | Unused parameter named only in a docblock | flags | flags |
+| Empty or comment-only body | flags | flags |
+| `__unserialize()` | flags | flags |
+| `__invoke()` | flags | flags |
+| Non-override method in a class that extends or implements | flags | flags |
+| Variadic, by-reference, or defaulted parameter, unread | flags | flags |
+| Static, trait, and enum methods | flags | flags |
+| Parameter reachable only through `func_num_args()` | flags | flags |
 | Bodyless interface or `abstract` declaration | silent | silent |
-| Genuine override of a parent or interface method | silent | silent |
-| Method carrying `@inheritdoc` | silent | silent |
 | Unused promoted constructor property | silent | silent |
+| Magic method with a PHP-fixed signature | silent | silent |
+| Method carrying `@inheritdoc` | silent | silent |
+| Genuine override of a parent resolvable in the same file | silent | silent |
+| Parameter reachable only through `func_get_args()` | silent | silent |
+| Parameter named by `compact('name')` | silent | silent |
+| Dynamic read — `${'name'}` | flags | flags |
 | Closure parameter | silent | **flags** |
 | Arrow-function parameter | silent | **flags** |
-| Parameter reachable only through `func_get_args()` | silent | **flags** |
-| Empty or comment-only body | flags | **silent** |
-| `__unserialize()` | flags | **silent** |
-| Non-override method in a class that extends or implements | flags | **silent** |
+| Method of an anonymous class | silent | **flags** |
+| Override of a parent in another file, unannotated | silent | **flags** |
+| `#[\Override]` on a method that overrides nothing | flags | **silent** |
 
-Reading the last six rows:
+Reading the rows that disagree:
 
-- **Closures and arrow functions.** PHPMD's rule visits functions and methods
-  only, so a closure's dead parameter is invisible to it. The extra reports are
-  kept: each is the same defect in a different construct. Adopting this ruleset
-  can therefore surface findings a previous `phpmd` run did not.
-- **`func_get_args()`.** PHPMD treats every parameter as used once the body
-  calls `func_get_args()`; the sniff walks tokens, sees no `$collected`, and
-  reports it. **This is the one shape where this ruleset over-reports.** There
-  is no property that suppresses it. Silence it at the call site with a
-  `phpcs:ignore` comment if the variadic-by-`func_get_args` idiom is wanted.
-- **Empty or comment-only bodies.** The sniff exempts them outright, so a class
-  stubbing out several interface methods is not told off for each. PHPMD
-  reports them. Coverage lost relative to `phpmd`.
-- **`__unserialize()`.** The sniff's magic-method list is wider than PHPMD's —
-  it also carries `__destruct`, `__sleep`, `__wakeup`, `__serialize`,
-  `__unserialize`, `__toString`, `__clone`, and `__debugInfo`. Only
-  `__unserialize(array $data)` takes a parameter, so it is the only one where
-  the wider list changes an outcome.
-- **Non-override methods inside a class that extends or implements.** This is
-  the price of the excludes: the sniff cannot say whether a given method is an
-  override, so silencing the override case silences its neighbours in the same
-  class too. Coverage lost relative to `phpmd`, traded for the exemption PHPMD
-  itself applies.
+- **Closures, arrow functions, and anonymous-class methods.** PHPMD's rule is
+  `FunctionAware` and `MethodAware` only, so PDepend never hands it any of the
+  three. The extra reports are kept: each is the same defect in a construct
+  PHPMD cannot see, and suppressing a true defect to match a gap is not parity
+  worth having. `CleanCode.Functions.ExcessiveParameterList` makes the same call
+  on the same constructs, so the two sniffs stay consistent.
+- **An unannotated override of a parent in another file.** The cost set out
+  above. Add `@inheritdoc` or `#[\Override]`.
+- **`#[\Override]` on a method that overrides nothing.** Only reachable in code
+  PHP itself refuses to compile, so no coverage is lost on anything that runs.
+
+Two boundaries worth naming, because both were assumed wrong before being
+measured:
+
+- **`func_get_args()` exempts the whole signature; `func_num_args()` exempts
+  nothing.** PHPMD reports through `func_num_args()`. `func_get_args()` exempts
+  even when it is called from inside a nested closure.
+- **`compact()` exempts only the parameter it names**, not its siblings.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
-`phpcs --standard=rules.xml`.
+`phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
+seventeen findings, same lines, same parameters.
 
-Ruleset-integration tests covering compliant code, per-line and per-column
-violation reporting, the error severity, the absence of a fixer, both halves of
-the exclude list, and the divergences above live at
-`tests/Ruleset/UnusedFormalParameterTest.php`. The sniff is also in the generic
-three-fixture sweep in `tests/Contract/SniffContractTest.php`.
+Behaviour tests covering compliant code, per-line and per-column violation
+reporting, the message wording, the error severity, the absence of a fixer, and
+every divergence above live at
+`tests/Standards/UnusedFormalParameterTest.php`. The sniff is also in the
+generic three-fixture sweep in `tests/Contract/SniffContractTest.php`, and its
+role in the No Dead Code standard is exercised end-to-end through the phpcs CLI
+by `tests/Ruleset/NoDeadCodeRulesetTest.php`.
 
 Its fixtures follow the contract CONTRIBUTING.md prescribes, under
-`tests/fixtures/UnusedFunctionParameterSniff/`: `passing.php` for code the rule
-must stay silent on and `failing.php` for the parity set, plus `divergences.php`
-and `excluded-codes.php` for the shapes that belong to neither. There is no
-`autofixed.php`, because the rule is not fixable — a test runs the real fixer
-over `failing.php` and asserts its output is byte-identical to the input, so
-"unfixable" is measured rather than assumed.
+`tests/fixtures/UnusedFormalParameterSniff/`: `passing.php` for code the rule
+must stay silent on — carrying one instance of every exemption, in the spelling
+that exercises it — and `failing.php` for the parity set, plus `divergences.php`
+for the shapes that belong to neither. There is no `autofixed.php`, because the
+rule is not fixable: a test runs the real fixer over `failing.php` and asserts
+its output is byte-identical to the input, so "unfixable" is measured rather
+than assumed.
 
 ## What remains code review
 
-**An unused parameter in a class that extends or implements something, where
-the method is the class's own.**
-
-```php
-class DerivedLedger extends Ledger
-{
-    public function archive(string $unused): void   // not an override
-    {
-        echo 'archived';
-    }
-}
-```
-
-The sniff decides the inheritance exemption per class, not per method, so
-silencing the genuine override silences this too. `phpmd` did catch it, so this
-is the one place where dropping `phpmd` loses coverage that a reader has to
-replace.
-
 **A parameter kept only for a signature no linter can see** — a framework
-callback, a queue handler, an event listener. Both tools flag it in an
-inheritance-free class, and neither can tell it apart from dead weight. Suppress
-it deliberately with `phpcs:ignore` rather than by relaxing the rule.
+callback, a queue handler, an event listener, an override of a vendor base
+class. Where the signature comes from a parent, `#[\Override]` or `@inheritdoc`
+states that in a way both this sniff and PHPMD understand. Where it comes from a
+convention no type carries — a hook name, a dispatcher's argument list —
+suppress it deliberately with `phpcs:ignore` rather than by relaxing the rule.
+
+**A dynamic read** — `${'name'}`. Neither tool resolves it, and both report the
+parameter as unused.
 
 Everything else this rule covers is machine-enforced, and `phpmd` no longer
 needs to run separately for it.

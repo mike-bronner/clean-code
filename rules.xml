@@ -164,9 +164,12 @@
          code. Unused private methods/properties are covered by the custom
          CleanCode.DeadCode.UnusedPrivateElements sniff above (Slevomat's
          Classes.UnusedPrivateElements was removed in slevomat/coding-standard
-         7.0). -->
+         7.0), and unused parameters by the custom
+         CleanCode.DeadCode.UnusedFormalParameter sniff below, which replaced
+         SlevomatCodingStandard.Functions.UnusedParameter when #120 landed: the
+         Slevomat sniff reports every override, having no inherited-signature
+         exemption at all. -->
     <rule ref="Squiz.PHP.CommentedOutCode"/>
-    <rule ref="SlevomatCodingStandard.Functions.UnusedParameter"/>
     <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
         <properties>
             <!-- Imports referenced only in doc-block annotations are used —
@@ -2051,55 +2054,49 @@
         PHPMD UnusedCode: UnusedFormalParameter (#120) —
         docs/phpmd/unusedcode-unusedformalparameter.md.
 
-        PHPMD's UnusedFormalParameter ("a parameter is never used within the
-        body") maps onto the bundled Generic.CodeAnalysis.UnusedFunctionParameter
-        sniff, so no custom sniff is needed. The sniff carries no thresholds and
-        PHPMD's rule has none either; its one property, ignoreTypeHints, exempts
-        parameters by type hint, which PHPMD cannot do, so it is left at its
-        empty default.
+        This is the custom CleanCode.DeadCode.UnusedFormalParameter sniff,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed, and
+        tests/Standards/UnusedFormalParameterTest.php asserts the sniff resolves
+        from this master ruleset.
 
-        The sniff never changes its verdict for an inherited signature — it
-        changes the error *code*, to FoundInExtendedClass* or
-        FoundInImplementedInterface*, whenever the enclosing class extends a
-        class or implements an interface. PHPMD instead stays silent on a
-        parameter that only exists to satisfy an inherited signature. Excluding
-        those six codes is what buys that exemption, and it is the whole reason
-        the sniff needs configuring:
+        Two wirings were built and measured against a live PHPMD 2.15.0 before
+        the custom sniff was written, and each stays silent on shapes PHPMD
+        reports — the one direction that would put phpmd back in the pipeline:
 
-        - FoundInExtendedClass{,BeforeLastUsed,AfterLastUsed}
-        - FoundInImplementedInterface{,BeforeLastUsed,AfterLastUsed}
+        - Generic.CodeAnalysis.UnusedFunctionParameter decides the inherited-
+          signature exemption per *class*, by switching its error code whenever
+          the enclosing class extends or implements anything. Excluding those
+          six codes to buy the exemption also silences the class's own
+          non-inherited methods. It additionally exempts an empty or
+          comment-only body and __unserialize(), both of which PHPMD reports.
+        - SlevomatCodingStandard.Functions.UnusedParameter has no inherited-
+          signature exemption at all, so it reports every override — the false
+          positive #120's acceptance criteria explicitly forbid. It was wired
+          here for the No Dead Code standard (#29) and is replaced by this
+          sniff, which is a strict superset of it apart from the two
+          annotations below.
 
-        The three plain Found{,BeforeLastUsed,AfterLastUsed} codes stay: they
-        fire on a plain function, a closure, or a method of a class that
-        inherits nothing, where no signature is imposed from outside and an
-        unused parameter is simply dead.
+        The custom sniff exempts an override it can resolve inside the same
+        file, plus @inheritdoc (which PHPMD honours too) and #[\Override]
+        (which PHPMD does not, and which PHP 8.3 itself refuses to compile
+        unless the method really does override something).
 
-        As with Squiz.PHP.Eval and VariableAnalysis above, the severity is
-        raised from the sniff's built-in warning to an error: PHPMD fails a run
-        on an UnusedFormalParameter violation, and a warning would leave phpcs
-        exiting 0, so phpmd would still have to run separately for this rule.
+        No <properties> are configured, and there is no <rule> block below:
+        PHPMD's rule carries no thresholds, so there is nothing to transfer and
+        nothing to drift. The sniff reports errors already, so no <type>
+        override is needed either — unlike Squiz.PHP.Eval and VariableAnalysis
+        above, which report warnings out of the box.
 
-        Not a drop-in match for PHPMD, and no property makes it one. This
-        ruleset is stricter on closure and arrow-function parameters (PHPMD's
-        rule visits functions and methods only) and on a parameter reachable
-        only through func_get_args() (the one shape where it over-reports). It
-        is looser on an empty or comment-only body, on __unserialize(), and —
-        the cost of the excludes above — on a method that is *not* an override
-        inside a class that extends or implements something. All seven shapes
-        are pinned by tests/fixtures/UnusedFunctionParameterSniff/divergences.php
-        and set out in docs/phpmd/unusedcode-unusedformalparameter.md.
+        Stricter than PHPMD on closures, arrow functions and anonymous-class
+        methods, which PDepend never hands to a MethodAware rule, and on an
+        override of a parent declared in another file carrying neither
+        annotation. Every shape is pinned by
+        tests/fixtures/UnusedFormalParameterSniff/divergences.php and set out in
+        the doc above.
 
         Detection only: deleting a parameter changes the signature and breaks
         every caller, so there is nothing safe to auto-fix. PHPMD reports this
         rule rather than rewriting the code too.
     -->
-    <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
-        <type>error</type>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClass"/>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClassBeforeLastUsed"/>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInExtendedClassAfterLastUsed"/>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterface"/>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterfaceBeforeLastUsed"/>
-        <exclude name="Generic.CodeAnalysis.UnusedFunctionParameter.FoundInImplementedInterfaceAfterLastUsed"/>
-    </rule>
 </ruleset>
