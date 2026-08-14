@@ -147,10 +147,15 @@ it('reports the expected violations', function (
     // so the two standards now both speak about this fixture: PSR-12 about
     // where the keyword sits (line 11), CleanCode.Conditionals.DisallowElse
     // about the branch existing at all (line 12). Not a conflict — the fixture
-    // keeps its else because moving it would stop exercising brace placement,
-    // and its `.fixed.php` counterpart is unaffected (the else sniff has no
-    // fixer).
-    'malformed control structures' => ['control-structures.php', [9 => 2, 11 => 1, 12 => 1], [9 => 1]],
+    // keeps its else because moving it would stop exercising brace placement.
+    // The third line-9 error is the Ternary Conditionals standard (#20):
+    // Slevomat's RequireTernaryOperator reads this fixture's if/else as one
+    // that only returns, so a third standard now speaks about the same line.
+    // It also owns the fixture's `.fixed.php`, because its fixer collapses the
+    // whole if/else into a ternary and so runs last — brace placement is still
+    // fixed on the way there, and the "brace placement is auto-fixable"
+    // dataset below pins that fixer on a fixture no ternary rule can swallow.
+    'malformed control structures' => ['control-structures.php', [9 => 3, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
 /**

@@ -280,6 +280,50 @@
         No <properties> block: the sniff has no thresholds to configure.
     -->
 
+    <!--
+        Conditionals: Ternary Conditionals (#20) —
+        docs/standards/conditionals-ternary-conditionals.md.
+
+        Two halves, two rules. Slevomat's RequireTernaryOperator carries the
+        "prefer a ternary" half: it reports an if/else whose branches do
+        nothing but assign the same variable or return a value, and rewrites
+        it. That is the only shape with a behaviour-preserving mechanical
+        rewrite, which is why the standard's broader "where possible" wording
+        is not pushed further here.
+
+        The "no nesting" half is the custom
+        CleanCode.Conditionals.DisallowNestedTernary sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above. It reports
+        each nesting once, at the inner operator, for parenthesized nesting in
+        any of the three operand positions and for short-ternary chains
+        ($a ?: $b ?: $c).
+
+        A custom sniff, because the obvious candidate does not exist.
+        SlevomatCodingStandard.ControlStructures.DisallowNestedTernaryOperator
+        is named in this issue's acceptance criteria but is absent from
+        slevomat/coding-standard 8.x — its ControlStructures category carries
+        no nested-ternary rule at all. "has no Slevomat sniff covering nested
+        ternaries" in tests/Ruleset/TernaryConditionalsTest.php pins that
+        rather than trusting it: it loads the whole SlevomatCodingStandard and
+        fails if a future release adds the sniff, at which point the custom one
+        can be reconsidered.
+
+        Detection only, no fixer, for the nesting half. Unfolding a nested
+        ternary means inventing a variable or method name, which is a semantic
+        decision a fixer cannot make. RequireTernaryOperator's own fixer is
+        left on — it reports without fixing where a branch holds a comment or
+        the condition uses "and"/"or"/"xor", and both paths are pinned.
+
+        This overlaps CleanCode.Conditionals.AvoidConditionals on purpose, and
+        the two do pull in opposite directions on one line: AvoidConditionals
+        warns on every ternary (#12), while this standard prefers a ternary to
+        the if/else it replaces. That is two standards speaking, not a
+        contradiction — "avoid the branch entirely" and "if you keep the
+        branch, write it as one flat ternary" are different advice, and the
+        first is a warning precisely because it is advisory.
+    -->
+    <rule ref="SlevomatCodingStandard.ControlStructures.RequireTernaryOperator"/>
+
     <!-- Use Statements: No Unused Entries (#68). searchAnnotations keeps
          imports referenced only in docblocks (@param, @throws, ...) from
          being treated as unused — those references are live, not dead code. -->
