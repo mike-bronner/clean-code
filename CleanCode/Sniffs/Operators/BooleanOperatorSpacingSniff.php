@@ -30,7 +30,7 @@ use PHP_CodeSniffer\Util\Tokens;
  * so it holds for every token either side claims rather than for whichever
  * ones an example happens to use. tests/Integration/OperatorRulesIntegrationTest.php
  * pins the same property end-to-end for the *siblings'* operators, but not for
- * this sniff's: the only boolean operator in its fixture is newline-wrapped,
+ * this sniff's: both boolean operators in its fixture are newline-wrapped,
  * which $ignoreNewlines below deliberately suppresses here.
  *
  * The narrowing is only half the story. Two spacing sniffs in the tree do

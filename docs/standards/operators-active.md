@@ -51,8 +51,8 @@ fixture involved, so it holds for every token either side claims rather than
 for whichever ones an example happens to use.
 `tests/Integration/OperatorRulesIntegrationTest.php` pins the same property
 end-to-end over the whole master ruleset, though for the *other three* sniffs'
-operators rather than these five: its only boolean operator is newline-wrapped,
-which `ignoreNewlines` deliberately suppresses here.
+operators rather than these five: both of its boolean operators are
+newline-wrapped, which `ignoreNewlines` deliberately suppresses here.
 
 ### The exclusions the split also rests on
 

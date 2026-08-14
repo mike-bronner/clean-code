@@ -381,7 +381,7 @@
         tests/Standards/BooleanOperatorSpacingTest.php, which intersect the
         four register()s directly. tests/Integration/OperatorRulesIntegrationTest.php
         pins the same property end-to-end, but over the three sniffs above:
-        the one boolean operator in its fixture is newline-wrapped, which #62's
+        both boolean operators in its fixture are newline-wrapped, which #62's
         ignoreNewlines suppresses.
 
         Narrowing is not the whole guard, though: two spacing sniffs cover
