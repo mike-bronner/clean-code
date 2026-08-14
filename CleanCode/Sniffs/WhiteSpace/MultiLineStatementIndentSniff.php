@@ -54,7 +54,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * A comment is never measured, but it never exempts a line either: a line
  * that opens with a comment and then carries code is checked on the code, at
- * the indent the comment sits at.
+ * the indent the comment sits at. A comment that *runs onto* a line from above
+ * is the exception — the code after it shares the line with the comment's own
+ * body rather than with the line's indent, so that line is the comment's and
+ * is left alone, exactly as a multi-line string's tail lines are.
  */
 class MultiLineStatementIndentSniff implements Sniff
 {
@@ -288,6 +291,7 @@ class MultiLineStatementIndentSniff implements Sniff
         $exprStart = $start;
         $stack = [];
         $line = $tokens[$start]['line'];
+        $commentOpen = false;
 
         for ($i = $start; $i <= $end; $i++) {
             $token = $tokens[$i];
@@ -307,8 +311,10 @@ class MultiLineStatementIndentSniff implements Sniff
             // take the first-token slot from code that shares its line — that
             // code's indent would then never be checked. Its last line stays
             // open unless the comment ran onto that line from above, where
-            // what precedes the code is the comment's own body.
-            $holdsLastLine = $isComment === false || $lastLine > $token['line'];
+            // what precedes the code is the comment's own body. Whether it did
+            // is what the open state, read before this token updates it, says.
+            $holdsLastLine = $isComment === false || $commentOpen === true;
+            $commentOpen = $this->commentStaysOpen($commentOpen, $code, $token['content']);
             $line = max($line, $holdsLastLine === true ? $lastLine : $lastLine - 1);
 
             if ($isComment === true || $isRawContent === true) {
@@ -495,6 +501,58 @@ class MultiLineStatementIndentSniff implements Sniff
     }
 
     /**
+     * Whether a comment is still open once the token carrying $content has
+     * been read, given that it was $open before.
+     *
+     * PHPCS never gives a comment one token spanning lines: a block comment is
+     * one `T_COMMENT` per physical line, and a doc comment is a run of
+     * `T_DOC_COMMENT_*` tokens broken at every newline — the same
+     * per-physical-line split this file already handles for heredocs and
+     * strings. So a fragment says nothing on its own about whether it is the
+     * comment's first line, and the answer has to be carried forward from the
+     * fragment before it. checkStatement() reads it while walking the tokens it
+     * already walks, which is also why it is carried rather than recomputed:
+     * scanning back to the start of the comment for each of its lines is
+     * quadratic, and a long commented-out block inside one statement is enough
+     * to stall the run.
+     *
+     * Carrying the state is also what tells apart two shapes that look
+     * identical at the fragment: a body line whose text begins with a slash
+     * pair opens nothing, because the comment above it is still open, while a
+     * whole one-line block comment sitting directly below a slash-pair comment
+     * opens and closes its own and leaves the rest of its line to the code that
+     * follows.
+     */
+    private function commentStaysOpen(bool $open, int|string $code, string $content): bool
+    {
+        if (isset(Tokens::$commentTokens[$code]) === false) {
+            return false;
+        }
+
+        if ($code === T_DOC_COMMENT_OPEN_TAG) {
+            return true;
+        }
+
+        if ($code === T_DOC_COMMENT_CLOSE_TAG) {
+            return false;
+        }
+
+        if ($code !== T_COMMENT) {
+            return $open;
+        }
+
+        $content = trim($content);
+
+        if ($open === false && str_starts_with($content, '/*') === true) {
+            // A fragment that opens and closes on one line needs four
+            // characters to do it; `/*/` only looks like both ends at once.
+            return strlen($content) < 4 || str_ends_with($content, '*/') === false;
+        }
+
+        return $open === true && str_ends_with($content, '*/') === false;
+    }
+
+    /**
      * The opener whose bracket/scope the token closes, or null when the
      * token is not a closer.
      *
@@ -529,6 +587,14 @@ class MultiLineStatementIndentSniff implements Sniff
      * the line is checked for: a comment may sit in front of that code on the
      * same line. Measuring and padding here rather than at the code token
      * keeps both halves reading the one thing the line actually has.
+     *
+     * A line that opens *inside* a comment has no indent of its own — what
+     * stands in front of its code is the comment's body, whose alignment is the
+     * comment's business. The indent governing it is the one on the line that
+     * comment opened, so the search continues there. Every measurement this
+     * sniff makes runs through here, which is why the rule lives here rather
+     * than at each caller: the same line reads the same way whether it is being
+     * checked, used as an anchor, or read as the statement's own base indent.
      */
     private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
@@ -543,7 +609,45 @@ class MultiLineStatementIndentSniff implements Sniff
             $first++;
         }
 
+        if ($first > 0 && $this->opensInsideComment($tokens, $first) === true) {
+            return $this->lineFirstToken($phpcsFile, $first - 1);
+        }
+
         return $first;
+    }
+
+    /**
+     * Whether the token at $ptr sits inside a comment that opened before it.
+     *
+     * Replays the comment run $ptr belongs to from its start, which is where
+     * commentStaysOpen() explains the state has to come from. checkStatement()
+     * carries that state forward instead of replaying it, because it asks the
+     * question of every token; here it is asked only of a line being measured,
+     * of which a statement has few.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function opensInsideComment(array $tokens, int $ptr): bool
+    {
+        $comments = Tokens::$commentTokens;
+
+        if (isset($comments[$tokens[$ptr]['code']]) === false) {
+            return false;
+        }
+
+        $first = $ptr;
+
+        while (isset($tokens[$first - 1]) === true && isset($comments[$tokens[$first - 1]['code']]) === true) {
+            $first--;
+        }
+
+        $open = false;
+
+        for ($i = $first; $i < $ptr; $i++) {
+            $open = $this->commentStaysOpen($open, $tokens[$i]['code'], $tokens[$i]['content']);
+        }
+
+        return $open;
     }
 
     /**
@@ -561,10 +665,15 @@ class MultiLineStatementIndentSniff implements Sniff
      * Only tokens no PHPCS union already carries are listed, and only ones
      * checkLine() can still reach. A member that duplicates either source is
      * unreachable *and* untestable — the surviving copy answers first, so no
-     * fixture can ever tell whether this one is load-bearing. `T_COALESCE` and
-     * `T_DOUBLE_ARROW` are therefore absent (`Tokens::$operators` carries
-     * both), as are the three CHAIN_OPERATORS members (checkLine() tests that
-     * constant first). `T_FN_ARROW` stays: no union carries it, and
+     * fixture can ever tell whether this one is load-bearing. `T_COALESCE`
+     * (carried by `Tokens::$operators`) and `T_DOUBLE_ARROW` (carried by
+     * `Tokens::$assignmentTokens`) are therefore absent, as are the three
+     * CHAIN_OPERATORS members (checkLine() tests that constant first). Both
+     * delegated tokens are fixtured anyway, so the behaviour is pinned wherever
+     * it comes from: dropping `T_DOUBLE_ARROW` from its one union reddens the
+     * suite, and `T_COALESCE` reddens it once every union carrying it does
+     * (`Tokens::$comparisonTokens` carries that one too). `T_FN_ARROW` stays:
+     * no union carries it, and
      * TRAILING_OPERATORS only reads it in the *trailing* position, so a
      * leading one reaches this list alone. `T_MATCH_ARROW` is the one arrow
      * missing for neither reason — no union carries it either, but a match

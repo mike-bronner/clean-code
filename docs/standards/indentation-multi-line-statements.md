@@ -82,6 +82,20 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
   );
   ```
 
+  A comment that *runs onto* the line below is the exception, for the same
+  reason a string's tail lines are: what precedes the code there is the
+  comment's own body rather than the line's indent, so the line belongs to the
+  comment and is left alone. The comment's opening line is the one that carries
+  the statement's indent, and PSR-12's own call-indent rules report it when it
+  is wrong:
+
+  ```php
+  doSomething(
+      /* explains the flag
+         across two lines */ $flag,
+  );
+  ```
+
 ### Why a custom sniff
 
 Existing rules were evaluated against the full fixture suite

@@ -276,3 +276,64 @@ function decorated(
 doSomething(
     /* explains the flag */ $flag,
 );
+
+// A comment that runs onto the line below carries its own body onto that line,
+// so what precedes the code there is the comment rather than the line's indent.
+// The comment's opening line is the one that gets checked.
+doSomething(
+    /* explains the flag
+       across two lines */ $first,
+);
+
+// A doc comment splits into one token per physical line the same way, so its
+// tail line is the comment's too.
+doSomething(
+    /** explains the flag
+     * across two lines */ $second,
+);
+
+// A body line whose own text begins with a slash pair opens no comment: the
+// comment above it is still open, so the line stays the comment's.
+doSomething(
+    /* explains the flag
+       // and says a little more */ $third,
+);
+
+// A null-coalescing operator continues the operand above it, so it hangs one
+// level below that operand's line rather than below the call.
+report(
+    $override
+        ?? $fallback,
+    $context
+);
+
+// A wrapped key's `=>` leading its line continues that key, one level below it.
+$routes = [
+    'a very long descriptive key whose value will not fit beside it'
+        => 'App\Http\Controllers\HomeController',
+];
+
+// A comment whose opening line is a bare slash-star-slash opens and does not
+// close: those three characters only look like both ends at once.
+doSomething(
+    /*/
+       explains the flag */ $fourth,
+);
+
+// A line that opens inside a comment has no indent of its own, so a
+// continuation below it hangs from the line the comment opened.
+report(
+    /* explains the message
+       across two lines */ 'a message long enough to run '
+        . 'onto a second line',
+    $context
+);
+
+// A statement starting on such a line reads its own base indent there too.
+function annotated(): void
+{
+    /* explains the call
+       across two lines */ report(
+        $context
+    );
+}

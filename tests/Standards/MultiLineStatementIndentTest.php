@@ -46,7 +46,10 @@ it('is registered in the master ruleset', function (): void {
  * and nowdoc bodies, the tail lines of a quoted string that spans lines in
  * each form PHPCS tokenizes separately (plain, interpolated, backtick),
  * attribute groups both at statement level and nested in a parameter list, a
- * comment sharing its line with code, and single-line statements. Arrow
+ * comment sharing its line with code, a comment running onto the line below in
+ * each shape PHPCS splits per physical line (block, doc, a body line opening
+ * with a slash pair, an opening line that is a bare slash-star-slash), and
+ * single-line statements. Arrow
  * functions appear in all three positions their `=>` can take — trailing,
  * leading, and at statement level — because that arrow is a distinct token
  * from an array's.
@@ -111,6 +114,11 @@ it('flags each misindented line at its own line and column', function (): void {
         ['line' => 231, 'column' => 1, 'source' => $incorrect],
         ['line' => 239, 'column' => 5, 'source' => $incorrect],
         ['line' => 248, 'column' => 3, 'source' => $incorrect],
+        ['line' => 269, 'column' => 1, 'source' => $incorrect],
+        ['line' => 275, 'column' => 5, 'source' => $incorrect],
+        ['line' => 282, 'column' => 5, 'source' => $incorrect],
+        ['line' => 290, 'column' => 5, 'source' => $incorrect],
+        ['line' => 300, 'column' => 5, 'source' => $incorrect],
     ]);
 });
 
@@ -145,6 +153,25 @@ it('flags each misindented line at its own line and column', function (): void {
  * - **inline leading comment**: a comment never exempts the line it opens, so
  *   a misindented line that starts with one still reports (248) — at the
  *   comment's own column, because that is where the line's indent is.
+ * - **comment running onto the line below**: the same per-physical-line split
+ *   the strings above get, in the one other construct PHPCS splits that way.
+ *   The code sharing the comment's *tail* line follows the comment's own body
+ *   rather than the line's indent, so that line is the comment's and is left
+ *   alone — in the block form (256) and the doc form (262) alike. Neither the
+ *   tail nor the misindented opening line above it reports, because a comment
+ *   line is never measured here; under the shipped `rules.xml` that opening
+ *   line is `PSR2.Methods.FunctionCallSignature.Indent`'s to report, the same
+ *   division of labour the string case has with the multi-line-string sniff.
+ * - **a line that opens inside a comment measures nowhere on itself**: what
+ *   stands in front of its code is the comment's body, so every reading of that
+ *   line — as an anchor for the continuation below it (290), and as a
+ *   statement's own base indent when the statement starts there (300) — comes
+ *   from the line the comment opened. Measure it where it sits and both report
+ *   against an indent of 0, which is where the tail fragment begins.
+ * - **a whole one-line comment below another**: the near miss for the above.
+ *   It opens *and closes* on its own line, so it holds nothing and the code
+ *   after it is the line's own — a misindented one still reports (269). Hold
+ *   that line too and this tuple disappears while nothing else changes.
  */
 it('reaches every scope-block and statement-boundary branch it documents', function (
     int $line,
@@ -164,6 +191,10 @@ it('reaches every scope-block and statement-boundary branch it documents', funct
     'the opening fragment of an interpolated string is code' => [231, true],
     'the tail lines of an interpolated string are content' => [232, false],
     'a comment does not exempt the line it shares with code' => [248, true],
+    'the tail line of a block comment belongs to the comment' => [256, false],
+    'the opening line of that comment is not measured either' => [255, false],
+    'the tail line of a doc comment belongs to it the same way' => [262, false],
+    'a one-line comment below another leaves its line to the code' => [269, true],
 ]);
 
 /**
@@ -233,6 +264,10 @@ it('anchors each line on the construct that owns it', function (int $failingLine
     'sibling: `or` operand, opener alone on its line' => [207, 4, 8],
     'sibling: `xor` operand, opener alone on its line' => [208, 4, 8],
     'sibling: member of a nested attribute group' => [239, 8, 4],
+    'continuation: `??` below the operand it defaults' => [275, 8, 4],
+    'continuation: value below a leading `=>`' => [282, 8, 4],
+    'continuation: below a line that opens inside a comment' => [290, 8, 4],
+    'sibling: argument of a statement starting inside a comment' => [300, 8, 4],
 ]);
 
 /**
@@ -247,6 +282,15 @@ it('anchors each line on the construct that owns it', function (int $failingLine
  * so neither half can pass by luck. Each pair uses the layout where the two
  * anchors actually differ, because the obvious layout for most of these
  * constructs puts both anchors on one line and discriminates nothing.
+ *
+ * The last two rows are not members of a hand-maintained array at all: they are
+ * the two tokens `continuationTokens()`'s docblock names as deliberately left
+ * to a PHPCS union, which is the same coverage hole wearing the opposite face —
+ * a member nobody maintains is a member nobody fixtures either. Their mutation
+ * is a union that stops carrying the token: `T_DOUBLE_ARROW` has only
+ * `Tokens::$assignmentTokens`, so dropping it there is enough, while
+ * `T_COALESCE` sits in `Tokens::$operators` *and* `Tokens::$comparisonTokens`
+ * and takes both. Each row still swaps its pair either way.
  *
  * Two kinds of member are deliberately elsewhere. The ones whose job is to
  * *suppress* a line rather than anchor it — `RAW_CONTENT` and
@@ -291,7 +335,49 @@ it('reaches every member of its hand-maintained token arrays', function (
     'SIBLING_OPERATORS: T_LOGICAL_OR' => [233, 207, 'or $third === 3'],
     'SIBLING_OPERATORS: T_LOGICAL_XOR' => [234, 208, 'xor $fourth === 4'],
     'continuationTokens(): T_INSTANCEOF' => [243, 217, 'instanceof Probe'],
+    'delegated to a union: T_COALESCE' => [306, 275, '?? $fallback'],
+    'delegated to a union: T_DOUBLE_ARROW' => [313, 282, "=> 'App\\Http\\Controllers\\HomeController'"],
 ]);
+
+/**
+ * Deciding whether a comment fragment continues the one above it is a question
+ * about the fragment before it, and answering it by scanning back to the start
+ * of the comment costs one pass per line — so a comment of n lines inside a
+ * statement costs O(n^2). checkStatement() carries the state forward instead,
+ * which is the only reason this shape stays usable: a commented-out block
+ * inside one call is ordinary code, not an adversarial input.
+ *
+ * The fixture is generated for the same reason the sibling scale test in
+ * `ArrayAccessorsTest.php` generates its own — the shapes only separate a
+ * linear implementation from a quadratic one in the thousands, and a committed
+ * 10,000-line file is a worse thing for this repository to carry.
+ *
+ * The budget is wall clock and set generously against measured numbers: the
+ * carried state answers n=10,000 in about a third of a second here, while
+ * scanning back needs 11s for the same file — so the assertion has an order of
+ * magnitude of headroom on a loaded runner and still cannot pass against a
+ * rescan by being lucky.
+ */
+it('reads a long comment inside a statement in linear time', function (): void {
+    $size = 10000;
+    $source = "<?php\n\ndoSomething(\n    /* explain\n"
+        . str_repeat("       filler\n", $size)
+        . "       done */ \$flag,\n);\n";
+
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-comment-scale-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    expect($file->getErrorCount())->toBe(0, 'the comment holds its own lines')
+        ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
+});
 
 /**
  * The reason this sniff was escalated: an auto-fixer that mis-anchors a line

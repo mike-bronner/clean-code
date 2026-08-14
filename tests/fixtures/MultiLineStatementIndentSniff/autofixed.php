@@ -247,3 +247,56 @@ function decorated(
 doSomething(
     /* explains the flag */ $flag,
 );
+
+// The opening line of a comment that runs onto the line below is the line that
+// carries the indent, so it is the one that reports; the code sharing the
+// comment's tail line reports nothing.
+doSomething(
+  /* explains the flag
+     across two lines */ $first,
+);
+
+// A doc comment reports the same way, on its opening line.
+doSomething(
+  /** explains the flag
+   * across two lines */ $second,
+);
+
+// A whole one-line comment sitting below another opens and closes its own, so
+// the code after it is the line's own and still reports.
+doSomething(
+// a note that ends on its own line
+    /* explains the flag */ $third,
+);
+
+// A null-coalescing continuation indented as a sibling argument instead.
+report(
+    $override
+        ?? $fallback,
+    $context
+);
+
+// A wrapped key's leading `=>` at the sibling depth instead of the key's.
+$routes = [
+    'a very long descriptive key whose value will not fit beside it'
+        => 'App\Http\Controllers\HomeController',
+];
+
+// A continuation below a line that opens inside a comment, at the sibling
+// depth instead of the comment's own.
+report(
+    /* explains the message
+       across two lines */ 'a message long enough to run '
+        . 'onto a second line',
+    $context
+);
+
+// A statement starting on such a line, with its argument a level short of the
+// indent the comment's line sets.
+function annotated(): void
+{
+    /* explains the call
+       across two lines */ report(
+        $context
+    );
+}
