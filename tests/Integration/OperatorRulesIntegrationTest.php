@@ -20,8 +20,11 @@ declare(strict_types=1);
 
 /**
  * The fixture holds one instance of each operator concern; every line below
- * carries exactly one diagnostic from exactly one sniff. Regressions this
- * pins by adding a second (or dropping the only) source:
+ * carries exactly one diagnostic from exactly one sniff — except line 28,
+ * which pins a deliberate overlap: the newline after a dangling "===" breaks
+ * two distinct standards at once (#35 operator line breaks, #56 newlines
+ * around evaluative operators), so both sniffs speak there. Regressions this
+ * pins by adding an unplanned second (or dropping a pinned) source:
  *   - re-stacking PSR12 on Squiz spacing (line 9/10),
  *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (17),
  *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
@@ -88,8 +91,15 @@ it('reports every operator violation exactly once', function (): void {
             'PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace',
         ],
         27 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
-        // dangling "===" inside a multi-condition — OperatorLineBreak owns it
-        // (OneConditionPerLine polices only the boolean "||")
-        28 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        // dangling "===" inside a multi-condition — a deliberate overlap.
+        // OperatorLineBreak (#35) reports the dangling operator
+        // (OneConditionPerLine polices only the boolean "||"), and
+        // DisallowNewlineAroundEvaluativeOperators (#56) reports the newline
+        // after an evaluative operator. Its auto-fix — joining both operands
+        // onto one line — satisfies both standards at once.
+        28 => [
+            'CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators.FoundAfter',
+            'CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd',
+        ],
     ]);
 });
