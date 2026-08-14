@@ -94,6 +94,7 @@ const SWEPT_WARNING_SNIFFS = [
  */
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',

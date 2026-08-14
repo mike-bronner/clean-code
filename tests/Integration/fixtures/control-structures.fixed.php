@@ -8,8 +8,7 @@ class ControlStructuresExample
     {
         if ($value > 0) {
             return 'positive';
-        } else {
-            return 'other';
         }
+        return 'other';
     }
 }

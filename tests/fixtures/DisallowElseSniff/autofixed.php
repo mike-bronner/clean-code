@@ -33,9 +33,8 @@ class FailingConditionals
     {
         if ($flag) {
             return 1;
-        } else {
-            return 2;
         }
+        return 2;
     }
 
     public function elseIfChain(bool $flag, bool $other): int
@@ -105,9 +104,8 @@ class FailingConditionals
         return static function () use ($flag): int {
             if ($flag) {
                 return 1;
-            } else {
-                return 2;
             }
+            return 2;
         };
     }
 
@@ -121,7 +119,8 @@ class FailingConditionals
     {
         if ($flag) {
             return 1;
-        } elseif ($other) {
+        }
+        if ($other) {
             return 2;
         }
 
@@ -132,7 +131,8 @@ class FailingConditionals
     {
         if ($flag) {
             throw new \RuntimeException('no first branch');
-        } else if ($other) {
+        }
+        if ($other) {
             return 2;
         }
 
@@ -143,11 +143,11 @@ class FailingConditionals
     {
         if ($flag) {
             return 1;
-        } elseif ($other) {
-            return 2;
-        } else {
-            return 3;
         }
+        if ($other) {
+            return 2;
+        }
+        return 3;
     }
 
     public function elseAfterContinue(array $items): array
@@ -157,9 +157,8 @@ class FailingConditionals
         foreach ($items as $item) {
             if ($item === null) {
                 continue;
-            } else {
-                $kept[] = $item;
             }
+            $kept[] = $item;
         }
 
         return $kept;
@@ -172,9 +171,8 @@ class FailingConditionals
         foreach ($items as $item) {
             if ($item === null) {
                 break;
-            } else {
-                $seen++;
             }
+            $seen++;
         }
 
         return $seen;
@@ -184,9 +182,8 @@ class FailingConditionals
     {
         if ($flag) {
             exit(1);
-        } else {
-            return 2;
         }
+        return 2;
     }
 
     /**
@@ -199,13 +196,12 @@ class FailingConditionals
     {
         if ($flag) {
             return 'first';
-        } else {
-            $message = <<<TEXT
+        }
+        $message = <<<TEXT
                 indented inside the heredoc
                 TEXT;
 
-            return $message;
-        }
+        return $message;
     }
 
     /**
@@ -217,12 +213,11 @@ class FailingConditionals
     {
         if ($flag) {
             return 'first';
-        } else {
-            $message = "first line
+        }
+        $message = "first line
     second line";
 
-            return $message;
-        }
+        return $message;
     }
 
     // ------------------------------------------------------------------
