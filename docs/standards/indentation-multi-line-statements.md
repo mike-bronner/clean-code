@@ -15,15 +15,34 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
 `phpcbf`. The sniff applies the standard as an exact rule — one level is
 4 spaces:
 
-- **Continuation lines inside parentheses or brackets** (call arguments,
-  array items, condition expressions) sit exactly one level in from the line
-  containing the opener — including lines led by a binary or ternary
-  operator (`.`, `?`, `:`, `&&`, `||`, `+`, …), which align with the first
-  operand regardless of whether that operand shares the opener's line.
-- **Chain-operator-led continuation lines** (`->`, `?->`, `::`) sit exactly
-  one level in from the line where their expression started, so chains hang
-  below their receiver, not the statement. Outside any bracket, every
-  operator-led line anchors to its expression's starting line the same way.
+- **Sibling lines** — call arguments, array items, and conditions led by a
+  boolean operator (`&&`, `||`, `and`, `or`, `xor`) — sit exactly one level
+  in from the line their enclosing construct opens on, whether or not the
+  first of them shares that line. Boolean operators lead siblings rather than
+  continuations because
+  [One Condition Per Line](conditionals-one-condition-per-line.md) puts every
+  top-level condition on a line of its own: each is a peer of the first
+  condition, not a continuation of it.
+- **Continuation lines** — led by a chain operator (`->`, `?->`, `::`) or by
+  any other binary or ternary operator (`.`, `+`, `?`, `:`, `??`, …), or
+  sitting below a trailing `=>` — sit exactly one level in from the line
+  where the expression they continue started. Inside a bracket that is the
+  element's own line rather than the opener's, so a wrapped argument's
+  continuation hangs below the argument:
+
+  ```php
+  $phpcsFile->addError(
+      'a message long enough to run '
+          . 'onto a second line',
+      $stackPtr,
+  );
+  ```
+
+  `=>` is the only operator read in *trailing* position. Every other
+  dangling operator is
+  [`CleanCode.Operators.OperatorLineBreak`](arrays-operator-spacing-and-line-breaks.md)'s
+  to report, and re-anchoring around one here would put a second violation on
+  a line that already carries its own.
 - **A closing bracket on its own line** matches the indent of the line that
   opened the bracket.
 - **Scope bodies are out of scope**: lines inside the bodies of closures,
@@ -38,8 +57,7 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
 ### Why a custom sniff
 
 Existing rules were evaluated against the full fixture suite
-(`CleanCode/Tests/WhiteSpace/MultiLineStatementIndentUnitTest.inc`) before
-writing one:
+(`tests/fixtures/MultiLineStatementIndentSniff/`) before writing one:
 
 - `Generic.WhiteSpace.ScopeIndent` treats continuation-line indent as
   non-exact and flags none of the violations.

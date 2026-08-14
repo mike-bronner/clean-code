@@ -13,19 +13,28 @@ use PHP_CodeSniffer\Util\Tokens;
  * statement.
  *
  * If a single statement extends over multiple lines, every line after the
- * first must be indented exactly one level relative to the line that opened
- * its innermost enclosing construct:
+ * first must be indented exactly one level. Which line it is a level in from
+ * depends on what the line is:
  *
- * - a continuation line inside parentheses or brackets — including one led
- *   by a binary or ternary operator (`.`, `?`, `&&`, …) — sits one level in
- *   from the line containing the opener, aligned with the first operand;
- * - a continuation line that starts with a chain operator (`->`, `?->`,
- *   `::`) sits one level in from the line where its expression started, so
- *   chains hang below their receiver;
- * - outside any bracket, an operator-led line sits one level in from the
- *   line where its expression started;
+ * - a *sibling* line — an argument, an array item, or a condition led by a
+ *   boolean operator (`&&`, `||`, `and`, `or`, `xor`) — sits one level in
+ *   from the line its enclosing construct opens on. Boolean operators are
+ *   siblings because `CleanCode.Conditionals.OneConditionPerLine` puts each
+ *   top-level condition on its own line, making them peers of the first
+ *   condition rather than a continuation of it;
+ * - a *continuation* line — one led by a chain operator (`->`, `?->`, `::`)
+ *   or by any other binary or ternary operator (`.`, `+`, `?`, `:`, `??`,
+ *   …), or one sitting below a trailing `=>` — sits one level in from the
+ *   line where the expression it continues started. Inside a bracket that is
+ *   the element's own line, not the opener's, so a wrapped argument's
+ *   continuation hangs below the argument;
  * - a closing bracket on its own line matches the indent of the line that
  *   opened the bracket.
+ *
+ * `=>` is the only operator whose *trailing* position is read here; every
+ * other dangling operator is `CleanCode.Operators.OperatorLineBreak`'s to
+ * report, and re-anchoring around one would put a second violation on a line
+ * that already has its own.
  *
  * Bodies of closures, anonymous classes, and match expressions are scope
  * blocks governed by scope-indent rules, so their inner lines are skipped;
@@ -44,6 +53,7 @@ class MultiLineStatementIndentSniff implements Sniff
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
+        T_ATTRIBUTE,
     ];
 
     /**
@@ -54,6 +64,23 @@ class MultiLineStatementIndentSniff implements Sniff
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
+    ];
+
+    /**
+     * Boolean operators join *sibling* expressions rather than continue one.
+     *
+     * `CleanCode.Conditionals.OneConditionPerLine` puts every top-level
+     * condition on its own line with the operator leading, so a
+     * boolean-operator line is a peer of the first condition — one level in
+     * from the line its construct opens on, not one level in from the
+     * condition above it.
+     */
+    private const SIBLING_OPERATORS = [
+        T_BOOLEAN_AND,
+        T_BOOLEAN_OR,
+        T_LOGICAL_AND,
+        T_LOGICAL_OR,
+        T_LOGICAL_XOR,
     ];
 
     /**
@@ -247,7 +274,7 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $opener = $token['parenthesis_opener'] ?? $token['bracket_opener'] ?? null;
+            $opener = $this->closedOpener($token);
 
             if ($opener !== null && $stack !== [] && $stack[count($stack) - 1]['opener'] === $opener) {
                 array_pop($stack);
@@ -299,17 +326,20 @@ class MultiLineStatementIndentSniff implements Sniff
             $error = 'Closing bracket of a multi-line statement not indented correctly;'
                 . ' expected %s spaces but found %s';
         } else {
-            if (in_array($token['code'], self::CHAIN_OPERATORS, true) === true) {
-                // A chain hangs one level below the line where its
-                // expression started.
+            $continues = in_array($token['code'], self::CHAIN_OPERATORS, true) === true
+                || $this->isContinuationOperator($token['code'], $continuation) === true
+                || $this->followsTrailingOperator($phpcsFile, $ptr) === true;
+
+            if ($continues === true) {
+                // A chain, concatenation, or other binary/ternary operator
+                // continues the expression above it, so it hangs one level
+                // below the line where that expression started.
                 $anchor = $stack === [] ? $exprStart : $stack[count($stack) - 1]['exprStart'];
                 $anchor ??= $stack === [] ? null : $stack[count($stack) - 1]['opener'];
-            } elseif ($stack === [] && isset($continuation[$token['code']]) === true) {
-                $anchor = $exprStart;
             } else {
-                // Inside a bracket, every other line — operand or
-                // binary/ternary-operator-led — sits one level in from the
-                // opener's line, aligned with the first operand.
+                // Every other line — an operand, an argument, or a
+                // boolean-operator-led sibling condition — sits one level in
+                // from the line its enclosing construct opens on.
                 $anchor = $stack === [] ? null : $stack[count($stack) - 1]['opener'];
             }
 
@@ -340,6 +370,41 @@ class MultiLineStatementIndentSniff implements Sniff
     }
 
     /**
+     * Whether a token continues the expression above it: a binary or ternary
+     * operator, but not one of the boolean operators that join siblings.
+     *
+     * @param array<int|string, int|string> $continuation
+     */
+    private function isContinuationOperator(int|string $code, array $continuation): bool
+    {
+        if (in_array($code, self::SIBLING_OPERATORS, true) === true) {
+            return false;
+        }
+
+        return isset($continuation[$code]);
+    }
+
+    /**
+     * Whether the line beginning at $ptr continues an element the line above
+     * left open by ending on `=>`.
+     *
+     * `=>` is the one operator this package lets trail: every other one is
+     * `CleanCode.Operators.OperatorLineBreak`'s to report at the line it
+     * dangles on, and re-anchoring around it here would put a second
+     * violation on a line that already has its own.
+     */
+    private function followsTrailingOperator(File $phpcsFile, int $ptr): bool
+    {
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $ptr - 1, null, true);
+
+        if ($previous === false) {
+            return false;
+        }
+
+        return $phpcsFile->getTokens()[$previous]['code'] === T_DOUBLE_ARROW;
+    }
+
+    /**
      * The opener whose bracket/scope the token closes, or null when the
      * token is not a closer.
      *
@@ -357,6 +422,10 @@ class MultiLineStatementIndentSniff implements Sniff
 
         if ($token['code'] === T_CLOSE_CURLY_BRACKET) {
             return $token['scope_opener'] ?? null;
+        }
+
+        if ($token['code'] === T_ATTRIBUTE_END) {
+            return $token['attribute_opener'] ?? null;
         }
 
         return null;
@@ -402,6 +471,7 @@ class MultiLineStatementIndentSniff implements Sniff
                 T_INLINE_ELSE => T_INLINE_ELSE,
                 T_COALESCE => T_COALESCE,
                 T_INSTANCEOF => T_INSTANCEOF,
+                T_DOUBLE_ARROW => T_DOUBLE_ARROW,
             ];
     }
 }
