@@ -422,4 +422,22 @@ from t"
             $this->grant();
         }
     }
+
+    public function gluedFirstConditionWithoutSpacing(): void
+    {
+        // The same glue with no space at all between the parenthesis and the
+        // condition. The fixer has no whitespace token to overwrite here, so
+        // it has to insert the break ahead of the condition instead — the
+        // other branch of the same fix, and the reason this case is separate
+        // from the padded one above. Its second condition already sits at the
+        // group's level, so the glued one is this group's only violation.
+        if (
+            $this->isAdmin
+            || ($this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

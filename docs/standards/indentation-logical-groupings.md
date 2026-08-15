@@ -124,10 +124,11 @@ the above.
 Tests live at `tests/Standards/LogicalGroupingsTest.php`, over the fixtures in
 `tests/fixtures/LogicalGroupingsSniff/`. They pin each violation to its exact
 line, column, and error code (unindented, too-shallow, too-deep, misaligned,
-nested, and glued to the group's opening parenthesis, across all five control
-structures and both operator spellings), pin the expected indent a nested group
-is measured against, and prove the fixer moves the reported condition lines and
-nothing else. The generic floor — the compliant
+nested, and glued to the group's opening parenthesis both with spacing after
+that parenthesis and with none, across all five control structures and both
+operator spellings), pin the expected indent a nested group is measured
+against, and prove the fixer moves the reported condition lines and nothing
+else. The generic floor — the compliant
 fixture is clean, the failing one is flagged, and the fixer round-trips and is
 idempotent — comes from the shared sweep in `tests/Contract/`, which this sniff
 joins through `tests/Sniffs.php`.

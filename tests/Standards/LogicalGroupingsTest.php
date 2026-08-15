@@ -25,7 +25,7 @@ const LOGICAL_GROUPINGS_MISALIGNED = LOGICAL_GROUPINGS . '.MisalignedGroupedCond
  * the only lines that make autofixed.php longer than failing.php, so the
  * blast-radius test below re-joins them to compare the two line for line.
  */
-const LOGICAL_GROUPINGS_GLUED_LINES = [402, 418];
+const LOGICAL_GROUPINGS_GLUED_LINES = [402, 418, 436];
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -117,6 +117,9 @@ it('flags every violation at its exact line, column, and code', function (): voi
         // first one is the group's second, so it is misaligned, not unindented
         ['line' => 418, 'column' => 23, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 419, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // gluedFirstConditionWithoutSpacing — glued with no padding at all, so
+        // the column is the parenthesis's own plus one
+        ['line' => 436, 'column' => 17, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -155,15 +158,61 @@ it('derives the expected indent from the immediate parent group', function (): v
  * enclosing condition. Line 419 in the tuple assertion above is the other half
  * of the promotion bug: it is a second condition, so it carries the misaligned
  * code, not the first-condition one.
+ *
+ * What is compared is the fixer's own output, not autofixed.php. Reading the
+ * fixture file would assert only that the fixture says what it says; the round
+ * trip that ties the fixture to the fixer lives in the contract sweep, and an
+ * assertion about the fixer belongs to the fixer.
+ *
+ * The line the group opens on is asserted along with the condition, because
+ * this fixture is the padded one: the spacing it carries has to be consumed by
+ * the break rather than left behind it, and only the opener's line shows that.
  */
 it('reports a first condition glued to the group opener, and gives it its own line', function (): void {
     $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
-    $fixed = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
+    $reported = violationMessagesByLine($file->getErrors());
+    $fixed = explode(PHP_EOL, autofixedContents($file));
 
-    expect(violationMessagesByLine($file->getErrors())[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe([
+    expect($reported[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe([
         'The first condition of a parenthesized group must start on its own line,'
         . ' indented one level deeper than its enclosing condition; expected 16 spaces',
-    ])->and($fixed[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe('                $this->isActive' . PHP_EOL);
+    ])->and($fixed[(LOGICAL_GROUPINGS_GLUED_LINES[0] - 1)])->toBe('            || (')
+        ->and($fixed[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe('                $this->isActive');
+});
+
+/**
+ * The break is inserted whether or not there is spacing to overwrite.
+ *
+ * The fixer reaches the same output by two different routes: it overwrites the
+ * whitespace token between the parenthesis and the condition when there is
+ * one, and inserts the break ahead of the condition when there is not. The
+ * first two glued fixtures are both padded, so the suite exercised only the
+ * overwriting route; `gluedFirstConditionWithoutSpacing` writes `($this->` with
+ * nothing between, which is the only shape that reaches the insertion route.
+ * Both routes produce the same three lines, so the two cases cannot be told
+ * apart by what the output says — only by where it is. That is why the fixer's
+ * output is indexed to this fixture's own line rather than searched for a
+ * snippet: a snippet assertion would be satisfied by the padded case above and
+ * would pass with this route deleted.
+ */
+it('inserts the break when no spacing separates the opener from the condition', function (): void {
+    $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
+    $reported = violationMessagesByLine($file->getErrors());
+    $fixed = explode(PHP_EOL, autofixedContents($file));
+    $glued = LOGICAL_GROUPINGS_GLUED_LINES[2];
+
+    // Each glued line above this one splits in two, so the fixed file runs
+    // that many lines ahead of failing.php by the time it reaches this one.
+    $opener = (($glued - 1) + count(array_filter(
+        LOGICAL_GROUPINGS_GLUED_LINES,
+        static fn (int $line): bool => $line < $glued
+    )));
+
+    expect($reported[$glued])->toBe([
+        'The first condition of a parenthesized group must start on its own line,'
+        . ' indented one level deeper than its enclosing condition; expected 16 spaces',
+    ])->and($fixed[$opener])->toBe('            || (')
+        ->and($fixed[($opener + 1)])->toBe('                $this->isActive');
 });
 
 /**
