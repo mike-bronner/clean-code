@@ -104,6 +104,17 @@ class OneConditionPerLineSniff implements Sniff
      * for-loop header, whose sections legitimately wrap — that line must be
      * the keyword's own.
      */
+    // The block matched here is this signature against processMultiCondition's
+    // below: `private function <name>(`, `File $phpcsFile,`, `int $stackPtr,`
+    // and two more `int $<name>,` parameters. Both are parameter declarations,
+    // not statements — there is no logic in either window, so there is nothing
+    // to extract. The two methods take a similar list because they answer the
+    // same caller about the same condition region, but what each does with it
+    // is disjoint: one joins a split condition onto its keyword's line, the
+    // other splits a joined one across lines and moves the boolean operators.
+    // Merging them to silence this would put two opposite fixers behind one
+    // branch, which is the design the split already rejected.
+    // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processSingleCondition(
         File $phpcsFile,
         int $stackPtr,
@@ -163,6 +174,15 @@ class OneConditionPerLineSniff implements Sniff
      *
      * @param array<int> $operators
      */
+    // The other end of the processSingleCondition match, reported here because
+    // the sniff names every participating block rather than only the later
+    // one. This window covers $regionStart/$regionEnd, which this method reads
+    // as the span to distribute across lines; the same-shaped parameters above
+    // are $boundaryStart/$boundaryEnd, a different span (a for-header's
+    // semicolons, not its condition). Identical parameter types carrying
+    // different token offsets are not duplicated knowledge, and the sniff
+    // cannot see the difference because it drops token content by design.
+    // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processMultiCondition(
         File $phpcsFile,
         int $stackPtr,

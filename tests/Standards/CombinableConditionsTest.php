@@ -350,10 +350,13 @@ it('stays linear on long runs and deep nesting', function (): void {
  * each flagged line, exactly two sources.
  *
  * CleanCode.Conditionals.AvoidConditionals is the expected second one. It
- * counts the branch; this sniff relates two branches to each other. Anything
- * *third* would mean some other rule had started delivering this diagnostic,
- * and the custom sniff would need re-evaluating rather than keeping the claim
- * in a comment.
+ * counts the branch; this sniff relates two branches to each other.
+ * CleanCode.Conditionals.DisallowElse.ElseIfFound is the expected third, on
+ * line 22 only: with #14 the `elseif` keyword is itself a violation, which is
+ * a diagnostic about one keyword rather than about two branches being
+ * combinable. Anything *beyond* those would mean some other rule had started
+ * delivering this sniff's diagnostic, and the custom sniff would need
+ * re-evaluating rather than keeping the claim in a comment.
  *
  * failing.php cannot answer this question — its magic numbers, duplicate
  * blocks, and mapping-array-shaped chains trip four other sniffs at the same
@@ -366,7 +369,11 @@ it('leaves the combinable conditional to no other sniff in the ruleset', functio
 
     expect(array_intersect_key($sources, array_flip([20, 22, 31, 35])))->toBe([
         20 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_CHAIN],
-        22 => ['CleanCode.Conditionals.AvoidConditionals.ElseIfStatement', COMBINABLE_CONDITIONS_CHAIN],
+        22 => [
+            'CleanCode.Conditionals.AvoidConditionals.ElseIfStatement',
+            COMBINABLE_CONDITIONS_CHAIN,
+            'CleanCode.Conditionals.DisallowElse.ElseIfFound',
+        ],
         31 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_ADJACENT],
         35 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_ADJACENT],
     ]);

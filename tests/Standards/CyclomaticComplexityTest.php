@@ -111,6 +111,33 @@ it('reports the violation end to end through the installed package', function (s
 ]);
 
 /**
+ * The negative control the test above cannot supply for itself, in the shape
+ * tests/Contract/ShippedPackageSmokeTest.php gives every swept sniff — which is
+ * what holds this sniff's entry in SHIPPED_SMOKE_EXCLUSIONS: the exclusion is
+ * only worth having while the coverage it stands in for is the same coverage.
+ *
+ * A positive assertion on its own cannot tell the shipped package apart from a
+ * harness that always reports: both directions through the same route is what
+ * makes the pair a statement about the sniff. Silence and status 0 are asserted
+ * together for the reason the sweep asserts them together — an empty message
+ * list is also what a run that never reached the file produces, and
+ * installedPhpcsRun() throwing on an unreadable report is what rules that out.
+ *
+ * Narrowed to this sniff with --sniffs, unlike the test above, because a status
+ * belongs to the run rather than to a sniff. Not a precaution: passing.php read
+ * through the whole of rules.xml reports 244 messages and exits 2 — PSR-1 and a
+ * dozen sibling CleanCode rules, none of them this one — measured, so without
+ * the narrowing neither assertion here could be made at all. The standard is
+ * still rules.xml, still resolved from outside the package.
+ */
+it('stays silent on its compliant fixture through the installed package', function (): void {
+    $run = installedSniffFixtureRun(CYCLOMATIC_COMPLEXITY, 'passing.php');
+
+    expect($run['messages'])->toBe([])
+        ->and($run['status'])->toBe(0);
+});
+
+/**
  * passing.php carries the near miss the report level has to stay silent on —
  * atOneBelowTheReportLevel() measures exactly 9 against a level of 10 — next to
  * a top-level closure and arrow function holding twelve decision points each,
