@@ -2242,4 +2242,18 @@
         vendor upgrade that does cover this case says so rather than leaving
         the custom sniff unexamined.
     -->
+
+    <!--
+        Methods: No Null Arguments (#71) —
+        docs/standards/methods-no-null-arguments.md. A literal null is never
+        passed positionally into a parameter that declares a default; a named
+        argument says which parameter is meant instead.
+
+        Enforced by the custom CleanCode.Methods.NoNullArguments sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. No existing
+        PHPCS or Slevomat sniff covers this: Slevomat's
+        Functions.DisallowNamedArguments is the inverse rule, and
+        Functions.NamedArgumentSpacing only governs spacing around an argument
+        that is already named.
+    -->
 </ruleset>
