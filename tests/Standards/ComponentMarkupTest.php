@@ -553,3 +553,124 @@ it('flags a keyless component inside nested loops', function (): void {
         5 => [ADJACENT_COMPONENT_NOT_WRAPPED],
     ]);
 });
+
+/**
+ * The comment blanking must stay linear on a view holding unclosed comments.
+ *
+ * An unclosed `<!--` is an ordinary editing mistake, and the lazy
+ * `/<!--.*?-->/s` this replaced re-read the rest of the file from every opener
+ * in it. The cost was paid in reconstructMarkup(), *before* the Livewire gate,
+ * so it fell on every view PHPCS was pointed at rather than only Livewire ones
+ * — and on a downstream consumer's CI, which is what lints unreviewed content.
+ *
+ * Measured on this fixture (16,000 openers, ~480 KB) through the sniff in
+ * process: the lazy pattern took **34.7s**, the forward scan **0.06s**. Five
+ * seconds sits ~80x above the linear cost and ~7x below the quadratic one —
+ * the same deliberately wide margin the two cases above take, for the same
+ * reason.
+ *
+ * The reported violations are the second half of the case, and they are why
+ * this is not only a timing test: an unclosed comment must leave the markup
+ * after it readable rather than swallow the file to its end.
+ */
+it('scans a view of unclosed comments in linear time', function (): void {
+    $openers = 16000;
+    $view = "<div wire:poll class=\"feed\">\n"
+        . str_repeat("    <!-- a note nobody closed\n", $openers)
+        . "    @foreach (\$rows as \$row)\n"
+        . "        <livewire:row-item :row=\"\$row\" />\n"
+        . "    @endforeach\n"
+        . "</div>\n";
+
+    $path = stageSource($view);
+
+    $started = microtime(true);
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+    $elapsed = (microtime(true) - $started);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        1 => [ROOT_ELEMENT_ATTRIBUTES],
+        ($openers + 3) => [MISSING_WIRE_KEY_IN_LOOP],
+    ])->and($elapsed)->toBeLessThan(5.0);
+});
+
+/**
+ * A Blade comment is closed by `--}}` and an HTML comment by `-->`, and one of
+ * the two being unclosed says nothing about the other.
+ *
+ * The scan remembers a closer as absent only for its own opener, and this is
+ * the case that holds it to that: an unclosed `<!--` above a well-formed
+ * `{{-- … --}}` must not stop the Blade comment from being blanked. The
+ * commented-out pair inside it is adjacent and unwrapped, so failing to blank
+ * it reports two violations that are not in the view at all.
+ */
+it('blanks a Blade comment below an unclosed HTML comment', function (): void {
+    $path = stageSource(
+        "<div wire:poll class=\"feed\">\n"
+            . "    <!-- a note nobody closed\n"
+            . "    {{-- <livewire:one /><livewire:two /> --}}\n"
+            . "</div>\n"
+    );
+
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]]);
+});
+
+/**
+ * The element-tag read must stay linear on a view whose tags do not parse.
+ *
+ * The pattern's unquoted attribute run now stops at `<` as well as `>`, so a
+ * tag it cannot complete is abandoned at the next tag. Without that, a view of
+ * tag openers with an unpaired quote below them — and no `>` in between — was
+ * re-read from every opener, once per opener, by the every-tag scan
+ * isComponentView() makes.
+ *
+ * Measured on this fixture (16,000 openers, ~80 KB) through the sniff in
+ * process: the unbounded class took **22.3s**, the bounded one **0.05s**. The
+ * file is a sixth the size of the unclosed-comment case above and still costs
+ * two thirds as much, which is the point: this is a second, independent
+ * quadratic rather than another face of the same one. Reverting either fix
+ * alone reddens only its own case.
+ */
+it('scans a view of unparseable tags in linear time', function (): void {
+    $openers = 16000;
+    $view = "<div wire:poll class=\"feed\">\n"
+        . str_repeat("<a x\n", $openers)
+        . "\"\n"
+        . "@foreach (\$rows as \$row)\n"
+        . "<livewire:row-item :row=\"\$row\" />\n"
+        . "@endforeach\n";
+
+    $path = stageSource($view);
+
+    $started = microtime(true);
+    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
+    $elapsed = (microtime(true) - $started);
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        1 => [ROOT_ELEMENT_ATTRIBUTES],
+        ($openers + 4) => [MISSING_WIRE_KEY_IN_LOOP],
+    ])->and($elapsed)->toBeLessThan(5.0);
+});
+
+/**
+ * A view whose first element tag does not parse is left alone, rather than
+ * having the *next* tag promoted to root in its place.
+ *
+ * The root is read at the first `<` that starts a tag, and the tag has to parse
+ * there. Reading it as "the first tag the pattern matches anywhere" would step
+ * over the `<div>` below — its unquoted `data-range=1<2` is not an attribute
+ * list the pattern completes — and report the `<button>` under it, which is a
+ * child element carrying exactly the `wire:` attribute a child is entitled to.
+ * A silence is the honest answer where the source is not readable.
+ */
+it('says nothing about a view whose first element tag does not parse', function (): void {
+    $path = stageSource(
+        "<div data-range=1<2>\n"
+            . "    <button wire:model=\"query\">Search</button>\n"
+            . "</div>\n"
+    );
+
+    expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
+});

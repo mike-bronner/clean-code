@@ -74,8 +74,27 @@ class ComponentMarkupSniff implements Sniff
     /**
      * An opening element tag, tolerating a quoted attribute value that itself
      * contains `>`.
+     *
+     * The unquoted run stops at `<` as well as at `>`, so a tag the pattern
+     * cannot complete is abandoned at the next tag rather than at the end of
+     * the file. Without that, a view holding many tag openers and one unpaired
+     * quote — no `>` between them — re-reads the rest of the file from every
+     * opener, which is quadratic in the size of the view. The cost is the same
+     * one COMMENT_DELIMITERS below describes, in the shape a character class
+     * takes it.
+     *
+     * What it gives up is a bare `<` in an *unquoted* attribute value
+     * (`<div data-range=1<2>`), which no browser reads as an attribute either;
+     * a quoted `title="a < b"` is untouched. Such a tag goes unrecognised, so
+     * the sniff says nothing about it — the trade the rest of the file makes.
      */
-    private const ELEMENT_TAG = '/<([A-Za-z][A-Za-z0-9._:-]*)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/';
+    private const ELEMENT_TAG = '/<([A-Za-z][A-Za-z0-9._:-]*)((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/';
+
+    /**
+     * The start of an element tag, used to anchor the root-element read. See
+     * checkRootElement().
+     */
+    private const ELEMENT_TAG_START = '/<[A-Za-z]/';
 
     /**
      * A Livewire component tag, opening or closing: `<livewire:some-name …>`,
@@ -84,18 +103,18 @@ class ComponentMarkupSniff implements Sniff
      * open/close events and given a nesting depth.
      */
     private const COMPONENT_TAG =
-        '/<(\/)?(livewire:[A-Za-z0-9._-]+)((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/i';
+        '/<(\/)?(livewire:[A-Za-z0-9._-]+)((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/i';
 
     /**
      * An opening `<template …>` tag — a candidate component wrapper.
      */
-    private const TEMPLATE_TAG = '/<template((?:"[^"]*"|\'[^\']*\'|[^>"\'])*)>/i';
+    private const TEMPLATE_TAG = '/<template((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/i';
 
     /**
      * A `<template>` or `</template>` tag, stripped out of the gap between two
      * sibling components before the gap is tested for adjacency.
      */
-    private const TEMPLATE_WRAPPER = '/<\/?template(?:"[^"]*"|\'[^\']*\'|[^>"\'])*>/i';
+    private const TEMPLATE_WRAPPER = '/<\/?template(?:"[^"]*"|\'[^\']*\'|[^<>"\'])*>/i';
 
     /**
      * A `wire:` directive that only makes sense on a component's *own*
@@ -125,10 +144,22 @@ class ComponentMarkupSniff implements Sniff
     private const WIRE_KEY_ATTRIBUTE = '/\bwire:key\s*=\s*("[^"]*"|\'[^\']*\')/i';
 
     /**
-     * Blade comments and HTML comments, blanked before analysis so that
-     * commented-out markup is never reported.
+     * Blade comments and HTML comments, each an opener paired with the closer
+     * that ends it. Blanked before analysis so that commented-out markup is
+     * never reported.
+     *
+     * Read with strpos() rather than matched with a regular expression, and
+     * that is the whole point of the pair form. A lazy `/<!--.*?-->/s` re-reads
+     * the rest of the file from every unclosed `<!--` in it — an ordinary
+     * editing mistake, not an attack — which is quadratic in the size of the
+     * view. The cost is paid in reconstructMarkup(), before the Livewire gate
+     * has had the chance to rule the file out, so it falls on every view the
+     * package is pointed at rather than only on Livewire ones.
      */
-    private const COMMENT = '/<!--.*?-->|\{\{--.*?--\}\}/s';
+    private const COMMENT_DELIMITERS = [
+        ['<!--', '-->'],
+        ['{{--', '--}}'],
+    ];
 
     /**
      * Blade loop directives, each paired with its own `@end…` form.
@@ -227,25 +258,107 @@ class ComponentMarkupSniff implements Sniff
     /**
      * Replaces every comment body with spaces, keeping line breaks so that all
      * offsets — and therefore every reported line number — stay exact.
+     *
+     * One forward pass over the file. Both searches only ever move towards the
+     * end of it: an opener is looked for from the last one found, and a closer
+     * that is missing from the rest of the file is missing for every later
+     * opener too, so it is looked for once and then remembered as absent. An
+     * unclosed comment therefore costs one scan for the whole file rather than
+     * one per opener.
+     *
+     * An opener that is never closed is skipped rather than blanked — the same
+     * silence the unbalanced-loop and unclosed-component handling take, and the
+     * same reading the lazy pattern this replaced gave it.
      */
     private function blankComments(string $markup): string
     {
-        return (string) preg_replace_callback(
-            self::COMMENT,
-            static fn (array $match): string => (string) preg_replace('/[^\r\n]/', ' ', $match[0]),
-            $markup
-        );
+        $blanked = '';
+        $copied = 0;
+        $offset = 0;
+        $openers = [];
+        $unterminated = [];
+
+        while (($comment = $this->nextComment($markup, $offset, $openers)) !== null) {
+            [$start, $open, $close] = $comment;
+            $offset = ($start + 1);
+
+            if (isset($unterminated[$close]) === true) {
+                continue;
+            }
+
+            $end = strpos($markup, $close, ($start + strlen($open)));
+
+            if ($end === false) {
+                $unterminated[$close] = true;
+
+                continue;
+            }
+
+            $end += strlen($close);
+            $blanked .= substr($markup, $copied, ($start - $copied))
+                . (string) preg_replace('/[^\r\n]/', ' ', substr($markup, $start, ($end - $start)));
+            $copied = $end;
+            $offset = $end;
+        }
+
+        return $blanked . substr($markup, $copied);
+    }
+
+    /**
+     * The comment opener nearest to $offset, as [offset, opener, closer], or
+     * null once none is left.
+     *
+     * $openers carries each opener's next known position between calls, null
+     * once it has none left. Without it the delimiter that is not chosen would
+     * be searched for again from every position the other one is found at,
+     * which is the quadratic this scan exists to avoid, one delimiter over.
+     *
+     * @param array<string, int|null> $openers
+     *
+     * @return array{int, string, string}|null
+     */
+    private function nextComment(string $markup, int $offset, array &$openers): ?array
+    {
+        $nearest = null;
+
+        foreach (self::COMMENT_DELIMITERS as [$open, $close]) {
+            // -1 for "not looked for yet"; null means looked for and absent
+            // from the rest of the file, which no later offset can undo.
+            $known = (array_key_exists($open, $openers) === true ? $openers[$open] : -1);
+
+            if ($known !== null && $known < $offset) {
+                $found = strpos($markup, $open, $offset);
+                $openers[$open] = ($found === false ? null : $found);
+            }
+
+            if ($openers[$open] === null) {
+                continue;
+            }
+
+            if ($nearest === null || $openers[$open] < $nearest[0]) {
+                $nearest = [$openers[$open], $open, $close];
+            }
+        }
+
+        return $nearest;
     }
 
     /**
      * The component's root element must carry no Livewire, Blade, or Alpine
-     * attribute. The root is read as the first opening element tag in the
-     * view — a component view that opens with anything else is not a shape
-     * this heuristic can speak about.
+     * attribute. The root is read at the first `<` that opens a tag, and the
+     * tag has to parse *there* — a component view that opens with anything
+     * else is not a shape this heuristic can speak about.
      *
-     * Two guards keep this off markup that has no component root to judge:
-     * the view must be a component's own view (see isComponentView()), and its
-     * first tag must not open a child component (see opensOnAComponent()).
+     * Anchoring it is what keeps the read honest. Taking the first tag the
+     * pattern matches anywhere would step over an element whose attribute list
+     * ELEMENT_TAG cannot complete and judge the next element in its place —
+     * typically a child carrying exactly the `wire:` attribute a child is
+     * entitled to, which is a false positive rather than a missed one.
+     *
+     * Three guards keep this off markup that has no component root to judge:
+     * the view must be a component's own view (see isComponentView()), its
+     * first tag must parse as an element tag, and it must not open a child
+     * component (see opensOnAComponent()).
      *
      * @param array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
      *     name: string, attributes: string}> $tags
@@ -256,7 +369,15 @@ class ComponentMarkupSniff implements Sniff
             return;
         }
 
-        if (preg_match(self::ELEMENT_TAG, $markup, $match, PREG_OFFSET_CAPTURE) !== 1) {
+        if (preg_match(self::ELEMENT_TAG_START, $markup, $start, PREG_OFFSET_CAPTURE) !== 1) {
+            return;
+        }
+
+        if (preg_match(self::ELEMENT_TAG, $markup, $match, PREG_OFFSET_CAPTURE, $start[0][1]) !== 1) {
+            return;
+        }
+
+        if ($match[0][1] !== $start[0][1]) {
             return;
         }
 

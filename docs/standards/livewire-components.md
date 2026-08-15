@@ -140,7 +140,17 @@ class of wrong report.
   argument (`key($row->id)`), not an attribute, so neither presence nor
   equality can be read off the source.
 
-Three further silences follow the same principle:
+Five further silences follow the same principle:
+
+- **A tag the sniff cannot read is not read.** An element tag whose attribute
+  list holds a bare `<` outside quotes (`<div data-range=1<2>`) is not
+  recognised as a tag at all — no browser reads that as an attribute either. A
+  quoted `title="a &lt; b"` value is unaffected.
+- **A view whose *first* element tag is one of those is left alone entirely.**
+  The root is read at the first `<` that opens a tag, and the tag has to parse
+  there; the sniff does not step over it and judge the next element in its
+  place, which would report a child for carrying the `wire:` attribute a child
+  is entitled to.
 
 - **An unbalanced loop directive yields no loop.** A `@foreach` whose body
   continues in an `@include`, or an `@endforeach` belonging to a parent view,
@@ -160,7 +170,10 @@ Three further silences follow the same principle:
   A component left unclosed adopts every later tag as a child rather than
   guessing where its element ended — the same silence the unbalanced loop takes.
 - **Comments are blanked before analysis**, so commented-out markup is never
-  reported.
+  reported. A comment nobody closed is not blanked — the markup after it stays
+  readable rather than being swallowed to the end of the file — and the two
+  comment forms are independent: an unclosed `<!--` does not stop a well-formed
+  `{{-- … --}}` below it from being blanked.
 
 ### Rejected heuristics
 
