@@ -52,8 +52,8 @@ follow-up issue
   (`$a->{$b}`, `$a->$b`) ends its segment the same way. Array-access hops
   (`$a->b['x']->c`) and static-rooted chains (`Foo::bar()->baz->qux`) are out
   of scope. A grouping parenthesis around the root does not hide the chain —
-  `($book)->author->name` and `($condition ? $book : $fallback)->author->name`
-  are flagged, because what the group holds is what decides; by the same rule
+  `($book)->author->name` and `($books[0])->author->name` are flagged, because
+  what the group holds is what decides; by the same rule
   `(new Book())->author->name` and `(Book::query()->first())->author->name`
   stay out of scope, since neither wraps a variable. Source PHP itself would
   reject — a stray closing bracket or a non-identifier member name left
@@ -80,6 +80,14 @@ relationship. Expect these:
   that two-hop read is not flagged, though two plain hops *after* a dynamic one
   still are. Helper-based reads (`data_get($book, 'author.name')`) reach the
   same relationship and are invisible entirely.
+- **A root held in a multi-expression group is not flagged.** A grouping
+  parenthesis is only walked into when it holds one expression, so
+  `($condition ? $book : $fallback)->author->name` — and the `??` and `match`
+  forms of the same thing — are silent. The alternative is worse: with one
+  static-rooted arm and one variable-rooted arm, reading the root out of a
+  single arm makes the verdict depend on the order the arms are written in, and
+  the two orders say the same thing. Assign the group to a variable first if you
+  want the chain checked.
 
 ### Suppressing an accepted false positive
 

@@ -26,7 +26,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * segment the same way. Array access and static roots (Foo::bar()->baz->qux)
  * are out of scope. A grouping parenthesis around the root hides nothing —
  * ($book)->author->name reads the same relationship as $book->author->name,
- * so the root is looked for inside the group.
+ * so the root is looked for inside the group, as long as the whole group is
+ * that one expression. A group holding several (a ternary's arms, a match's
+ * arms) has no single root, so it is out of scope rather than judged on
+ * whichever arm happens to be written last.
  */
 class DisallowChainedPropertyFetchSniff implements Sniff
 {
@@ -134,17 +137,30 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
     /**
      * Whether the expression the given hop hangs off ultimately starts at a
-     * variable. Walks left over the whole receiver expression, stepping over
-     * completed calls, subscripts and braced member names, so that
-     * $a->b()->c->d is recognised as variable-rooted while
-     * Foo::bar()->baz->qux is not. A grouping parenthesis is walked into
-     * instead of over, since it is where the root of ($a)->b->c actually sits.
+     * variable.
      */
     private function isRootedInVariable(File $phpcsFile, int $operatorPtr): bool
     {
+        return $this->rootBefore($phpcsFile, $operatorPtr) !== false;
+    }
+
+    /**
+     * The pointer to where the receiver expression ending just before the given
+     * token starts, when it starts at a variable; false when it starts anywhere
+     * else. Walks left over the whole expression, stepping over completed
+     * calls, subscripts and braced member names, so that $a->b()->c->d is
+     * recognised as variable-rooted while Foo::bar()->baz->qux is not. A
+     * grouping parenthesis is walked into instead of over, since it is where
+     * the root of ($a)->b->c actually sits, and the group's own opener is
+     * returned as the start in that case.
+     *
+     * @return int|false
+     */
+    private function rootBefore(File $phpcsFile, int $beforePtr)
+    {
         $tokens = $phpcsFile->getTokens();
 
-        $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($operatorPtr - 1), null, true);
+        $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($beforePtr - 1), null, true);
 
         while ($ptr !== false) {
             $code = $tokens[$ptr]['code'];
@@ -161,12 +177,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 // A call, a subscript and a braced member name all belong to
                 // the token in front of their opener, so the walk continues
                 // there. A grouping parenthesis belongs to nothing in front of
-                // it — ($a)->b->c, ($cond ? $a : $b)->author->name — and holds
-                // its own root, so the walk continues inside the group.
+                // it — ($a)->b->c — and holds its own root, so the walk
+                // continues inside the group.
                 if ($code === T_CLOSE_PARENTHESIS && $this->isInvokedOn($tokens, $beforeOpenerPtr) === false) {
-                    $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), ($openerPtr + 1), true);
-
-                    continue;
+                    return $this->rootInsideGroup($phpcsFile, $openerPtr, $ptr);
                 }
 
                 $ptr = $beforeOpenerPtr;
@@ -198,10 +212,43 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 return false;
             }
 
-            return $code === T_VARIABLE;
+            return $code === T_VARIABLE ? $ptr : false;
         }
 
         return false;
+    }
+
+    /**
+     * Where a grouping parenthesis's contents start, when the whole group is
+     * the variable-rooted expression the walk found in it; false otherwise.
+     *
+     * The walk back from the closer consumes one expression, so the group is
+     * only accepted when that expression reaches the group's own first token.
+     * A group holding more than one — either arm of a ternary or a match, the
+     * two sides of ?? and ?: — leaves tokens in front of it, and reading a root
+     * out of the last arm alone would decide the verdict from the order the
+     * arms are written in: ($cond ? Book::first() : $cached)->author->name and
+     * ($cond ? $cached : Book::first())->author->name say the same thing, so
+     * neither may be flagged while the other is silent. Such a group reports
+     * nothing, the same as the static root inside it would on its own.
+     *
+     * The opener is returned rather than the root itself, so that a group
+     * wrapped in another — (($book))->author->name — still reads to the outer
+     * group as reaching its own first token.
+     *
+     * @return int|false
+     */
+    private function rootInsideGroup(File $phpcsFile, int $openerPtr, int $closerPtr)
+    {
+        $rootPtr = $this->rootBefore($phpcsFile, $closerPtr);
+
+        if ($rootPtr === false) {
+            return false;
+        }
+
+        $firstInGroupPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openerPtr + 1), $closerPtr, true);
+
+        return $rootPtr === $firstInGroupPtr ? $openerPtr : false;
     }
 
     /**

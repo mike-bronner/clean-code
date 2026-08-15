@@ -12,7 +12,7 @@ $books[0]->author->name;
 $book->{$relation}->address->city;
 
 ($book)->author->name;
-($condition ? $book : $fallback)->author->name;
+($books[0])->author->name;
 (($book))->author?->name;
 
 $fn('author')->author->name;

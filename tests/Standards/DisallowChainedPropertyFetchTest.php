@@ -113,14 +113,28 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *   root, the parentheses here are a call's argument list, so walking into
      *   them (and finding `$book`) would flag a function-call root the sniff
      *   has never claimed.
-     * - lines 27-29, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic
+     * - lines 27-31, groups holding more than one expression, which have no
+     *   single root and are out of scope. Lines 27-28 are the pair that forces
+     *   the rule: `($condition ? Book::first() : $fallback)->author->name` and
+     *   the same ternary with its arms swapped say the same thing, one arm
+     *   static-rooted and one variable-rooted, so a verdict read off the last
+     *   arm alone would flag one and stay silent on the other purely from the
+     *   order they are written in. Refusing the group instead makes both
+     *   silent. Line 29 is the price: a ternary whose arms are both variables
+     *   is a chain the sniff could in principle name, and it is given up to
+     *   keep the rule order-independent — the doc's limitations section
+     *   publishes this. Lines 30-31 are the other two multi-expression groups
+     *   PHP allows in this position, `??` and `match`. Removing the
+     *   single-expression check flags all of 27, 29, 30 and 31 — 28 stays
+     *   silent even then, which is exactly the asymmetry being removed.
+     * - lines 33-35, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic
      *   member name is not a property-fetch hop, because which property is
      *   read is unknowable at token level, so the single plain hop after it is
      *   not a chain. Both tokens a dynamic name can produce are covered: `{`
      *   for the two braced forms, T_VARIABLE for the plain-variable one.
      *   failing.inc:12 is the other half of this — two plain hops after a
      *   dynamic one *are* a chain.
-     * - lines 31-37, an accessor declaration returning `$this->authorName` —
+     * - lines 37-43, an accessor declaration returning `$this->authorName` —
      *   the shape the standard asks for, in situ.
      */
     public function testCompliantFileProducesNoViolations(): void
@@ -160,13 +174,15 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *   is still `$book`. Same rule as line 9: the unreadable hop ends its own
      *   segment only.
      * - lines 14-16, roots held inside a grouping parenthesis:
-     *   `($book)->author->name`, `($condition ? $book : $fallback)->author->name`
-     *   and `(($book))->author?->name`. A parenthesised variable is still a
+     *   `($book)->author->name`, `($books[0])->author->name` and
+     *   `(($book))->author?->name`. A parenthesised variable is still a
      *   variable, so wrapping the root must not silence the chain — the walk
      *   has to look inside the group rather than at whatever precedes its
-     *   opener (`=`, `?`, `:`, another `(`), and has to keep doing so through
-     *   nesting. Both arms of the ternary are variables, which is why flagging
-     *   it is right rather than a guess about which arm is taken.
+     *   opener (`=`, `;`, another `(`), and has to keep doing so through
+     *   nesting. Line 15 is what keeps the single-expression rule from
+     *   collapsing into "the group holds one token": a subscripted variable is
+     *   several tokens and still one expression, so it is flagged, while the
+     *   multi-expression groups in passing.inc:27-31 are not.
      * - lines 18-22, the positive half of the same walk: every other bracketed
      *   group is stepped over, not walked into, and each line pins one of the
      *   ways that decision is reached. Lines 18-21 are argument lists, one per
@@ -287,17 +303,22 @@ class DisallowChainedPropertyFetchTest extends TestCase
      * this test covers the truncated chain, not the guard.
      *
      * That leaves the root walk's own guards, and every one of them is
-     * accounted for rather than left to inference. The two that decide a
-     * result are pinned by fixtures that go red without them — the unmatched
+     * accounted for rather than left to inference. The three that decide a
+     * result are pinned by fixtures that go red without them: the unmatched
      * opener and the non-identifier receiver, both in malformed.inc (see
-     * testMalformedSourceIsRefusedRatherThanGuessedAt()). The rest are
-     * defensive, and are named here rather than claimed as covered:
-     * isInvokedOn() returning false for an opener with nothing before it
-     * cannot be reached — a file starts with its open tag, so some token
-     * always precedes, which is equally why no unbounded findPrevious() in the
-     * walk or in process() can return false. Bounding the search inside a
-     * grouping parenthesis at its opener only changes the result for a group
-     * with no content, and `()->a->b` is not an expression PHP accepts.
+     * testMalformedSourceIsRefusedRatherThanGuessedAt()), and the
+     * single-expression rule for a grouping parenthesis, in passing.inc:27-31
+     * against failing.inc:14-16. The rest are defensive, and are named here
+     * rather than claimed as covered:
+     *
+     * - isInvokedOn() returning false for an opener with nothing before it
+     *   cannot be reached — a file starts with its open tag, so some token
+     *   always precedes. That is equally why no unbounded findPrevious() in
+     *   the walk or in process() can return false, and why the walk cannot end
+     *   by stepping off the start of the file.
+     * - rootInsideGroup() finding nothing between the opener and the closer
+     *   needs an empty group, and `()->a->b` is not an expression PHP accepts.
+     *
      * Removing any of those changes no result on any fixture here.
      *
      * Line 3 keeps the assertion honest: the file still has to report the

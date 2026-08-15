@@ -24,6 +24,12 @@ Book::$registry->author->name;
 (Book::query()->first())->author->name;
 foo($book)->author->name;
 
+($condition ? Book::first() : $fallback)->author->name;
+($condition ? $fallback : Book::first())->author->name;
+($condition ? $book : $fallback)->author->name;
+($book ?? $fallback)->author->name;
+(match ($size) { default => $book })->author->name;
+
 $a->{$b}->c;
 $a->{'b'}->c;
 $a->$b->c;
