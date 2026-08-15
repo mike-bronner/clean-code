@@ -86,6 +86,9 @@ it('accepts a call that reaches PHP own global function', function (): void {
         'probeBare' => [true],
         // A leading separator qualifies the global namespace.
         'probeFullyQualified' => [true],
+        // An `&` before the name is a declaration's marker only between
+        // `function` and the name; this one is the bitwise operator.
+        'probeBitwiseOperator' => [true],
         // A closure captures variables with `use`; it imports nothing, not even
         // when a nested closure puts `function` straight after one of the
         // statement's commas.

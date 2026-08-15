@@ -23,6 +23,14 @@ probeSegmentNamed($value);
 // Positive: a leading separator qualifies the global namespace explicitly.
 \probeFullyQualified($value);
 
+// Positive: an `&` directly before the name is the return-by-reference marker
+// only where a declaration puts it there, between `function` and the name.
+// Here it is the bitwise operator, and what follows it is a call like any
+// other. Without this case, "any preceding `&` means a declaration" reads the
+// same as the real rule, and the passing fixture's `function &probe…()` cases
+// cannot tell the two apart on their own.
+$flags = $mask & probeBitwiseOperator($value);
+
 // Positive: a class import binds a class name; function resolution ignores it.
 probeClassImport($value);
 
