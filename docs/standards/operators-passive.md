@@ -86,10 +86,13 @@ fixed point on every one of them.
   standard mandates — so the two standards do not contradict.
 - **Array access `[]`** — `Squiz.Arrays.ArrayBracketSpacing`, auto-fixable.
 
-Ruleset-integration tests covering compliant code, per-line violation reporting
-for every operator, the unary-vs-binary distinction, the sign-merge guard, and
-the `phpcbf` auto-fix (violating fixture → compliant fixture) live at
-`tests/Ruleset/PassiveOperatorSpacingTest.php`.
+Tests split by scope. `tests/Standards/PassiveOperatorSpacingTest.php` drives
+the custom sniff on its own — the unary-vs-binary distinction, the sign-merge
+guard, the ceded contexts it owns, and the `phpcbf` auto-fix (violating fixture
+→ recorded output). `tests/Ruleset/OperatorsPassiveTest.php` covers the standard
+as wired into `rules.xml` — all four sniffs together, per-line violation
+reporting attributed to the sniff that owns each operator, the auto-fix, and the
+real-`phpcbf` convergence check described above.
 
 ## What remains code review
 
