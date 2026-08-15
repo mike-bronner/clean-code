@@ -26,6 +26,13 @@ class Router
     {
         return FUNC_GET_ARGS();
     }
+
+    public function masked(int $mask): int
+    {
+        // A `&` before the name excuses a return-by-reference *declaration*
+        // only. In an expression the call is still a call.
+        return $mask & func_num_args();
+    }
 }
 
 // A call at file scope sits in no function at all: there is no declaration to

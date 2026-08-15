@@ -62,9 +62,13 @@ it('flags every dynamic-argument read at its own line and column', function (): 
         ['line' => 22, 'column' => 17, 'source' => DECLARED_PARAMETERS_ERROR],
         // PHP function names are case-insensitive.
         ['line' => 27, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
+        // A `&` before the name excuses a return-by-reference declaration
+        // (asserted silent on passing.php) and nothing else: in an expression
+        // the call is still a call.
+        ['line' => 34, 'column' => 24, 'source' => DECLARED_PARAMETERS_ERROR],
         // A call at file scope belongs to no declaration, so no magic-method
         // exemption can apply to it.
-        ['line' => 33, 'column' => 9, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 40, 'column' => 9, 'source' => DECLARED_PARAMETERS_ERROR],
     ]);
 });
 
