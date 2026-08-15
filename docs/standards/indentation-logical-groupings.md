@@ -36,14 +36,28 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   against its own immediate parent, so each nesting level indents one step
   further than the last, to arbitrary depth.
 - **Left alone** — a simple multi-line condition with no parenthesized
-  sub-grouping (that layout is #17's concern), a single-line group, and a
-  function or language-construct call argument list (its contents count as a
-  single condition, never a grouping) are never touched, so there are no false
-  positives. Constructs that are not condition operands are likewise treated as
-  opaque: a comment line inside a grouping is never measured as a condition, and
-  an arrow function (`fn () => …`) used as a boolean operand is a single
-  condition — its body carries no bracket delimiter but is still skipped whole,
-  so a boolean inside it is never mistaken for a top-level grouping.
+  sub-grouping (that layout is #17's concern) and a single-line group are never
+  touched, so there are no false positives.
+
+  Detection recognises groupings rather than excluding calls, and that direction
+  is deliberate. A parenthesis can only open a grouping where a new expression
+  may begin: directly after a boolean, comparison, arithmetic or cast operator,
+  after `!`, after a ternary arm, inside an enclosing `(`, or after a `for`
+  clause separator. Everything else is an operand belonging to whatever precedes
+  it, and is skipped whole — a function, method, or constructor argument list, a
+  `new class(…)` argument list, a `match` subject, a closure or arrow-function
+  parameter list. Asking the opposite question ("is this a call?") would need an
+  allowlist of every such preceding token, and every name missing from it would
+  be a false positive on valid code; asking this one means an unrecognised
+  construct is left alone instead.
+
+  Three interiors are held out of the measured conditions as well, because none
+  of them is a condition: a comment line inside a grouping, the body of an arrow
+  function (`fn () => …`) used as a boolean operand, and the continuation lines
+  of a multi-line string, heredoc, or nowdoc. The last matters most — PHP_CodeSniffer
+  splits such a literal into one token per physical line, and each of those
+  tokens begins a line, so measuring them would report violations and reindenting
+  one would rewrite the string's value rather than the code's layout.
 - **Auto-fixer** — `phpcbf` reindents each offending condition line to the
   correct nesting level; the resulting file passes the sniff with zero
   violations.
@@ -69,10 +83,15 @@ execution process) and none enforces this rule:
 A custom sniff is therefore required; the tests were not weakened to fit any of
 the above.
 
-Ruleset-integration tests covering compliant single-level and nested groups,
-per-line/column violation reporting (unindented, too-shallow, too-deep,
-misaligned, and nested cases), and the auto-fixer (separate before/after
-fixtures) live at `tests/Ruleset/LogicalGroupingsRulesetTest.php`.
+Tests live at `tests/Standards/LogicalGroupingsTest.php`, over the fixtures in
+`tests/fixtures/LogicalGroupingsSniff/`. They pin each violation to its exact
+line, column, and error code (unindented, too-shallow, too-deep, misaligned, and
+nested, across all five control structures and both operator spellings), pin the
+expected indent a nested group is measured against, and prove the fixer moves
+the reported condition lines and nothing else. The generic floor — the compliant
+fixture is clean, the failing one is flagged, and the fixer round-trips and is
+idempotent — comes from the shared sweep in `tests/Contract/`, which this sniff
+joins through `tests/Sniffs.php`.
 
 ## What remains code review
 

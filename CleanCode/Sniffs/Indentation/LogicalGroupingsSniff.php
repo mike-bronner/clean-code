@@ -22,12 +22,17 @@ use PHP_CodeSniffer\Util\Tokens;
  * Simple multi-line conditions with no parenthesized sub-grouping are left
  * entirely alone: their one-condition-per-line layout is the concern of the
  * "Conditionals: One Condition Per Line" standard (#17), not this one. Only the
- * lines directly inside a multi-line grouping are checked here, so a
- * function-call argument list or a single-line group never triggers a
- * violation. Constructs that are not condition operands are treated as opaque
- * — a comment line inside a grouping and an arrow-function body used as a
- * boolean operand are never measured as conditions, so neither is a false
- * positive.
+ * lines directly inside a multi-line grouping are checked here, so a single-line
+ * group never triggers a violation.
+ *
+ * Detection recognises groupings rather than excluding calls, so anything the
+ * sniff does not positively identify as a grouping is left untouched: a
+ * function, method, or constructor argument list, a `match` subject, a closure
+ * or arrow-function parameter list, and any construct added to PHP later. Three
+ * further shapes are held out of the measured conditions themselves — a comment
+ * line inside a grouping, an arrow-function body used as a boolean operand, and
+ * the continuation lines of a multi-line string, heredoc, or nowdoc. None of
+ * these is a condition, so none is reported or reindented.
  *
  * All violations are auto-fixable — phpcbf reindents each offending condition
  * line to the correct nesting level.
@@ -91,9 +96,11 @@ class LogicalGroupingsSniff implements Sniff
                 continue;
             }
 
-            if ($this->isCall($phpcsFile, $i) === true) {
-                // A call's argument list is not a condition grouping; its
-                // contents count as a single condition, so skip it whole.
+            if ($this->opensGrouping($phpcsFile, $i) === false) {
+                // Anything that is not a grouping is an opaque operand — a
+                // call or construct argument list, a `match` subject, a
+                // closure parameter list. Its contents count as a single
+                // condition, so skip it whole.
                 $i = $tokens[$i]['parenthesis_closer'];
 
                 continue;
@@ -108,11 +115,22 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
-     * True when the parenthesis is the argument list of a function, method, or
-     * language-construct call rather than a standalone grouping — determined by
-     * the token immediately preceding it.
+     * True when the parenthesis opens a standalone grouping rather than an
+     * argument or operand list belonging to whatever precedes it.
+     *
+     * The test is on the *grouping* side on purpose. Asking instead "is this a
+     * call?" needs an allowlist of every token that can precede an argument
+     * list — `T_STRING`, `T_MATCH`, `T_ANON_CLASS`, `T_CLOSURE`, `T_FN`,
+     * `T_EXIT`, `T_ISSET`, each name token, … — and every name missing from
+     * that list becomes a false positive on valid code. The grouping side is a
+     * closed set instead: a grouping parenthesis can only appear where a new
+     * expression may begin, which is directly after an operator, a `!`, a
+     * ternary arm, an enclosing `(`, or a `for` clause separator. Anything
+     * else — including any token this sniff has never heard of — is therefore
+     * not a grouping, so an unrecognised construct is left alone rather than
+     * reindented.
      */
-    private function isCall(File $phpcsFile, int $parenPtr): bool
+    private function opensGrouping(File $phpcsFile, int $parenPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($parenPtr - 1), null, true);
@@ -121,27 +139,19 @@ class LogicalGroupingsSniff implements Sniff
             return false;
         }
 
-        $callPreceders = [
-            T_STRING,
-            T_VARIABLE,
-            T_CLOSE_PARENTHESIS,
-            T_CLOSE_SQUARE_BRACKET,
-            T_CLOSE_CURLY_BRACKET,
-            T_NAME_QUALIFIED,
-            T_NAME_FULLY_QUALIFIED,
-            T_NAME_RELATIVE,
-            T_ARRAY,
-            T_ISSET,
-            T_EMPTY,
-            T_LIST,
-            T_EVAL,
-            T_STATIC,
-            T_SELF,
-            T_PARENT,
-            T_ANON_CLASS,
-        ];
+        $expressionStarters = Tokens::$booleanOperators
+            + Tokens::$comparisonTokens
+            + Tokens::$operators
+            + Tokens::$castTokens
+            + [
+                T_BOOLEAN_NOT => T_BOOLEAN_NOT,
+                T_OPEN_PARENTHESIS => T_OPEN_PARENTHESIS,
+                T_SEMICOLON => T_SEMICOLON,
+                T_INLINE_THEN => T_INLINE_THEN,
+                T_INLINE_ELSE => T_INLINE_ELSE,
+            ];
 
-        return in_array($tokens[$previous]['code'], $callPreceders, true);
+        return isset($expressionStarters[$tokens[$previous]['code']]);
     }
 
     /**
@@ -260,6 +270,7 @@ class LogicalGroupingsSniff implements Sniff
         $closers = [T_CLOSE_PARENTHESIS, T_CLOSE_SHORT_ARRAY, T_CLOSE_SQUARE_BRACKET, T_CLOSE_CURLY_BRACKET];
         $lines = [];
         $depth = 0;
+        $spannedThroughLine = 0;
 
         for ($i = ($groupOpen + 1); $i < $groupClose; $i++) {
             if (isset(Tokens::$emptyTokens[$tokens[$i]['code']]) === true) {
@@ -268,6 +279,19 @@ class LogicalGroupingsSniff implements Sniff
                 // as though it were a grouped condition.
                 continue;
             }
+
+            // PHP_CodeSniffer splits a multi-line string, heredoc, or nowdoc
+            // into one token per physical line, and each of those tokens
+            // begins a line. They are the interior of a single operand, not
+            // conditions — and their leading whitespace is string content, so
+            // reindenting one would rewrite the value. Tracking the last line
+            // any token spans through marks them as continuations.
+            $line = $tokens[$i]['line'];
+            $isContinuation = $line <= $spannedThroughLine;
+            $spannedThroughLine = max(
+                $spannedThroughLine,
+                $line + substr_count($tokens[$i]['content'], "\n")
+            );
 
             $isCloser = in_array($tokens[$i]['code'], $closers, true);
 
@@ -278,7 +302,7 @@ class LogicalGroupingsSniff implements Sniff
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($i - 1), null, true);
             $isLineStart = $previous === false || $tokens[$previous]['line'] !== $tokens[$i]['line'];
 
-            if ($isLineStart === true && $depth === 0 && $isCloser === false) {
+            if ($isLineStart === true && $isContinuation === false && $depth === 0 && $isCloser === false) {
                 $lines[] = $i;
             }
 
