@@ -4,7 +4,8 @@
          beStrictAboutTestsThatDoNotTestAnything="false"
          bootstrap="tests/bootstrap.php"
          cacheResult="false"
-         colors="true">
+         colors="true"
+         failOnWarning="true">
     <testsuites>
         <!--
             Fixtures live under tests/fixtures/ and in tests/Integration/fixtures/

@@ -20,7 +20,98 @@
 
 declare(strict_types=1);
 
+use PHP_CodeSniffer\Files\LocalFile;
+
 const ARRAY_ACCESSORS = 'CleanCode.Arrays.ArrayAccessors';
+
+/**
+ * A staggered/staircase file of $size reads, each one construct deeper than the
+ * read before it, all sharing one right-nested chain (#292):
+ *
+ * - `calls` nests call arguments, the shape #292 measured:
+ *   `wrap($x1['key'], wrap($x2['key'], ...))`.
+ * - `array-literals` nests short-array literals for the same staircase:
+ *   `[$x1['key'], [$x2['key'], ...]]`.
+ *
+ * Two construct kinds, because a fix scoped to the one #292 illustrated would
+ * pass with only the first. Both are generated rather than committed, for the
+ * reason the linear-time test above gives: the shapes only separate a linear
+ * implementation from a quadratic one in the thousands.
+ */
+$arrayAccessorsStaircaseSource = static function (string $shape, int $size): string {
+    $opener = $shape === 'array-literals' ? '[$x%d[\'key\'], ' : 'wrap($x%d[\'key\'], ';
+    $closer = $shape === 'array-literals' ? ']' : ')';
+    $body = '';
+
+    for ($index = 1; $index <= $size; $index++) {
+        $body .= sprintf($opener, $index);
+    }
+
+    return "<?php\n\n\$out = " . $body . 'null' . str_repeat($closer, $size) . ";\n";
+};
+
+/**
+ * Runs one staircase through the sniff and returns
+ * [reported reads, PHP_CodeSniffer's own parse seconds, the sniff's seconds].
+ *
+ * The two halves are timed apart because only one of them is this sniff's:
+ * PHP_CodeSniffer records the whole chain of enclosing parentheses on every
+ * token inside them, so the nested-call staircase costs it O(depth²) time and
+ * memory in the tokenizer -- about 1.1 GB at n=4,000 -- before any sniff runs.
+ * Measuring the sniff against that parse is what keeps the assertions about the
+ * sniff. The memory limit is raised for the measurement and put back, so the
+ * tokenizer's own appetite cannot turn this into a fatal on a 128M php.ini.
+ *
+ * @return array{int, float, float}
+ */
+$arrayAccessorsStaircaseTiming = static function (
+    string $shape,
+    int $size
+) use ($arrayAccessorsStaircaseSource): array {
+    [$config, $ruleset] = buildRuleset([ARRAY_ACCESSORS]);
+
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-staircase-', true) . '.php';
+    file_put_contents($path, $arrayAccessorsStaircaseSource($shape, $size));
+    $limit = ini_get('memory_limit');
+    ini_set('memory_limit', '2G');
+
+    try {
+        $file = new LocalFile($path, $ruleset, $config);
+
+        $parseAt = hrtime(true);
+        $file->parse();
+        $parsed = (hrtime(true) - $parseAt) / 1e9;
+
+        $sniffAt = hrtime(true);
+        $file->process();
+        $sniffed = (hrtime(true) - $sniffAt) / 1e9;
+        $reported = $file->getErrorCount();
+    } finally {
+        unlink($path);
+    }
+
+    // The tokenizer's maps have to go before the limit does: PHP refuses a
+    // limit below current usage, and refusing it is a warning this suite fails
+    // on. When they will not free far enough -- the allocator does not always
+    // hand pages back -- the raised limit is kept rather than a warning
+    // raised; every caller sets it again anyway.
+    $file->cleanUp();
+    unset($file);
+    gc_collect_cycles();
+
+    // "128M" and friends as bytes; a negative limit is no limit at all.
+    $units = ['k' => 1024, 'm' => 1048576, 'g' => 1073741824];
+    $limit = $limit === false ? '-1' : trim($limit);
+    $limitBytes = (int) $limit < 0
+        ? null
+        : ((int) $limit * ($units[strtolower(substr($limit, -1))] ?? 1));
+
+    if ($limitBytes !== null && memory_get_usage(true) < $limitBytes) {
+        ini_set('memory_limit', $limit);
+    }
+
+    return [$reported, $parsed, $sniffed];
+};
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -169,6 +260,258 @@ it('reports an unterminated chain without falling over', function (): void {
         19 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         27 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
     ]);
+});
+
+/**
+ * The mirror of unterminated.php: a *closer* whose opener was never typed.
+ * It carries no `bracket_opener`, so it closes nothing and cannot enclose the
+ * chain either -- the walk outward steps over it and the reads on both sides
+ * stay reported.
+ *
+ * The curly brace is the case that has to be handled rather than assumed
+ * away. Deciding a curly brace means asking whether it opens a dynamic member
+ * name, which reads back from its opener, so taking an opener-less closer for
+ * an enclosing construct hands the missing `bracket_opener` -- `null` -- to
+ * `isDynamicMemberBrace()`, whose `int $openerPtr` rejects it, and the sniff
+ * dies with a TypeError. A TypeError extends Error rather than Exception, so
+ * `Runner::processFile()`'s `catch (Exception)` -- the one path that turns a
+ * failure into an Internal.Exception report -- never sees it. This harness
+ * drives `process()` without a Runner at all, so the TypeError is an uncaught
+ * fatal and this test errors rather than fails.
+ *
+ * (The phpcs command reaches a file-level abort by an earlier route: the
+ * runner installs an error handler that rethrows the "Undefined array key"
+ * warning preceding the TypeError as a RuntimeException, and that one is an
+ * Exception, so it is caught and reported as Internal.Exception. Neither
+ * route survives the stray closer -- they only differ in how loudly.)
+ *
+ * All six reads are asserted rather than a sample: they sit on both sides of
+ * the stray closer, so each one pins the walk stepping over it from a
+ * different position.
+ */
+it('steps over a closer whose opener was never typed', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'stray-closer.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        15 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        17 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        19 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        21 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        23 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        25 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+    ])->and($file->getErrorCount())->toBe(6, 'every read survives the stray closer');
+});
+
+/**
+ * Deciding a chain means walking outward through the constructs enclosing it.
+ * That walk once rescanned forward from the chain for every step, which is
+ * linear in the distance to the enclosing closer -- so a file of n reads cost
+ * O(n^2), each read scanning over every construct that followed it. #239.
+ *
+ * The fixtures are generated rather than committed because the shapes only
+ * separate a linear implementation from a quadratic one in the thousands, and
+ * a committed 4,000-statement file is a worse thing for this repository to
+ * carry than six lines of str_repeat().
+ *
+ * The two shapes do different jobs, and saying which is which matters:
+ *
+ * - `reads` is the discriminating one. It is the ordinary shape -- n
+ *   independent reads in one body -- and it is what the rescan actually made
+ *   quadratic: measured against the rescan it ran 0.64s at n=500 and 5.27s at
+ *   n=2,000, ~3.4x per doubling, and this assertion fails against it.
+ * - `nesting` is the depth shape #239 was filed on
+ *   (`$target[$target[...]]`). It is a pin, not a reproduction: the rescan
+ *   skipped each already-closed sibling construct whole, which made depth
+ *   alone flat (0.09s at 500, 0.12s at 2,000) well before this change. It is
+ *   asserted so that a future rewrite cannot make depth quadratic unnoticed,
+ *   and it would not have failed against the rescan.
+ *
+ * The budget is wall clock, so it is set generously: the map answers n=4,000
+ * in about a fifth of a second here, which leaves better than an order of
+ * magnitude of headroom for a loaded CI runner, while the rescan needs tens of
+ * seconds for the same file and cannot pass by being unlucky.
+ */
+it('decides enclosing constructs in linear time', function (string $shape, int $size): void {
+    $source = $shape === 'nesting'
+        ? "<?php\n\n\$out = " . str_repeat('$target[', $size) . '$key' . str_repeat(']', $size) . ";\n"
+        : "<?php\n\nfunction sink(\$row): void\n{\n"
+            . str_repeat("    \$value = \$row['key'];\n", $size)
+            . "}\n";
+
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-scale-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs([ARRAY_ACCESSORS], $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    expect($file->getErrorCount())->toBe($size, 'every read is still reported')
+        ->and($elapsed)->toBeLessThan(3.0, "{$shape} at n={$size} took {$elapsed}s");
+})->with([
+    'n reads in one body' => ['reads', 4000],
+    'n levels of computed offset' => ['nesting', 2000],
+]);
+
+/**
+ * The staircase the enclosure map did not fix (#292). The map made each step
+ * outward O(1); it did not reduce the number of steps, so n reads at n
+ * increasing depths still walked n depths between them -- O(n²), measured here
+ * at 8.4s for n=4,000 nested calls, matching the 8.136-8.363s #292 reports.
+ *
+ * Two things are asserted per size, and they answer different questions:
+ *
+ * - Every read is still reported. A staircase whose reads went missing would
+ *   run fast for the wrong reason.
+ * - The sniff costs less than twice PHP_CodeSniffer's own parse of the same
+ *   file. That is the scale-free half of the claim: the parse is the work the
+ *   file inherently needs, so a sniff that stays within a constant factor of it
+ *   at every size is not walking anything quadratic. Measured here at 0.41-0.90
+ *   with the fix, against 7.4-29.6 without it -- an order of magnitude clear of
+ *   the bound at every one of the four sizes, in both shapes.
+ *
+ * The n=4,000 budget is wall clock and set where #292 asks for it: 3.0s, which
+ * the hop-by-hop walk cannot pass (8.4s and 7.3s for the two shapes) and the
+ * fix passes with better than five times the headroom (0.51s and 0.15s).
+ */
+it('decides a staggered staircase within the cost of parsing it', function (string $shape) use (
+    $arrayAccessorsStaircaseTiming
+): void {
+    $totals = [];
+
+    foreach ([500, 1000, 2000, 4000] as $size) {
+        [$errors, $parsed, $sniffed] = $arrayAccessorsStaircaseTiming($shape, $size);
+        $totals[$size] = $parsed + $sniffed;
+
+        expect($errors)->toBe($size, "{$shape} at n={$size} reports every read")
+            ->and($sniffed)->toBeLessThan(
+                ($parsed * 2.0),
+                "{$shape} at n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
+            );
+    }
+
+    expect($totals[4000])->toBeLessThan(3.0, "{$shape} at n=4000 took {$totals[4000]}s");
+})->with([
+    'nested call arguments' => 'calls',
+    'nested array literals' => 'array-literals',
+]);
+
+/**
+ * The per-doubling half of #292's budget: 500 -> 1,000 -> 2,000 -> 4,000, each
+ * step under 2.5x, against the ~3.7-4.1x per step #292 measured throughout.
+ * The fix runs 1.97x, 2.01x, 2.08x here; the hop-by-hop walk runs 2.09x, 3.82x,
+ * 4.01x on the same shape and fails the second and third steps.
+ *
+ * The nested-array-literal staircase carries this one, and the nested-call
+ * staircase deliberately does not, because a wall-clock ratio cannot measure
+ * this sniff on the call shape at these sizes. PHP_CodeSniffer records the
+ * chain of enclosing parentheses on every token inside them, so its own
+ * tokenizer is O(depth²) in time and memory for nested calls -- 30MB, 84MB,
+ * 290MB, 1,128MB at the four sizes, and 2.4x, 2.4x, 2.9x in parse time alone,
+ * before a sniff is reached. The sniff's own share on that shape does the same
+ * O(n) work it does here (0.24s at n=4,000 against 0.06s, for identical logic)
+ * and simply pays for a heap 35 times larger. A 2.5x cap there would fail on
+ * the tokenizer's arithmetic, and a cap loose enough to pass (3.6x) would no
+ * longer separate the fix from the 4.1x it replaced -- so the call shape is
+ * pinned by the parse-relative bound and the 3.0s budget above, which separate
+ * the two by an order of magnitude, and the ratio is asserted here where it
+ * means what it says.
+ */
+it('grows linearly across each doubling of a staggered staircase', function () use (
+    $arrayAccessorsStaircaseTiming
+): void {
+    $totals = [];
+
+    foreach ([500, 1000, 2000, 4000] as $size) {
+        [$errors, $parsed, $sniffed] = $arrayAccessorsStaircaseTiming('array-literals', $size);
+        $totals[$size] = $parsed + $sniffed;
+
+        expect($errors)->toBe($size, "n={$size} reports every read");
+    }
+
+    foreach ([[500, 1000], [1000, 2000], [2000, 4000]] as [$from, $to]) {
+        $growth = $totals[$to] / $totals[$from];
+
+        expect($growth)->toBeLessThan(2.5, "n={$from} -> n={$to} grew {$growth}x");
+    }
+});
+
+/**
+ * The staggered shape decided against fixtures rather than a clock: the
+ * verdicts must not move when the walk stops taking every step.
+ *
+ * staggered-nesting.php mixes the three ways a staggered read is decided --
+ * offset, `foreach` target, assigned destructuring pattern -- and pins the case
+ * a compressed walk is most likely to get wrong: chain roots at different
+ * depths whose nearest enclosing `foreach` parentheses are the same closer, one
+ * before `as` and two after. The closer is transparent for the first and a
+ * write target for the second, so no compressed span may carry either answer
+ * across `as`. The third is decided by its index before the `foreach` is
+ * reached at all.
+ *
+ * Line 88 is the sharpest of them, and the one the other cases do not reach: a
+ * `foreach` header holding a second `foreach`, so the `as` that decides the
+ * outer header sits *inside* the construct the walk steps out of. Roots on
+ * either side of it are then enclosed by the same construct, and the step out
+ * of it genuinely cannot be answered once for both -- $rows before it reports,
+ * $outer after it does not. Answering that step statically either way drops one
+ * of the two. The third read in that method ($trailing, line 100) is the far
+ * side of the same `as` reached through the same constructs, and the fixture
+ * says why it is silent.
+ *
+ * Line 118 covers the other question the walk answers per read: an existence
+ * check two constructs out rather than one. The exemption is the whole chain of
+ * enclosing parentheses, not the pair nearest the read, and reading that chain
+ * once per opener rather than once per read must not narrow it.
+ *
+ * The count is asserted alongside the columns because half of what is pinned
+ * here is silence: three reads in this fixture are deliberately unreported, and
+ * only the count fails when one of them starts reporting.
+ *
+ * Every expected line and column here was taken from the hop-by-hop walk before
+ * it was touched, not from the amortised one's own output.
+ */
+it('decides a staggered staircase exactly as the hop-by-hop walk did', function (): void {
+    $errors = analyzeFixture(ARRAY_ACCESSORS, 'staggered-nesting.php')->getErrors();
+    $columnsByLine = [
+        25 => [13], 26 => [29, 59],
+        34 => [17, 33, 50],
+        58 => [31, 60],
+        70 => [44, 85],
+        88 => [26],
+        124 => [25, 52],
+    ];
+
+    foreach ($columnsByLine as $line => $columns) {
+        expect(array_keys($errors[$line]))->toBe($columns, "line {$line} columns");
+    }
+
+    expect(array_sum(array_map('count', $errors)))->toBe(13, 'no read gained or lost');
+});
+
+/**
+ * The mirror of unterminated.php:19 for the staggered shape: an opener that
+ * never closes, partway up the staircase rather than beside the read.
+ *
+ * The walk cannot step over it, so it stops there and reports -- and that has
+ * to hold at the depth carrying the unterminated opener and at every depth
+ * inside it, not only for the read nearest it. All three reads on the line
+ * report: the one outside the `sprintf` call, the one beside the unterminated
+ * `foo(`, and the one a further construct deeper. Continuing the walk instead
+ * would reach the pattern's `]` and take all three for destructuring targets.
+ *
+ * A compressed walk is exactly where this can regress: the run of constructs it
+ * skips is where the unterminated opener sits. The expected columns were taken
+ * from the hop-by-hop walk before it was touched.
+ */
+it('stops a staggered walk at an unterminated construct partway up it', function (): void {
+    $errors = analyzeFixture(ARRAY_ACCESSORS, 'staggered-unterminated.php')->getErrors();
+
+    expect(array_keys($errors[19]))->toBe([2, 35, 65])
+        ->and(array_sum(array_map('count', $errors)))->toBe(3, 'every read past the opener survives');
 });
 
 /**

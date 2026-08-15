@@ -25,9 +25,11 @@
  *   docs/phpmd/cleancode-undefinedvariable.md.
  * - excluded-codes.php — the three sniff codes rules.xml excludes.
  *
- * There is no autofixed.php: the rule is not fixable, and the byte-identical
- * test below proves it by running the real fixer rather than asserting the
- * absence.
+ * There is no autofixed.php: the rule is not fixable. That is asserted by the
+ * fixable-count and per-violation fixable-flag test below; the byte-identical
+ * test beside it adds nothing on that question — the fixer returns before
+ * touching a file with nothing fixable — and stands only as a tokenizer
+ * round-trip check.
  *
  * The severity override is pinned here too. The sniff reports warnings out of
  * the box and rules.xml raises them to errors, so an undefined variable fails a
@@ -195,13 +197,26 @@ it('reports undefined reads without offering an auto-fix', function (): void {
 
 /**
  * The "autofixed" half of the fixture contract, for a rule that has no
- * autofixed.php to compare against: the fixer's real output on failing.php *is*
- * failing.php, byte for byte.
+ * autofixed.php to compare against: running phpcbf's own Fixer over
+ * failing.php returns failing.php, byte for byte.
  *
- * Proven by driving the same Fixer phpcbf drives, not by trusting the fixable
- * flag the test above reads. The error count is asserted both before and after
- * the run, so a fixture that stopped tripping the sniff — or a fixer that
- * silently swallowed every diagnostic — cannot pass this vacuously.
+ * What this shows is narrower than it looks, and is recorded here so nobody
+ * reads more into it. Fixer::fixFile() (vendor/squizlabs/php_codesniffer/src/
+ * Fixer.php:142-148) returns immediately when getFixableCount() is 0, and the
+ * test above already asserts that count is 0 for this fixture — so on the
+ * question of fixability the byte-identical result is a corollary of that
+ * assertion rather than a check on it: the identical bytes follow from the
+ * zero count, they do not test it, and nothing here reads the per-violation
+ * fixable flags the test above asserts. The error count asserted before the
+ * run guards something smaller still: that failing.php is tripping the sniff
+ * at all, since a fixture that had stopped violating would come back
+ * byte-identical just the same. The repeat assertion after the run adds
+ * nothing on top of that — the fixer returned before modifying anything.
+ *
+ * It still earns its place as the one assertion that PHPCS reassembles this
+ * fixture from its token stream unchanged: Fixer::getContents() concatenates
+ * the token contents the tokenizer produced, so a fixture edit PHPCS could not
+ * round-trip would show up here and nowhere else in this file.
  */
 it('leaves the failing fixture byte-identical when the fixer runs', function (): void {
     $file = analyzeFixture(VARIABLE_ANALYSIS_SNIFF, 'failing.php');

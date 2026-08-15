@@ -65,9 +65,12 @@ The sixth code, `UnusedVariable`, is neither this rule's nor excluded: an
 *unused* variable is not an undefined one, and the code carries PHPMD's
 `UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118),
 [docs](unusedcode-unusedlocalvariable.md)). PHPMD's
-`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120))
-shares that same code and is silenced by the `allowUnusedFunctionParameters`
-property until it lands.
+`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120),
+[docs](unusedcode-unusedformalparameter.md)) shares that same code, and stays
+silenced here by the `allowUnusedFunctionParameters` property: it ships through
+the custom sniff `CleanCode.DeadCode.UnusedFormalParameter` instead, so
+leaving the property `true` is what stops the two sniffs reporting the same
+unused parameter twice.
 
 ### Where the sniff and PHPMD differ
 
@@ -114,9 +117,12 @@ Its fixtures follow the contract CONTRIBUTING.md prescribes, under
 `tests/fixtures/VariableAnalysisSniff/`: `passing.php` for code the rule must
 stay silent on and `failing.php` for the parity set, plus `divergences.php` and
 `excluded-codes.php` for the shapes that belong to neither. There is no
-`autofixed.php`, because the rule is not fixable — a test runs the real fixer
-over `failing.php` and asserts its output is byte-identical to the input, so
-"unfixable" is measured rather than assumed.
+`autofixed.php`, because the rule is not fixable. That is measured by asserting
+the fixable count is zero and that every single report carries no fixer hook;
+the companion test that runs the real fixer over `failing.php` and finds its
+output byte-identical adds no proof on top of that — the fixer exits before
+touching a file with nothing fixable — and stands only as a tokenizer
+round-trip check.
 
 ## What remains code review
 
