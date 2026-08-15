@@ -41,10 +41,14 @@ new Dump($value);
 
 // Positive: a namespaced function of the same name is a different symbol.
 App\Utils\dump($value);
-namespace\dump($value);
 App\Support\print_r($value);
-namespace\debug_zval_dump($value);
 App\Support\debug_print_backtrace($value);
+
+// The `namespace\dump()` relative qualifier is not here, and cannot be: this
+// file declares no namespace, so the namespace in force is the global one and
+// the call reaches PHP's own function — verified by executing the shape. The
+// quiet half of that rule needs a declared namespace, and lives in
+// namespace-relative.php; the loud half sits in failing.php.
 
 // Positive: the PHPMD DevelopmentCodeFragment names behind an object, nullsafe,
 // or static operator are calls on some other class, not the global functions.

@@ -45,12 +45,17 @@ final class FunctionCalls
      * declarations (`function foo()`, and `function &foo()` where the `&` sits
      * between the keyword and the name), for instantiation (`new foo()`,
      * `new \foo()`, `new namespace\foo()`), for qualified names
-     * (`Acme\foo()`, `namespace\foo()`), for attribute names (`#[foo(1)]`),
-     * and for a bare name a `use function` import redirects elsewhere.
+     * (`Acme\foo()`), for attribute names (`#[foo(1)]`), and for a bare name a
+     * `use function` import redirects elsewhere.
      *
      * True for a bare `foo()` with no import redirecting it, and for
      * `\foo()` — a leading separator qualifies the global namespace, so it is
      * the most explicit form of the very call being looked for.
+     *
+     * `namespace\foo()` resolves against whichever namespace is in force where
+     * it is written, so it is PHP's own function exactly where that namespace
+     * is the global one — an undeclared file or a `namespace { … }` block — and
+     * somebody else's everywhere a name has been declared.
      *
      * Known limitation, deliberate: a function *declared* in the current
      * namespace shadows the global fallback for bare calls in that namespace,
@@ -97,7 +102,7 @@ final class FunctionCalls
         }
 
         if ($tokens[$prev]['code'] === T_NS_SEPARATOR) {
-            return self::isGlobalQualifier($phpcsFile, $prev);
+            return self::isGlobalQualifier($phpcsFile, $prev, $stackPtr);
         }
 
         return self::isImportedFunctionName($phpcsFile, $stackPtr) === false;
@@ -118,34 +123,77 @@ final class FunctionCalls
     }
 
     /**
-     * Whether the T_NS_SEPARATOR at $separatorPtr is a bare leading separator
-     * qualifying the global namespace (`\foo()`), rather than the tail of a
-     * qualified name (`Acme\foo()`, `namespace\foo()`) or part of an
-     * instantiation (`new \foo()`, `new namespace\foo()`).
+     * Whether the name whose last separator sits at $separatorPtr reaches PHP's
+     * own function — both that it resolves to the global namespace, and that
+     * the construct is a call at all.
      *
-     * Only the first of those is a global function call. The `new` cases are
-     * the reason this looks two tokens back and not one: a leading qualifier
-     * hides the `T_NEW` from the preceder check.
+     * `\foo()` does; `Acme\foo()` names somebody else's function; and
+     * `namespace\foo()` does only where the namespace in force is the global
+     * one. Every exclusion is applied to the token in front of the *whole*
+     * name, qualifier included: qualifying a name changes which symbol it
+     * reaches, never what the construct is, so `new \foo()` and
+     * `new namespace\foo()` are the instantiations their bare spellings are.
+     * That is the reason this looks past the qualifier rather than one token
+     * back — a leading qualifier hides the `T_NEW` from the preceder check.
      */
-    private static function isGlobalQualifier(File $phpcsFile, int $separatorPtr): bool
+    private static function isGlobalQualifier(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
     {
+        $tokens = $phpcsFile->getTokens();
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
 
         if ($before === false) {
             return false;
         }
 
-        $code = $phpcsFile->getTokens()[$before]['code'];
-
-        if (in_array($code, [T_STRING, T_NAMESPACE], true) === true) {
+        if ($tokens[$before]['code'] === T_STRING) {
             return false;
         }
 
-        if ($code === T_NEW) {
+        $isRelative = ($tokens[$before]['code'] === T_NAMESPACE);
+        $preceder = $isRelative === true
+            ? $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true)
+            : $before;
+
+        if (
+            $preceder !== false
+            && in_array($tokens[$preceder]['code'], self::NON_CALL_PRECEDERS, true) === true
+        ) {
             return false;
+        }
+
+        if ($isRelative === true) {
+            return self::isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
         }
 
         return true;
+    }
+
+    /**
+     * Whether $stackPtr sits inside a *named* namespace, where a `namespace\`
+     * relative qualifier no longer reaches PHP's own function.
+     *
+     * The unnamed `namespace { … }` block is the global namespace, however many
+     * named blocks precede it in the file, so the block a call sits *in*
+     * decides — never whichever declaration happens to appear above it.
+     */
+    private static function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
+    {
+        $declarations = self::namespaceDeclarations($phpcsFile);
+        $block = self::namespaceBlockOf($declarations, $stackPtr);
+
+        return $block !== 0 && self::isNamedDeclaration($phpcsFile, $block);
+    }
+
+    /**
+     * Whether the `namespace` keyword at $namespacePtr names its namespace
+     * (`namespace Acme;`, `namespace Acme { … }`) rather than opening the
+     * global block (`namespace { … }`), which is followed by a brace.
+     */
+    private static function isNamedDeclaration(File $phpcsFile, int $namespacePtr): bool
+    {
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
+
+        return $after !== false && $phpcsFile->getTokens()[$after]['code'] === T_STRING;
     }
 
     /**
@@ -326,10 +374,17 @@ final class FunctionCalls
             ? self::commaEntries($phpcsFile, ($usePtr + 1), $endPtr)
             : self::groupEntries($phpcsFile, $groupOpener, $endPtr);
 
+        // A group's prefix carries the namespace for every entry inside the
+        // braces, so no entry of a group can source from the global namespace.
+        $prefixQualified = $groupOpener !== false;
         $names = [];
 
         foreach ($entries as [$start, $end]) {
             if ($isFunctionUse === false && self::isFunctionKeyword($phpcsFile, $start, $end) === false) {
+                continue;
+            }
+
+            if (self::bindsGlobalFunction($phpcsFile, $start, $end, $prefixQualified) === true) {
                 continue;
             }
 
@@ -340,15 +395,73 @@ final class FunctionCalls
     }
 
     /**
+     * Whether the entry spanning $start..$end imports PHP's own function under
+     * its own name — `use function json_encode;`, and the redundant
+     * `use function json_encode as json_encode;`.
+     *
+     * Such an import redirects nothing: the name it binds is the very function
+     * a bare call would reach anyway, so treating it as a redirect would
+     * silence every call in the file. An unqualified source under a *different*
+     * alias does bind another symbol (`use function tally as json_encode;`
+     * makes `json_encode()` call `tally`), and so is not one of these.
+     */
+    private static function bindsGlobalFunction(
+        File $phpcsFile,
+        int $start,
+        int $end,
+        bool $prefixQualified
+    ): bool {
+        if ($prefixQualified === true || $phpcsFile->findNext(T_NS_SEPARATOR, $start, $end) !== false) {
+            return false;
+        }
+
+        $source = self::sourceName($phpcsFile, $start, $end);
+
+        return $source !== '' && $source === self::boundName($phpcsFile, $start, $end);
+    }
+
+    /**
+     * The name an import entry reads *from*, which is its first name token.
+     *
+     * PHPCS tokenises the `function` keyword of an import as a plain T_STRING,
+     * so it has to be stepped over by content: it leads the statement in the
+     * no-group form and an individual entry in a mixed group.
+     */
+    private static function sourceName(File $phpcsFile, int $start, int $end): string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $namePtr = $phpcsFile->findNext(T_STRING, $start, $end);
+
+        if ($namePtr !== false && strtolower($tokens[$namePtr]['content']) === 'function') {
+            $namePtr = $phpcsFile->findNext(T_STRING, ($namePtr + 1), $end);
+        }
+
+        return $namePtr === false ? '' : strtolower($tokens[$namePtr]['content']);
+    }
+
+    /**
      * Whether the first meaningful token in $start..$end is the `function`
      * keyword. PHPCS tokenises it as a plain T_STRING in a `use` statement
      * rather than T_FUNCTION, so this reads the content, not the type.
+     *
+     * PHP 8 allows a reserved word as a name segment, so the content alone does
+     * not settle it: in `use Acme\{function\Collector, …}` the word names part
+     * of the namespace being imported from, and the entry is a class import.
+     * What tells the two apart is the token after it — a keyword prefixes the
+     * name it imports, a segment is followed by the separator to the next.
      */
     private static function isFunctionKeyword(File $phpcsFile, int $start, int $end): bool
     {
+        $tokens = $phpcsFile->getTokens();
         $first = $phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true);
 
-        return $first !== false && strtolower($phpcsFile->getTokens()[$first]['content']) === 'function';
+        if ($first === false || strtolower($tokens[$first]['content']) !== 'function') {
+            return false;
+        }
+
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($first + 1), $end, true);
+
+        return $after !== false && $tokens[$after]['code'] !== T_NS_SEPARATOR;
     }
 
     /**

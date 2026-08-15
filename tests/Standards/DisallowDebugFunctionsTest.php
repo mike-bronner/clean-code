@@ -50,6 +50,10 @@ it('flags every debug call at its own line', function (): void {
         5 => 1,
         6 => 1,
         7 => 1,
+        // `namespace\dump()` where no namespace is declared: the namespace in
+        // force is the global one, so the call reaches PHP's own function
+        // exactly as the leading-separator form on the next line does.
+        22 => 1,
         24 => 1,
         26 => 1,
         27 => 1,
@@ -77,6 +81,20 @@ it('flags every debug call an import did not bind', function (): void {
         14 => 1,
         15 => 1,
     ])->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The other half of the relative-qualifier rule. failing.php pins that
+ * `namespace\dump()` is PHP's own function where no namespace is declared; this
+ * pins that the same spelling is a different symbol once one is, and that the
+ * declaration is what makes the difference — a leading-separator call in the
+ * same file is still flagged.
+ */
+it('stays silent on a namespace-relative call inside a declared namespace', function (): void {
+    $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'namespace-relative.php');
+
+    expect(violationCountsByLine($file->getErrors()))->toBe([22 => 1])
+        ->and($file->getWarnings())->toBe([]);
 });
 
 it('reports detection-only violations', function (): void {

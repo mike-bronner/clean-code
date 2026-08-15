@@ -10,9 +10,15 @@ use Acme\Support\probeClassImport;
 use const Acme\Support\probeConstantImport;
 use function Acme\Support\probeAliasedAway as probeAliasTarget;
 use function Other\Space\probeOtherBlock;
+use Acme\{function\probeSegmentNamed, Collector};
 
 // Positive: nothing redirects a bare name, so it falls back to the global one.
 probeBare($value);
+
+// Positive: PHP 8 allows a reserved word as a name segment, so the `function`
+// above names part of the namespace imported *from* rather than prefixing the
+// entry. That entry is a class import, and binds no function name.
+probeSegmentNamed($value);
 
 // Positive: a leading separator qualifies the global namespace explicitly.
 \probeFullyQualified($value);

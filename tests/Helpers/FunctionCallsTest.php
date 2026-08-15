@@ -79,6 +79,9 @@ it('accepts a call that reaches PHP own global function', function (): void {
         'probeAliasTarget' => [false],
         // An import belongs to its own namespace block and no other.
         'probeOtherBlock' => [false, true],
+        // `function` as a name *segment* prefixes nothing: that entry imports a
+        // class, and a class import binds no function name.
+        'probeSegmentNamed' => [false, true],
         // A bare name nothing redirects.
         'probeBare' => [true],
         // A leading separator qualifies the global namespace.
@@ -90,6 +93,32 @@ it('accepts a call that reaches PHP own global function', function (): void {
         'probeInsideCapture' => [true, true],
         // A class body's `use` pulls in a trait, not a function.
         'probeInsideMethod' => [true],
+    ]);
+});
+
+/**
+ * Two verdicts depend on the namespace in force rather than on the tokens
+ * around the name, and both invert in the global namespace: `namespace\foo()`
+ * resolves to PHP's own function there, and an import that binds a global
+ * function under its own name redirects nothing. The other fixtures all sit
+ * inside `namespace App;`, so neither shape can be reached from them.
+ */
+it('resolves the shapes that depend on the namespace in force', function (): void {
+    $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'global-namespace.php'), 'probe');
+
+    expect($verdicts)->toBe([
+        // The import statements: a name being imported is never a call.
+        'probeSelfImport' => [false, true],
+        // The redundant `as` spelling names the same symbol twice.
+        'probeSelfSame' => [false, false, true],
+        'probeSourceRenamed' => [false],
+        // An unqualified source under a different alias binds that source, so
+        // the call reaches it rather than PHP's function of the name written.
+        'probeSelfAlias' => [false, false],
+        // `namespace\` against the global namespace is PHP's own function.
+        'probeRelativeGlobal' => [true],
+        // …but an instantiation stays an instantiation behind that qualifier.
+        'probeRelativeInstance' => [false],
     ]);
 });
 
