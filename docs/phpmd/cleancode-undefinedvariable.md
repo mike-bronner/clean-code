@@ -65,9 +65,12 @@ The sixth code, `UnusedVariable`, is neither this rule's nor excluded: an
 *unused* variable is not an undefined one, and the code carries PHPMD's
 `UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118),
 [docs](unusedcode-unusedlocalvariable.md)). PHPMD's
-`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120))
-shares that same code and is silenced by the `allowUnusedFunctionParameters`
-property until it lands.
+`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120),
+[docs](unusedcode-unusedformalparameter.md)) shares that same code, and stays
+silenced here by the `allowUnusedFunctionParameters` property: it ships through
+the custom sniff `CleanCode.DeadCode.UnusedFormalParameter` instead, so
+leaving the property `true` is what stops the two sniffs reporting the same
+unused parameter twice.
 
 ### Where the sniff and PHPMD differ
 
