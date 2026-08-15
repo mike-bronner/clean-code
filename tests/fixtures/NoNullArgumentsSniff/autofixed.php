@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff;
+namespace MikeBronner\CleanCode\Tests\Fixtures\NoNullArguments;
 
 class Route
 {
@@ -20,14 +20,14 @@ class Middleware
 
 // An attribute instantiates its class, so its arguments are the constructor's
 // — and the class is named outright, so the fix is safe.
-#[Route('/users', null)]
+#[Route('/users', name: null)]
 class UsersController
 {
 }
 
 // The same holds for each attribute in a group, including the ones that follow
 // a comma rather than the opening `#[`.
-#[Route('/admin', null), Middleware('auth', null)]
+#[Route('/admin', name: null), Middleware('auth', priority: null)]
 class AdminController
 {
 }
@@ -66,26 +66,26 @@ final class Notifier
     public function run(): void
     {
         // Method call on $this, plain and nullsafe.
-        $this->relay('body', null);
-        $this?->relay('body', null);
+        $this->relay('body', flag: null);
+        $this?->relay('body', flag: null);
 
         // Static call on a class declared in this file.
-        Mailer::make(null);
-        self::helper(null);
+        Mailer::make(name: null);
+        self::helper(level: null);
 
         // Late static binding, contained by the final class.
-        static::helper(null);
+        static::helper(level: null);
 
         // Constructor calls.
-        new Notifier(null);
-        new self(null);
+        new Notifier(mailer: null);
+        new self(mailer: null);
 
         // Multiple null arguments in a single call.
-        new Notifier(null, null);
+        new Notifier(mailer: null, channel: null);
 
         // A null that skips an optional parameter positioned before further
         // positional arguments.
-        new Notifier(null, 'sms');
+        new Notifier(mailer: null, channel: 'sms');
 
         // Not auto-fixable: the argument after the flagged null is unpacked
         // from a spread, so it cannot be given a name — whether it lands in a
@@ -139,21 +139,21 @@ class Extendable
 
         // Fixable: a private method is resolved in the scope that declares it,
         // so `$this->` reaches this one whatever a subclass declares.
-        $this->conceal(null);
+        $this->conceal(secret: null);
 
         // Reported, not fixable: `static::` binds to the subclass first and
         // only then checks visibility, so `private` does not protect it.
         static::hidden(null);
 
         // Fixable: a final method cannot be overridden at all.
-        $this->seal(null);
-        static::sealed(null);
+        $this->seal(lid: null);
+        static::sealed(lid: null);
 
         // Fixable even though the class is extendable: `self` is not
         // late-bound, so it names this class and reaches these declarations
         // whatever a subclass overrides.
-        self::relay('body', null);
-        new self(null);
+        self::relay('body', flag: null);
+        new self(tag: null);
     }
 
     public function relay(string $body, ?bool $flag = null): void
@@ -193,7 +193,7 @@ class SealedConstructor
 
     public static function make(): static
     {
-        return new static(null);
+        return new static(tag: null);
     }
 }
 
@@ -248,7 +248,7 @@ trait Builds
         return new class () {
             public function run(): void
             {
-                self::adjust(null);
+                self::adjust(knob: null);
             }
 
             public function adjust(?string $knob = null): void
@@ -267,7 +267,7 @@ enum Mode
 
     public function run(): void
     {
-        $this->target(null);
+        $this->target(mode: null);
     }
 
     public function target(?string $mode = null): void
@@ -284,7 +284,7 @@ class Factory
         return new class () {
             public function run(): void
             {
-                $this->adjust(null);
+                $this->adjust(knob: null);
             }
 
             public function adjust(?string $knob = null): void
@@ -299,4 +299,4 @@ function dispatch(string $to, ?int $retries = null): void
 }
 
 // Standalone function call.
-dispatch('a', null);
+dispatch('a', retries: null);

@@ -7,7 +7,7 @@ declare(strict_types=1);
 // has to stop at the block boundary: borrowing the other block's declaration
 // would judge the wrong signature and name the wrong parameter in the fix.
 
-namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff\First {
+namespace MikeBronner\CleanCode\Tests\Fixtures\NoNullArguments\First {
     class Signal
     {
         public function __construct(?string $label = null)
@@ -30,7 +30,7 @@ namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff\Fi
     }
 }
 
-namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff\Second {
+namespace MikeBronner\CleanCode\Tests\Fixtures\NoNullArguments\Second {
     class Signal
     {
         public function __construct(?string $tag)

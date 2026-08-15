@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\CleanCode\Tests\Standards\Fixtures\NoNullArgumentsSniff;
+namespace MikeBronner\CleanCode\Tests\Fixtures\NoNullArguments;
 
 /**
  * Declared before the namespace-level functions below so a name lookup that
