@@ -28,11 +28,13 @@ use PHP_CodeSniffer\Util\Tokens;
  * Each control structure whose level exceeds the maximum is reported at its own
  * line, so every excess nesting level is flagged individually. The rule applies
  * only inside a function/method body; an anonymous function (closure or arrow
- * function `fn`) inside a method still counts as a nesting level. Top-level
- * script code is out of scope. A nested *named* function declaration is not
- * counted: it defines a new named symbol rather than an inline block, is not
- * part of the standard's control-structure set, and cannot legally recur inside
- * a method body — it falls outside this rule.
+ * function `fn`) inside a method counts as a nesting level, both for itself and
+ * for whatever its body holds — the two forms are interchangeable to a reader,
+ * so they measure the same. Top-level script code is out of scope. A nested
+ * *named* function declaration is not counted: it defines a new named symbol
+ * rather than an inline block, is not part of the standard's control-structure
+ * set, and cannot legally recur inside a method body — it falls outside this
+ * rule.
  *
  * Not auto-fixable: reducing nesting requires a semantic refactor that cannot
  * be applied safely by a token rewriter.
@@ -53,12 +55,13 @@ class MethodNestingLevelSniff implements Sniff
      * depth. `T_CLOSURE` (`function () {}`) is included because a closure body
      * is a braced block whose statements PHPCS records as nested conditions.
      *
-     * Arrow functions (`T_FN`) are intentionally absent here: PHPCS does not
-     * record `T_FN` in the conditions of the tokens inside its single-expression
-     * body, so listing it would be inert. An over-nested arrow function is
-     * instead caught by registering `T_FN` (see register()), which reports the
-     * `fn` at its own depth — faithful to the visual model, since an inline
-     * `fn () => expr` adds no braced indent the way a closure block does.
+     * Arrow functions (`T_FN`) are absent here because listing them would be
+     * inert, not because they are worth nothing: PHPCS does not record `T_FN` in
+     * the conditions of the tokens inside its single-expression body — measured,
+     * a closure written inside `fn () => (function () { … })()` lists only
+     * `T_CLASS`, `T_FUNCTION` and the enclosing `T_IF`. An arrow function's level
+     * is therefore added by arrowFunctionDepth(), which reads the span PHPCS does
+     * record, and the `fn` itself is reported through register().
      *
      * @var array<int|string, true>
      */
@@ -84,9 +87,7 @@ class MethodNestingLevelSniff implements Sniff
      * construct whose opener (`if`/`try`) sits at the same level and is already
      * reported, so listing them would double-report one nesting level. Both
      * anonymous-function forms are listed — `T_CLOSURE` and `T_FN` — so an
-     * over-nested closure *or* arrow function is flagged at its own position;
-     * `T_FN` must be registered here (not counted via NESTING_TOKENS) because
-     * PHPCS never records it as a condition of its inline body.
+     * over-nested closure *or* arrow function is flagged at its own position.
      *
      * @return array<int|string>
      */
@@ -144,7 +145,7 @@ class MethodNestingLevelSniff implements Sniff
             }
         }
 
-        $level = 1;
+        $level = 1 + $this->arrowFunctionDepth($phpcsFile, $stackPtr, $conditions);
 
         foreach ($conditions as $conditionCode) {
             if (isset(self::NESTING_TOKENS[$conditionCode]) === true) {
@@ -162,5 +163,74 @@ class MethodNestingLevelSniff implements Sniff
             'MaxExceeded',
             [$level, self::MAX_NESTING_LEVEL]
         );
+    }
+
+    /**
+     * How many arrow functions enclose $stackPtr.
+     *
+     * Every other nesting token is counted off the token's own `conditions`,
+     * which PHPCS fills from the enclosing scopes. Arrow functions are the one
+     * form it leaves out: `fn` owns a scope, but the tokens inside its
+     * single-expression body do not list `T_FN` among their conditions. Measured
+     * rather than assumed — the closure in `fn () => (function () { … })()`
+     * reports conditions of `T_CLASS`, `T_FUNCTION`, `T_IF` and nothing else. So
+     * an arrow function's level has to be read off the one thing PHPCS does
+     * record for it, its `scope_opener`/`scope_closer` span: the arrow functions
+     * enclosing $stackPtr are those whose span covers it.
+     *
+     * Without this, `if { fn () => (function () { … })() }` and
+     * `if { function () { … } }` — the same shape to a reader, and both
+     * anonymous functions under the standard — would measure one level apart,
+     * and the deeper one would be the one that went unreported.
+     *
+     * The walk starts at the enclosing declaration's body rather than at the
+     * start of the file. An arrow function that encloses $stackPtr cannot open
+     * before the declaration $stackPtr sits in, so a whole-file walk would
+     * re-read the same tokens once per control structure to no purpose — this
+     * runs on every registered token in every method of every file scanned.
+     *
+     * @param array<int, int|string> $conditions The token's own conditions, pointer => code.
+     */
+    private function arrowFunctionDepth(File $phpcsFile, int $stackPtr, array $conditions): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $bodyStart = $this->declarationBodyStart($tokens, $conditions);
+        $depth = 0;
+        $pointer = $stackPtr;
+
+        while (($pointer = $phpcsFile->findPrevious(T_FN, $pointer - 1, $bodyStart)) !== false) {
+            if (
+                isset($tokens[$pointer]['scope_closer']) === true
+                && $tokens[$pointer]['scope_closer'] >= $stackPtr
+            ) {
+                $depth++;
+            }
+        }
+
+        return $depth;
+    }
+
+    /**
+     * The opening brace of the outermost named function enclosing the token —
+     * the lower bound of arrowFunctionDepth()'s walk.
+     *
+     * The *outermost* one, not the nearest enclosing scope: an arrow function is
+     * absent from `conditions`, so a bound taken from the nearest condition would
+     * sit inside an arrow function that opened earlier in the method and miss it.
+     * process() only reaches here for a token whose conditions contain a
+     * `T_FUNCTION`, so the search always finds one.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int|string>           $conditions
+     */
+    private function declarationBodyStart(array $tokens, array $conditions): int
+    {
+        foreach ($conditions as $pointer => $conditionCode) {
+            if ($conditionCode === T_FUNCTION && isset($tokens[$pointer]['scope_opener']) === true) {
+                return $tokens[$pointer]['scope_opener'];
+            }
+        }
+
+        return 0;
     }
 }
