@@ -34,8 +34,9 @@ bodies produce no false positives.
 ## Why not an existing sniff
 
 The candidate rules were evaluated against the full unit-test suite
-(`CleanCode/Tests/WhiteSpace/BlankLinesUnitTest.inc`, 25 violations, plus the
-open-tag fixtures `BlankLinesUnitTest.2.inc` / `.3.inc`, one violation each);
+(`tests/fixtures/BlankLinesSniff/failing.php`, 25 violations, plus the open-tag
+fixtures `after-open-tag-two-blanks.php` / `after-open-tag-three-blanks.php`,
+one violation each);
 the best available combination catches only 14 of the 25 in the main fixture
 (Squiz 3, Slevomat 11) and neither open-tag violation:
 
