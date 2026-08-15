@@ -187,6 +187,22 @@ class DisallowTypeIntrospectionSniff implements Sniff
     private array $functionScopes = [];
 
     /**
+     * Path of the file {@see $ternaryDecisions} was computed for, or null
+     * before the first computation. Memoised for the same reason as
+     * {@see $shadowedNamesFile}: one file is finished before the next begins.
+     */
+    private ?string $ternaryDecisionsFile = null;
+
+    /**
+     * Where a forward scan from each token of the file at
+     * {@see $ternaryDecisionsFile} resolves, keyed by token pointer (see
+     * {@see ternaryDecisions()}).
+     *
+     * @var array<int, int>
+     */
+    private array $ternaryDecisions = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -652,28 +668,71 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * An enclosing function-like scope caps that outward walk at its own end,
      * so a `?` belonging to the caller —
      * `array_filter($i, fn ($x) => $x instanceof Y) ? a : b` — is never
-     * mistaken for the arrow function's own ternary.
+     * mistaken for the arrow function's own ternary. The cap is applied to the
+     * resolved position rather than to the walk, which is the same answer: a
+     * walk stopped at the cap resolves nowhere before it.
      */
     private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?int $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
         $limit = $scope === null ? $phpcsFile->numTokens : $tokens[$scope]['scope_closer'];
+        $decision = $this->ternaryDecisions($phpcsFile)[$stackPtr + 1] ?? $phpcsFile->numTokens;
 
-        for ($i = ($stackPtr + 1); $i < $limit; $i++) {
-            $code = $tokens[$i]['code'];
+        return $decision < $limit
+            && $tokens[$decision]['code'] === T_INLINE_THEN;
+    }
 
-            if ($code === T_INLINE_THEN) {
-                return true;
-            }
-
-            if (in_array($code, self::EXPRESSION_TERMINATORS, true)) {
-                return false;
-            }
-
-            $i = $this->skipGroupForward($tokens, $i);
+    /**
+     * Where a forward scan starting at each token of the file resolves: the
+     * position of the first `?` or {@see EXPRESSION_TERMINATORS} member it
+     * reaches with balanced groups skipped whole, or the token count when it
+     * reaches the end of the file having resolved nothing.
+     *
+     * Built in one backward pass per file and memoised, for the same reason
+     * {@see functionScopes()} is. Every scan and every scan starting inside it
+     * end at the same token — the walk is forward-only, so from any position it
+     * passes through, the remaining walk is identical. Running it per
+     * introspection token therefore re-walked the same suffix once per token:
+     * on a chain the terminator list does not break — `$a instanceof X || $b
+     * instanceof Y || …`, where `||` is not a boundary and each check scans on
+     * to the statement's end — that is quadratic in the length of the chain,
+     * and a single generated or vendored file was enough to inflate this one
+     * sniff's cost superlinearly while every other sniff in the run stayed
+     * flat. Resolving each position from the one it continues to makes the
+     * whole file cost one pass.
+     *
+     * The pass runs backward because that is the direction the answers are
+     * already known in: the position a token continues to is always after it,
+     * so it has been resolved by the time the token is reached.
+     *
+     * @return array<int, int>
+     */
+    private function ternaryDecisions(File $phpcsFile): array
+    {
+        if ($this->ternaryDecisionsFile === $phpcsFile->getFilename()) {
+            return $this->ternaryDecisions;
         }
 
-        return false;
+        $tokens = $phpcsFile->getTokens();
+        $decisions = [];
+
+        for ($i = ($phpcsFile->numTokens - 1); $i >= 0; $i--) {
+            $code = $tokens[$i]['code'];
+
+            if ($code === T_INLINE_THEN || in_array($code, self::EXPRESSION_TERMINATORS, true)) {
+                $decisions[$i] = $i;
+
+                continue;
+            }
+
+            $continuation = ($this->skipGroupForward($tokens, $i) + 1);
+            $decisions[$i] = $decisions[$continuation] ?? $phpcsFile->numTokens;
+        }
+
+        $this->ternaryDecisionsFile = $phpcsFile->getFilename();
+        $this->ternaryDecisions = $decisions;
+
+        return $decisions;
     }
 
     /**

@@ -248,6 +248,88 @@ it('does not treat a name declared as a function in the file as the global one',
     expect(violationTuples($file))->toBe($expected);
 });
 
+/**
+ * The ternary check resolves each token by walking forward until it meets a `?`
+ * or an expression boundary, and a boolean chain is made of neither: `||` ends
+ * no expression, so every check in `$a instanceof X || $b instanceof Y || …`
+ * used to walk on to the statement's own end, once per check. That is quadratic
+ * in the length of the chain, and nothing in rules.xml, the workflow, or PHPCS
+ * itself bounds a file's length — one generated or accidentally-linted vendor
+ * file was enough to inflate this one sniff superlinearly while every other
+ * sniff in the same run stayed flat.
+ *
+ * Both endings are measured, because they are different exits from the same
+ * walk: the ternary chain resolves at the `?` (and is reported, at every link),
+ * the plain chain resolves at the `;` (and is silent, being a predicate the
+ * caller branches on). A fix that bounded only the reported path would leave
+ * the other quadratic.
+ *
+ * An asymptotic fix has no observable but time, so the budget sits an order of
+ * magnitude above the measured cost rather than near it. Measured in this
+ * harness at 2400 links per chain: 6.913s before the walk was resolved once per
+ * file, 0.196s after — and 0.480s / 1.768s before at 600 / 1200, the ~4x per
+ * doubling that names the growth as quadratic, against 0.054s / 0.095s after,
+ * which is the 2x that names it linear. A 2.0s cap leaves a slow runner 10x
+ * room while still failing the quadratic walk by 3.4x.
+ *
+ * The violation assertion is what stops the timing from passing vacuously: a
+ * file the tokenizer gives up on is both fast and silent, and so is a sniff
+ * that stopped reporting. Every link of the ternary chain is pinned, not a
+ * count. The ruleset is built before the clock starts so the first parse of
+ * rules.xml is not charged to the measurement.
+ */
+it('stays linear on long boolean chains of checks', function (): void {
+    $links = 2400;
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'final class Chain', '{'];
+    $lines[] = '    public function decide(object $value): string';
+    $lines[] = '    {';
+
+    $chainStart = count($lines) + 1;
+    $lines[] = '        return $value instanceof Thing';
+
+    for ($link = 1; $link < $links; $link++) {
+        $lines[] = '            || $value instanceof Thing';
+    }
+
+    $lines[] = '            ? \'a\'';
+    $lines[] = '            : \'b\';';
+    $lines[] = '    }';
+    $lines[] = '';
+    $lines[] = '    public function describe(object $value): bool';
+    $lines[] = '    {';
+    $lines[] = '        return $value instanceof Thing';
+
+    for ($link = 1; $link < $links; $link++) {
+        $lines[] = '            || $value instanceof Thing';
+    }
+
+    $lines = array_merge($lines, ['            || $value instanceof Other;', '    }', '}', '']);
+    $fixture = stageGeneratedFixture('boolean-chain.php', implode("\n", $lines));
+
+    buildRuleset([TYPE_INTROSPECTION_SNIFF]);
+
+    $started = hrtime(true);
+    $file = analyzeWithSniffs([TYPE_INTROSPECTION_SNIFF], $fixture);
+    $elapsed = (hrtime(true) - $started) / 1e9;
+
+    $expected = [];
+
+    // Every link reports at the same column: the chain's first line indents by
+    // 8 and spends `return `, each later line indents by 12 and spends `|| `,
+    // which puts `$value` — and so `instanceof` — in the same place on both.
+    for ($link = 0; $link < $links; $link++) {
+        $expected[] = [
+            'line' => $chainStart + $link,
+            'column' => 23,
+            'source' => TYPE_INTROSPECTION_INSTANCEOF,
+        ];
+    }
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($file->getWarnings())->toBe([])
+        ->and($elapsed)->toBeLessThan(2.0);
+});
+
 it('reports every violation as non-fixable', function (string $fixture): void {
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, $fixture);
 
