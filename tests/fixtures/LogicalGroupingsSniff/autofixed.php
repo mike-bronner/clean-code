@@ -264,4 +264,52 @@ from t"
             $this->grant();
         }
     }
+
+    public function mixedArrowOperandUntouched(): void
+    {
+        // An arrow function *mixed with* real conditions, rather than filling
+        // the group on its own: the group is a group (the `&&` before `fn` is
+        // its own), so the fixer does run here — and it must still move only
+        // the two real conditions. The body of the `fn` swallows everything
+        // after `=>`, so its wrapped continuation is not one of them and
+        // appears identically in the fixed output.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && fn (): bool => $this->hasLicense
+                    && $this->isTrial
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function concatenatedGroupIndented(): void
+    {
+        // A grouping directly after `.` is still a grouping. No other sniff in
+        // the ruleset flags its indentation, so if `.` is not read as a place
+        // an operand may begin, this misindentation ships unreported.
+        if (
+            $this->prefix . (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function assignedGroupIndented(): void
+    {
+        // Same, for a grouping directly after `=`.
+        if (
+            $this->granted = (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

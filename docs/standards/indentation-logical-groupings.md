@@ -40,10 +40,13 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   touched, so there are no false positives.
 
   Detection recognises groupings rather than excluding calls, and that direction
-  is deliberate. A parenthesis can only open a grouping where a new expression
-  may begin: directly after a boolean, comparison, arithmetic or cast operator,
-  after `!`, after a ternary arm, inside an enclosing `(`, or after a `for`
-  clause separator. Everything else is an operand belonging to whatever precedes
+  is deliberate. A parenthesis can only open a grouping where a new operand may
+  begin: directly after an operator (boolean, comparison, arithmetic,
+  assignment, concatenation or cast), after `!`, after a ternary arm, after an
+  opening delimiter such as `(` or `[`, or after a `,`/`;` separator. Each of
+  those operator classes is taken from PHP_CodeSniffer entire rather than
+  member by member, so the set cannot end up complete except for the one token
+  nobody thought of. Everything else is an operand belonging to whatever precedes
   it, and is skipped whole — a function, method, or constructor argument list, a
   `new class(…)` argument list, a `match` subject, a closure or arrow-function
   parameter list. Asking the opposite question ("is this a call?") would need an
@@ -57,7 +60,16 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   of a multi-line string, heredoc, or nowdoc. The last matters most — PHP_CodeSniffer
   splits such a literal into one token per physical line, and each of those
   tokens begins a line, so measuring them would report violations and reindenting
-  one would rewrite the string's value rather than the code's layout.
+  one would rewrite the string's value rather than the code's layout. The two
+  walks that read a grouping — the one deciding whether a parenthesis opens one,
+  and the one measuring the conditions inside it — share a single list of the
+  constructs to step over, so a construct can never be recognised by one and
+  missed by the other.
+- **Cost** — a group is measured from its own direct tokens, stepping over each
+  nested construct in one jump rather than walking through it, so the work is
+  linear in the size of the condition however deeply its groups nest. This
+  package runs inside other projects' lint pipelines, where a pathological file
+  costs somebody else's CI.
 - **Auto-fixer** — `phpcbf` reindents each offending condition line to the
   correct nesting level; the resulting file passes the sniff with zero
   violations.

@@ -267,4 +267,51 @@ from t"
             $this->grant();
         }
     }
+
+    public function mixedArrowOperandIgnored(): void
+    {
+        // An arrow function mixed with real conditions: the group qualifies as
+        // a group here (the `&&` before `fn` belongs to it), so unlike
+        // arrowOperandIgnored above, this group *is* measured. Its body still
+        // is not: everything after `=>` is one operand, so the deliberately
+        // odd continuation indent below must not be flagged as a misaligned
+        // condition of the enclosing group.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && fn (): bool => $this->hasLicense
+                        && $this->isTrial
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function concatenatedGroupIgnored(): void
+    {
+        // A grouping after `.` is a grouping, so the compliant form has to be
+        // left alone as much as the misindented one has to be flagged.
+        if (
+            $this->prefix . (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function assignedGroupIgnored(): void
+    {
+        // Same, for a grouping after `=`.
+        if (
+            $this->granted = (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

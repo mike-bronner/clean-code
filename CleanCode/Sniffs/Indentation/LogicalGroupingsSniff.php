@@ -42,6 +42,30 @@ class LogicalGroupingsSniff implements Sniff
     private const INDENT = 4;
 
     /**
+     * Every token that opens a region whose interior belongs to a nested
+     * construct rather than to the grouping being measured, mapped to the
+     * token-array key holding its closer.
+     *
+     * One list, read by both walks in this class, so a construct can never be
+     * skipped by the walk that decides what a grouping is and missed by the
+     * walk that measures one — the drift that let an arrow-function body be
+     * reindented after `T_FN` was added to only the first of the two.
+     *
+     * An arrow function is here because its body — everything after `=>` — has
+     * no bracket delimiter, so without the scope closer the body's tokens read
+     * as though they belonged to the enclosing grouping.
+     *
+     * @var array<int|string, string>
+     */
+    private const NESTED_REGION_CLOSERS = [
+        T_OPEN_PARENTHESIS => 'parenthesis_closer',
+        T_OPEN_SHORT_ARRAY => 'bracket_closer',
+        T_OPEN_SQUARE_BRACKET => 'bracket_closer',
+        T_OPEN_CURLY_BRACKET => 'bracket_closer',
+        T_FN => 'scope_closer',
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -124,10 +148,10 @@ class LogicalGroupingsSniff implements Sniff
      * `T_EXIT`, `T_ISSET`, each name token, … — and every name missing from
      * that list becomes a false positive on valid code. The grouping side is a
      * closed set instead: a grouping parenthesis can only appear where a new
-     * expression may begin, which is directly after an operator, a `!`, a
-     * ternary arm, an enclosing `(`, or a `for` clause separator. Anything
-     * else — including any token this sniff has never heard of — is therefore
-     * not a grouping, so an unrecognised construct is left alone rather than
+     * operand may begin, which is directly after an operator, a `!`, a ternary
+     * arm, an opening delimiter, or a `,`/`;` separator. Anything else —
+     * including any token this sniff has never heard of — is therefore not a
+     * grouping, so an unrecognised construct is left alone rather than
      * reindented.
      */
     private function opensGrouping(File $phpcsFile, int $parenPtr): bool
@@ -139,14 +163,26 @@ class LogicalGroupingsSniff implements Sniff
             return false;
         }
 
+        // Whole PHP_CodeSniffer token sets, never a hand-picked subset of one:
+        // an operand may begin after any operator (arithmetic, comparison,
+        // boolean, assignment, concatenation, cast, negation), after any
+        // opening delimiter, after either separator, and after either ternary
+        // arm. Taking each class entire is what stops the set from being
+        // "complete except for the member nobody thought of".
         $expressionStarters = Tokens::$booleanOperators
             + Tokens::$comparisonTokens
             + Tokens::$operators
             + Tokens::$castTokens
+            + Tokens::$assignmentTokens
             + [
+                T_STRING_CONCAT => T_STRING_CONCAT,
                 T_BOOLEAN_NOT => T_BOOLEAN_NOT,
                 T_OPEN_PARENTHESIS => T_OPEN_PARENTHESIS,
+                T_OPEN_SHORT_ARRAY => T_OPEN_SHORT_ARRAY,
+                T_OPEN_SQUARE_BRACKET => T_OPEN_SQUARE_BRACKET,
+                T_OPEN_CURLY_BRACKET => T_OPEN_CURLY_BRACKET,
                 T_SEMICOLON => T_SEMICOLON,
+                T_COMMA => T_COMMA,
                 T_INLINE_THEN => T_INLINE_THEN,
                 T_INLINE_ELSE => T_INLINE_ELSE,
             ];
@@ -182,34 +218,32 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
-     * If the token opens a nested paren/bracket/brace — or is an arrow function
-     * whose body has no bracket delimiter — returns its matching closer (or
-     * scope closer) so the caller can jump past the nested region; otherwise
-     * returns the pointer unchanged.
+     * If the token opens a nested region, returns the pointer to that region's
+     * closer so the caller can jump past it in one step; otherwise returns the
+     * pointer unchanged.
+     *
+     * Jumping rather than counting depth is what keeps both walks linear: a
+     * group's walk touches only its own direct tokens, so n nested groups cost
+     * n walks of their own contents instead of n overlapping rescans of the
+     * whole condition.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function skipNested(array $tokens, int $i): int
     {
-        if ($tokens[$i]['code'] === T_OPEN_PARENTHESIS && isset($tokens[$i]['parenthesis_closer'])) {
-            return $tokens[$i]['parenthesis_closer'];
+        $closerKey = self::NESTED_REGION_CLOSERS[$tokens[$i]['code']] ?? null;
+
+        if ($closerKey === null) {
+            return $i;
         }
 
-        $bracketed = [T_OPEN_SHORT_ARRAY, T_OPEN_SQUARE_BRACKET, T_OPEN_CURLY_BRACKET];
+        $closer = ($tokens[$i][$closerKey] ?? $i);
 
-        if (in_array($tokens[$i]['code'], $bracketed, true) === true && isset($tokens[$i]['bracket_closer'])) {
-            return $tokens[$i]['bracket_closer'];
-        }
-
-        if ($tokens[$i]['code'] === T_FN && isset($tokens[$i]['scope_closer']) === true) {
-            // An arrow function's body (everything after `=>`) has no bracket
-            // delimiter, so a boolean operator inside it would otherwise be
-            // read as belonging to the enclosing grouping. The whole `fn` is a
-            // single operand — skip past its body to its scope closer.
-            return $tokens[$i]['scope_closer'];
-        }
-
-        return $i;
+        // Both callers advance to whatever this returns, so a closer that did
+        // not come after its opener would send the walk backwards and around
+        // again. PHP_CodeSniffer does not produce one, which is exactly why
+        // the walk must not depend on it never doing so.
+        return ($closer > $i ? $closer : $i);
     }
 
     /**
@@ -266,10 +300,8 @@ class LogicalGroupingsSniff implements Sniff
     private function directConditionLines(File $phpcsFile, int $groupOpen, int $groupClose): array
     {
         $tokens = $phpcsFile->getTokens();
-        $openers = [T_OPEN_PARENTHESIS, T_OPEN_SHORT_ARRAY, T_OPEN_SQUARE_BRACKET, T_OPEN_CURLY_BRACKET];
-        $closers = [T_CLOSE_PARENTHESIS, T_CLOSE_SHORT_ARRAY, T_CLOSE_SQUARE_BRACKET, T_CLOSE_CURLY_BRACKET];
         $lines = [];
-        $depth = 0;
+        $previousLine = $tokens[$groupOpen]['line'];
         $spannedThroughLine = 0;
 
         for ($i = ($groupOpen + 1); $i < $groupClose; $i++) {
@@ -293,21 +325,30 @@ class LogicalGroupingsSniff implements Sniff
                 $line + substr_count($tokens[$i]['content'], "\n")
             );
 
-            $isCloser = in_array($tokens[$i]['code'], $closers, true);
-
-            if ($isCloser === true) {
-                $depth--;
-            }
-
-            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($i - 1), null, true);
-            $isLineStart = $previous === false || $tokens[$previous]['line'] !== $tokens[$i]['line'];
-
-            if ($isLineStart === true && $isContinuation === false && $depth === 0 && $isCloser === false) {
+            if ($line !== $previousLine && $isContinuation === false) {
                 $lines[] = $i;
             }
 
-            if (in_array($tokens[$i]['code'], $openers, true) === true) {
-                $depth++;
+            $previousLine = $line;
+            $skipTo = $this->skipNested($tokens, $i);
+
+            if ($skipTo !== $i) {
+                // The region's interior belongs to a nested construct, so it
+                // is measured — if at all — by that construct's own group, not
+                // this one. Landing on the closer also puts the next line-start
+                // test against the line the region ended on.
+                $previousLine = $tokens[$skipTo]['line'];
+                $i = $skipTo;
+
+                continue;
+            }
+
+            if (isset(self::NESTED_REGION_CLOSERS[$tokens[$i]['code']]) === true) {
+                // A region opener whose closer PHP_CodeSniffer never recorded
+                // (unbalanced or unparsable source) leaves the walk unable to
+                // tell nested tokens from this group's own. Stop measuring
+                // rather than report or reindent a line that may be neither.
+                return $lines;
             }
         }
 

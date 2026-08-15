@@ -81,6 +81,15 @@ it('flags every violation at its exact line, column, and code', function (): voi
         // multiLineStringOperandUntouched — line 260 is string content, not a condition
         ['line' => 259, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 261, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // mixedArrowOperandUntouched — the two real conditions only; line 281 is the fn's body
+        ['line' => 279, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 280, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // concatenatedGroupIndented — a grouping after `.`
+        ['line' => 295, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 296, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // assignedGroupIndented — a grouping after `=`
+        ['line' => 308, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 309, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -119,6 +128,80 @@ it('derives the expected indent from the immediate parent group', function (): v
  * sniff has no business moving. Comparing the two fixtures line by line is
  * what proves none of that happened.
  */
+/**
+ * Nesting cost has to stay linear in the number of groups.
+ *
+ * Each nested group is checked in its own right, so a walk that measured a
+ * group by stepping through every token between its parentheses would rescan
+ * the whole condition once per level: n groups, n overlapping rescans,
+ * quadratic. That is not a style problem here — this package is installed into
+ * downstream lint pipelines that run over contributed code, so the cost of one
+ * ordinary-looking file is CI CPU somebody else pays for.
+ *
+ * The two implementations are a factor of ~17 apart at this depth — 0.06s for
+ * the walk that jumps nested regions against 0.96s for the walk that stepped
+ * through them, both measured in-process here — so the budget can sit an order
+ * of magnitude above the linear time and still an order below the quadratic
+ * one. That is what a single absolute threshold needs to be safe on a machine
+ * of unknown speed, since both numbers scale together with the machine.
+ *
+ * The depth is capped at 600 by PHP_CodeSniffer itself, not by taste: past
+ * roughly a thousand levels its tokenizer exhausts PHP's default 128M limit
+ * while building the file, and a regression test that only runs under a raised
+ * memory_limit is one nobody runs.
+ *
+ * The tuple assertion is what stops the timing passing vacuously: a walk that
+ * gave up early, or a tokenizer that never got that far, would be both fast
+ * and silent.
+ */
+it('stays linear as groupings nest', function (): void {
+    $depth = 600;
+    $lines = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {', '        if ('];
+
+    for ($level = 0; $level < $depth; $level++) {
+        // Every group but the outermost opens its first condition two spaces
+        // shallow, so each level contributes exactly one violation.
+        $indent = (12 + (4 * $level));
+        $lines[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
+        $lines[] = str_repeat(' ', $indent) . '&& (';
+    }
+
+    $lines[] = str_repeat(' ', ((12 + (4 * $depth)) - 2)) . '$this->first';
+    $lines[] = str_repeat(' ', (12 + (4 * $depth))) . '&& $this->second';
+
+    for ($level = ($depth - 1); $level >= 0; $level--) {
+        $lines[] = str_repeat(' ', (12 + (4 * $level))) . ')';
+    }
+
+    $lines = array_merge($lines, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
+    $fixture = stageGeneratedFixture('nested-groupings.php', implode("\n", $lines));
+
+    buildRuleset([LOGICAL_GROUPINGS]);
+
+    $started = hrtime(true);
+    $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
+    $elapsed = ((hrtime(true) - $started) / 1e9);
+
+    $expected = [];
+
+    for ($level = 1; $level < $depth; $level++) {
+        $expected[] = [
+            'line' => (8 + (2 * $level)),
+            'column' => ((4 * $level) + 11),
+            'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
+        ];
+    }
+
+    $expected[] = [
+        'line' => (8 + (2 * $depth)),
+        'column' => ((4 * $depth) + 11),
+        'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
+    ];
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($elapsed)->toBeLessThan(0.5);
+});
+
 it('moves the reported condition lines and nothing else', function (): void {
     $before = file(fixturePath('LogicalGroupingsSniff', 'failing.php'));
     $after = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
