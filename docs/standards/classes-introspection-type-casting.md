@@ -86,7 +86,9 @@ The standard is therefore enforced by the custom
     (`new get_class()`): PHP keeps class and function names in separate symbol
     tables, so the name after `new` is always the class. A root-namespaced
     `\get_class()` *is* the global function — an explicit qualifier outranks
-    any import — and is flagged.
+    any import — and is flagged. `new` outranks the qualifier in turn:
+    `new \get_class()` builds the global namespace's class of that name and is
+    not flagged, because no spelling of a name makes `new` a function call.
   - **First-class callables** — `array_map(get_class(...), $values)`. The
     `name(...)` syntax builds a `Closure` referring to the function rather than
     calling it, so nothing is introspected where it is written; like a callback

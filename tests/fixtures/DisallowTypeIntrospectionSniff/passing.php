@@ -138,6 +138,25 @@ final class Reporter
     }
 
     /**
+     * `new` still reaches a class when the class is named root-qualified. The
+     * keyword governs the name however the name is spelled, so the leading `\`
+     * changes which class is built — one declared in the global namespace
+     * rather than in this file's — and changes nothing about `new` not being a
+     * function call.
+     *
+     * The two branch positions are the same pair `byConstructorCall()` uses,
+     * because the spelling is the only difference being pinned here.
+     */
+    public function byRootQualifiedConstructorCall(object $value): string
+    {
+        if (new \get_class($value)) {
+            return 'thing';
+        }
+
+        return new \gettype($value) ? 'thing' : 'other';
+    }
+
+    /**
      * A constant sharing an introspection function's name is not a call.
      */
     public function byConstant(): string
@@ -337,6 +356,12 @@ final class Reporter
  * function is legal PHP — the two live in separate symbol tables — which is
  * why `new name(` has to be read as a constructor call and not as the
  * introspection function of that name.
+ *
+ * `byRootQualifiedConstructorCall()` names the global namespace's classes of
+ * the same names instead, which this file cannot also declare — it declares one
+ * namespace, and these are in it. That changes nothing the sniff reads: it
+ * resolves no class, and the `new` in front of the name is the whole of what
+ * makes either form a constructor call.
  */
 final class get_class
 {

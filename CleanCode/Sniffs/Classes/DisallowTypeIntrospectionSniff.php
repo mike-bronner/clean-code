@@ -254,6 +254,15 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * that name: followed by `(`, actually calling rather than referencing,
      * and not qualified as a method, a class member, a `new` target, a
      * declaration, another namespace's function, or a name the file shadows.
+     *
+     * {@see NOT_A_GLOBAL_CALL} is tested against the token before the *whole*
+     * qualified name rather than the token before $stackPtr, because what
+     * precedes the name governs the name however it is spelled. Reading only
+     * the immediate predecessor made `new \get_class()` escape the `new` case
+     * entirely — the token before that name is the separator, not the keyword —
+     * and the qualifier branch below then read the `new` as "no qualifying
+     * segment", i.e. as the global function. The keyword is the same keyword in
+     * every spelling, so it is resolved before the spelling is examined.
      */
     private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
@@ -269,19 +278,23 @@ class DisallowTypeIntrospectionSniff implements Sniff
             return false;
         }
 
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+        $nameStart = $this->qualifiedNameStart($phpcsFile, $stackPtr);
+        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($nameStart - 1), null, true);
 
         if ($prev !== false && in_array($tokens[$prev]['code'], self::NOT_A_GLOBAL_CALL, true)) {
             return false;
         }
 
-        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
+        if ($nameStart !== $stackPtr) {
             // `\get_class()` is the global function, and an explicit qualifier
-            // outranks any import; `Vendor\get_class()` is a different one.
-            $qualifier = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
+            // outranks any import; `Vendor\get_class()` and
+            // `namespace\get_class()` are different ones. The name starts at a
+            // separator only when nothing qualifies it, so a leading separator
+            // directly before the name is the root-qualified form.
+            $qualified = $phpcsFile->findNext(Tokens::$emptyTokens, ($nameStart + 1), null, true);
 
-            return $qualifier === false
-                || in_array($tokens[$qualifier]['code'], [T_NAMESPACE, T_STRING], true) === false;
+            return $tokens[$nameStart]['code'] === T_NS_SEPARATOR
+                && $qualified === $stackPtr;
         }
 
         // An unqualified name falls back to the global function only when the
@@ -291,6 +304,41 @@ class DisallowTypeIntrospectionSniff implements Sniff
             $this->shadowedNames($phpcsFile),
             true
         ) === false;
+    }
+
+    /**
+     * The first token of the qualified name ending at $stackPtr — its leading
+     * `\` when it has one, its first segment otherwise, and $stackPtr itself
+     * when the name is unqualified.
+     *
+     * Walking the whole name is what lets a caller ask about the construct the
+     * name belongs to rather than about its last segment: `new`, `::`, `->` and
+     * `function` all sit before the first token of the name, however many
+     * segments follow.
+     */
+    private function qualifiedNameStart(File $phpcsFile, int $stackPtr): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $start = $stackPtr;
+
+        while (true) {
+            $separator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
+
+            if ($separator === false || $tokens[$separator]['code'] !== T_NS_SEPARATOR) {
+                return $start;
+            }
+
+            $segment = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separator - 1), null, true);
+
+            if (
+                $segment === false
+                || in_array($tokens[$segment]['code'], [T_NAMESPACE, T_STRING], true) === false
+            ) {
+                return $separator;
+            }
+
+            $start = $segment;
+        }
     }
 
     /**
