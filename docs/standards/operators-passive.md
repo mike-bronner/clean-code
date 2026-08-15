@@ -46,25 +46,34 @@ fix is withheld only when closing the gap would fuse the sign into a
 and `+ +$a` → `++$a` are left untouched. A cross-direction pair does not fuse
 (`- ++$a` → `-++$a`, `+ --$a` → `+--$a`), so those are still flagged and fixed.
 
-### Ceded to PSR12 — out of scope
+### Nothing is ceded — how the collision was resolved
 
-The master ruleset also wires in `PSR12.Operators.OperatorSpacing`, which
-governs **binary** `+`/`-` and *requires* a space around them. In two contexts
-the two rules would disagree — this sniff would strip a space PSR12 immediately
-re-adds, so `phpcbf` could never converge. To avoid that oscillation, this
-standard **cedes both contexts to PSR12** and does not enforce flush spacing
-there:
+Binary `+`/`-` spacing is enforced by a separate rule: the *Arrays: Operator
+spacing & line breaks* standard (#35) requires exactly one space around a binary
+operator. Both rules are auto-fixable, so wherever the two disagree about
+whether a given sign is unary or binary, one fixer strips a space the other
+re-adds, `phpcbf` never reaches a fixed point, and it abandons the **whole
+file** (exit 2).
 
-- **A bare `+`/`-` sign immediately after `@`** (`@ -$a`). Removing the space
-  yields `@-$a`, whose `-` PSR12 reads as binary and re-spaces. (`@` before any
-  other operand — `@ func()`, `@ --$a` — is still enforced.)
-- **A `+`/`-` sign immediately after an open tag** — `<?= -$x ?>`, or a bare
-  sign at the very start of a `<?php` block. PSR12 reads a sign right after an
-  open tag as binary and forces a space around it, so template-context signs are
-  governed by PSR12.
+Four contexts diverged: a sign after `@`, after `;`, after `<?php`, and after
+`<?=`. In each, no value can precede the sign, so it is unambiguously unary —
+but PHPCS's bundled `Squiz.WhiteSpace.OperatorSpacing` reads it as binary.
 
-Enforcing flush signs in these contexts would require taming or replacing
-PSR12's `OperatorSpacing` — a separate, larger piece of work, out of scope here.
+Rather than narrow this standard, the collision is resolved at the ruleset
+level. `rules.xml` wires in `CleanCode.Operators.BinaryOperatorSpacing` — that
+Squiz sniff subclassed, with the same checks, message codes and properties, and
+its unary detection corrected — which cedes those four contexts. Every sign
+therefore has exactly one owner, and this standard enforces flush passive
+operators **everywhere**, template context (`<?= -$total ?>`) and error control
+(`@-$a`) included.
+
+The four contexts are not a hand-kept list. `tests/Standards/BinaryOperatorSpacingTest.php`
+derives the divergence between the two sniffs' operand detection from the
+classes themselves and fails if either side gains a context the other does not
+account for, so the collision is closed as a class rather than one surface at a
+time. `tests/Ruleset/OperatorsPassiveTest.php` additionally drives the real
+`phpcbf` binary over the real master ruleset and asserts it reaches a stable
+fixed point on every one of them.
 
 ### Existing sniffs — the rest
 

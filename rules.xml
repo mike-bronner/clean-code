@@ -383,8 +383,29 @@
         (#56) — a deliberate overlap: the same newline breaks both standards,
         and the #56 auto-fix (joining the operands onto one line) satisfies
         both. Pinned by tests/Integration/OperatorRulesIntegrationTest.php.
+
+        The binary-operator half is carried by CleanCode.Operators.
+        BinaryOperatorSpacing rather than Squiz.WhiteSpace.OperatorSpacing
+        directly. It is that sniff — same checks, same message codes, same two
+        properties — with its unary-sign detection corrected, and it is
+        configured here rather than arriving bare via ./CleanCode/ruleset.xml
+        because these two properties are what #35 asks for.
+
+        The correction is what makes Operators: Passive (#64, below) possible.
+        The parent reads a `+`/`-` after `;`, after an open tag, or after `@` as
+        a *binary* operator and inserts a space; the passive standard reads the
+        same sign as unary and removes one. Wired together unchanged, the two
+        fixers undo each other and phpcbf abandons the whole file (exit 2) on
+        template code as ordinary as `<?= -$total ?>`.
+        The subclass cedes those four contexts so every sign has exactly one
+        owner. See CleanCode/Sniffs/Operators/BinaryOperatorSpacingSniff.php.
+
+        Swapping the ref does not widen or narrow what #35 enforces: the
+        register() sets and message codes are inherited untouched, which
+        tests/Standards/BinaryOperatorSpacingTest.php asserts against the
+        parent class directly.
     -->
-    <rule ref="Squiz.WhiteSpace.OperatorSpacing">
+    <rule ref="CleanCode.Operators.BinaryOperatorSpacing">
         <properties>
             <property name="ignoreNewlines" value="true"/>
             <!-- Enforce a space before assignment too; the standard wants 1
@@ -2103,15 +2124,15 @@
         does NOT apply: it deliberately skips unary +/-, so it flags none of
         these operators.
 
-        Interaction with the pre-wired PSR12 (above): PSR12.Operators.OperatorSpacing
-        governs *binary* +/- and requires a space around them. Wherever a
-        passive +/- (or an @ before a bare sign) sits next to something PSR12
-        reads as a binary operator, the custom sniff must NOT strip a space
-        PSR12 will re-add, or phpcbf oscillates and fails to converge. The
-        sniff therefore cedes to PSR12 the two contexts where they would
-        disagree — a bare +/- sign immediately after `@`, and a sign
-        immediately after an open tag (`<?= -$x ?>`) — leaving those out of
-        this standard's scope. See docs/standards/operators-passive.md.
+        Interaction with binary-operator spacing (#35, above): that standard
+        wants a space around a *binary* +/-, this one wants none around a
+        *unary* +/-, so the whole standard rests on the two sniffs agreeing on
+        which is which. They do not agree out of the box — the four contexts
+        where they diverge are ceded by CleanCode.Operators.BinaryOperatorSpacing,
+        which exists for that purpose and is wired in above for #35. Nothing is
+        ceded in the other direction: this standard enforces flush signs
+        everywhere, template context (`<?= -$total ?>`) and error control
+        (`@-$a`) included. See docs/standards/operators-passive.md.
     -->
     <rule ref="Generic.WhiteSpace.IncrementDecrementSpacing"/>
     <rule ref="Squiz.WhiteSpace.ObjectOperatorSpacing">

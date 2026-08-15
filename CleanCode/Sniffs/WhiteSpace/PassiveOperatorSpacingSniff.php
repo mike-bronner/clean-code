@@ -76,14 +76,12 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         if ($code === T_ASPERAND) {
-            // Guard `@` against an operand that begins with a bare `+`/`-` sign:
-            // stripping the space in `@ -$a` yields `@-$a`, whose `-` the
-            // wired-in PSR12.Operators.OperatorSpacing then reads as a *binary*
-            // operator and re-spaces — the two fixers oscillate and phpcbf never
-            // converges. `@-$a` is not representable under PSR12 anyway, so this
-            // case is ceded to PSR12 and left untouched. An increment/decrement
-            // operand (`@ --$a` → `@--$a`) does not collide and is still fixed.
-            $this->reportSpaceAfter($phpcsFile, $stackPtr, 'ErrorControl', '@', [T_PLUS, T_MINUS]);
+            // No guard: `@` fuses with nothing. A sign operand (`@ -$a` →
+            // `@-$a`) used to oscillate against the ruleset's binary-operator
+            // spacing sniff, which re-spaced the `-`; that sniff is now
+            // CleanCode.Operators.BinaryOperatorSpacing, which cedes a sign
+            // directly after `@`, so the fix is stable.
+            $this->reportSpaceAfter($phpcsFile, $stackPtr, 'ErrorControl', '@', []);
 
             return;
         }
@@ -126,16 +124,16 @@ class PassiveOperatorSpacingSniff implements Sniff
      * The set of tokens that, immediately before a `+`/`-`, mark it as unary.
      *
      * The overriding invariant is: never classify a sign as unary where the
-     * wired-in PSR12.Operators.OperatorSpacing would read it as binary. If the
-     * two disagree, this sniff strips a space PSR12 re-adds and phpcbf never
-     * converges. Every entry below is a context in which PSR12 also treats the
-     * following `+`/`-` as unary, so the fixers agree.
+     * ruleset's binary-operator spacing sniff would read it as binary. If the
+     * two disagree, this sniff strips a space that one re-adds and phpcbf never
+     * converges.
      *
-     * Note the deliberate omission of the open-tag tokens (`T_OPEN_TAG`,
-     * `T_OPEN_TAG_WITH_ECHO`): PSR12 reads a `+`/`-` immediately after an open
-     * tag as *binary*, so a sign in template context (`<?= -$x ?>`, a bare sign
-     * at the very start of a `<?php` block) is left to PSR12 and is out of this
-     * standard's scope — including it here reintroduces the oscillation.
+     * The invariant holds by construction rather than by matching lists. The
+     * master ruleset wires in CleanCode.Operators.BinaryOperatorSpacing, whose
+     * whole purpose is to decline exactly the contexts this set adds on top of
+     * its parent's — the open tags, `@`, and a statement-opening `;`. The two
+     * sets are intersected directly in tests/Standards/BinaryOperatorSpacingTest.php,
+     * so a token added here without being ceded there fails the suite.
      *
      * @return array<int|string, int|string>
      */
@@ -148,6 +146,9 @@ class PassiveOperatorSpacingSniff implements Sniff
                 + Tokens::$assignmentTokens
                 + Tokens::$castTokens
                 + [
+                    T_ASPERAND => T_ASPERAND,
+                    T_OPEN_TAG => T_OPEN_TAG,
+                    T_OPEN_TAG_WITH_ECHO => T_OPEN_TAG_WITH_ECHO,
                     T_RETURN => T_RETURN,
                     T_ECHO => T_ECHO,
                     T_PRINT => T_PRINT,
@@ -175,13 +176,12 @@ class PassiveOperatorSpacingSniff implements Sniff
     /**
      * Flags — and removes — same-line whitespace between a prefix operator and
      * its operand. $guardTokens lists the operand-leading tokens for which a
-     * fix (and report) is withheld, because closing the gap would either change
-     * meaning or collide with another wired-in fixer:
+     * fix (and report) is withheld, because closing the gap would change what
+     * the code means:
      *
      * - `+`/`-`: `[T_PLUS, T_INC]` / `[T_MINUS, T_DEC]` — a same-direction sign
      *   would fuse into an increment/decrement (`- -$a` → `--$a`).
-     * - `@`: `[T_PLUS, T_MINUS]` — a bare sign operand would leave `@-$a`, which
-     *   PSR12 re-reads as binary and re-spaces (oscillation).
+     * - `@`: `[]` — error control fuses with nothing, so no operand is guarded.
      *
      * @param array<int, int> $guardTokens
      */
