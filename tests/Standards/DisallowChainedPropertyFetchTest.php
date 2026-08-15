@@ -1,539 +1,538 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MikeBronner\CleanCode\Tests\Standards;
-
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
-
 /**
  * Tests the custom CleanCode.Models.DisallowChainedPropertyFetch sniff
  * (Models: Relationship Properties, #42). Fixtures live in
- * Fixtures/DisallowChainedPropertyFetchSniff/ beside this file: the remedied
- * shape and every near-miss the sniff must leave alone in passing.inc, the
- * flagged chains in failing.inc, a chain cut off mid-edit in unterminated.inc,
- * the published suppression comment in suppressed.inc, and source PHP itself
- * would reject in malformed.inc.
+ * tests/fixtures/DisallowChainedPropertyFetchSniff/: the remedied shape and
+ * every near-miss the sniff must leave alone in passing.php, the flagged chains
+ * in failing.php, a chain cut off mid-edit in unterminated.php, the published
+ * suppression comment in suppressed.php, and source PHP itself would reject in
+ * malformed.php.
  *
  * rules.xml scopes the sniff out of test paths, and these fixtures live under
  * tests/ — so processing one in place reports nothing whatever the sniff does.
  * Every assertion about the sniff's own behaviour therefore runs against a copy
- * staged outside the repository (processFixture()), and the exclusion itself is
- * pinned separately by testTheSniffIsScopedOutOfTestPaths(), which processes the
+ * staged outside the repository ($stagedRun below), and the exclusion itself is
+ * pinned separately by the scoped-out-of-test-paths test, which processes the
  * in-repo path and requires the silence to come from the path rather than from
  * the sniff having nothing to say.
  *
  * Most assertions isolate the sniff from the rest of the master ruleset
  * (loaded, then $ruleset->sniffs is narrowed to it) so they stay stable as
- * sibling standards land in rules.xml.
- * testTheSniffErrorsWhenRunThroughTheWholeMasterRuleset() deliberately does
- * not isolate: it is what pins the severity end to end.
+ * sibling standards land in rules.xml. The whole-master-ruleset test
+ * deliberately does not isolate: it is what pins the severity end to end.
  */
-class DisallowChainedPropertyFetchTest extends TestCase
-{
-    private const SNIFF_CODE = 'CleanCode.Models.DisallowChainedPropertyFetch';
 
-    private const ERROR_CODE = self::SNIFF_CODE . '.Found';
+declare(strict_types=1);
 
-    private const FIXTURE_DIR = '/Fixtures/DisallowChainedPropertyFetchSniff/';
+const CHAINED = 'CleanCode.Models.DisallowChainedPropertyFetch';
 
-    /**
-     * Every line of failing.inc that must carry exactly one diagnostic.
-     *
-     * @var array<int, int>
-     */
-    private const FAILING_LINES = [
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19, 20, 21, 22, 27, 33,
-    ];
+const CHAINED_ERROR = CHAINED . '.Found';
 
-    /**
-     * Absolute paths of the fixture copies staged outside the repository, so
-     * tearDown() can remove them.
-     *
-     * @var array<int, string>
-     */
-    private array $stagedPaths = [];
+/**
+ * Every line of failing.php that must carry exactly one diagnostic.
+ */
+const CHAINED_FAILING_LINES = [
+    3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20, 21, 22, 23, 25, 30,
+    36, 41,
+];
 
-    protected function tearDown(): void
-    {
-        foreach ($this->stagedPaths as $path) {
-            if (is_file($path) === true) {
-                unlink($path);
-            }
+// Fixtures are copied outside the repository before processing, because PHPCS
+// decides rules.xml's test-path exclusion from the file's path alone. The
+// staged copies are removed by the afterEach() hook in tests/Pest.php.
+$stagedRun = static fn (string $fixture) => analyzeWithSniffs(
+    [CHAINED],
+    stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', $fixture))
+);
 
-            if (is_dir(dirname($path)) === true) {
-                rmdir(dirname($path));
-            }
-        }
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
 
-        $this->stagedPaths = [];
+    expect($ruleset->sniffCodes)->toHaveKey(CHAINED);
+});
 
-        parent::tearDown();
+/**
+ * The remedied shape and every near-miss stay silent. Each group pins one of
+ * the sniff's early returns, and a false positive on any of them makes the rule
+ * unusable at error severity:
+ *
+ * - lines 3-5, `$book->authorName`, `$book->author`, `$this->title` — a single
+ *   hop. The accessor attribute the standard mandates reads exactly like this,
+ *   so flagging one hop would flag the remedy.
+ * - lines 7-11, a method call anywhere in the chain — `->save()`, `->name()`,
+ *   `->getAuthor()->name`, `->find($id)->name`, `->author()->name`. A call is a
+ *   different access pattern, and only one property hop is left on either side
+ *   of it in each of these.
+ * - lines 13-15, `$a->b['x']->c`, `$a->b()['x']->c`, `$a->b->{$c}` — an array
+ *   subscript ends the segment (its receiver is `]`, not a property name), and
+ *   a braced member name is not a property name at all.
+ * - lines 17-20, `Book::query()->first()->author->name`,
+ *   `static::make()->author->name`, `self::$instance->author->name`,
+ *   `Book::$registry->author->name` — static-rooted chains, out of scope for
+ *   this issue. Each walks back past calls and property hops to a name preceded
+ *   by `::`, and all four are needed: the last two prove the root test is not
+ *   simply "the walk ended on a T_VARIABLE", since `$instance`/`$registry` are
+ *   variables.
+ * - lines 22-25, the negative half of the grouping-parenthesis walk.
+ *   `($book)->author` is a single hop however it is parenthesised.
+ *   `(new Book())->author->name` and `(Book::query()->first())->author->name`
+ *   are an instantiation and a static root, neither of which becomes a variable
+ *   root by being wrapped — the group is walked into, and what is found inside
+ *   still decides. `foo($book)->author->name` is the discriminating pair to
+ *   failing.php:14: the parentheses there hold the root, the parentheses here
+ *   are a call's argument list, so walking into them (and finding `$book`)
+ *   would flag a function-call root the sniff has never claimed.
+ * - lines 27-31, groups holding more than one expression, which have no single
+ *   root and are out of scope. Lines 27-28 are the pair that forces the rule:
+ *   `($condition ? Book::first() : $fallback)->author->name` and the same
+ *   ternary with its arms swapped say the same thing, one arm static-rooted and
+ *   one variable-rooted, so a verdict read off the last arm alone would flag one
+ *   and stay silent on the other purely from the order they are written in.
+ *   Refusing the group instead makes both silent. Line 29 is the price: a
+ *   ternary whose arms are both variables is a chain the sniff could in
+ *   principle name, and it is given up to keep the rule order-independent — the
+ *   doc's limitations section publishes this. Lines 30-31 are the other two
+ *   multi-expression groups PHP allows in this position, `??` and `match`.
+ *   Removing the single-expression check flags all of 27, 29, 30 and 31 — 28
+ *   stays silent even then, which is exactly the asymmetry being removed.
+ * - lines 33-35, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic member
+ *   name is not a property-fetch hop, because which property is read is
+ *   unknowable at token level, so the single plain hop after it is not a chain.
+ *   Both tokens a dynamic name can produce are covered: `{` for the two braced
+ *   forms, T_VARIABLE for the plain-variable one. failing.php:12 is the other
+ *   half of this — two plain hops after a dynamic one *are* a chain.
+ * - lines 37-39, the three constructs that write a bracketed subject or body in
+ *   front of an operator and are legal PHP: `array($book)[0]->author->name`,
+ *   `(clone $book)->author->name` and an immediately-invoked closure. None is a
+ *   receiver the sniff models, and each reaches a different arm of the root
+ *   walk — the subscript's own opener, the single-expression rule, and the
+ *   call-argument-list step respectively. Their unparseable siblings (`match`,
+ *   `eval`, `isset`, `list`, `exit`) are in malformed.php, which is the only
+ *   file that can hold them.
+ * - lines 41-47, an accessor declaration returning `$this->authorName` — the
+ *   shape the standard asks for, in situ.
+ */
+it('produces no violations on the compliant fixture', function () use ($stagedRun): void {
+    $file = $stagedRun('passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * Every chained fetch is flagged, once, at its own line:
+ *
+ * - line 3, `$book->author->name` — the standard's own example.
+ * - lines 4-5, `$book?->author?->name` and `$book->author?->name` — the
+ *   nullsafe operator is a separate token, so it has to be registered alongside
+ *   the ordinary one, and mixing the two still counts.
+ * - line 6, `$this->author->name` — a chain rooted in `$this` is still a chain.
+ *   This is also the accessor's own body: the one place the standard's remedy
+ *   has to traverse the relationship, so it is a known false positive that the
+ *   doc's suppression path covers.
+ * - line 7, `$book->author->address->city` — three hops earn one diagnostic,
+ *   not two. Which pair is named is asserted separately below.
+ * - line 8, `$order->customer->name ?? ''` — a null-coalescing default at the
+ *   call site is the very duplication the accessor removes.
+ * - line 9, `$a->b()->c->d` — a method call ends only its own segment; the two
+ *   property hops after it form a chain of their own.
+ * - line 10, `$a->b['x']->c->d` — the same reset via an array subscript.
+ * - line 11, `$books[0]->author->name` — a subscripted variable is still a
+ *   variable root; the walk has to step over the subscript to see it.
+ * - line 12, `$book->{$relation}->address->city` — a braced member name is not
+ *   itself a property hop, but the two hops after it are, and the root is still
+ *   `$book`. Same rule as line 9: the unreadable hop ends its own segment only.
+ * - lines 14-17, roots held inside a grouping parenthesis: `($book)`,
+ *   `($books[0])`, `(($book))` and `($book->author())`. A parenthesised
+ *   expression is still what it was, so wrapping the root must not silence the
+ *   chain — the walk has to look inside the group rather than at whatever
+ *   precedes its opener, and has to keep doing so through nesting. Line 15 is
+ *   what keeps the single-expression rule from collapsing into "the group holds
+ *   one token": a subscripted variable is several tokens and still one
+ *   expression, so it is flagged, while the multi-expression groups in
+ *   passing.php:27-31 are not. Line 17 is the same point for a group whose one
+ *   expression ends in a *call* — `($book->author())->name->city` — the shape
+ *   the group family's other fixtures all left out.
+ * - lines 19-23, the positive half of the same walk: every other bracketed
+ *   group is stepped over, not walked into, and each line pins one of the ways
+ *   that decision is reached. Lines 19-22 are argument lists, one per token that
+ *   can sit in front of a call's opener — `$fn('author')` (T_VARIABLE),
+ *   `($fn)()` (T_CLOSE_PARENTHESIS), `$handlers['x']()`
+ *   (T_CLOSE_SQUARE_BRACKET), `$book->{$method}()` (T_CLOSE_CURLY_BRACKET) —
+ *   all chains of two plain hops on a call result whose own root is a variable,
+ *   the same reason line 9 is flagged. Dropping any one of those tokens reverts
+ *   its line to walking into the argument list, where the root found is the
+ *   argument rather than the callable. Line 23,
+ *   `$book->{Book::KEY}->address->city`, is why walking in is restricted to
+ *   parentheses in the first place: the braces hold a member name, not a
+ *   receiver, so reading a root out of them finds `Book::KEY` and loses the real
+ *   root, `$book`.
+ * - line 25, `foo(($book)->author->name)` — a group opening straight after
+ *   another opener. One of the admitted grouping-parenthesis preceders, and the
+ *   one that shows the admission is about the *token before the group*, not
+ *   about the group starting a statement.
+ * - line 30, a chain broken across lines with a comment in the middle — the
+ *   layout the operator-line-break standard mandates must not hide it. The
+ *   diagnostic lands on the member, so it is reported against the last line of
+ *   the chain rather than the first.
+ * - line 36, the shape inside a controller that the standard is aimed at.
+ * - line 41, `return ($book)->author->city` — a group after `return`, the other
+ *   admitted preceder that is a keyword rather than punctuation.
+ */
+it('flags every violation at its own line with the expected code', function () use ($stagedRun): void {
+    $file = $stagedRun('failing.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]));
+});
+
+/**
+ * The message names the offending pair so the developer knows which two models
+ * to decouple, and names the remedy the standard prescribes — an accessor
+ * attribute on the first model — rather than only stating that something is
+ * wrong.
+ *
+ * Line 9 is asserted alongside line 3 because the pair in the message is
+ * computed from the flagged hop, not from the start of the expression: a
+ * message built from the whole statement would read `a->b` there.
+ *
+ * Line 7 is the one that pins *which* pair a chain of three or more plain hops
+ * reports. `$book->author->address->city` completes at `author->address` and
+ * again at `address->city`, and only the first is reported, so the developer is
+ * pointed at the first model rather than the last. Asserting the code alone
+ * cannot see that: a regression reporting the last completing pair instead
+ * leaves the line, the count and the source identical, and line 9's chain is a
+ * method-call reset with only one possible pair, so it cannot discriminate
+ * either. The absence of `address->city` is asserted as well as the presence of
+ * `author->address` — the message quotes source text, so a message naming both
+ * pairs would satisfy a presence check on its own.
+ *
+ * The operator between the two is quoted from the matched token, so lines 4 and
+ * 5 read back as `author?->name`: the sniff registers on both operators, and a
+ * message that wrote `->` out as a literal would misquote every nullsafe hop it
+ * reported. Line 5 is the one that discriminates hardest — only its second
+ * operator is nullsafe, so a message taking the operator from anywhere but the
+ * flagged hop still reads `author->name`.
+ */
+it('names the first completing pair and the accessor remedy', function () use ($stagedRun): void {
+    $messages = violationMessagesByLine($stagedRun('failing.php')->getErrors());
+
+    expect($messages[3][0])->toContain('author->name')
+        ->and($messages[4][0])->toContain('author?->name')
+        ->and($messages[5][0])->toContain('author?->name')
+        ->and($messages[9][0])->toContain('c->d')
+        ->and($messages[7][0])->toContain('author->address')
+        ->and($messages[7][0])->not->toContain('address->city')
+        ->and($messages[3][0])->toContain('getAuthorNameAttribute()')
+        ->and($messages[3][0])->toContain('accessor attribute on the first model');
+});
+
+/**
+ * The standard mandates the accessor, so violations are errors — and they have
+ * to survive the master ruleset as errors, not just leave the sniff as one.
+ * This is the only test that runs the whole of rules.xml unedited: a
+ * `<severity>` or `<type>` override on the rule, or an exclude-pattern broader
+ * than the intended test-path one, would silence or demote the sniff without
+ * touching the addError() call the other tests exercise.
+ *
+ * Filtering by source keeps the assertion about this sniff while the rest of
+ * the ruleset reports whatever it likes about the same fixture.
+ */
+it('errors through the whole master ruleset', function (): void {
+    $file = analyzeWithMasterRuleset(
+        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php'))
+    );
+
+    $onlyChained = static fn (array $messages): array => array_filter(
+        array_map(
+            static fn (array $sources): array => array_values(
+                array_filter($sources, static fn (string $source): bool => $source === CHAINED_ERROR)
+            ),
+            violationSourcesByLine($messages)
+        ),
+        static fn (array $sources): bool => $sources !== []
+    );
+
+    expect($onlyChained($file->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]))
+        ->and($onlyChained($file->getWarnings()))->toBe([]);
+});
+
+/**
+ * Test suites build object graphs inline and read straight through them, so
+ * rules.xml scopes the sniff out of test paths. The exclusion is a path match,
+ * so processing failing.php where it actually lives — under tests/ — must report
+ * nothing, even though the same bytes produce an error on every line of
+ * CHAINED_FAILING_LINES from outside the repository.
+ *
+ * Both halves are asserted together. The in-repo run alone would pass just as
+ * well against a sniff that never fires at all, which is precisely the failure
+ * mode the exclusion makes easy to ship unnoticed.
+ */
+it('is scoped out of test paths', function () use ($stagedRun): void {
+    $inRepo = analyzeWithSniffs(
+        [CHAINED],
+        fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php')
+    );
+
+    expect($inRepo->getErrors())->toBe([])
+        ->and($stagedRun('failing.php')->getErrors())->toHaveCount(count(CHAINED_FAILING_LINES));
+});
+
+/**
+ * PHP_CodeSniffer tokenizes files mid-edit, so a chain can end at the operator
+ * with no member after it at all (line 4). The sniff has to pass over it rather
+ * than fall over or invent a diagnostic for it.
+ *
+ * The `$memberPtr === false` guard that reads as what prevents this is in fact
+ * defensive only, and removing it changes no result: PHP resolves
+ * `$tokens[false]` to `$tokens[0]`, the open tag, which fails the T_STRING check
+ * on the next line anyway. It is kept for saying so outright instead of leaning
+ * on that coercion. Stated here because no fixture can pin it — this test covers
+ * the truncated chain, not the guard.
+ *
+ * That leaves the root walk's own guards, and every one of them is accounted for
+ * rather than left to inference. The ones that decide a result are pinned by
+ * fixtures that go red without them: the unmatched opener, the non-identifier
+ * receiver and the refused constructs, all in malformed.php, and the
+ * single-expression rule for a grouping parenthesis, in passing.php:27-31
+ * against failing.php:14-17. The rest are defensive, and are named here rather
+ * than claimed as covered:
+ *
+ * - isInvokedOn() and isGroupingParenthesis() returning false for an opener with
+ *   nothing before it cannot be reached — a file starts with its open tag, so
+ *   some token always precedes. That is equally why no unbounded findPrevious()
+ *   in the walk or in process() can return false, and why the walk cannot end by
+ *   stepping off the start of the file.
+ * - rootInsideGroup() finding nothing between the opener and the closer needs an
+ *   empty group, and `()->a->b` is not an expression PHP accepts.
+ * - The brace branch refusing a `}` whose opener does not follow an object
+ *   operator. Its positive half — the braced member name — is reached by
+ *   passing.php:15 and 33-34 and by failing.php:12 and 23, but nothing reaches
+ *   the refusal *and depends on it*: every brace pair that can sit in front of
+ *   an operator without being a member name belongs to a body whose construct
+ *   is already refused a step earlier, at the parenthesis around its subject
+ *   (`match`) or by the receiver being neither a name nor a variable (an
+ *   anonymous class, a closure, `${$name}`). Measured, not assumed — removing
+ *   the refusal changes no result on any of those shapes. It is kept because it
+ *   is what makes the brace case a closed admission set rather than a second
+ *   list of things to exclude, which is the property that stops the next
+ *   construct nobody has thought of from being read as a receiver.
+ *
+ * Removing any of those changes no result on any fixture here.
+ *
+ * Line 3 keeps the assertion honest: the file still has to report the complete
+ * chain that precedes the truncation, so a sniff that fell silent on the whole
+ * file would fail here rather than pass.
+ */
+it('handles a truncated chain without falling over', function () use ($stagedRun): void {
+    $file = $stagedRun('unterminated.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))->toBe([3 => [CHAINED_ERROR]]);
+});
+
+/**
+ * PHP_CodeSniffer tokenizes whatever it is handed, so the root walk can be given
+ * source PHP itself would reject. Each line here refuses one such shape, and
+ * each pins a guard that no well-formed fixture reaches:
+ *
+ * - line 3, `$a->b)->c->d;` — a stray closer. An unmatched parenthesis carries
+ *   no parenthesis_opener, so openerOf() returns false and the
+ *   `$openerPtr === false` guard ends the walk. That guard decides the result
+ *   rather than merely reading defensively: without it the false opener is used
+ *   as a bound instead (`false + 1`), the walk reads back into `b`, steps over
+ *   its hop to `$a`, and reports `c->d`.
+ * - lines 4-5, `$a->b]->c->d;` and `$a->b}->c->d;` — the bracket forms of line
+ *   3. These are the only fixtures anywhere that reach openerOf()'s
+ *   bracket_opener branch with an *unmatched* closer (the matched case is
+ *   reached by every subscript fixture, e.g. failing.php:10), and both return
+ *   false from it.
+ * - line 6, `$a->5->b->c;` — a numeric member name. The walk lands on a token
+ *   that is neither a name nor a variable, and the catch-all guard refuses it.
+ *   Without that guard the walk falls through to the object-operator branch
+ *   below, reaches `$a`, and reports `b->c`.
+ * - lines 7-11, the five constructs that write a bracketed subject or body in
+ *   front of an operator and are *not* legal PHP in that position — `eval`,
+ *   `isset`, `list`, `exit` and a bare `match` block. This file is the only one
+ *   that can hold them: PHP rejects every one, so they cannot sit in passing.php
+ *   and still let it parse, while PHPCS tokenizes them intact and hands them
+ *   straight to the root walk. Each is refused by a closed admission set rather
+ *   than by being listed as an exclusion, which is what makes the *next*
+ *   construct nobody thought of silent too. Before that set, `match` and `eval`
+ *   read as grouping parentheses, so the walk went into the subject and reported
+ *   a chain against it; `isset`, `list` and `exit` did the same. Removing the
+ *   parenthesis admission set reddens this test on all five lines — including
+ *   line 11, whose `match` block is refused at the parenthesis around its
+ *   subject rather than at its braces.
+ *
+ * All are false positives on source that cannot run, which at error severity is
+ * a broken build over a typo mid-edit.
+ *
+ * Line 12 keeps the assertion honest: a well-formed chain in the same file must
+ * still be reported, so a sniff that gave up on the file at the first malformed
+ * line would fail here rather than pass.
+ */
+it('refuses malformed source rather than guessing at it', function () use ($stagedRun): void {
+    $file = $stagedRun('malformed.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))->toBe([12 => [CHAINED_ERROR]]);
+});
+
+/**
+ * At error severity an unsuppressed false positive breaks the build, so the
+ * standard's doc publishes an inline suppression for the one traversal it cannot
+ * avoid — the accessor's own body. Pins that the published comment really does
+ * silence the sniff (line 8), and the unsuppressed accessor below it (line 14)
+ * proves the silence comes from the comment rather than from the sniff having
+ * nothing to say about the file.
+ */
+it('is silenced by the published inline suppression', function () use ($stagedRun): void {
+    $file = $stagedRun('suppressed.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([14 => [CHAINED_ERROR]]);
+});
+
+/**
+ * Pins the detection-only decision: fixing a flagged chain means authoring an
+ * accessor method on the first model and choosing its default when the
+ * relationship is absent, which cannot be synthesised from the tokens. No
+ * violation is auto-fixable.
+ */
+it('reports detection-only errors', function () use ($stagedRun): void {
+    $file = $stagedRun('failing.php');
+
+    expect($file->getErrorCount())->toBe(count(CHAINED_FAILING_LINES))
+        ->and($file->getWarningCount())->toBe(0)
+        ->and($file->getFixableCount())->toBe(0);
+});
+
+/**
+ * Deciding a chain means walking back over its whole receiver. Run once per hop
+ * that walk costs O(n²) on a file of n hops, which is a CPU-exhaustion denial of
+ * service and not merely slow: this package is a required `phpcs` check on
+ * pull requests, including from forks, so the file is attacker-supplied.
+ *
+ * The fixtures are generated rather than committed for the same reason
+ * ArrayAccessorsTest's linear-time test generates its own — the shapes only
+ * separate a linear implementation from a quadratic one in the thousands.
+ *
+ * Two things changed to bound it, and they are not equally load-bearing. Said
+ * plainly, because each was measured on its own by reverting it here:
+ *
+ * - Recording what the walk passed over, so a later walk reaching a token
+ *   already decided stops there. This is what bounds the complexity, and it
+ *   covers both shapes on its own.
+ * - Asking the cheap "was this chain already reported" test *before* the walk
+ *   rather than after, so an already-reported hop never starts one. This is a
+ *   constant-factor gain, not a bound: it covers `plain` alone, and reverting it
+ *   with the record in place costs 0.21s -> 0.51s at n=16,000 rather than
+ *   failing.
+ *
+ * Which is why `interleaved` is here, and why it is the discriminating shape. It
+ * breaks the chain into segments with a method call every third hop, so each
+ * segment starts a chain of its own, gets past the already-reported test, and
+ * walks the whole receiver again. With the record disabled it takes 63.3s at
+ * n=16,000 against this budget while `plain` still passes in 0.48s — so a scale
+ * test pinned to the plain shape alone would have gone green against a sniff
+ * that is still quadratic on attacker-supplied input. `plain` is kept as the
+ * reproduction of the originally reported shape (2.4s at n=2,000, 9.4s at
+ * n=4,000, 36.8s at n=8,000 before either change — ~4x per doubling).
+ *
+ * The budget is wall clock, so it is set generously: both shapes answer
+ * n=16,000 in about a third of a second here, better than an order of magnitude
+ * of headroom for a loaded CI runner, while the quadratic walk needs a minute
+ * for the same file and cannot pass by being unlucky.
+ */
+it('decides a chain in time linear in its length', function (string $shape, int $size): void {
+    $source = "<?php\n\n\$a";
+
+    for ($hop = 0; $hop < $size; $hop++) {
+        $source .= $shape === 'interleaved' && $hop % 3 === 2 ? '->m()' : "->p{$hop}";
     }
 
-    public function testSniffIsRegisteredInMasterRuleset(): void
-    {
-        $ruleset = new Ruleset($this->createConfig());
+    $path = stageGeneratedFixture("chained-{$shape}.php", $source . ";\n");
 
-        $this->assertArrayHasKey(self::SNIFF_CODE, $ruleset->sniffCodes);
-    }
+    $startedAt = hrtime(true);
+    $file = analyzeWithSniffs([CHAINED], $path);
+    $elapsed = (hrtime(true) - $startedAt) / 1e9;
 
-    /**
-     * The remedied shape and every near-miss stay silent. Each group pins one
-     * of the sniff's early returns, and a false positive on any of them makes
-     * the rule unusable at error severity:
-     *
-     * - lines 3-5, `$book->authorName`, `$book->author`, `$this->title` — a
-     *   single hop. The accessor attribute the standard mandates reads exactly
-     *   like this, so flagging one hop would flag the remedy.
-     * - lines 7-11, a method call anywhere in the chain — `->save()`,
-     *   `->name()`, `->getAuthor()->name`, `->find($id)->name`,
-     *   `->author()->name`. A call is a different access pattern, and only one
-     *   property hop is left on either side of it in each of these.
-     * - lines 13-15, `$a->b['x']->c`, `$a->b()['x']->c`, `$a->b->{$c}` — an
-     *   array subscript ends the segment (its receiver is `]`, not a property
-     *   name), and a braced member name is not a property name at all.
-     * - lines 17-20, `Book::query()->first()->author->name`,
-     *   `static::make()->author->name`, `self::$instance->author->name`,
-     *   `Book::$registry->author->name` — static-rooted chains, out of scope
-     *   for this issue. Each walks back past calls and property hops to a name
-     *   preceded by `::`, and all four are needed: the last two prove the root
-     *   test is not simply "the walk ended on a T_VARIABLE", since
-     *   `$instance`/`$registry` are variables.
-     * - lines 22-25, the negative half of the grouping-parenthesis walk.
-     *   `($book)->author` is a single hop however it is parenthesised.
-     *   `(new Book())->author->name` and `(Book::query()->first())->author->name`
-     *   are an instantiation and a static root, neither of which becomes a
-     *   variable root by being wrapped — the group is walked into, and what is
-     *   found inside still decides. `foo($book)->author->name` is the
-     *   discriminating pair to failing.inc:14: the parentheses there hold the
-     *   root, the parentheses here are a call's argument list, so walking into
-     *   them (and finding `$book`) would flag a function-call root the sniff
-     *   has never claimed.
-     * - lines 27-31, groups holding more than one expression, which have no
-     *   single root and are out of scope. Lines 27-28 are the pair that forces
-     *   the rule: `($condition ? Book::first() : $fallback)->author->name` and
-     *   the same ternary with its arms swapped say the same thing, one arm
-     *   static-rooted and one variable-rooted, so a verdict read off the last
-     *   arm alone would flag one and stay silent on the other purely from the
-     *   order they are written in. Refusing the group instead makes both
-     *   silent. Line 29 is the price: a ternary whose arms are both variables
-     *   is a chain the sniff could in principle name, and it is given up to
-     *   keep the rule order-independent — the doc's limitations section
-     *   publishes this. Lines 30-31 are the other two multi-expression groups
-     *   PHP allows in this position, `??` and `match`. Removing the
-     *   single-expression check flags all of 27, 29, 30 and 31 — 28 stays
-     *   silent even then, which is exactly the asymmetry being removed.
-     * - lines 33-35, `$a->{$b}->c`, `$a->{'b'}->c`, `$a->$b->c` — a dynamic
-     *   member name is not a property-fetch hop, because which property is
-     *   read is unknowable at token level, so the single plain hop after it is
-     *   not a chain. Both tokens a dynamic name can produce are covered: `{`
-     *   for the two braced forms, T_VARIABLE for the plain-variable one.
-     *   failing.inc:12 is the other half of this — two plain hops after a
-     *   dynamic one *are* a chain.
-     * - lines 37-43, an accessor declaration returning `$this->authorName` —
-     *   the shape the standard asks for, in situ.
-     */
-    public function testCompliantFileProducesNoViolations(): void
-    {
-        $file = $this->processFixture('passing.inc');
+    expect($file->getErrorCount())->toBeGreaterThan(0, 'the chain is still reported')
+        ->and($elapsed)->toBeLessThan(3.0, "{$shape} at n={$size} took {$elapsed}s");
+})->with([
+    'n consecutive hops' => ['plain', 16000],
+    'n hops in call-separated segments' => ['interleaved', 16000],
+]);
 
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
+/**
+ * The walk's record of where it has been holds pointers into one token stream,
+ * and the sniff instance outlives any one file — tests/Helpers.php memoises the
+ * ruleset, so every test above is answered by the same instance. A record kept
+ * across files would answer the second file from the first file's pointers.
+ *
+ * Asserted by interleaving: the same instance processes failing.php, then
+ * passing.php, then failing.php again, and each verdict has to match the one the
+ * dedicated tests above establish. The passing run in the middle is what makes
+ * it discriminating — it is the file whose pointers would be wrong, and a record
+ * that survived into it reports chains against a file that has none.
+ */
+it('keeps no record across files', function () use ($stagedRun): void {
+    $first = $stagedRun('failing.php');
+    $between = $stagedRun('passing.php');
+    $second = $stagedRun('failing.php');
 
-    /**
-     * Every chained fetch is flagged, once, at its own line:
-     *
-     * - line 3, `$book->author->name` — the standard's own example.
-     * - lines 4-5, `$book?->author?->name` and `$book->author?->name` — the
-     *   nullsafe operator is a separate token, so it has to be registered
-     *   alongside the ordinary one, and mixing the two still counts.
-     * - line 6, `$this->author->name` — a chain rooted in `$this` is still a
-     *   chain. This is also the accessor's own body: the one place the
-     *   standard's remedy has to traverse the relationship, so it is a known
-     *   false positive that the doc's suppression path covers.
-     * - line 7, `$book->author->address->city` — three hops earn one
-     *   diagnostic, not two. The report lands on the pair that first completes
-     *   the chain (`author->address`), so the developer is pointed at the
-     *   first model rather than the last.
-     * - line 8, `$order->customer->name ?? ''` — a null-coalescing default at
-     *   the call site is the very duplication the accessor removes.
-     * - line 9, `$a->b()->c->d` — a method call ends only its own segment;
-     *   the two property hops after it form a chain of their own. The report
-     *   names `c->d`, so it is the trailing pair being flagged and not the
-     *   whole expression.
-     * - line 10, `$a->b['x']->c->d` — the same reset via an array subscript.
-     * - line 11, `$books[0]->author->name` — a subscripted variable is still a
-     *   variable root; the walk has to step over the subscript to see it.
-     * - line 12, `$book->{$relation}->address->city` — a braced member name is
-     *   not itself a property hop, but the two hops after it are, and the root
-     *   is still `$book`. Same rule as line 9: the unreadable hop ends its own
-     *   segment only.
-     * - lines 14-16, roots held inside a grouping parenthesis:
-     *   `($book)->author->name`, `($books[0])->author->name` and
-     *   `(($book))->author?->name`. A parenthesised variable is still a
-     *   variable, so wrapping the root must not silence the chain — the walk
-     *   has to look inside the group rather than at whatever precedes its
-     *   opener (`=`, `;`, another `(`), and has to keep doing so through
-     *   nesting. Line 15 is what keeps the single-expression rule from
-     *   collapsing into "the group holds one token": a subscripted variable is
-     *   several tokens and still one expression, so it is flagged, while the
-     *   multi-expression groups in passing.inc:27-31 are not.
-     * - lines 18-22, the positive half of the same walk: every other bracketed
-     *   group is stepped over, not walked into, and each line pins one of the
-     *   ways that decision is reached. Lines 18-21 are argument lists, one per
-     *   token that can sit in front of a call's opener — `$fn('author')`
-     *   (T_VARIABLE), `($fn)()` (T_CLOSE_PARENTHESIS), `$handlers['x']()`
-     *   (T_CLOSE_SQUARE_BRACKET), `$book->{$method}()`
-     *   (T_CLOSE_CURLY_BRACKET) — all chains of two plain hops on a call
-     *   result whose own root is a variable, the same reason line 9 is
-     *   flagged. Dropping any one of those tokens reverts its line to walking
-     *   into the argument list, where the root found is the argument rather
-     *   than the callable. Line 22, `$book->{Book::KEY}->address->city`, is
-     *   why walking in is restricted to parentheses in the first place: the
-     *   braces hold a member name, not a receiver, so reading a root out of
-     *   them finds `Book::KEY` and loses the real root, `$book`.
-     * - line 27, a chain broken across lines with a comment in the middle —
-     *   the layout the operator-line-break standard mandates must not hide it.
-     * - line 33, the shape inside a controller that the standard is aimed at.
-     */
-    public function testEveryViolationIsFlaggedAtItsOwnLineWithTheExpectedCode(): void
-    {
-        $file = $this->processFixture('failing.inc');
+    expect(violationSourcesByLine($first->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]))
+        ->and($between->getErrors())->toBe([])
+        ->and(violationSourcesByLine($second->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]));
+});
 
-        $this->assertSame([], $file->getWarnings());
-        $this->assertSame(
-            array_fill_keys(self::FAILING_LINES, [self::ERROR_CODE]),
-            $this->sourcesByLine($file->getErrors())
-        );
-    }
+/**
+ * The same verdict through the shipped, installed package.
+ *
+ * Every test above drives PHPCS in process through ConfigDouble, which supplies
+ * the registration Composer would have supplied — so a package that never
+ * registered itself with the installed standards passes all of them. This one
+ * executes the real vendor/bin/phpcs as a separate process from outside the
+ * package, against rules.xml, the file a consumer points --standard at. The
+ * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
+ * sniff: it drives each fixture where it lives, under tests/, and this sniff's
+ * <exclude-pattern> makes that path report nothing whatever the sniff does.
+ *
+ * Staged exactly as $stagedRun stages it, and asserted in the same paired shape
+ * as the scoped-out-of-test-paths test above rather than only on the positive
+ * half:
+ *
+ * - the staged copy reports every line of CHAINED_FAILING_LINES, all under this
+ *   sniff's own code and as errors, at status 1 — violations, none of them
+ *   fixable, which is what this detection-only rule owes. Status 2 would mean
+ *   phpcbf had been offered a fix, and 3 is what a broken install exits with.
+ * - the in-repo copy of the same bytes reports nothing and exits 0, so the
+ *   reporting half cannot be coming from a run that ignores rules.xml's
+ *   exclusion.
+ * - passing.php staged the same way reports nothing and exits 0 — the negative
+ *   control, without which a shell-out that always reported would satisfy the
+ *   first.
+ */
+it('reports the violation end to end through the installed package', function (): void {
+    $failing = fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php');
 
-    /**
-     * The message names the offending pair so the developer knows which two
-     * models to decouple, and names the remedy the standard prescribes — an
-     * accessor attribute on the first model — rather than only stating that
-     * something is wrong. Line 9 is asserted alongside line 3 because the pair
-     * in the message is computed from the flagged hop, not from the start of
-     * the expression: a message built from the whole statement would read
-     * `a->b` there.
-     *
-     * The operator between the two is quoted from the matched token, so lines
-     * 4 and 5 read back as `author?->name`: the sniff registers on both
-     * operators, and a message that wrote `->` out as a literal would misquote
-     * every nullsafe hop it reported. Line 5 is the one that discriminates
-     * hardest — only its second operator is nullsafe, so a message taking the
-     * operator from anywhere but the flagged hop still reads `author->name`.
-     */
-    public function testTheErrorMessageNamesTheChainAndTheAccessorRemedy(): void
-    {
-        $file = $this->processFixture('failing.inc');
+    $staged = installedSniffRun(CHAINED, stageFixtureOutsideTests($failing));
+    $inRepo = installedSniffRun(CHAINED, $failing);
+    $passing = installedSniffRun(
+        CHAINED,
+        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'passing.php'))
+    );
 
-        $this->assertStringContainsString('author->name', $this->firstMessageOnLine($file, 3));
-        $this->assertStringContainsString('author?->name', $this->firstMessageOnLine($file, 4));
-        $this->assertStringContainsString('author?->name', $this->firstMessageOnLine($file, 5));
-        $this->assertStringContainsString('c->d', $this->firstMessageOnLine($file, 9));
-        $this->assertStringContainsString(
-            'getAuthorNameAttribute()',
-            $this->firstMessageOnLine($file, 3)
-        );
-        $this->assertStringContainsString(
-            'accessor attribute on the first model',
-            $this->firstMessageOnLine($file, 3)
-        );
-    }
-
-    /**
-     * The standard mandates the accessor, so violations are errors — and they
-     * have to survive the master ruleset as errors, not just leave the sniff
-     * as one. This is the only test that runs the whole of rules.xml unedited:
-     * a `<severity>` or `<type>` override on the rule, or an exclude-pattern
-     * broader than the intended test-path one, would silence or demote the
-     * sniff without touching the addError() call the other tests exercise.
-     *
-     * Filtering by source keeps the assertion about this sniff while the rest
-     * of the ruleset reports whatever it likes about the same fixture.
-     */
-    public function testTheSniffErrorsWhenRunThroughTheWholeMasterRuleset(): void
-    {
-        $file = $this->processFile($this->stageOutsideTests('failing.inc'), null, false);
-
-        $this->assertSame(
-            array_fill_keys(self::FAILING_LINES, [self::ERROR_CODE]),
-            $this->sourcesByLine($file->getErrors(), self::ERROR_CODE)
-        );
-        $this->assertSame([], $this->sourcesByLine($file->getWarnings(), self::ERROR_CODE));
-    }
-
-    /**
-     * Test suites build object graphs inline and read straight through them,
-     * so rules.xml scopes the sniff out of test paths. The exclusion is a path
-     * match, so processing failing.inc where it actually lives — under tests/
-     * — must report nothing, even though the same bytes produce an error on
-     * every line of FAILING_LINES from outside the repository.
-     *
-     * Both halves are asserted together. The in-repo run alone would pass just
-     * as well against a sniff that never fires at all, which is precisely the
-     * failure mode the exclusion makes easy to ship unnoticed.
-     */
-    public function testTheSniffIsScopedOutOfTestPaths(): void
-    {
-        $inRepo = $this->processFile(__DIR__ . self::FIXTURE_DIR . 'failing.inc');
-
-        $this->assertSame([], $inRepo->getErrors());
-        $this->assertCount(
-            count(self::FAILING_LINES),
-            $this->processFixture('failing.inc')->getErrors()
-        );
-    }
-
-    /**
-     * PHP_CodeSniffer tokenizes files mid-edit, so a chain can end at the
-     * operator with no member after it at all (line 4). The sniff has to pass
-     * over it rather than fall over or invent a diagnostic for it.
-     *
-     * The `$memberPtr === false` guard that reads as what prevents this is in
-     * fact defensive only, and removing it changes no result: PHP resolves
-     * `$tokens[false]` to `$tokens[0]`, the open tag, which fails the T_STRING
-     * check on the next line anyway. It is kept for saying so outright instead
-     * of leaning on that coercion. Stated here because no fixture can pin it —
-     * this test covers the truncated chain, not the guard.
-     *
-     * That leaves the root walk's own guards, and every one of them is
-     * accounted for rather than left to inference. The three that decide a
-     * result are pinned by fixtures that go red without them: the unmatched
-     * opener and the non-identifier receiver, both in malformed.inc (see
-     * testMalformedSourceIsRefusedRatherThanGuessedAt()), and the
-     * single-expression rule for a grouping parenthesis, in passing.inc:27-31
-     * against failing.inc:14-16. The rest are defensive, and are named here
-     * rather than claimed as covered:
-     *
-     * - isInvokedOn() returning false for an opener with nothing before it
-     *   cannot be reached — a file starts with its open tag, so some token
-     *   always precedes. That is equally why no unbounded findPrevious() in
-     *   the walk or in process() can return false, and why the walk cannot end
-     *   by stepping off the start of the file.
-     * - rootInsideGroup() finding nothing between the opener and the closer
-     *   needs an empty group, and `()->a->b` is not an expression PHP accepts.
-     *
-     * Removing any of those changes no result on any fixture here.
-     *
-     * Line 3 keeps the assertion honest: the file still has to report the
-     * complete chain that precedes the truncation, so a sniff that fell silent
-     * on the whole file would fail here rather than pass.
-     */
-    public function testATruncatedChainIsHandledWithoutFallingOver(): void
-    {
-        $file = $this->processFixture('unterminated.inc');
-
-        $this->assertSame([], $file->getWarnings());
-        $this->assertSame([3 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
-    }
-
-    /**
-     * PHP_CodeSniffer tokenizes whatever it is handed, so the root walk can be
-     * given source PHP itself would reject. Each line here refuses one such
-     * shape, and each pins one guard that no well-formed fixture reaches:
-     *
-     * - line 3, `$a->b)->c->d;` — a stray closer. An unmatched parenthesis
-     *   carries no parenthesis_opener, so openerOf() returns false and the
-     *   `$openerPtr === false` guard ends the walk. That guard decides the
-     *   result rather than merely reading defensively: without it the false
-     *   opener is used as a bound instead (`false + 1`), the walk reads back
-     *   into `b`, steps over its hop to `$a`, and reports `c->d`.
-     * - lines 4-5, `$a->b]->c->d;` and `$a->b}->c->d;` — the bracket forms of
-     *   line 3. These are the only fixtures anywhere that reach openerOf()'s
-     *   bracket_opener branch with an *unmatched* closer (the matched case is
-     *   reached by every subscript fixture, e.g. failing.inc:10), and both
-     *   return false from it. Unlike line 3 the guard is defensive here rather
-     *   than deciding: removing it leaves both lines silent anyway, because the
-     *   walk then runs off the start of the file instead of reading back into
-     *   the chain. They are pinned because the branch is live — a stray `]` is
-     *   an ordinary mid-edit typo that reaches this sniff intact, and reading
-     *   an opener out of it is how the parenthesis form went wrong.
-     * - line 6, `$a->5->b->c;` — a numeric member name. The walk lands on a
-     *   token that is neither a name nor a variable, and the catch-all guard
-     *   refuses it. Without that guard the walk falls through to the
-     *   object-operator branch below, reaches `$a`, and reports `b->c`.
-     *
-     * All are false positives on source that cannot run, which at error
-     * severity is a broken build over a typo mid-edit.
-     *
-     * Line 7 keeps the assertion honest: a well-formed chain in the same file
-     * must still be reported, so a sniff that gave up on the file at the first
-     * malformed line would fail here rather than pass.
-     */
-    public function testMalformedSourceIsRefusedRatherThanGuessedAt(): void
-    {
-        $file = $this->processFixture('malformed.inc');
-
-        $this->assertSame([], $file->getWarnings());
-        $this->assertSame([7 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
-    }
-
-    /**
-     * At error severity an unsuppressed false positive breaks the build, so
-     * the standard's doc publishes an inline suppression for the one traversal
-     * it cannot avoid — the accessor's own body. Pins that the published
-     * comment really does silence the sniff (line 8), and the unsuppressed
-     * accessor below it (line 14) proves the silence comes from the comment
-     * rather than from the sniff having nothing to say about the file.
-     */
-    public function testThePublishedInlineSuppressionSilencesTheSniff(): void
-    {
-        $file = $this->processFixture('suppressed.inc');
-
-        $this->assertSame([14 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
-    }
-
-    /**
-     * Pins the detection-only decision: fixing a flagged chain means authoring
-     * an accessor method on the first model and choosing its default when the
-     * relationship is absent, which cannot be synthesised from the tokens. No
-     * violation is auto-fixable.
-     */
-    public function testViolationsAreDetectionOnlyErrors(): void
-    {
-        $file = $this->processFixture('failing.inc');
-
-        $this->assertSame(count(self::FAILING_LINES), $file->getErrorCount());
-        $this->assertSame(0, $file->getWarningCount());
-        $this->assertSame(0, $file->getFixableCount());
-    }
-
-    /**
-     * Processes a fixture from a copy staged outside the repository, so
-     * rules.xml's test-path exclusion does not silence the sniff before it
-     * ever runs.
-     */
-    private function processFixture(string $fixture): LocalFile
-    {
-        return $this->processFile($this->stageOutsideTests($fixture));
-    }
-
-    /**
-     * $isolate narrows the loaded ruleset to the sniff under test; pass false
-     * to run the master ruleset exactly as a consumer would.
-     */
-    private function processFile(string $path, ?callable $configure = null, bool $isolate = true): LocalFile
-    {
-        $config = $this->createConfig();
-        $ruleset = new Ruleset($config);
-
-        if ($isolate === true) {
-            // Isolate the sniff under test after the full ruleset has loaded
-            // it. A $config->sniffs restriction cannot be used: under
-            // PHP_CODESNIFFER_IN_TESTS it makes Ruleset skip parsing rules.xml,
-            // which is what pulls the custom CleanCode sniffs in.
-            $sniffClass = $ruleset->sniffCodes[self::SNIFF_CODE];
-            $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
-            $ruleset->populateTokenListeners();
-
-            if ($configure !== null) {
-                $configure($ruleset->sniffs[$sniffClass]);
-            }
-        }
-
-        $file = new LocalFile($path, $ruleset, $config);
-        $file->process();
-
-        return $file;
-    }
-
-    /**
-     * Copies a fixture to a temporary directory outside the repository and
-     * returns the new path. PHPCS decides the test-path exclusion from the
-     * file's path alone, so this is what lets the sniff see the fixture at all.
-     */
-    private function stageOutsideTests(string $fixture): string
-    {
-        $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-chained-fetch-', true);
-
-        if (mkdir($directory, 0700) === false) {
-            $this->fail("could not stage fixtures in {$directory}");
-        }
-
-        $path = $directory . '/' . $fixture;
-        $this->stagedPaths[] = $path;
-
-        copy(__DIR__ . self::FIXTURE_DIR . $fixture, $path);
-
-        $this->assertStringNotContainsString(
-            '/tests/',
-            $path,
-            'the staged fixture must sit outside any test path'
-        );
-
-        return $path;
-    }
-
-    private function createConfig(): ConfigDouble
-    {
-        $config = new ConfigDouble();
-        $config->cache = false;
-        $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
-
-        // ConfigDouble blanks CodeSniffer.conf, where Composer registers the
-        // third-party standards' installed paths; the master ruleset
-        // references both of them, and a missing entry does not fail loudly —
-        // it makes the referenced sniffs fail to resolve and takes the whole
-        // rules.xml parse down. Restored in memory only, matching
-        // tests/Helpers.php's restoreInstalledPaths().
-        ConfigDouble::setConfigData(
-            'installed_paths',
-            implode(',', [
-                dirname(__DIR__, 2) . '/vendor/sirbrillig/phpcs-variable-analysis',
-                dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
-            ]),
-            true
-        );
-
-        return $config;
-    }
-
-    private function firstMessageOnLine(LocalFile $file, int $line): string
-    {
-        foreach ($file->getErrors()[$line] ?? [] as $violations) {
-            foreach ($violations as $violation) {
-                if ($violation['source'] === self::ERROR_CODE) {
-                    return (string) $violation['message'];
-                }
-            }
-        }
-
-        $this->fail("no {$line} line diagnostic from " . self::ERROR_CODE);
-    }
-
-    /**
-     * Collapses PHPCS's line => column => violations structure to a map of
-     * line number => list of violation source codes, optionally keeping only
-     * one source.
-     *
-     * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
-     *
-     * @return array<int, array<int, string>>
-     */
-    private function sourcesByLine(array $messages, ?string $only = null): array
-    {
-        $sources = [];
-
-        foreach ($messages as $line => $columns) {
-            foreach ($columns as $violations) {
-                foreach ($violations as $violation) {
-                    if ($only !== null && $violation['source'] !== $only) {
-                        continue;
-                    }
-
-                    $sources[$line][] = $violation['source'];
-                }
-            }
-        }
-
-        ksort($sources);
-
-        return $sources;
-    }
-}
+    expect(array_column($staged['messages'], 'line'))->toBe(CHAINED_FAILING_LINES)
+        ->and(array_unique(array_column($staged['messages'], 'source')))->toBe([CHAINED_ERROR])
+        ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['ERROR'])
+        ->and($staged['status'])->toBe(1)
+        ->and($inRepo['messages'])->toBe([])
+        ->and($inRepo['status'])->toBe(0)
+        ->and($passing['messages'])->toBe([])
+        ->and($passing['status'])->toBe(0);
+});

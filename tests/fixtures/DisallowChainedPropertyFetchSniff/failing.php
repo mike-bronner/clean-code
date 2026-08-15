@@ -14,12 +14,15 @@ $book->{$relation}->address->city;
 ($book)->author->name;
 ($books[0])->author->name;
 (($book))->author?->name;
+($book->author())->name->city;
 
 $fn('author')->author->name;
 ($fn)()->author->name;
 $handlers['x']()->author->name;
 $book->{$method}()->author->name;
 $book->{Book::KEY}->address->city;
+
+foo(($book)->author->name);
 
 $name = $book
     ->author
@@ -31,5 +34,10 @@ class BookController
     public function show(Book $book): string
     {
         return $book->author->name;
+    }
+
+    public function city(Book $book): string
+    {
+        return ($book)->author->city;
     }
 }

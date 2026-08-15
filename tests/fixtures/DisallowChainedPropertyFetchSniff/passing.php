@@ -34,6 +34,10 @@ $a->{$b}->c;
 $a->{'b'}->c;
 $a->$b->c;
 
+array($book)[0]->author->name;
+(clone $book)->author->name;
+(function () { return $book; })()->author->name;
+
 class Book
 {
     public function getAuthorNameAttribute(): string
