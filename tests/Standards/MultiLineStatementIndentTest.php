@@ -123,6 +123,7 @@ it('flags each misindented line at its own line and column', function (): void {
         ['line' => 317, 'column' => 5, 'source' => $incorrect],
         ['line' => 318, 'column' => 5, 'source' => $incorrect],
         ['line' => 326, 'column' => 5, 'source' => $incorrect],
+        ['line' => 335, 'column' => 5, 'source' => $closeBracket],
     ]);
 });
 
@@ -313,6 +314,13 @@ it('anchors each line on the construct that owns it', function (int $failingLine
  * checkLine() reads first would answer for both, leaving neither testable,
  * which is why `continuationTokens()` no longer repeats CHAIN_OPERATORS or
  * anything `Tokens::$operators` already carries.
+ *
+ * The two grouped-`use` rows share one fixture pair, and share it honestly:
+ * either member alone is enough to make the closing brace read as a closer, so
+ * dropping *either* one swaps the pair on its own. The brace is also the only
+ * half of that construct which can discriminate — the imported names sit a
+ * level in from the group's opener, and a top-level `use` puts that opener on
+ * the statement's own line, so both anchors give them the same answer.
  */
 it('reaches every member of its hand-maintained token arrays', function (
     int $passingLine,
@@ -354,6 +362,8 @@ it('reaches every member of its hand-maintained token arrays', function (
     'continuationTokens(): T_INSTANCEOF' => [243, 217, 'instanceof Probe'],
     'delegated to a union: T_COALESCE' => [306, 275, '?? $fallback'],
     'delegated to a union: T_DOUBLE_ARROW' => [313, 282, "=> 'App\\Http\\Controllers\\HomeController'"],
+    'BRACKET_OPENERS: T_OPEN_USE_GROUP' => [375, 335, '};'],
+    'UNLINKED_PAIRS: T_CLOSE_USE_GROUP' => [375, 335, '};'],
 ]);
 
 /**
@@ -403,7 +413,7 @@ it('reads a long comment inside a statement in linear time', function (): void {
  * below it — asks how far back that comment began. Recovering the answer by
  * replaying the comment costs one pass per reading, and each pass is the whole
  * comment: quadratic again, and this time also one stack frame per line.
- * mapCommentOpeners() answers it in one lookup.
+ * mapLines() answers it in one lookup.
  *
  * The shape is deliberately the one the sibling test above cannot reach: there
  * the comment sits inside an argument list, where the comma resets the anchor
@@ -434,6 +444,51 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
 
     expect($file->getErrorCount())->toBe(0, 'the chain hangs below the line the comment opened')
         ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
+});
+
+/**
+ * The third reading of the same cost, and the one that needs no comment at all.
+ * A bracket's sibling lines all anchor on the *same* opener, and each of them
+ * asks that opener what indent its line carries. Finding a line's first token
+ * by walking back token by token answers that from scratch every time, so an
+ * opener sitting at the end of a long line, with many lines wrapped under it,
+ * re-walks that whole line once per line below: quadratic in the size of an
+ * ordinary generated or minified file, with no comment, no string, and nothing
+ * adversarial in it. mapLines() records where each line starts in the one pass
+ * it already makes, and every reading is a lookup.
+ *
+ * Both halves have to grow together for the cost to show — a long opener line
+ * alone is walked once, and many sibling lines alone are cheap to walk back
+ * from. So the fixture scales n tokens before the opener against n lines under
+ * it, and the budget is set against measured numbers the same way the two tests
+ * above are: the map answers n=4,000 in about a fifth of a second here, while
+ * walking back needs 2.3s for the same file and 8s at n=8,000.
+ */
+it('anchors sibling lines on a long opener line in linear time', function (): void {
+    $size = 4000;
+    $operands = [];
+    $arguments = '';
+
+    for ($i = 0; $i < $size; $i++) {
+        $operands[] = '$operand' . $i;
+        $arguments .= "    \$argument{$i},\n";
+    }
+
+    $source = "<?php\n\n\$total = [" . implode(', ', $operands) . "] + compute(\n" . $arguments . ");\n";
+
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-opener-scale-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    expect($file->getErrorCount())->toBe(0, 'every argument sits a level in from the line `compute(` opens on')
+        ->and($elapsed)->toBeLessThan(1.0, "a {$size}-token opener line over {$size} lines took {$elapsed}s");
 });
 
 /**

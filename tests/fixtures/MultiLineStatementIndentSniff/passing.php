@@ -364,3 +364,12 @@ outer(
         $value
     )
 );
+
+// A grouped `use`'s braces are a bracket pair PHPCS links neither half of to
+// the other, so the opener its closing brace matches comes from this sniff's
+// own stack. The brace matches the line the group opens on, as every other
+// closer does.
+use App\Models\{
+    Foo,
+    Bar,
+};

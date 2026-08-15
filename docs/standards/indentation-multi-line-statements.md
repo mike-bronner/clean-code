@@ -86,14 +86,30 @@ Enforced by `CleanCode.WhiteSpace.MultiLineStatementIndent`, auto-fixable via
   reason a string's tail lines are: what precedes the code there is the
   comment's own body rather than the line's indent, so the line belongs to the
   comment and is left alone. The comment's opening line is the one that carries
-  the statement's indent, and PSR-12's own call-indent rules report it when it
-  is wrong:
+  the statement's indent, and every line below is measured from there:
 
   ```php
   doSomething(
       /* explains the flag
          across two lines */ $flag,
   );
+  ```
+
+  Where a statement *starts* on such a line, that line is the statement's first
+  one, and this standard governs only the lines after it — so the comment's own
+  indent is not checked here, by this sniff or any other. PSR-12's call-indent
+  rule used to report it, wrongly and unfixably; see the note under
+  [Why a custom sniff](#why-a-custom-sniff) for why it no longer runs.
+- **A grouped `use` is a bracket pair like any other**: the imported names are
+  siblings of the line the group opens on, and the closing brace matches that
+  line. PHPCS records no link between the two braces, so the sniff pairs them
+  from its own bracket stack rather than off the tokens:
+
+  ```php
+  use App\Models\{
+      Foo,
+      Bar,
+  };
   ```
 
 ### Why a custom sniff
@@ -116,3 +132,20 @@ Existing rules were evaluated against the full fixture suite
 
 Configuring the partial matches would leave gaps and weaken the tests, so
 the standard gets one custom sniff covering every construct uniformly.
+
+One of those partial matches had to be switched off to let this one run.
+`PSR2.Methods.FunctionCallSignature.Indent` — reached through the `PSR12`
+reference in `rules.xml` — measures a multi-line call's argument lines and
+closing bracket, which is a subset of what this sniff measures for every
+multi-line statement, so both reported the same lines. Both also auto-fix, and
+they disagree about one shape: where a statement starts on the line a
+multi-line comment closes on, PHPCS emits one token per physical line of the
+comment and folds that line's leading whitespace into the token, so the
+fragment's column is 1 and PSR-12 concludes the call sits at indent 0. `phpcbf`
+then alternated between the two answers until it exhausted its 50-pass budget
+and abandoned the file whole — discarding every *other* sniff's fixes in it,
+silently. The code is excluded in `rules.xml`, which leaves the rest of
+`FunctionCallSignature` (bracket spacing, argument placement) in force;
+`tests/Ruleset/MultiLineStatementIndentRulesetTest.php` pins both halves of
+that trade — the lines it used to report are still reported, and the fixer
+converges.

@@ -43,9 +43,29 @@
         the "same-sniff configuration wins" mechanism above cannot dedupe them
         — left in, both fire and every operator-spacing violation is reported
         twice. The exclude keeps exactly one diagnostic per violation.
+
+        PSR2.Methods.FunctionCallSignature.Indent is excluded for the same
+        reason, one step worse. It measures the argument lines and the closing
+        bracket of a multi-line call, which is a subset of what
+        CleanCode.WhiteSpace.MultiLineStatementIndent (#38) measures for every
+        multi-line statement — so on a misindented call both fire on the same
+        two lines. They also disagree on one shape, and both are auto-fixers:
+        where a statement starts on the line a multi-line comment closes on,
+        PSR2 reads the indent as the comment's own last fragment. PHPCS emits
+        one token per physical line of a comment and folds that line's leading
+        whitespace into the token, so the fragment's column is 1 and PSR2
+        concludes the call is at indent 0 — the same per-physical-line
+        tokenizer quirk it already special-cases for multi-line strings
+        (PEAR/Sniffs/Functions/FunctionCallSignatureSniff.php:343-354) but not
+        for comments. Left in, `phpcbf` oscillates between the two answers for
+        the whole 50-pass budget and exits PHPCBF FAILED TO FIX, discarding
+        every other otherwise-fixable violation in that file. Excluded, the
+        remaining FunctionCallSignature codes (bracket spacing, argument
+        placement) still apply.
     -->
     <rule ref="PSR12">
         <exclude name="PSR12.Operators.OperatorSpacing"/>
+        <exclude name="PSR2.Methods.FunctionCallSignature.Indent"/>
     </rule>
 
     <!--

@@ -326,3 +326,10 @@ outer(
         $value
     )
 );
+
+// A grouped `use` whose closing brace is indented as though it were one of the
+// names it closes over, rather than matching the line the group opens on.
+use App\Models\{
+    Foo,
+    Bar,
+};

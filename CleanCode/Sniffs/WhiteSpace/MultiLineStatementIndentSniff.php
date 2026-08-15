@@ -29,7 +29,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *   the element's own line, not the opener's, so a wrapped argument's
  *   continuation hangs below the argument;
  * - a closing bracket on its own line matches the indent of the line that
- *   opened the bracket.
+ *   opened the bracket. A grouped `use`'s braces are a bracket pair like any
+ *   other here, though PHPCS links neither half to the other — see
+ *   UNLINKED_PAIRS.
  *
  * `=>` is the only operator whose *trailing* position is read here — in both
  * of the tokens PHPCS emits for it, `T_DOUBLE_ARROW` (array key, named
@@ -69,6 +71,20 @@ class MultiLineStatementIndentSniff implements Sniff
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
         T_ATTRIBUTE,
+        T_OPEN_USE_GROUP,
+    ];
+
+    /**
+     * Closers PHPCS records no opener for, and the opener each one closes.
+     *
+     * Every other bracket kind carries its partner's index on the token itself,
+     * put there by the tokenizer. A grouped `use`'s braces carry nothing — no
+     * `bracket_opener`, no `scope_opener` — so the only record of where the pair
+     * began is the stack this sniff pushes as it walks, and closedOpener() reads
+     * the opener from there for these tokens instead.
+     */
+    private const UNLINKED_PAIRS = [
+        T_CLOSE_USE_GROUP => T_OPEN_USE_GROUP,
     ];
 
     /**
@@ -166,11 +182,19 @@ class MultiLineStatementIndentSniff implements Sniff
 
     /**
      * For every token that sits inside a comment which opened before it, the
-     * token that opened that comment. Rebuilt per file by mapCommentOpeners().
+     * token that opened that comment. Rebuilt per file by mapLines().
      *
      * @var array<int, int>
      */
     private array $commentOpeners = [];
+
+    /**
+     * The lowest-numbered token on each line, keyed by line number. Rebuilt per
+     * file by mapLines().
+     *
+     * @var array<int, int>
+     */
+    private array $lineStarts = [];
 
     /**
      * @return array<int|string>
@@ -188,7 +212,7 @@ class MultiLineStatementIndentSniff implements Sniff
     public function process(File $phpcsFile, $stackPtr)
     {
         $tokens = $phpcsFile->getTokens();
-        $this->mapCommentOpeners($phpcsFile);
+        $this->mapLines($phpcsFile);
         $i = $stackPtr;
 
         while ($i < $phpcsFile->numTokens) {
@@ -350,7 +374,7 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $opener = $this->closedOpener($token);
+            $opener = $this->closedOpener($tokens, $i, $stack);
 
             if ($opener !== null && $stack !== [] && $stack[count($stack) - 1]['opener'] === $opener) {
                 array_pop($stack);
@@ -395,7 +419,7 @@ class MultiLineStatementIndentSniff implements Sniff
         $token = $tokens[$ptr];
         $lineStart = $this->lineFirstToken($phpcsFile, $ptr);
         $actual = $tokens[$lineStart]['column'] - 1;
-        $closedOpener = $this->closedOpener($token);
+        $closedOpener = $this->closedOpener($tokens, $ptr, $stack);
 
         if ($closedOpener !== null) {
             $expected = $this->lineIndent($phpcsFile, $closedOpener);
@@ -523,9 +547,8 @@ class MultiLineStatementIndentSniff implements Sniff
      * the same reason: scanning back to the start of the comment for each of its
      * lines is quadratic, and a long comment is enough to stall the run.
      * checkStatement() carries it along the token walk it already makes;
-     * mapCommentOpeners() carries it along one pass over the file, for
-     * lineFirstToken(), which reads lines in no order it could carry anything
-     * along.
+     * mapLines() carries it along one pass over the file, for lineFirstToken(),
+     * which reads lines in no order it could carry anything along.
      *
      * Carrying the state is also what tells apart two shapes that look
      * identical at the fragment: a body line whose text begins with a slash
@@ -564,30 +587,49 @@ class MultiLineStatementIndentSniff implements Sniff
     }
 
     /**
-     * The opener whose bracket/scope the token closes, or null when the
-     * token is not a closer.
+     * The opener whose bracket/scope the token at $ptr closes, or null when the
+     * token is not a closer, or is one whose opener cannot be established.
      *
-     * @param array<string, mixed> $token
+     * A closer PHPCS links reads its partner off the token. One it does not
+     * (UNLINKED_PAIRS says which, and why) is answered from the open bracket
+     * this sniff is currently inside, which is that partner as long as it is an
+     * opener of the matching kind. Anything else — an unbalanced closer, or a
+     * stack whose top belongs to some other bracket — leaves the pair
+     * unestablished, and the closer is then measured as an ordinary line rather
+     * than anchored on a guess.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, array{opener: int, exprStart: int|null}> $stack
      */
-    private function closedOpener(array $token): ?int
+    private function closedOpener(array $tokens, int $ptr, array $stack): ?int
     {
-        if ($token['code'] === T_CLOSE_PARENTHESIS) {
-            return $token['parenthesis_opener'] ?? null;
+        $code = $tokens[$ptr]['code'];
+
+        if ($code === T_CLOSE_PARENTHESIS) {
+            return $tokens[$ptr]['parenthesis_opener'] ?? null;
         }
 
-        if ($token['code'] === T_CLOSE_SQUARE_BRACKET || $token['code'] === T_CLOSE_SHORT_ARRAY) {
-            return $token['bracket_opener'] ?? null;
+        if ($code === T_CLOSE_SQUARE_BRACKET || $code === T_CLOSE_SHORT_ARRAY) {
+            return $tokens[$ptr]['bracket_opener'] ?? null;
         }
 
-        if ($token['code'] === T_CLOSE_CURLY_BRACKET) {
-            return $token['scope_opener'] ?? null;
+        if ($code === T_CLOSE_CURLY_BRACKET) {
+            return $tokens[$ptr]['scope_opener'] ?? null;
         }
 
-        if ($token['code'] === T_ATTRIBUTE_END) {
-            return $token['attribute_opener'] ?? null;
+        if ($code === T_ATTRIBUTE_END) {
+            return $tokens[$ptr]['attribute_opener'] ?? null;
         }
 
-        return null;
+        $unlinked = self::UNLINKED_PAIRS[$code] ?? null;
+
+        if ($unlinked === null || $stack === []) {
+            return null;
+        }
+
+        $opener = $stack[count($stack) - 1]['opener'];
+
+        return $tokens[$opener]['code'] === $unlinked ? $opener : null;
     }
 
     /**
@@ -606,7 +648,8 @@ class MultiLineStatementIndentSniff implements Sniff
      * comment's length. Every measurement this sniff makes runs through here,
      * which is why the rule lives here rather than at each caller: the same line
      * reads the same way whether it is being checked, used as an anchor, or read
-     * as the statement's own base indent.
+     * as the statement's own base indent. That also makes this the one place a
+     * per-line reading can be made cheap for all of them — mapLines() says how.
      */
     private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
@@ -627,11 +670,7 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function lineStart(array $tokens, int $ptr): int
     {
-        $first = $ptr;
-
-        while ($first > 0 && $tokens[$first - 1]['line'] === $tokens[$ptr]['line']) {
-            $first--;
-        }
+        $first = $this->lineStarts[$tokens[$ptr]['line']];
 
         if ($tokens[$first]['code'] === T_WHITESPACE) {
             $first++;
@@ -641,27 +680,40 @@ class MultiLineStatementIndentSniff implements Sniff
     }
 
     /**
-     * Records, for every token sitting inside a comment that opened before it,
-     * the token that opened that comment.
+     * Answers both of this sniff's per-line questions in a single pass over the
+     * file: where each line begins, and which comment — if any — each token sits
+     * inside.
      *
-     * Whether a comment fragment continues the one above it is a question about
-     * the fragment before it, so the answer has to come from the state carried
-     * along the run — commentStaysOpen() says why. lineFirstToken() reads lines
-     * in no particular order and cannot carry anything, and recovering the state
-     * per line by replaying the comment from its start costs one pass per line:
-     * quadratic in the comment's length, and a doc comment of a few thousand
-     * lines in front of a wrapped statement is then enough to stall the run.
-     * Filling this map is one pass over the file, and every later reading is a
-     * lookup. process() rebuilds it per file, which includes once per `phpcbf`
-     * pass, so it never outlives the tokens it was built from.
+     * Every reading here used to be a scan backwards from the token being asked
+     * about, and each one was quadratic for the same reason. A line's first
+     * token was found by walking back token by token until the line changed, and
+     * lineIndent() asks that of the *same* bracket opener once per line the
+     * bracket wraps — so an opener late on a long line, with many lines under
+     * it, re-walked that line every time. Whether a comment fragment continues
+     * the one above it is a question about the fragment before it
+     * (commentStaysOpen() says why), and replaying the comment from its start to
+     * recover the answer cost one pass per line of it. Neither reader can carry
+     * state along: lineFirstToken() reads lines in whatever order the anchors
+     * fall in.
+     *
+     * So the state is carried here instead, once, and every later reading is a
+     * lookup — the treatment checkStatement() already gives its own walk. Both
+     * maps are rebuilt per file, which includes once per `phpcbf` pass, so
+     * neither outlives the tokens it was built from.
      */
-    private function mapCommentOpeners(File $phpcsFile): void
+    private function mapLines(File $phpcsFile): void
     {
         $this->commentOpeners = [];
+        $this->lineStarts = [];
         $opener = null;
 
         foreach ($phpcsFile->getTokens() as $i => $token) {
             $code = $token['code'];
+            $line = $token['line'];
+
+            if (isset($this->lineStarts[$line]) === false) {
+                $this->lineStarts[$line] = $i;
+            }
 
             if (isset(Tokens::$commentTokens[$code]) === false) {
                 $opener = null;
