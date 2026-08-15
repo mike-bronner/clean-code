@@ -762,6 +762,27 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * Writes source to a file outside the repository and returns its path, for a
+ * case that varies one detail of a view or too large a body to keep on disk.
+ * Staged paths are purged after each test by tests/Pest.php.
+ */
+function stageSource(string $source, string $filename = 'view.blade.php'): string
+{
+    // Its own directory, because purgeStagedFixtures() removes the parent.
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    $path = $directory . '/' . $filename;
+    stagedFixtures($path);
+    file_put_contents($path, $source);
+
+    return $path;
+}
+
+/**
  * Copies a fixture to a directory outside the repository and returns the new
  * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
  * scoping from the file's path alone — so this is what lets either of them see
@@ -958,6 +979,37 @@ function measuredComplexities(LocalFile $file): array
 }
 
 /**
+ * Reads the nesting level CleanCode.Metrics.MethodNestingLevel measured back out
+ * of each of its reports, keyed by the line it reported on.
+ *
+ * The counterpart of measuredComplexities() above, and there for the same
+ * reason: a test asserting only *where* the sniff reported holds just as well
+ * against one that measures every level wrongly and still lands over the limit,
+ * and the level is the whole content of the diagnostic. A report whose message
+ * carries no level is skipped rather than guessed at.
+ *
+ * One entry per line, which is safe only next to an assertion that pins the
+ * reports themselves — violationTuples() — since a second report on a line
+ * would overwrite the first here.
+ *
+ * @return array<int, int>
+ */
+function reportedNestingLevels(LocalFile $file): array
+{
+    $levels = [];
+
+    foreach (violationMessagesByLine($file->getErrors()) as $line => $messages) {
+        foreach ($messages as $message) {
+            if (preg_match('/^Method nesting level \((\d+)\) exceeds/', $message, $matches) === 1) {
+                $levels[$line] = (int) $matches[1];
+            }
+        }
+    }
+
+    return $levels;
+}
+
+/**
  * Executes a fixture in an isolated scope and returns the variables it
  * defined, so a fixer's before/after string values can be compared directly.
  *
@@ -1054,4 +1106,52 @@ function squizNonOperandTokens(): array
     $property->setAccessible(true);
 
     return $property->getValue($sniff) ?? [];
+}
+
+/**
+ * The T_* token names listed in a class constant, read out of the source that
+ * declares it.
+ *
+ * Lets a test assert against the enumeration a sniff actually uses rather than
+ * against a copy of it kept alongside, which is the whole point: a copy drifts
+ * silently, and an enumeration a test only restates is an enumeration nothing
+ * checks. Reading it needs no Reflection, which this package's own
+ * CleanCode.Testing.NoReflectionAccess forbids in tests — PHP_CodeSniffer
+ * tokenizes the file and the names are read off the tokens.
+ *
+ * Every T_* name between the constant's own name and the semicolon ending its
+ * declaration. A constant that cannot be found yields an empty list, so a
+ * caller asserting completeness reddens rather than passing on nothing.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<int, string>
+ */
+function tokenNamesInConstant(string $path, string $constant, array $sniffCodes): array
+{
+    $tokens = analyzeWithSniffs($sniffCodes, $path)->getTokens();
+    $names = [];
+    $reading = false;
+
+    foreach ($tokens as $token) {
+        if ($token['code'] === T_STRING && $token['content'] === $constant) {
+            $reading = true;
+
+            continue;
+        }
+
+        if ($reading === false) {
+            continue;
+        }
+
+        if ($token['code'] === T_SEMICOLON) {
+            break;
+        }
+
+        if ($token['code'] === T_STRING && str_starts_with($token['content'], 'T_') === true) {
+            $names[] = $token['content'];
+        }
+    }
+
+    return $names;
 }

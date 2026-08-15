@@ -4,7 +4,40 @@
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
     <description>Master ruleset for mike-bronner/phpcs-rules. Individual sniff standards get wired in here via rule refs as they land — see CONTRIBUTING.md.</description>
 
-    <arg name="extensions" value="php"/>
+    <!--
+        Blade views are scanned as well as plain PHP (#46). The `/php` suffix
+        picks the tokenizer, so a .blade.php file is handed to the PHP
+        tokenizer and its markup arrives as T_INLINE_HTML — which is what
+        CleanCode.Livewire.ComponentMarkup reads. Without the entry PHPCS's
+        file filter skips Blade views outright and the standard has nothing to
+        lint. Every other rule below sees Blade views too; that is deliberate,
+        since the PHP a view embeds is PHP like any other, and the file-level
+        PSR rules (file header, side effects) do not fire on a template.
+    -->
+    <arg name="extensions" value="php,blade.php/php"/>
+
+    <!--
+        The extensions entry above has one unavoidable side effect: a Blade view
+        is, by Blade's own design, normally all markup and directives with no
+        raw `<?php ?>` tag anywhere. Handing such a file to the PHP tokenizer
+        makes PHPCS report Internal.NoCodeFound ("No PHP code was found in this
+        file"), which exits 1 — so without this entry, installing this ruleset
+        would fail a consumer's CI on every idiomatic Blade view, whether or not
+        the view breaks any standard.
+
+        The suppression is an exclude-pattern rather than <severity>0</severity>
+        so the blast radius stops at Blade views: a plain .php file that really
+        contains no PHP still warns, which is the case the check exists for.
+
+        The trade this accepts: a .blade.php file whose PHP is written with
+        short open tags on a runtime that disallows them is silently unlinted
+        rather than reported. That is the same silence PHPCS gives any file it
+        cannot tokenise, and it is worth strictly less than a ruleset that
+        cannot be installed. Recorded in docs/standards/livewire-components.md.
+    -->
+    <rule ref="Internal.NoCodeFound">
+        <exclude-pattern>*\.blade\.php</exclude-pattern>
+    </rule>
 
     <!--
         Pin sniff behaviour to the package's PHP floor (composer.json requires
@@ -682,6 +715,23 @@
     </rule>
 
     <!--
+        Models: Relationship Properties (#42) —
+        docs/standards/models-relationship-properties.md.
+
+        The custom CleanCode.Models.DisallowChainedPropertyFetch sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        block only scopes it. Test suites build object graphs inline and read
+        straight through them, so the sniff stays out of test paths, matching
+        the sibling Models standard above.
+
+        No <severity> or <type> override: the standard mandates the accessor,
+        so the sniff reports at its own error severity.
+    -->
+    <rule ref="CleanCode.Models.DisallowChainedPropertyFetch">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
+
+    <!--
         Models: Eager Loading (#74) — docs/standards/models-eager-loading.md.
 
         Two custom sniffs carry the token-visible slices of this standard, and
@@ -971,6 +1021,26 @@
         Detection only, matching PHPMD: renaming a function or method means
         updating every call site and every interface it satisfies, so there is
         no safe mechanical rewrite.
+    -->
+
+    <!--
+        Livewire: Components (#46) — docs/standards/livewire-components.md.
+
+        No existing PHPCS or Slevomat sniff reads Blade markup at all, so the
+        standard is the custom CleanCode.Livewire.ComponentMarkup sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed. It depends on the blade.php entry in
+        the extensions arg at the top of this file.
+
+        Best-effort by construction: the sniff regex-reads the T_INLINE_HTML
+        markup, and Blade control flow makes the *rendered* DOM undecidable
+        from one template, so it only reports shapes that are unambiguous in
+        the source and leaves the rest to code review. Its four codes can be
+        excluded individually where a project's markup defeats a heuristic.
+
+        Detection only: every fix needs a value a machine cannot derive —
+        which attributes belong on the root, what a wire:key should be keyed
+        to — so there is nothing to auto-fix.
     -->
 
     <!--
@@ -2148,4 +2218,28 @@
         </properties>
     </rule>
     <rule ref="Squiz.Arrays.ArrayBracketSpacing"/>
+
+      <!--
+        Properties: Are Required (#55) —
+        docs/standards/properties-are-required.md.
+
+        The custom CleanCode.Classes.RequireProperties sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted.
+
+        No <exclude-pattern> for test paths, unlike the
+        DisallowExternalPersistenceCalls block above. There is no test idiom
+        that makes a stateless class legitimate — a test case holds its
+        fixtures, and a Pest test file declares no class at all — so a path
+        filter would only hide the rule where it still applies.
+
+        Nothing existing covers it. Slevomat's class sniffs speak about how
+        properties are declared (RequireConstructorPropertyPromotion), their
+        visibility (ForbiddenPublicProperty) and their ordering
+        (ClassStructure); none reports their *absence*, and neither PSR12,
+        Squiz nor Generic has an equivalent. That search is re-run on every
+        suite pass by tests/Standards/RequirePropertiesTest.php, so a future
+        vendor upgrade that does cover this case says so rather than leaving
+        the custom sniff unexamined.
+    -->
 </ruleset>
