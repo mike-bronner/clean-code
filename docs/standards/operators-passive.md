@@ -69,11 +69,13 @@ operators **everywhere**, template context (`<?= -$total ?>`) and error control
 
 The four contexts are not a hand-kept list. `tests/Standards/BinaryOperatorSpacingTest.php`
 derives the divergence between the two sniffs' operand detection from the
-classes themselves and fails if either side gains a context the other does not
-account for, so the collision is closed as a class rather than one surface at a
-time. `tests/Ruleset/OperatorsPassiveTest.php` additionally drives the real
-`phpcbf` binary over the real master ruleset and asserts it reaches a stable
-fixed point on every one of them.
+classes themselves and pins all three sides of it: neither sniff may gain a
+context the other does not account for, and the passive sniff may not drop one
+its binary counterpart still holds — that last one would leave a sign no sniff
+owns at all. The collision is therefore closed as a class rather than one
+surface at a time. `tests/Ruleset/OperatorsPassiveTest.php` additionally drives
+the real `phpcbf` binary over the real master ruleset and asserts it reaches a
+stable fixed point on every one of them.
 
 ### Existing sniffs — the rest
 

@@ -15,7 +15,6 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Operators\BinaryOperatorSpacingSniff;
-use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
 
 const BINARY_OPERATOR_SPACING = 'CleanCode.Operators.BinaryOperatorSpacing';
@@ -92,22 +91,7 @@ it('registers exactly the tokens its parent does', function (): void {
  * as a class, not one surface at a time.
  */
 it('cedes every context where the passive sniff and its parent disagree', function (): void {
-    $parent = new OperatorSpacingSniff();
-    $parent->register();
-
-    $passive = new PassiveOperatorSpacingSniff();
-    $reflected = new ReflectionMethod($passive, 'nonOperandTokens');
-    $reflected->setAccessible(true);
-
-    $divergence = array_diff_key(
-        $reflected->invoke($passive),
-        (function () use ($parent): array {
-            $property = new ReflectionProperty($parent, 'nonOperandTokens');
-            $property->setAccessible(true);
-
-            return $property->getValue($parent) ?? [];
-        })()
-    );
+    $divergence = array_diff_key(passiveNonOperandTokens(), squizNonOperandTokens());
 
     expect($divergence)->not->toBe([])
         ->and(array_diff_key($divergence, BinaryOperatorSpacingSniff::UNARY_SIGN_PRECEDERS))
@@ -120,12 +104,28 @@ it('cedes every context where the passive sniff and its parent disagree', functi
  * by both sniffs and the standard would have a hole in it.
  */
 it('cedes nothing the passive sniff does not claim', function (): void {
-    $passive = new PassiveOperatorSpacingSniff();
-    $reflected = new ReflectionMethod($passive, 'nonOperandTokens');
-    $reflected->setAccessible(true);
-
     expect(array_diff_key(
         BinaryOperatorSpacingSniff::UNARY_SIGN_PRECEDERS,
-        $reflected->invoke($passive)
+        passiveNonOperandTokens()
     ))->toBe([]);
+});
+
+/**
+ * The third side of the boundary, without which the two above do not pin it.
+ *
+ * They only bound the passive set between UNARY_SIGN_PRECEDERS and
+ * parent ∪ UNARY_SIGN_PRECEDERS, so a passive sniff that dropped its inherited
+ * categories and kept just the four ceded contexts satisfies both and is still
+ * wrong. Losing T_COMMA, it would stop reading the sign in `f($a, - 1)` as
+ * unary — and this sniff would not pick it up either, because its own parent
+ * set still counts a comma as a non-operand and declines the sign as binary.
+ * Neither sniff owns it, the space survives, and Operators: Passive goes
+ * silently unenforced everywhere except the four contexts. Nothing oscillates,
+ * so no fixed-point test catches it.
+ *
+ * Asserting the parent's set is fully contained closes that direction: the
+ * passive set can only ever be the parent's plus the ceded four.
+ */
+it('claims every context its binary counterpart already treats as a non-operand', function (): void {
+    expect(array_diff_key(squizNonOperandTokens(), passiveNonOperandTokens()))->toBe([]);
 });
