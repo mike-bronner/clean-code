@@ -123,6 +123,21 @@ final class Reporter
     }
 
     /**
+     * Nor is a constructor call on a class of the same name. PHP keeps class
+     * and function names in separate symbol tables, so the class declared at
+     * the foot of this file is a different symbol from `get_class()`, and
+     * `new` reaches the class whatever the function would have done here.
+     */
+    public function byConstructorCall(object $value): string
+    {
+        if (new get_class($value)) {
+            return 'thing';
+        }
+
+        return new gettype($value) ? 'thing' : 'other';
+    }
+
+    /**
      * A constant sharing an introspection function's name is not a call.
      */
     public function byConstant(): string
@@ -314,5 +329,25 @@ final class Reporter
             0 => $labels === [] ? 'empty' : 'never',
             default => 'some',
         };
+    }
+}
+
+/**
+ * The classes `byConstructorCall()` constructs. Naming a class after a global
+ * function is legal PHP — the two live in separate symbol tables — which is
+ * why `new name(` has to be read as a constructor call and not as the
+ * introspection function of that name.
+ */
+final class get_class
+{
+    public function __construct(private object $value)
+    {
+    }
+}
+
+final class gettype
+{
+    public function __construct(private object $value)
+    {
     }
 }

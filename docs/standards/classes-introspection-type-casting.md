@@ -82,8 +82,11 @@ The standard is therefore enforced by the custom
     the global introspection functions. Nor is a bare name the file resolves to
     something of its own: a `use function Vendor\get_class;` import (under its
     own name or an `as` alias), or a `function get_class()` declared in the
-    file's namespace. A root-namespaced `\get_class()` *is* the global
-    function — an explicit qualifier outranks any import — and is flagged.
+    file's namespace. Nor is a constructor call on a class of the same name
+    (`new get_class()`): PHP keeps class and function names in separate symbol
+    tables, so the name after `new` is always the class. A root-namespaced
+    `\get_class()` *is* the global function — an explicit qualifier outranks
+    any import — and is flagged.
   - **First-class callables** — `array_map(get_class(...), $values)`. The
     `name(...)` syntax builds a `Closure` referring to the function rather than
     calling it, so nothing is introspected where it is written; like a callback
