@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Operators;
 
+use MikeBronner\CleanCode\Support\ConditionOperatorOwnership;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -26,9 +27,21 @@ use PHP_CodeSniffer\Util\Tokens;
  * `floor(4 + 4.1)` — are always fine; the rule only governs how a
  * genuinely wrapped expression breaks.
  *
- * Manipulation operators covered: string concatenation (`.`); the math
- * operators `+ - * / % **`; the logical operators `&& ||`; and the bitwise
- * operators `& | ^ << >>`. Unary bitwise NOT (`~`) has no binary/continuation
+ * Manipulation operators covered here: the math operators `+ - * / % **` and
+ * the bitwise operators `& | ^ << >>` — the slice of the standard's list that
+ * no other rule in the master ruleset already polices. The remaining
+ * manipulation operators are deliberately left out, so that a wrapped
+ * expression is reported exactly once:
+ *
+ * - string concatenation (`.`) and the logical connectives (`&& ||`) are
+ *   already enforced by {@see OperatorLineBreakSniff} (#35), which reports the
+ *   same "operator must not trail the line" rule on them; and
+ * - inside an `if`/`elseif`/`while`/`for` condition that sniff in turn defers
+ *   to `CleanCode.Conditionals.OneConditionPerLine`, so this one defers there
+ *   on the same terms — see {@see ConditionOperatorOwnership}, which holds the
+ *   single copy of that decision for both sniffs.
+ *
+ * Unary bitwise NOT (`~`) has no binary/continuation
  * form and is not subject to the rule. Some tokens double as non-binary forms
  * that are never manipulation operators and so are exempt regardless of layout:
  * a unary sign (`-5`, `+5`), recognised because no real left-hand operand ends
@@ -49,22 +62,26 @@ use PHP_CodeSniffer\Util\Tokens;
 class ManipulationOperatorPlacementSniff implements Sniff
 {
     /**
-     * The manipulation operators the standard governs. `~` (unary bitwise NOT)
-     * is intentionally excluded: it has no binary form, so "start the new line"
-     * is meaningless for it.
+     * The manipulation operators this sniff governs — the math and bitwise
+     * groups. Two members of the standard's wider list are intentionally
+     * absent:
+     *
+     * - `.` and `&& ||`, because {@see OperatorLineBreakSniff} already reports
+     *   the same rule on them (#35). Registering them here as well would report
+     *   every wrapped concatenation and boolean twice, which is what
+     *   tests/Integration/OperatorRulesIntegrationTest.php exists to prevent.
+     * - `~` (unary bitwise NOT), because it has no binary form, so "start the
+     *   new line" is meaningless for it.
      *
      * @var array<int|string>
      */
     private const MANIPULATION_OPERATORS = [
-        T_STRING_CONCAT, // .
         T_PLUS,          // +
         T_MINUS,         // -
         T_MULTIPLY,      // *
         T_DIVIDE,        // /
         T_MODULUS,       // %
         T_POW,           // **
-        T_BOOLEAN_AND,   // &&
-        T_BOOLEAN_OR,    // ||
         T_BITWISE_AND,   // &
         T_BITWISE_OR,    // |
         T_BITWISE_XOR,   // ^
@@ -146,6 +163,13 @@ class ManipulationOperatorPlacementSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
+        // Inside an if/elseif/while/for condition, OneConditionPerLine reports
+        // (and fixes) the same wrap wholesale, so stand down there exactly
+        // where CleanCode.Operators.OperatorLineBreak does.
+        if (ConditionOperatorOwnership::isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
+            return;
+        }
+
         $tokens = $phpcsFile->getTokens();
 
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);

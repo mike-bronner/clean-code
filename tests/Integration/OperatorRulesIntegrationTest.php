@@ -12,8 +12,11 @@
  *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
- *     a wrapped condition (OperatorLineBreak defers there).
- * A per-sniff test structurally cannot catch either — only this one can.
+ *     a wrapped condition (OperatorLineBreak defers there), and
+ *   - CleanCode.Operators.ManipulationOperatorPlacement (#59) overlapping
+ *     OperatorLineBreak, which enforces the identical "an operator must lead
+ *     the continuation line" rule over a disjoint half of the operator list.
+ * A per-sniff test structurally cannot catch any of them — only this one can.
  */
 
 declare(strict_types=1);
@@ -30,7 +33,9 @@ declare(strict_types=1);
  *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
  *     double-reports "if ( ! " (line 23), and
  *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
- *     operator inside a multi-condition slips through unreported (line 28).
+ *     operator inside a multi-condition slips through unreported (line 28), and
+ *   - re-registering the math or bitwise group on both line-break sniffs at
+ *     once, doubling every wrapped math operator (line 35).
  *
  * The fixture opens with a four-line preamble assigning every name it goes on
  * to use, so the master ruleset's undefined-variable rule (#85) stays quiet
@@ -101,5 +106,11 @@ it('reports every operator violation exactly once', function (): void {
             'CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators.FoundAfter',
             'CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd',
         ],
+        // dangling "-" outside a condition — ManipulationOperatorPlacement's
+        // to own (#59), and only its. OperatorLineBreak enforces the identical
+        // rule over the assignment/comparison/logical/concatenation operators,
+        // so the two register disjoint token sets; were the math or bitwise
+        // group added back to either one, this line would carry two sources.
+        35 => ['CleanCode.Operators.ManipulationOperatorPlacement.OperatorNotLeading'],
     ]);
 });

@@ -31,3 +31,6 @@ if (
 ) {
     $done = true;
 }
+
+$total = $first -
+    $second;
