@@ -48,10 +48,54 @@
  *     — passing.php reddens on 47 lines and failing.php gains 5, because every
  *     property assignment there is rejected on its own operator; the ordering is
  *     what separates the target from the assignment
- *   - drop INVOKING_TOKENS entirely — failing.php loses 221, 264 and 265
- *   - drop T_NEW and T_CLONE from it — failing.php loses 264 and 265, the two
- *     spellings whose only parenthesis is a grouping one, so the call check
- *     cannot see them
+ *   - drop INVOKING_TOKENS entirely — failing.php loses 221 and 265
+ *   - drop T_NEW and T_CLONE from it — failing.php loses 265, the `clone` whose
+ *     only parenthesis is a grouping one, so the call check cannot see it.
+ *     264, the anonymous class, is *not* lost: its body carries `public int $k
+ *     = 1;`, a write inside the target, which the write rejection catches on
+ *     its own. The keyword is pinned by its own probe instead — see
+ *     INVOKING_PROBES, where each spelling stands alone
+ *   - drop any single entry from INVOKING_TOKENS — its own probe in "flags
+ *     every invoking token in an assignment target" reddens, and no other
+ *     dataset does. Run for all 12 entries; all 12 killed
+ *   - drop the call-parenthesis rejection — "flags eval in an assignment target
+ *     through the call scan" reddens, which is what pins `eval` staying flagged
+ *     after it left INVOKING_TOKENS
+ *   - drop any single entry from BLOCK_STATEMENT_TOKENS — its own probe in
+ *     "ends a block statement at its own structure" reddens. Two entries redden
+ *     more than their own, because other probes are built on them: T_IF also
+ *     reddens T_ELSEIF and T_ELSE, T_TRY also reddens T_CATCH and T_FINALLY.
+ *     Run for all 13; 12 killed and one equivalent —
+ *   - T_DO — **survives**: groupCloser() jumps the loop body by the same
+ *     `scope_closer` the block path reads, then the semicolon scan lands on the
+ *     `;` after `while (…)`, which is where the block path ends too. Measured
+ *     against four shapes (braced, brace-less, nested, and holding an
+ *     alternative-syntax construct); none separates them. Recorded as an
+ *     equivalent mutation rather than a killed one, so the absence of a
+ *     reddening probe is not mistaken for missing coverage. The entry stays
+ *     because `do … while` is a block statement by classification
+ *   - T_CLASS, T_INTERFACE, T_TRAIT and T_ENUM left BLOCK_STATEMENT_TOKENS
+ *     rather than gaining probes: PHP rejects each of them inside a class
+ *     member with "Class declarations may not be nested" (read off `php -l`,
+ *     not assumed), and this sniff only inspects a constructor inside an OO
+ *     container, so no source can put one at a statement it walks. `new class
+ *     { … }` is T_ANON_CLASS, not T_CLASS. A nested *function* is legal there,
+ *     and keeps its entry and its probe
+ *   - drop any single entry from ALTERNATIVE_SYNTAX_CLOSERS — its own probe
+ *     reddens and no other. Run for all 6, including T_ENDDECLARE; all killed
+ *   - drop any single entry from CONTINUATION_KEYWORDS — its own probe reddens
+ *     (T_CATCH also reddens T_TRY, whose probe carries a catch clause). All 4
+ *     killed
+ *   - drop any single entry from BRACKET_OPENERS or BRACKET_CLOSERS — the
+ *     bracket-depth probe of that bracket kind reddens, opener and closer
+ *     alike, because either one unbalances the count. The square-bracket pair
+ *     reddens all eight datasets, every probe being a subscript. All 8 killed
+ *   - drop either entry from INTERPOLATABLE_STRING_TOKENS — its own probe in
+ *     "flags a call hidden in every interpolatable string token" reddens
+ *   - add a token list to the sniff without an entry in NO_LOGIC_ENUMERATIONS —
+ *     "claims every hand-enumerated token list in the sniff" reddens
+ *   - remove a probe from any probe set — "probes every member of every
+ *     hand-enumerated token list" reddens for the list that set covers
  *   - stop consuming continuation clauses — failing.php gains 26, 28, 49, 51,
  *     56, 78 and 80, reporting one construct once per clause
  *   - drop the `do … while` tail branch — failing.php gains 42
@@ -450,6 +494,346 @@ it('probes every token the target scan rejects as a write', function (): void {
     sort($probed);
 
     expect($probed)->toBe(array_values($rejected));
+});
+
+/**
+ * One probe per entry in INVOKING_TOKENS, keyed by the token it covers. Each is
+ * a subscript in the otherwise-compliant `$this->items[…] = $value;`, so the
+ * assertion turns on the keyword alone.
+ *
+ * Every entry is spelled without a parenthesis, which is the whole reason the
+ * list exists — a spelling that carries one is rejected by the call scan
+ * instead, and would pass this probe whether or not the token were listed.
+ * `eval` has no parenthesis-free form and is therefore not a member; the probe
+ * below it asserts it stays flagged all the same.
+ *
+ * @var array<string, string>
+ */
+const INVOKING_PROBES = [
+    'T_BACKTICK' => '`hostname`',
+    'T_NEW' => 'new InvokingProbeSeed',
+    'T_CLONE' => 'clone $this->other',
+    'T_EXIT' => 'exit',
+    'T_PRINT' => 'print $this->prefix',
+    'T_THROW' => 'throw $this->other',
+    'T_YIELD' => 'yield $this->prefix',
+    'T_YIELD_FROM' => 'yield from $this->items',
+    'T_INCLUDE' => 'include $this->prefix',
+    'T_INCLUDE_ONCE' => 'include_once $this->prefix',
+    'T_REQUIRE' => 'require $this->prefix',
+    'T_REQUIRE_ONCE' => 'require_once $this->prefix',
+];
+
+/**
+ * A keyword that runs code carries no parenthesis for the call scan to
+ * classify, so the target scan has to recognise the keyword itself.
+ */
+it('flags every invoking token in an assignment target', function (string $probe): void {
+    $source = "<?php\nclass InvokingProbe { private array \$items; private string \$prefix = 'p';\n"
+        . "private \$other;\n"
+        . "public function __construct(\$value) {\n\$this->items[$probe] = \$value;\n} }\n";
+
+    expect(tuplesFromMessages(analyzeStdinSource([NO_LOGIC], $source)->getErrors()))
+        ->toBe([['line' => 5, 'column' => 1, 'source' => NO_LOGIC_FOUND]]);
+})->with(INVOKING_PROBES);
+
+/**
+ * `eval` is the one invoking keyword PHP gives no parenthesis-free spelling, so
+ * it is not in INVOKING_TOKENS. It is still flagged — by the call scan, because
+ * `T_EVAL` is not a grouping preceder — and that is pinned here rather than
+ * assumed, since removing the entry would otherwise be an unobserved change.
+ */
+it('flags eval in an assignment target through the call scan', function (): void {
+    $source = "<?php\nclass EvalProbe { private array \$items; private string \$prefix = 'p';\n"
+        . "private \$other;\n"
+        . "public function __construct(\$value) {\n\$this->items[eval(\$this->prefix)] = \$value;\n} }\n";
+
+    expect(tuplesFromMessages(analyzeStdinSource([NO_LOGIC], $source)->getErrors()))
+        ->toBe([['line' => 5, 'column' => 1, 'source' => NO_LOGIC_FOUND]]);
+});
+
+/**
+ * One probe per entry in BLOCK_STATEMENT_TOKENS, keyed by the token it covers.
+ *
+ * Each is a construct whose body holds a semicolon of its own, so a scan that
+ * ended the statement at the next `;` would stop inside it and desynchronise
+ * the walk — which is exactly what the assertion catches, by requiring the
+ * statement *after* the construct to still be reported on its own line.
+ *
+ * The four continuation keywords are probed through the construct they
+ * continue, because that is the only way a statement reaches them.
+ *
+ * @var array<string, string>
+ */
+const BLOCK_STATEMENT_PROBES = [
+    'T_IF' => "if (\$value) {\n    \$this->x();\n}",
+    'T_ELSEIF' => "if (\$value) {\n    \$this->x();\n} elseif (\$value) {\n    \$this->y();\n}",
+    'T_ELSE' => "if (\$value) {\n    \$this->x();\n} else {\n    \$this->y();\n}",
+    'T_FOR' => "for (\$i = 0; \$i < 1; \$i++) {\n    \$this->x();\n}",
+    'T_FOREACH' => "foreach ([] as \$v) {\n    \$this->x();\n}",
+    'T_WHILE' => "while (\$value) {\n    \$this->x();\n}",
+    'T_DO' => "do {\n    \$this->x();\n} while (\$value);",
+    'T_SWITCH' => "switch (\$value) {\n    default:\n        \$this->x();\n}",
+    'T_TRY' => "try {\n    \$this->x();\n} catch (Throwable \$e) {\n    \$this->y();\n}",
+    'T_CATCH' => "try {\n    \$this->x();\n} catch (Throwable \$e) {\n    \$this->y();\n}",
+    'T_FINALLY' => "try {\n    \$this->x();\n} finally {\n    \$this->y();\n}",
+    'T_DECLARE' => "declare(ticks=1) {\n    \$this->x();\n}",
+    'T_FUNCTION' => "function blockProbeHelper()\n{\n    echo 1;\n}",
+];
+
+/**
+ * The alternative syntax of the same constructs, one probe per entry in
+ * ALTERNATIVE_SYNTAX_CLOSERS. PHPCS records the `endif`/`endforeach`/… keyword
+ * as the clause's `scope_closer`, and PHP requires a `;` after it that belongs
+ * to the same statement — treating that `;` as a statement of its own reports a
+ * stray token, which the assertion catches as an extra reported line.
+ *
+ * @var array<string, string>
+ */
+const ALTERNATIVE_SYNTAX_PROBES = [
+    'T_ENDIF' => "if (\$value):\n    \$this->x();\nendif;",
+    'T_ENDFOR' => "for (\$i = 0; \$i < 1; \$i++):\n    \$this->x();\nendfor;",
+    'T_ENDFOREACH' => "foreach ([] as \$v):\n    \$this->x();\nendforeach;",
+    'T_ENDWHILE' => "while (\$value):\n    \$this->x();\nendwhile;",
+    'T_ENDSWITCH' => "switch (\$value):\n    default:\n        \$this->x();\nendswitch;",
+    'T_ENDDECLARE' => "declare(ticks=1):\n    \$this->x();\nenddeclare;",
+];
+
+/**
+ * A block statement is reported once, at its opening keyword, and ends where
+ * its own structure ends — so the statement after it is reported separately
+ * rather than swallowed.
+ *
+ * Two lines and exactly two: the construct at line 6, and `$this->tail();` on
+ * the line after the construct's last. A statement that ended early reports
+ * stray tokens in between; one that ended late loses the tail.
+ */
+it('ends a block statement at its own structure, not at a semicolon inside it', function (
+    string $probe
+): void {
+    $tail = 6 + substr_count($probe, "\n") + 1;
+    $body = '        ' . str_replace("\n", "\n        ", $probe);
+    $source = "<?php\nclass BlockProbe\n{\n    public function __construct(\$value)\n    {\n"
+        . $body . "\n        \$this->tail();\n    }\n\n"
+        . "    private function x(): void {}\n\n    private function y(): void {}\n\n"
+        . "    private function tail(): void {}\n}\n";
+
+    expect(tuplesFromMessages(analyzeStdinSource([NO_LOGIC], $source)->getErrors()))
+        ->toBe([
+            ['line' => 6, 'column' => 9, 'source' => NO_LOGIC_FOUND],
+            ['line' => $tail, 'column' => 9, 'source' => NO_LOGIC_FOUND],
+        ]);
+})->with(BLOCK_STATEMENT_PROBES + ALTERNATIVE_SYNTAX_PROBES);
+
+/**
+ * One probe per entry in BRACKET_OPENERS and BRACKET_CLOSERS, keyed by the token
+ * it covers. The two lists only maintain the bracket depth at which the
+ * statement's own `=` is recognised, so an opener and its closer share a probe:
+ * dropping either unbalances the count, and the compliant target below is then
+ * read as having no top-level `=` and reported.
+ *
+ * @var array<string, string>
+ */
+const BRACKET_DEPTH_PROBES = [
+    'T_OPEN_SQUARE_BRACKET' => "\$this->items['k']",
+    'T_CLOSE_SQUARE_BRACKET' => "\$this->items['k']",
+    'T_OPEN_SHORT_ARRAY' => '$this->items[[1, 2][0]]',
+    'T_CLOSE_SHORT_ARRAY' => '$this->items[[1, 2][0]]',
+    'T_OPEN_PARENTHESIS' => '$this->items[($this->a)]',
+    'T_CLOSE_PARENTHESIS' => '$this->items[($this->a)]',
+    'T_OPEN_CURLY_BRACKET' => '$this->{$this->prefix}',
+    'T_CLOSE_CURLY_BRACKET' => '$this->{$this->prefix}',
+];
+
+it('counts bracket depth so a compliant target keeps its top-level operator', function (
+    string $target
+): void {
+    $source = "<?php\nclass BracketProbe { private array \$items; private int \$a = 1;\n"
+        . "private string \$prefix = 'p';\n"
+        . "public function __construct(\$value) {\n$target = \$value;\n} }\n";
+
+    expect(analyzeStdinSource([NO_LOGIC], $source)->getErrors())->toBe([]);
+})->with(BRACKET_DEPTH_PROBES);
+
+/**
+ * One probe per entry in INTERPOLATABLE_STRING_TOKENS, keyed by the token it
+ * covers. PHPCS hands each of these over as opaque text, so the call spelled
+ * inside carries no parenthesis and the token type is what puts the string in
+ * scope for the text check.
+ *
+ * @var array<string, string>
+ */
+const INTERPOLATION_PROBES = [
+    'T_DOUBLE_QUOTED_STRING' => '"{$this->key()}"',
+    'T_HEREDOC' => "<<<KEY\n{\$this->key()}\nKEY",
+];
+
+it('flags a call hidden in every interpolatable string token', function (string $probe): void {
+    $source = "<?php\nclass InterpolationProbe { private array \$items;\n"
+        . "public function __construct(\$value) {\n\$this->items[$probe] = \$value;\n"
+        . "}\nprivate function key(): string { return 'k'; } }\n";
+
+    expect(array_column(tuplesFromMessages(analyzeStdinSource([NO_LOGIC], $source)->getErrors()), 'line'))
+        ->toBe([4]);
+})->with(INTERPOLATION_PROBES);
+
+/**
+ * Every hand-enumerated token list in the sniff, mapped to the probe set that
+ * exercises its members one by one.
+ *
+ * A member with no probe is the defect shape this file has been bounced for
+ * repeatedly: the list keeps working by accident, and an entry that stops
+ * mattering — or never did — rides along unnoticed. The two tests below turn
+ * that into a failure: one requires every list to appear here, the other
+ * requires every member of every list to have a probe.
+ *
+ * Several lists share a probe set, because one probe covers a member of each:
+ * the continuation keywords are reached through the block statements that carry
+ * them, `T_INC`/`T_DEC` sit in the write-rejection set beside the assignment
+ * family, and `T_DOUBLE_ARROW` is exempted from that set by the grouping probe
+ * that reads an array literal.
+ *
+ * @var array<string, string>
+ */
+const NO_LOGIC_ENUMERATIONS = [
+    'ALTERNATIVE_SYNTAX_CLOSERS' => 'ALTERNATIVE_SYNTAX_PROBES',
+    'BLOCK_STATEMENT_TOKENS' => 'BLOCK_STATEMENT_PROBES',
+    'BRACKET_CLOSERS' => 'BRACKET_DEPTH_PROBES',
+    'BRACKET_OPENERS' => 'BRACKET_DEPTH_PROBES',
+    'CONTINUATION_KEYWORDS' => 'BLOCK_STATEMENT_PROBES',
+    'GROUPING_PARENTHESIS_PRECEDERS' => 'GROUPING_PROBES',
+    'INTERPOLATABLE_STRING_TOKENS' => 'INTERPOLATION_PROBES',
+    'INVOKING_TOKENS' => 'INVOKING_PROBES',
+    'NON_WRITING_ASSIGNMENT_TOKENS' => 'GROUPING_PROBES',
+    'WRITING_TOKENS' => 'WRITING_PROBES',
+];
+
+/**
+ * A list added to the sniff without an entry above fails here, so the guard
+ * cannot be outgrown. A list is recognised by its contents — every member the
+ * value of a defined `T_…` constant — rather than by its name, so renaming one
+ * does not slip it past.
+ *
+ * GROUP_CLOSER_KEYS is the one array constant that holds token *attribute*
+ * names rather than token types. It is named explicitly so that it stays the
+ * only one: a second such list would fail here and have to be accounted for.
+ * Its own members are pinned by the test below it.
+ */
+it('claims every hand-enumerated token list in the sniff', function (): void {
+    $tokenValues = array_filter(
+        get_defined_constants(),
+        static fn (string $name): bool => str_starts_with($name, 'T_'),
+        ARRAY_FILTER_USE_KEY
+    );
+
+    $lists = ['tokens' => [], 'other' => []];
+
+    foreach ((new ReflectionClass(NoLogicSniff::class))->getReflectionConstants() as $constant) {
+        $value = $constant->getValue();
+
+        if (is_array($value) === false) {
+            continue;
+        }
+
+        $isTokenList = $value !== [] && array_diff($value, array_values($tokenValues)) === [];
+        $lists[$isTokenList ? 'tokens' : 'other'][] = $constant->getName();
+    }
+
+    sort($lists['tokens']);
+
+    expect($lists['tokens'])->toBe(array_keys(NO_LOGIC_ENUMERATIONS))
+        ->and($lists['other'])->toBe(['GROUP_CLOSER_KEYS']);
+});
+
+/**
+ * Every member of every list has a probe. The probe set may be larger than the
+ * list it covers — one set covers two lists in three cases — so the assertion
+ * is that nothing is left unprobed, not that the two are equal. The two lists
+ * with a set of their own keep their exact-equality tests above.
+ */
+it('probes every member of every hand-enumerated token list', function (
+    string $enumeration,
+    string $probeSet
+): void {
+    $members = (new ReflectionClass(NoLogicSniff::class))->getConstant($enumeration);
+    $probed = array_map(constant(...), array_keys(constant($probeSet)));
+
+    expect($members)->not->toBe([])
+        ->and(array_values(array_diff($members, $probed)))->toBe([]);
+})->with(array_map(
+    static fn (string $enumeration, string $probeSet): array => [$enumeration, $probeSet],
+    array_keys(NO_LOGIC_ENUMERATIONS),
+    array_values(NO_LOGIC_ENUMERATIONS)
+));
+
+/**
+ * GROUP_CLOSER_KEYS carries two attributes that change no reported line today —
+ * measured, by dropping each and running this suite. They are kept because each
+ * is the attribute its own kind of token carries, and the redundancy belongs to
+ * PHPCS's tokeniser rather than to this sniff. This pins the two guarantees the
+ * redundancy rests on, so a tokeniser change reopens the question here instead
+ * of silently making a dropped key matter:
+ *
+ * - a scope-owning `{` carries a `bracket_closer` equal to its `scope_closer`,
+ *   which is why `scope_closer` is never the key that jumps a body;
+ * - a `;` inside a parenthesis group is also inside such a `{`, unless the
+ *   group is a `for` header — which a block statement's own scope ends before
+ *   the semicolon scan is ever reached.
+ *
+ * The corpus is every group-opening shape an assignment can carry: a closure in
+ * an argument list, a `match`, an anonymous class, an arrow function, and a
+ * `for` header. Both counts are asserted non-zero, so neither loop can pass by
+ * finding nothing to check.
+ */
+it('keeps the group-closer keys honest about what the tokeniser guarantees', function (): void {
+    $source = "<?php\nclass CloserProbe { private array \$items; private \$other;\n"
+        . "public function __construct(\$value) {\n"
+        . "\$this->items = array_map(function (\$i) { \$x = \$i; return \$x; }, [1, 2]);\n"
+        . "\$this->other = match (\$value) { default => 1 };\n"
+        . "\$this->anon = new class { public function m() { \$y = 1; return \$y; } };\n"
+        . "\$this->fn = fn (\$i) => \$i;\n"
+        . "for (\$i = 0; \$i < 1; \$i++) { \$this->items[] = \$i; }\n} }\n";
+
+    $tokens = analyzeStdinSource([NO_LOGIC], $source)->getTokens();
+    $scopedBraces = 0;
+    $nestedSemicolons = 0;
+
+    $bracedBetween = static function (array $tokens, int $from, int $to): bool {
+        for ($ptr = $from + 1; $ptr < $to; $ptr++) {
+            if (
+                $tokens[$ptr]['code'] === T_OPEN_CURLY_BRACKET
+                && ($tokens[$ptr]['bracket_closer'] ?? 0) > $to
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    foreach ($tokens as $ptr => $token) {
+        if ($token['code'] === T_OPEN_CURLY_BRACKET && isset($token['scope_closer'])) {
+            $scopedBraces++;
+
+            expect($token['bracket_closer'] ?? null)->toBe($token['scope_closer']);
+        }
+
+        if ($token['code'] !== T_SEMICOLON || ($token['nested_parenthesis'] ?? []) === []) {
+            continue;
+        }
+
+        $nestedSemicolons++;
+        $opener = array_key_last($token['nested_parenthesis']);
+
+        if ($bracedBetween($tokens, $opener, $ptr) === true) {
+            continue;
+        }
+
+        expect($tokens[$tokens[$opener]['parenthesis_owner'] ?? $opener]['code'])->toBe(T_FOR);
+    }
+
+    expect($scopedBraces)->toBeGreaterThan(0)
+        ->and($nestedSemicolons)->toBeGreaterThan(0);
 });
 
 /**

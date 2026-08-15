@@ -66,12 +66,14 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
       `$this->items[$this->key()] = …;`, `$this->loadDefaults()['k'] = …;`).
       A parenthesis that only **groups** invokes nothing and stays compliant
       (`$this->items[($this->a + $this->b)] = …;`) — what precedes it decides,
-      because a parenthesis calls whatever comes before it;
+      because a parenthesis calls whatever comes before it. `eval(…)` is caught
+      here: its argument list is mandatory, and `eval` is not something a
+      parenthesis can merely group;
     - an **invoking keyword** carrying no argument list of its own: a
       **backtick shell execution** (`` $this->items[`hostname`] = …; ``), a
       `new` or `clone` (`$this->items[(clone $this->seed)->k] = …;`,
-      `$this->items[(new class { … })->k] = …;`), or one of `eval`, `exit`,
-      `print`, `throw`, `yield`, `include` and `require`;
+      `$this->items[(new class { … })->k] = …;`), or one of `exit`, `print`,
+      `throw`, `yield`, `include` and `require`;
     - a **complex interpolation**, `{$…}` or `${…}`, inside a double-quoted
       string or a heredoc (`$this->items["{$this->key()}"] = …;`). PHPCS hands
       an interpolated string over as one opaque token, so a call spelled inside

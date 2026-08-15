@@ -71,6 +71,22 @@ class NoLogicSniff implements Sniff
      * rather than by a semicolon. A statement that starts with one of these
      * ends at the scope PHPCS recorded for it, not at the next `;` — scanning
      * for a semicolon instead would stop inside the construct's body.
+     *
+     * A nested *function* declaration belongs here: PHP allows one inside a
+     * method body, and its body holds semicolons of its own. A nested
+     * *class-like* declaration does not, and cannot: PHP rejects `class`,
+     * `interface`, `trait` and `enum` inside a class member with "Class
+     * declarations may not be nested", and this sniff only ever inspects a
+     * constructor inside an OO container, so no such token can open a statement
+     * it walks. `new class { … }` is `T_ANON_CLASS`, not `T_CLASS`. The four
+     * were listed here and are gone, for the same reason `T_EQUAL` left
+     * GROUPING_PARENTHESIS_PRECEDERS: an entry no source can reach is an entry
+     * no probe can pin.
+     *
+     * `T_DO` is reachable and probed, but its membership is an *equivalent*
+     * mutation rather than a load-bearing one — see the test docblock, which
+     * records the measurement. It stays because `do … while` is a block
+     * statement by classification, which is what this list means.
      */
     private const BLOCK_STATEMENT_TOKENS = [
         T_IF,
@@ -86,10 +102,6 @@ class NoLogicSniff implements Sniff
         T_FINALLY,
         T_DECLARE,
         T_FUNCTION,
-        T_CLASS,
-        T_INTERFACE,
-        T_TRAIT,
-        T_ENUM,
     ];
 
     /**
@@ -160,13 +172,18 @@ class NoLogicSniff implements Sniff
      * (`new Foo;`, `new class {…}`, `clone $obj`); the remaining keywords are
      * PHP's expression-level constructs that evaluate or emit something, each of
      * which also has a form without parentheses (`include 'x.php'`, `print $x`,
-     * `throw $e`, `yield $v`).
+     * `throw $e`, `yield $v`, `exit`).
+     *
+     * A parenthesis-free spelling is what earns a place here. `eval` has none —
+     * its argument list is mandatory — and `T_EVAL` is not a grouping preceder,
+     * so the call scan already rejects `eval(…)` in a target without this list
+     * seeing it. It was listed and is gone; a probe pins that `eval(…)` is still
+     * flagged, by the call scan instead.
      */
     private const INVOKING_TOKENS = [
         T_BACKTICK,
         T_NEW,
         T_CLONE,
-        T_EVAL,
         T_EXIT,
         T_PRINT,
         T_THROW,
@@ -280,7 +297,29 @@ class NoLogicSniff implements Sniff
 
     /**
      * The token attributes that record where a group opened at a token ends,
-     * in the order they are consulted.
+     * in the order they are consulted — one per kind of group a token can open:
+     * an argument list, a bracket pair, a scope.
+     *
+     * Only `bracket_closer` changes a reported line today. Measured, by dropping
+     * each key and running the suite: without `bracket_closer` one test fails;
+     * without `parenthesis_closer`, or without `scope_closer`, or without both,
+     * the suite is identical. Two properties of PHPCS's tokeniser are why —
+     * every scope-owning `{` carries a `bracket_closer` equal to its
+     * `scope_closer`, so a scope is already jumped as a bracket pair; and the
+     * group-opening shapes an assignment can carry put every `;` inside a
+     * parenthesis group inside such a `{` as well, leaving the `for` header as
+     * the one group that holds a bare one.
+     *
+     * The second is a statement about a corpus, not a proof about PHP, and is
+     * held that way on purpose: it is checked over every such shape by the test
+     * named below, not asserted universally.
+     *
+     * Both keys are kept rather than trimmed, because each is the attribute its
+     * own kind of token actually carries and the redundancy is the tokeniser's,
+     * not this sniff's. Both properties are pinned by their own test — "keeps
+     * the group-closer keys honest about what the tokeniser guarantees" — so a
+     * PHPCS change that ends either one fails there instead of silently making
+     * a dropped key matter.
      */
     private const GROUP_CLOSER_KEYS = [
         'parenthesis_closer',
