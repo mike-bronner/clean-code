@@ -403,3 +403,35 @@ final class RejectingArmBesideSurvivors
         };
     }
 }
+
+/**
+ * A predicate whose subject is wrapped in comments on both sides. The subject
+ * is still the bare first argument — a comment is not decoration the call
+ * reads — so the type test reports.
+ */
+final class CommentedPredicateArguments
+{
+    public function __construct(mixed $source)
+    {
+        $this->kind = is_string(/* the subject */ $source /* still the subject */)
+            ? 'text'
+            : 'other';
+    }
+}
+
+/**
+ * A mode flag branching in the arguments of an anonymous class. Those
+ * arguments are evaluated by this constructor, wherever the class they
+ * construct is declared, so the branch is this constructor's own.
+ */
+final class AnonymousClassArguments
+{
+    public function __construct(bool $legacy)
+    {
+        $this->handler = new class ($legacy ? new Mailer() : new NullLogger()) {
+            public function __construct(public mixed $transport)
+            {
+            }
+        };
+    }
+}

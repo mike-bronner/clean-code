@@ -121,11 +121,19 @@ class DisallowCombinedConstructorSniff implements Sniff
     private const CLASS_LIKE_SCOPES = [T_CLASS, T_ANON_CLASS, T_TRAIT];
 
     /**
-     * Declarations whose bodies are not constructor code.
+     * Function declarations whose bodies are not constructor code. The walk
+     * resumes at the closing brace of each, which skips the declaration whole,
+     * parameter list included: a parameter's own default is a constant
+     * expression, and a `use` clause only captures.
+     *
+     * An anonymous class is a nested declaration too, and is deliberately not
+     * on this list: the arguments in `new class($legacy ? … : …) {}` are
+     * evaluated by the constructor being walked, so only its *body* is skipped
+     * — see {@see self::declarationSkip()}.
      *
      * @var array<int, int|string>
      */
-    private const NESTED_DECLARATIONS = [T_FUNCTION, T_CLOSURE, T_FN, T_ANON_CLASS];
+    private const NESTED_DECLARATIONS = [T_FUNCTION, T_CLOSURE, T_FN];
 
     /**
      * Control structures that own a parenthesised condition. A token inside one
@@ -223,8 +231,13 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     /**
      * Tokens that open a group holding a sub-expression: a call's or a
-     * grouping's parentheses, an array literal or a subscript's brackets, and
-     * the braces of a `match` arm list or a block.
+     * grouping's parentheses, an array literal's brackets, and the braces of a
+     * `match` arm list or a block.
+     *
+     * A *subscript*'s brackets are absent, because this map is about commas
+     * alone and PHP allows no comma between them — `$row[$a, $b]` is a parse
+     * error. The forward scan reads subscripts through
+     * {@see self::groupEnd()}, which does jump them.
      *
      * Read while building the comma map ({@see self::buildCommaMap()}), which
      * keys on the *opening* token so it can pair it with that token's own
@@ -240,7 +253,6 @@ class DisallowCombinedConstructorSniff implements Sniff
         T_OPEN_CURLY_BRACKET,
         T_OPEN_PARENTHESIS,
         T_OPEN_SHORT_ARRAY,
-        T_OPEN_SQUARE_BRACKET,
     ];
 
     /**
@@ -316,8 +328,10 @@ class DisallowCombinedConstructorSniff implements Sniff
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
             $code = $tokens[$pointer]['code'];
 
-            if (in_array($code, self::NESTED_DECLARATIONS, true) && isset($tokens[$pointer]['scope_closer'])) {
-                $pointer = $tokens[$pointer]['scope_closer'];
+            $skip = $this->declarationSkip($phpcsFile, $pointer);
+
+            if ($skip !== null) {
+                $pointer = $skip;
 
                 continue;
             }
@@ -332,6 +346,34 @@ class DisallowCombinedConstructorSniff implements Sniff
                 $this->reportModeSwitch($phpcsFile, $pointer, $closer, $parameters);
             }
         }
+    }
+
+    /**
+     * Where the walk resumes past a nested declaration reached at this token,
+     * or null when the token opens none.
+     *
+     * A function declaration is skipped from its keyword, so nothing between
+     * the keyword and the closing brace is read. An anonymous class is skipped
+     * from its *brace* instead: its body is no more constructor code than a
+     * function's is, but the arguments in front of that brace are the
+     * constructor's own expressions, evaluated where they are written.
+     */
+    private function declarationSkip(File $phpcsFile, int $pointer): ?int
+    {
+        $token = $phpcsFile->getTokens()[$pointer];
+
+        if (!isset($token['scope_closer'])) {
+            return null;
+        }
+
+        $owner = $token['scope_condition'] ?? null;
+        $anonymousClassBody = $token['code'] === T_OPEN_CURLY_BRACKET
+            && $owner !== null
+            && $phpcsFile->getTokens()[$owner]['code'] === T_ANON_CLASS;
+
+        return in_array($token['code'], self::NESTED_DECLARATIONS, true) || $anonymousClassBody
+            ? (int) $token['scope_closer']
+            : null;
     }
 
     /**
@@ -1062,7 +1104,8 @@ class DisallowCombinedConstructorSniff implements Sniff
             return (int) $tokens[$branch]['scope_closer'];
         }
 
-        $statement = $phpcsFile->findNext(Tokens::$emptyTokens, $this->branchStart($phpcsFile, $branch) + 1, null, true);
+        $start = $this->branchStart($phpcsFile, $branch);
+        $statement = $phpcsFile->findNext(Tokens::$emptyTokens, $start + 1, null, true);
 
         return $statement === false ? null : (int) $phpcsFile->findEndOfStatement($statement);
     }
@@ -1224,5 +1267,4 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         return end($conditions) === $owner;
     }
-
 }

@@ -654,3 +654,187 @@ final class FlagInsideAnArmBody
         };
     }
 }
+
+/**
+ * An anonymous class declared in a constructor body. Its body is no more
+ * constructor code than a function's is: a property that shares the
+ * constructor parameter's name, defaulted through a constant-expression
+ * ternary, is that class's own declaration and not a mode switch.
+ */
+final class AnonymousClassBodies
+{
+    public function __construct(bool $legacy)
+    {
+        $this->handler = new class {
+            public const DEFAULT_MODE = true;
+
+            public bool $legacy = self::DEFAULT_MODE ? true : false;
+        };
+    }
+}
+
+/**
+ * A guard chain read across comments. The walk from a link back to the head of
+ * its chain, and the walk forward from one branch to the next, both hop over a
+ * closing brace that a comment separates from the keyword behind it — and a
+ * spaced `else if` is followed to the `if` that owns the condition rather than
+ * to the `else` in front of it. Three branches reject and one constructs, so
+ * every condition in the chain guards a precondition.
+ */
+final class CommentedGuardChain
+{
+    public function __construct(bool $legacy, mixed $source, string $mode)
+    {
+        if ($mode === 'draft') {
+            throw new InvalidArgumentException('a draft is not a construction mode');
+        } /* the chain carries on */ elseif ($legacy) {
+            throw new InvalidArgumentException('legacy construction is not supported');
+        } /* and again */ else /* spaced */ if (is_string($source)) {
+            throw new InvalidArgumentException('a string source is not supported');
+        } else {
+            $this->transport = new NullLogger();
+        }
+    }
+}
+
+/**
+ * The mirror of the brace-less guard: the flag's own branch constructs and the
+ * `else` rejects, with a comment between the condition and the statement it
+ * governs. Reading where a brace-less branch ends is what finds the `else`
+ * behind it, and one surviving path makes the pair a guard.
+ */
+final class MirrorGuardWithoutBraces
+{
+    public function __construct(bool $legacy, mixed $source)
+    {
+        if ($legacy) /* build it */ $this->transport = $source;
+        else throw new InvalidArgumentException('only legacy construction is supported');
+    }
+}
+
+/**
+ * A `switch` guard whose empty fall-through labels carry a comment. An empty
+ * label has no body of its own to judge and is left out of the count — the
+ * comment in it is not a body — so the one throwing label leaves no surviving
+ * construction path.
+ */
+final class CommentedFallThroughGuard
+{
+    public function __construct(bool $legacy)
+    {
+        switch ($legacy) {
+            case true: // falls through
+            case false: // falls through
+            default:
+                throw new InvalidArgumentException('this class has no boolean construction mode');
+        }
+    }
+}
+
+/**
+ * A guard whose `throw` is introduced by a comment. "The body only throws" is
+ * read past the comment, so the guard is still a guard.
+ */
+final class CommentedThrowGuard
+{
+    public function __construct(bool $legacy, mixed $source)
+    {
+        if ($legacy) {
+            // legacy construction was removed in 2.0
+            throw new InvalidArgumentException('legacy construction is not supported');
+        } else {
+            $this->transport = $source;
+        }
+    }
+}
+
+/**
+ * A `case` label inside a `switch` nested in another `switch`. The label is a
+ * branch of the construct that holds it — the inner one, every branch of which
+ * rejects — rather than of the outer `switch` it is nested in.
+ */
+final class NestedSwitchGuardLabels
+{
+    public function __construct(bool $legacy, string $mode)
+    {
+        switch ($mode) {
+            case 'draft':
+                switch (true) {
+                    case $legacy:
+                        throw new InvalidArgumentException('a legacy draft cannot be constructed');
+                    default:
+                        throw new InvalidArgumentException('a draft cannot be constructed');
+                }
+            default:
+                $this->transport = new NullLogger();
+        }
+    }
+}
+
+/**
+ * The mirror guard spelled as a chain: the first branch rejects a mode and the
+ * flag's own branch is the one construction path left. Judging it needs the
+ * whole chain, so the walk from the flag's `elseif` back to the `if` that heads
+ * the chain hops the closing brace a comment separates from it.
+ */
+final class MirrorGuardAfterARejectedMode
+{
+    public function __construct(bool $legacy, string $mode)
+    {
+        if ($mode === 'draft') {
+            throw new InvalidArgumentException('a draft is not a construction mode');
+        } /* the chain carries on */ elseif ($legacy) {
+            $this->transport = new Mailer();
+        }
+    }
+}
+
+/**
+ * The same mirror guard with the second link spelled `else if`. The walk back
+ * to the head of the chain steps over the `else` to reach the brace behind it,
+ * across a comment on either side.
+ */
+final class SpacedElseIfMirrorGuard
+{
+    public function __construct(bool $legacy, string $mode)
+    {
+        if ($mode === 'draft') {
+            throw new InvalidArgumentException('a draft is not a construction mode');
+        } /* the chain carries on */ else /* spaced */ if ($legacy) {
+            $this->transport = new Mailer();
+        }
+    }
+}
+
+/**
+ * A guard whose rejecting branch comes second. The chain is enumerated forward
+ * from its head, so the branch behind a comment-separated closing brace is
+ * still read as part of it — without it the chain would look like one
+ * surviving branch that rejects nothing.
+ */
+final class GuardChainAfterASurvivingBranch
+{
+    public function __construct(bool $legacy, string $mode)
+    {
+        if ($mode === 'draft') {
+            $this->transport = new NullLogger();
+        } /* the chain carries on */ elseif ($legacy) {
+            throw new InvalidArgumentException('legacy construction is not supported');
+        }
+    }
+}
+
+/**
+ * A guard ternary whose surviving side holds an elvis default. The `:` of that
+ * default belongs to it, not to the ternary being judged, so the guard still
+ * has exactly one surviving construction path.
+ */
+final class ElvisInsideAGuardTernary
+{
+    public function __construct(bool $legacy, mixed $source)
+    {
+        $this->transport = $legacy
+            ? $source ?: new Mailer()
+            : throw new InvalidArgumentException('only legacy construction is supported');
+    }
+}

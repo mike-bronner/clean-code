@@ -154,7 +154,10 @@ Deliberately silent on:
   promotion-only bodies with no statements in them.
 - **Nested declarations** — a named function, closure, arrow function, or
   anonymous class declared in the body runs on its own terms;
-  `func_get_args()` inside a closure reads the *closure's* arguments.
+  `func_get_args()` inside a closure reads the *closure's* arguments. Only the
+  *body* of an anonymous class is exempt: the arguments in
+  `new class ($legacy ? … : …) {}` are evaluated by the constructor that writes
+  them, so a mode signal there still reports.
 - **Named-argument predicate calls** — `is_a(object: $source, class: $c)`
   addresses its subject by name rather than by position. Resolving that needs a
   per-predicate table of parameter names, so the sniff stays silent: a missed
