@@ -19,6 +19,14 @@ const LOGICAL_GROUPINGS_NOT_INDENTED = LOGICAL_GROUPINGS . '.GroupNotIndented';
 
 const LOGICAL_GROUPINGS_MISALIGNED = LOGICAL_GROUPINGS . '.MisalignedGroupedCondition';
 
+/**
+ * The failing-fixture lines whose fix is a line break rather than a reindent —
+ * a group's first condition written on the group's own opening line. They are
+ * the only lines that make autofixed.php longer than failing.php, so the
+ * blast-radius test below re-joins them to compare the two line for line.
+ */
+const LOGICAL_GROUPINGS_GLUED_LINES = [402, 418];
+
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -102,6 +110,13 @@ it('flags every violation at its exact line, column, and code', function (): voi
         // closureBodyOperandUntouched — lines 381-385 are the closure's body
         ['line' => 379, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 380, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // gluedFirstConditionOnOpenerLine — the glued condition itself, at its
+        // own column mid-line; its second condition is already at the level
+        ['line' => 402, 'column' => 23, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        // gluedFirstConditionWithMisalignedSecond — the condition after a glued
+        // first one is the group's second, so it is misaligned, not unindented
+        ['line' => 418, 'column' => 23, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 419, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -123,6 +138,32 @@ it('derives the expected indent from the immediate parent group', function (): v
         'Grouped condition must be indented one level deeper than its enclosing'
         . ' condition; expected 20 spaces, found 16',
     ]);
+});
+
+/**
+ * A first condition written on the group's own opening line is the group's
+ * first condition, and is given a line of its own.
+ *
+ * The walk that collects a group's condition lines records the first token of
+ * each new line, so a condition glued to the opening parenthesis is only
+ * collected if the walk starts from "no line yet" rather than from the
+ * opener's line. Starting from the opener's line dropped it and promoted the
+ * next line into its place, which is why both halves are asserted here: the
+ * message proves the glued condition is reported at all and names the level it
+ * is owed, and the fixed line proves the fixer broke the line instead of
+ * rewriting the indentation of the line it shared — which would have moved the
+ * enclosing condition. Line 419 in the tuple assertion above is the other half
+ * of the promotion bug: it is a second condition, so it carries the misaligned
+ * code, not the first-condition one.
+ */
+it('reports a first condition glued to the group opener, and gives it its own line', function (): void {
+    $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
+    $fixed = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
+
+    expect(violationMessagesByLine($file->getErrors())[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe([
+        'The first condition of a parenthesized group must start on its own line,'
+        . ' indented one level deeper than its enclosing condition; expected 16 spaces',
+    ])->and($fixed[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe('                $this->isActive' . PHP_EOL);
 });
 
 /**
@@ -329,10 +370,28 @@ it('classifies nothing inside a nested region whose closer was never recorded', 
  * body would change a string's value rather than its layout; the rest would
  * move code the sniff has no business moving. Comparing the two fixtures line
  * by line is what proves none of that happened.
+ *
+ * One fix breaks a line instead of reindenting it — the one that gives a
+ * group's glued first condition a line of its own — so the two files carry
+ * different line counts. Each of those pairs is re-joined first, which puts
+ * the files back on one numbering without hiding anything: a re-joined line
+ * still differs from the original it is compared against, so it is still
+ * counted as changed, and it is still required to be a reported line.
  */
 it('moves the reported condition lines and nothing else', function (): void {
     $before = file(fixturePath('LogicalGroupingsSniff', 'failing.php'));
     $after = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
+
+    // Each splice removes the shift the one before it introduced, so every
+    // line number below indexes the same line it names in failing.php.
+    foreach (LOGICAL_GROUPINGS_GLUED_LINES as $line) {
+        $index = ($line - 1);
+        $joined = rtrim($after[$index], "\r\n") . $after[($index + 1)];
+
+        array_splice($after, $index, 2, [$joined]);
+    }
+
+    expect($after)->toHaveCount(count($before));
 
     $changed = array_keys(array_filter(
         $before,

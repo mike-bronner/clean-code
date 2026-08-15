@@ -388,4 +388,40 @@ from t"
             $this->grant();
         }
     }
+
+    public function gluedFirstConditionOnOpenerLine(): void
+    {
+        // A first condition written on the group's own opening line has no
+        // indentation to measure: the spacing before it is mid-line, and the
+        // indentation of the line it shares belongs to the enclosing
+        // condition. The fixer gives it a line of its own at the group's
+        // level. Its second condition is already there, so this group's only
+        // violation is the glued one.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function gluedFirstConditionWithMisalignedSecond(): void
+    {
+        // The condition after a glued first one is the group's *second*, so it
+        // is measured against the group's level and reported as misaligned —
+        // not as the group's first condition, which is what a walk that
+        // dropped the glued one calls it.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

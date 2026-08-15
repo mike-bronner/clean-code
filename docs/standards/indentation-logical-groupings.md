@@ -28,6 +28,14 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   deeper than the line the group opens on. A group at or shallower than the
   enclosing level, or deeper than one level, is flagged
   (`GroupNotIndented`, reported at the group's first condition).
+- **A first condition needs a line of its own** — a first condition written on
+  the group's opening line (`&& (   $a`) cannot sit one level deeper while it
+  stays there: the whitespace in front of it is mid-line spacing, and the
+  indentation of the line it shares is the enclosing condition's. It is flagged
+  under the same `GroupNotIndented` code and the fixer moves it onto its own
+  line at the group's level. The condition after it is the group's *second*, so
+  it is measured as one — a group's first condition is the first condition
+  inside the parentheses, not the first one that happens to start a line.
 - **Conditions within a group align** — every subsequent condition in the same
   group aligns with the group's first condition (i.e. sits at that same one-level
   indent). A condition off that level is flagged
@@ -88,8 +96,9 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   package runs inside other projects' lint pipelines, where a pathological file
   costs somebody else's CI.
 - **Auto-fixer** — `phpcbf` reindents each offending condition line to the
-  correct nesting level; the resulting file passes the sniff with zero
-  violations.
+  correct nesting level, and breaks the line of a first condition glued to its
+  group's opening parenthesis so it starts at that level; the resulting file
+  passes the sniff with zero violations.
 
 ### Why not an existing sniff
 
@@ -114,10 +123,11 @@ the above.
 
 Tests live at `tests/Standards/LogicalGroupingsTest.php`, over the fixtures in
 `tests/fixtures/LogicalGroupingsSniff/`. They pin each violation to its exact
-line, column, and error code (unindented, too-shallow, too-deep, misaligned, and
-nested, across all five control structures and both operator spellings), pin the
-expected indent a nested group is measured against, and prove the fixer moves
-the reported condition lines and nothing else. The generic floor — the compliant
+line, column, and error code (unindented, too-shallow, too-deep, misaligned,
+nested, and glued to the group's opening parenthesis, across all five control
+structures and both operator spellings), pin the expected indent a nested group
+is measured against, and prove the fixer moves the reported condition lines and
+nothing else. The generic floor — the compliant
 fixture is clean, the failing one is flagged, and the fixer round-trips and is
 idempotent — comes from the shared sweep in `tests/Contract/`, which this sniff
 joins through `tests/Sniffs.php`.

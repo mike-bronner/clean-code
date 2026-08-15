@@ -391,4 +391,21 @@ from t"
             $this->grant();
         }
     }
+
+    public function commentAfterGroupOpenerIgnored(): void
+    {
+        // Only a comment shares the group's opening line. The group's first
+        // condition is the one below it, correctly indented, so nothing is
+        // glued to the parenthesis — a sniff that measured the token directly
+        // after `(` rather than the first condition would report this.
+        if (
+            $this->isAdmin
+            || ( // the licence pair
+                $this->isActive
+                && $this->hasLicense
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

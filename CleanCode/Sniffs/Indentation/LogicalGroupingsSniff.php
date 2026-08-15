@@ -19,6 +19,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * same group aligns to that one level, and a group nested inside another group
  * indents one further level than its parent — validated to arbitrary depth.
  *
+ * A first condition written on the group's own opening line is held to the
+ * same level, which it can only reach on a line of its own: the whitespace in
+ * front of it is mid-line spacing, and the indentation of the line it shares
+ * belongs to the enclosing condition.
+ *
  * Simple multi-line conditions with no parenthesized sub-grouping are left
  * entirely alone: their one-condition-per-line layout is the concern of the
  * "Conditionals: One Condition Per Line" standard (#17), not this one. Only the
@@ -44,7 +49,8 @@ use PHP_CodeSniffer\Util\Tokens;
  * is reindented.
  *
  * All violations are auto-fixable — phpcbf reindents each offending condition
- * line to the correct nesting level.
+ * line to the correct nesting level, and gives a condition glued to its
+ * group's opening parenthesis a line of its own at that level.
  */
 class LogicalGroupingsSniff implements Sniff
 {
@@ -309,6 +315,12 @@ class LogicalGroupingsSniff implements Sniff
      * lines, the first condition inside must sit one level deeper than the
      * line the group opens on, and every subsequent condition must align with
      * it. Each offending condition line is reported and fixed independently.
+     *
+     * A first condition written on the group's own opening line is the one
+     * shape measured differently, because it has no indentation to measure —
+     * whatever whitespace precedes it sits mid-line, and the leading
+     * whitespace of the line it shares belongs to the enclosing condition.
+     * It is reported under the same code and given its own line by the fixer.
      */
     private function checkGroup(File $phpcsFile, int $groupOpen): void
     {
@@ -323,6 +335,12 @@ class LogicalGroupingsSniff implements Sniff
         $conditionLines = $this->directConditionLines($phpcsFile, $groupOpen, $groupClose);
 
         foreach ($conditionLines as $index => $pointer) {
+            if ($tokens[$pointer]['line'] === $tokens[$groupOpen]['line']) {
+                $this->checkGluedFirstCondition($phpcsFile, $pointer, $expected);
+
+                continue;
+            }
+
             $actual = $tokens[$pointer]['column'] - 1;
 
             if ($actual === $expected) {
@@ -348,10 +366,54 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
+     * Reports a first condition that shares the group's opening line, and
+     * moves it onto a line of its own at the group's level.
+     *
+     * The standard asks for the conditions of a multi-line group to sit one
+     * level deeper than the line the group opens on, which a condition glued
+     * to the opening parenthesis cannot do while it stays on that line. Only
+     * the first condition can reach here: every later one is preceded by a
+     * condition on the same line, and only the first token of a line is
+     * measured at all.
+     */
+    private function checkGluedFirstCondition(File $phpcsFile, int $pointer, int $expected): void
+    {
+        $error = 'The first condition of a parenthesized group must start on its own'
+            . ' line, indented one level deeper than its enclosing condition;'
+            . ' expected %s spaces';
+        $fix = $phpcsFile->addFixableError($error, $pointer, 'GroupNotIndented', [$expected]);
+
+        if ($fix === false) {
+            return;
+        }
+
+        $tokens = $phpcsFile->getTokens();
+        $break = $phpcsFile->eolChar . str_repeat(' ', $expected);
+
+        if ($tokens[($pointer - 1)]['code'] === T_WHITESPACE) {
+            // Mid-line spacing, never a line's indentation: the condition is
+            // on the opening parenthesis's line, so anything directly before
+            // it came after that parenthesis.
+            $phpcsFile->fixer->replaceToken(($pointer - 1), $break);
+
+            return;
+        }
+
+        $phpcsFile->fixer->addContentBefore($pointer, $break);
+    }
+
+    /**
      * The pointers to the first token on each line that holds a condition
      * directly inside the grouping — those at nesting depth zero relative to
      * the group, skipping lines that belong to a deeper nested grouping and
      * lines that only close a bracket.
+     *
+     * The line cursor starts at "no line yet" rather than at the group
+     * opener's line. Seeding it to the opener's line made a first condition
+     * written on that same line indistinguishable from a continuation of a
+     * line already collected, so it was dropped entirely and the next line
+     * took its place as the group's first condition — the real first
+     * condition unmeasured, the second reported as though it were the first.
      *
      * @return array<int, int>
      */
@@ -359,7 +421,7 @@ class LogicalGroupingsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $lines = [];
-        $previousLine = $tokens[$groupOpen]['line'];
+        $previousLine = 0;
         $spannedThroughLine = 0;
 
         for ($i = ($groupOpen + 1); $i < $groupClose; $i++) {
