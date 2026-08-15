@@ -317,16 +317,25 @@ from t"
 
     public function arrayValueOperandIgnored(): void
     {
-        // The compliant form of the same four boundaries. A parenthesized
-        // boolean used as an array value belongs to the array, so a clean
-        // condition around it has to stay clean.
+        // The compliant form of the same four boundaries: a parenthesized
+        // boolean that belongs to an array, a subscript, or a closure body
+        // rather than to the condition around it.
+        //
+        // The continuation line inside each region is deliberately laid out
+        // flat against its opener rather than one level deeper. That layout is
+        // what makes these four discriminate: it is exactly what this sniff
+        // reports when it reads a parenthesis as a condition grouping, so a
+        // walk that stepped into the region would flag every one of them. The
+        // standard has nothing to say about how an array value wraps, so the
+        // silence has to come from the boundary, not from the indentation
+        // happening to match what the sniff expects.
         if (
             $this->isAdmin
             || (
                 $this->isActive
                 && $this->options === [
                     'flag' => ($this->hasLicense
-                        && $this->isTrial),
+                    && $this->isTrial),
                 ]
             )
         ) {
@@ -342,7 +351,7 @@ from t"
             || (
                 $this->isActive
                 && $this->options === [$this->flag, ($this->hasLicense
-                    && $this->isTrial)]
+                && $this->isTrial)]
             )
         ) {
             $this->grant();
@@ -357,7 +366,7 @@ from t"
             || (
                 $this->isActive
                 && $this->map[($this->hasLicense
-                    && $this->isTrial)]
+                && $this->isTrial)]
             )
         ) {
             $this->grant();
@@ -373,7 +382,7 @@ from t"
                 $this->isActive
                 && (function (): bool {
                     $granted = ($this->hasLicense
-                        && $this->isTrial);
+                    && $this->isTrial);
 
                     return $granted;
                 })()
