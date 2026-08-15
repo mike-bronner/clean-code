@@ -14,10 +14,12 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
 use PHP_CodeSniffer\Tests\ConfigDouble;
 
 /**
@@ -561,6 +563,42 @@ function autofixedContents(LocalFile $file): string
 }
 
 /**
+ * Every token PHP_CodeSniffer's tokenizer failed to classify in $source, as
+ * `line:content` strings — the signature of source that PHP itself accepts but
+ * PHPCS cannot read.
+ *
+ * The two are not the same language. A binary-string prefix on an interpolating
+ * double-quoted string (`B"Hi {$name}"`) is the known case: `php -l` passes, and
+ * PHPCS types the `B"` opener T_NONE and then folds the rest of the statement —
+ * and the source after it — into one bogus string token, so every sniff
+ * downstream reads live code as string body. A fixer that emits such a shape
+ * corrupts the file for the next pass while looking correct to every
+ * content-comparing assertion.
+ *
+ * Whitespace-only T_NONE tokens are excluded: PHPCS uses that code for ordinary
+ * inter-token filler, and only a non-empty one marks unclassified source.
+ *
+ * @return array<int, string>
+ */
+function unclassifiedTokens(string $source): array
+{
+    [$config, $ruleset] = buildRuleset();
+
+    $file = new DummyFile($source, $ruleset, $config);
+    $file->parse();
+
+    $faults = [];
+
+    foreach ($file->getTokens() as $token) {
+        if ($token['type'] === 'T_NONE' && trim($token['content']) !== '') {
+            $faults[] = $token['line'] . ':' . trim($token['content']);
+        }
+    }
+
+    return $faults;
+}
+
+/**
  * Collapses PHPCS's line => column => violations structure to a map of
  * line number => list of violation source codes.
  *
@@ -760,6 +798,27 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * Writes source to a file outside the repository and returns its path, for a
+ * case that varies one detail of a view or too large a body to keep on disk.
+ * Staged paths are purged after each test by tests/Pest.php.
+ */
+function stageSource(string $source, string $filename = 'view.blade.php'): string
+{
+    // Its own directory, because purgeStagedFixtures() removes the parent.
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    $path = $directory . '/' . $filename;
+    stagedFixtures($path);
+    file_put_contents($path, $source);
+
+    return $path;
+}
+
+/**
  * Copies a fixture to a directory outside the repository and returns the new
  * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
  * scoping from the file's path alone — so this is what lets either of them see
@@ -956,6 +1015,37 @@ function measuredComplexities(LocalFile $file): array
 }
 
 /**
+ * Reads the nesting level CleanCode.Metrics.MethodNestingLevel measured back out
+ * of each of its reports, keyed by the line it reported on.
+ *
+ * The counterpart of measuredComplexities() above, and there for the same
+ * reason: a test asserting only *where* the sniff reported holds just as well
+ * against one that measures every level wrongly and still lands over the limit,
+ * and the level is the whole content of the diagnostic. A report whose message
+ * carries no level is skipped rather than guessed at.
+ *
+ * One entry per line, which is safe only next to an assertion that pins the
+ * reports themselves — violationTuples() — since a second report on a line
+ * would overwrite the first here.
+ *
+ * @return array<int, int>
+ */
+function reportedNestingLevels(LocalFile $file): array
+{
+    $levels = [];
+
+    foreach (violationMessagesByLine($file->getErrors()) as $line => $messages) {
+        foreach ($messages as $message) {
+            if (preg_match('/^Method nesting level \((\d+)\) exceeds/', $message, $matches) === 1) {
+                $levels[$line] = (int) $matches[1];
+            }
+        }
+    }
+
+    return $levels;
+}
+
+/**
  * Executes a fixture in an isolated scope and returns the variables it
  * defined, so a fixer's before/after string values can be compared directly.
  *
@@ -1019,4 +1109,85 @@ function nestedChainFixture(int $depth): array
     ]);
 
     return [implode("\n", $lines), $chainLine];
+}
+
+/**
+ * The set CleanCode.WhiteSpace.PassiveOperatorSpacing uses to decide a `+`/`-`
+ * is a unary sign, read off the real class through reflection so the divergence
+ * tests compare live behaviour rather than a transcription of it.
+ *
+ * @return array<int|string, int|string>
+ */
+function passiveNonOperandTokens(): array
+{
+    $method = new ReflectionMethod(PassiveOperatorSpacingSniff::class, 'nonOperandTokens');
+    $method->setAccessible(true);
+
+    return $method->invoke(new PassiveOperatorSpacingSniff());
+}
+
+/**
+ * The same set as Squiz.WhiteSpace.OperatorSpacing computes it — the baseline
+ * both CleanCode.Operators.BinaryOperatorSpacing and the passive sniff are
+ * measured against. register() is what populates it, so it must run first.
+ *
+ * @return array<int|string, int|string>
+ */
+function squizNonOperandTokens(): array
+{
+    $sniff = new OperatorSpacingSniff();
+    $sniff->register();
+
+    $property = new ReflectionProperty($sniff, 'nonOperandTokens');
+    $property->setAccessible(true);
+
+    return $property->getValue($sniff) ?? [];
+}
+
+/**
+ * The T_* token names listed in a class constant, read out of the source that
+ * declares it.
+ *
+ * Lets a test assert against the enumeration a sniff actually uses rather than
+ * against a copy of it kept alongside, which is the whole point: a copy drifts
+ * silently, and an enumeration a test only restates is an enumeration nothing
+ * checks. Reading it needs no Reflection, which this package's own
+ * CleanCode.Testing.NoReflectionAccess forbids in tests — PHP_CodeSniffer
+ * tokenizes the file and the names are read off the tokens.
+ *
+ * Every T_* name between the constant's own name and the semicolon ending its
+ * declaration. A constant that cannot be found yields an empty list, so a
+ * caller asserting completeness reddens rather than passing on nothing.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<int, string>
+ */
+function tokenNamesInConstant(string $path, string $constant, array $sniffCodes): array
+{
+    $tokens = analyzeWithSniffs($sniffCodes, $path)->getTokens();
+    $names = [];
+    $reading = false;
+
+    foreach ($tokens as $token) {
+        if ($token['code'] === T_STRING && $token['content'] === $constant) {
+            $reading = true;
+
+            continue;
+        }
+
+        if ($reading === false) {
+            continue;
+        }
+
+        if ($token['code'] === T_SEMICOLON) {
+            break;
+        }
+
+        if ($token['code'] === T_STRING && str_starts_with($token['content'], 'T_') === true) {
+            $names[] = $token['content'];
+        }
+    }
+
+    return $names;
 }

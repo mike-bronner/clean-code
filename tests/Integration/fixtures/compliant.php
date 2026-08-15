@@ -19,7 +19,7 @@ final class CompliantExample
     public function increment(int $amount): int
     {
         if ($amount < 0) {
-            throw new RuntimeException('Amount must not be negative for ' . $this->name . '.');
+            throw new RuntimeException("Amount must not be negative for {$this->name}.");
         }
 
         foreach ([1, 2, 3] as $step) {
