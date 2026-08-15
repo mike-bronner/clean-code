@@ -435,3 +435,20 @@ final class AnonymousClassArguments
         };
     }
 }
+
+/**
+ * A type predicate whose subject is wrapped in a redundant grouping
+ * parenthesis. The parentheses hold the parameter and nothing else, so the
+ * call tests the parameter itself, exactly as the unwrapped spelling does.
+ */
+final class GroupedPredicateSubject
+{
+    public function __construct(mixed $source)
+    {
+        if (is_string(($source))) {
+            $this->lines = explode("\n", $source);
+        } else {
+            $this->lines = [$source];
+        }
+    }
+}

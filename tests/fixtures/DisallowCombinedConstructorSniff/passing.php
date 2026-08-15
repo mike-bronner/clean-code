@@ -838,3 +838,18 @@ final class ElvisInsideAGuardTernary
             : throw new InvalidArgumentException('only legacy construction is supported');
     }
 }
+
+/**
+ * A grouping parenthesis holding more than the parameter. The predicate tests
+ * what the group evaluates to rather than the parameter, so a subject widened
+ * to the group would report a derived value as a type switch.
+ */
+final class GroupedExpressionSubject
+{
+    public function __construct(string $source, string $suffix)
+    {
+        if (is_string(($source . $suffix))) {
+            $this->line = $source . $suffix;
+        }
+    }
+}

@@ -283,6 +283,35 @@ class DisallowCombinedConstructorSniff implements Sniff
     private array $selectorCache = [];
 
     /**
+     * What each branching construct's branches do, keyed by the construct's own
+     * pointer.
+     *
+     * Every branch of a construct is enumerated to judge any one of its
+     * conditions ({@see self::isGuardClause()}), and the answer is a fact about
+     * the construct rather than about the condition that asked for it. Holding
+     * it turns what would otherwise be one walk of the whole construct per
+     * flagged token — quadratic on a `switch`, `match`, or `if` chain with many
+     * branches, each testing a parameter — into one walk per construct.
+     *
+     * @var array<int, array{throws: array<int, bool>, throwing: int, surviving: int}>
+     */
+    private array $branchVerdicts = [];
+
+    /**
+     * The `if` each link of an `if`/`elseif`/`else` chain belongs to, keyed by
+     * the link's own pointer.
+     *
+     * The walk back to the head is deterministic and reads nothing in front of
+     * the link it starts at, so every link it steps on has the same head as the
+     * walk that reached it. Recording all of them turns one walk of the whole
+     * chain per link into one walk per chain — the same amortization
+     * {@see self::remember()} applies to the forward scan.
+     *
+     * @var array<int, int>
+     */
+    private array $chainHeadCache = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -319,10 +348,12 @@ class DisallowCombinedConstructorSniff implements Sniff
         $parameters = $this->parameterTypes($phpcsFile, $stackPtr);
         $closer = $tokens[$stackPtr]['scope_closer'];
 
-        // Both maps describe this constructor's body alone, and the scan's
-        // answers depend on where that body ends, so neither survives into the
-        // next constructor.
+        // Every map below describes this constructor's body alone, and the
+        // scan's answers depend on where that body ends, so none of them
+        // survives into the next constructor.
         $this->selectorCache = [];
+        $this->branchVerdicts = [];
+        $this->chainHeadCache = [];
         $this->buildCommaMap($phpcsFile, $tokens[$stackPtr]['scope_opener'], $closer);
 
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
@@ -489,15 +520,23 @@ class DisallowCombinedConstructorSniff implements Sniff
      * Whether this parameter use is a test of its runtime type — the left
      * operand of `instanceof`, or the direct argument of a type-predicate call.
      *
-     * "Direct argument" is exact twice over: the innermost parenthesis pair
-     * around the variable must be the predicate's own call parentheses, so
-     * `is_string(trim($value))` tests a derived value rather than the parameter;
-     * and the variable must be the whole of the *first* argument, the only one
-     * any of these predicates takes as its subject — see
-     * {@see self::isBareFirstArgument()}. The two-argument spellings
-     * `is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
-     * test `$value` alone — the class name they compare it against is a value
-     * the call reads, never a parameter whose own type is being switched on.
+     * "Direct argument" is exact twice over: the parameter must be the whole of
+     * the *first* argument, the only one any of these predicates takes as its
+     * subject — see {@see self::isBareFirstArgument()} — and nothing may stand
+     * between it and that argument's position, so `is_string(trim($value))`
+     * tests a derived value rather than the parameter. The two-argument
+     * spellings `is_a($value, $expectedClass)` and
+     * `is_subclass_of($value, $expectedClass)` test `$value` alone — the class
+     * name they compare it against is a value the call reads, never a parameter
+     * whose own type is being switched on.
+     *
+     * A redundant grouping parenthesis is not a decoration: `is_string(($value))`
+     * tests the same parameter the unparenthesised spelling does. So the
+     * enclosing parentheses are read from the inside out, and a pair holding
+     * nothing but the subject widens the subject to itself rather than ending
+     * the read. A pair holding anything else — a call's name in front of it, an
+     * operand beside it — ends it, which is what keeps `is_string(trim($value))`
+     * and `is_string($value . $suffix)` silent.
      */
     private function isTypeTested(File $phpcsFile, int $pointer): bool
     {
@@ -508,32 +547,66 @@ class DisallowCombinedConstructorSniff implements Sniff
             return true;
         }
 
-        $nesting = $tokens[$pointer]['nested_parenthesis'] ?? [];
+        $start = $pointer;
+        $end = $pointer;
 
-        if ($nesting === []) {
-            return false;
+        foreach (array_reverse($tokens[$pointer]['nested_parenthesis'] ?? [], true) as $opener => $closer) {
+            if (
+                $this->isTypePredicate($phpcsFile, (int) $opener)
+                && $this->isBareFirstArgument($phpcsFile, (int) $opener, (int) $closer, $start, $end)
+            ) {
+                return true;
+            }
+
+            if (!$this->wrapsNothingElse($phpcsFile, (int) $opener, (int) $closer, $start, $end)) {
+                return false;
+            }
+
+            $start = (int) $opener;
+            $end = (int) $closer;
         }
 
-        $openers = array_keys($nesting);
-        $opener = (int) end($openers);
+        return false;
+    }
+
+    /**
+     * Whether the parenthesis at $opener is the call parenthesis of one of the
+     * type predicates, called as the global function it reads as.
+     */
+    private function isTypePredicate(File $phpcsFile, int $opener): bool
+    {
+        $tokens = $phpcsFile->getTokens();
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
         return $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
-            && $this->isPlainFunctionCall($phpcsFile, $callee)
-            && $this->isBareFirstArgument($phpcsFile, $opener, (int) $nesting[$opener], $pointer);
+            && $this->isPlainFunctionCall($phpcsFile, $callee);
     }
 
     /**
-     * Whether this token is the *whole* of the first argument of the call
-     * opening at $opener — the bare parameter itself, undecorated.
+     * Whether the parenthesis pair at $opener/$closer holds the span from
+     * $start to $end and nothing besides — a redundant grouping of the subject.
+     *
+     * Comments are not content, so a subject wrapped in them is still the whole
+     * of the pair, exactly as it is still the bare first argument of a call.
+     */
+    private function wrapsNothingElse(File $phpcsFile, int $opener, int $closer, int $start, int $end): bool
+    {
+        return $phpcsFile->findNext(Tokens::$emptyTokens, $opener + 1, null, true) === $start
+            && $phpcsFile->findPrevious(Tokens::$emptyTokens, $closer - 1, null, true) === $end;
+    }
+
+    /**
+     * Whether the span from $start to $end is the *whole* of the first argument
+     * of the call opening at $opener — the bare parameter itself, undecorated
+     * but for any grouping parentheses already read around it.
      *
      * Totality is the point, not mere precedence. Confirming that no argument
-     * separator *precedes* the token says nothing about what the call actually
+     * separator *precedes* the span says nothing about what the call actually
      * tests: `is_string($obj->prop)`, `is_string($items[$key])` and
      * `is_a(class: $class, object: $source)` all put a parameter in the first
-     * argument's span without that parameter being the subject. So the token
+     * argument's span without that parameter being the subject. So the span
      * must be flanked by the call's own punctuation on both sides — the opening
      * parenthesis in front of it, and either the argument separator or the
      * call's closing parenthesis behind it. Any other neighbour means the
@@ -545,10 +618,10 @@ class DisallowCombinedConstructorSniff implements Sniff
      * and staying silent on an exotic spelling costs a missed warning rather
      * than a wrong one.
      */
-    private function isBareFirstArgument(File $phpcsFile, int $opener, int $closer, int $pointer): bool
+    private function isBareFirstArgument(File $phpcsFile, int $opener, int $closer, int $start, int $end): bool
     {
-        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
-        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $start - 1, null, true);
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $end + 1, null, true);
 
         return $before === $opener
             && $after !== false
@@ -935,22 +1008,34 @@ class DisallowCombinedConstructorSniff implements Sniff
             return false;
         }
 
-        $branches = $this->branchStarts($phpcsFile, $construct);
-        $throwing = 0;
-        $surviving = 0;
-        $ownThrows = false;
+        $verdicts = $this->branchVerdicts($phpcsFile, $construct);
+        $ownThrows = $own !== null && ($verdicts['throws'][$own] ?? false);
 
-        foreach ($branches as $pointer => $start) {
-            $throws = $this->firstStatementThrows($phpcsFile, $start);
+        return $verdicts['throwing'] > 0 && ($ownThrows || $verdicts['surviving'] <= 1);
+    }
 
-            $throws ? $throwing++ : $surviving++;
-
-            if ($pointer === $own) {
-                $ownThrows = $throws;
-            }
+    /**
+     * Whether each branch of this construct throws, with the throwing and
+     * surviving branches counted — read once per construct and held.
+     *
+     * @return array{throws: array<int, bool>, throwing: int, surviving: int}
+     */
+    private function branchVerdicts(File $phpcsFile, int $construct): array
+    {
+        if (isset($this->branchVerdicts[$construct])) {
+            return $this->branchVerdicts[$construct];
         }
 
-        return $throwing > 0 && ($ownThrows || $surviving <= 1);
+        $verdicts = ['throws' => [], 'throwing' => 0, 'surviving' => 0];
+
+        foreach ($this->branchStarts($phpcsFile, $construct) as $pointer => $start) {
+            $throws = $this->firstStatementThrows($phpcsFile, $start);
+            $verdicts['throws'][$pointer] = $throws;
+
+            $throws ? $verdicts['throwing']++ : $verdicts['surviving']++;
+        }
+
+        return $this->branchVerdicts[$construct] = $verdicts;
     }
 
     /**
@@ -1021,8 +1106,14 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $head = $branch;
+        $visited = [];
 
         while (true) {
+            if (isset($this->chainHeadCache[$head])) {
+                return $this->rememberChainHead($visited, $this->chainHeadCache[$head]);
+            }
+
+            $visited[] = $head;
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $head - 1, null, true);
 
             // A spaced `else if` is a T_ELSE and a T_IF: the `if` owns the
@@ -1030,21 +1121,36 @@ class DisallowCombinedConstructorSniff implements Sniff
             if ($previous !== false && $tokens[$previous]['code'] === T_ELSE) {
                 $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
             } elseif ($tokens[$head]['code'] !== T_ELSEIF) {
-                return $head;
+                return $this->rememberChainHead($visited, $head);
             }
 
             if ($previous === false || $tokens[$previous]['code'] !== T_CLOSE_CURLY_BRACKET) {
-                return $head;
+                return $this->rememberChainHead($visited, $head);
             }
 
             $owner = $tokens[$previous]['scope_condition'] ?? null;
 
             if ($owner === null || !in_array($tokens[$owner]['code'], [T_IF, T_ELSEIF], true)) {
-                return $head;
+                return $this->rememberChainHead($visited, $head);
             }
 
             $head = (int) $owner;
         }
+    }
+
+    /**
+     * Records one walk's head against every link that walk stepped on, and
+     * hands the head back.
+     *
+     * @param array<int, int> $visited
+     */
+    private function rememberChainHead(array $visited, int $head): int
+    {
+        foreach ($visited as $link) {
+            $this->chainHeadCache[$link] = $head;
+        }
+
+        return $head;
     }
 
     /**

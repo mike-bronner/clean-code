@@ -20,7 +20,7 @@
  * below was produced by disabling that guard and re-running the fixtures, not
  * derived, and the whole table was re-derived after the last fixture was added
  * rather than adjusted. Counts are warnings per fixture, against the baseline
- * passing 0 / failing 4 / shapes 47; a fixture whose count the mutation leaves
+ * passing 0 / failing 4 / shapes 48; a fixture whose count the mutation leaves
  * unchanged is omitted from its line.
  *
  * Scope of the walk:
@@ -46,18 +46,18 @@
  * What counts as a signal:
  *
  *   - drop the "flag or type test" requirement, reporting any parameter in a
- *     condition — passing 29, shapes 54
- *   - drop the `bool`-type leg of the flag test — failing 3, shapes 23
- *   - drop the `true`/`false`-default leg of the flag test — shapes 45 (both
+ *     condition — passing 31, shapes 55
+ *   - drop the `bool`-type leg of the flag test — failing 3, shapes 24
+ *   - drop the `true`/`false`-default leg of the flag test — shapes 46 (both
  *     DefaultedModeFlags parameters stop reporting)
- *   - drop the leading-`?` strip in type normalization — shapes 46 (`?bool`
+ *   - drop the leading-`?` strip in type normalization — shapes 47 (`?bool`
  *     stops being a flag)
  *   - drop the explicit `null` union member from type normalization —
- *     shapes 46 (`bool|null` stops being a flag)
+ *     shapes 47 (`bool|null` stops being a flag)
  *   - accept any union *containing* `bool` rather than exactly `bool` —
  *     passing 1 (`bool|string` starts reporting)
  *   - drop the variadic exclusion — passing 1 (`bool ...$flags`)
- *   - drop `instanceof` detection — shapes 44
+ *   - drop `instanceof` detection — shapes 45
  *   - drop the member/static/`new` qualifier check on a name — passing 6; and
  *     one entry at a time, so no entry rides on a sibling: `T_OBJECT_OPERATOR`
  *     alone — passing 3; `T_DOUBLE_COLON` alone — passing 1; `T_NEW` alone —
@@ -65,18 +65,25 @@
  *   - stop reading a namespace separator — passing 2 (`App\Utils\func_get_args()`
  *     and `App\Validation\is_string()` are taken for the global functions)
  *   - treat every separator as qualifying, rather than only one with a name
- *     segment in front of it — shapes 45 (`\is_string()` and `\func_num_args()`
+ *     segment in front of it — shapes 46 (`\is_string()` and `\func_num_args()`
  *     stop being the global functions they are)
- *   - take the outermost enclosing parenthesis for a predicate call instead of
- *     the innermost — failing 3, shapes 42 (every predicate applied directly to
- *     a parameter stops being recognised)
+ *   - read the enclosing parentheses outermost-first rather than inside-out —
+ *     failing 3, shapes 42 (every predicate applied directly to a parameter
+ *     stops being recognised)
+ *   - stop widening the subject through a grouping parenthesis — shapes 47 (the
+ *     grouped predicate subject stops being recognised)
+ *   - widen the subject through *any* enclosing pair rather than only one
+ *     holding nothing else — passing 2 (both operands of the grouped
+ *     concatenation are read as the subject of the predicate around them)
+ *   - drop only the widening test's "the pair opens on the subject" clause —
+ *     passing 1; only its "the pair closes on the subject" clause — passing 1
  *
  * Argument totality — that the parameter is the *whole* first argument, each
  * half of the test pinned on its own:
  *
- *   - drop the bare-first-argument check entirely — passing 5, shapes 49
- *   - drop only its "the opening parenthesis precedes it" clause — passing 2,
- *     shapes 49 (the two named arguments start reporting)
+ *   - drop the bare-first-argument check entirely — passing 6, shapes 50
+ *   - drop only its "the opening parenthesis precedes it" clause — passing 3,
+ *     shapes 50 (the two named arguments start reporting)
  *   - drop only its "a separator or the closer follows it" clause — passing 2
  *     (the property read and the subscripted array start reporting)
  *
@@ -84,11 +91,11 @@
  * than `T_WHITESPACE` alone. Thirteen of the fifteen flip a verdict when
  * reverted to `T_WHITESPACE`, and each is pinned separately:
  *
- *   - the `instanceof` lookahead — shapes 46 (false negative)
- *   - the predicate-callee lookback — shapes 46 (false negative)
- *   - the bare-first-argument lookback and lookahead — shapes 46 each (false
+ *   - the `instanceof` lookahead — shapes 47 (false negative)
+ *   - the predicate-callee lookback — shapes 47 (false negative)
+ *   - the bare-first-argument lookback and lookahead — shapes 47 each (false
  *     negatives: the comment-wrapped subject stops being the first argument)
- *   - the argument-reader lookahead — shapes 46 (false negative)
+ *   - the argument-reader lookahead — shapes 47 (false negative)
  *   - the name-qualifier lookback — passing 2 (false positives: the member
  *     calls named `is_a` and `func_num_args` are read as the global functions)
  *   - the elvis lookahead — passing 1 (false positive: the elvis default is
@@ -118,19 +125,19 @@
  *
  * Guard clauses:
  *
- *   - drop the exemption for mode flags and type tests — passing 31, shapes 48
+ *   - drop the exemption for mode flags and type tests — passing 31, shapes 49
  *   - drop the exemption for the argument readers — passing 3 (the braced,
  *     brace-less and ternary guards of GuardedArgumentCount)
- *   - drop the "at least one branch throws" leg — shapes 40 (the empty
+ *   - drop the "at least one branch throws" leg — shapes 41 (the empty
  *     `switch` and the two surviving-path constructs start being read as
  *     guards)
- *   - drop the "own branch throws, or one path survives" leg — shapes 44
+ *   - drop the "own branch throws, or one path survives" leg — shapes 45
  *   - keep only the own-branch leg, dropping the mirror — passing 17 (every
  *     guard whose `throw` is on the other side starts reporting)
- *   - keep only the mirror leg, dropping the own-branch one — shapes 48 (the
+ *   - keep only the mirror leg, dropping the own-branch one — shapes 49 (the
  *     rejecting `match` arm beside two survivors stops being a guard)
  *   - stop enumerating a `switch`'s cases — passing 5; a `match`'s arms —
- *     passing 5, shapes 48; a ternary's two sides — passing 6
+ *     passing 5, shapes 49; a ternary's two sides — passing 6
  *   - count a nested construct's `case` labels — passing 1 — or its `match`
  *     arms — passing 1 — as the outer construct's own branches
  *   - read a `case` label as a branch of the outermost `switch` holding it
@@ -140,7 +147,7 @@
  *     passing 3 (both brace-less guards and the brace-less argument-reader
  *     guard start reporting); drop the brace-less branch's *end* instead —
  *     passing 1 (the `else` behind it is never found)
- *   - stop walking back to the head of an `if` chain — passing 2, shapes 46;
+ *   - stop walking back to the head of an `if` chain — passing 2, shapes 47;
  *     follow a spaced `else if` to its `else` rather than to the `if` that
  *     owns the condition — passing 1
  *   - ignore ternary nesting when reading a ternary's two sides — passing 1
@@ -151,8 +158,8 @@
  *
  *   - report `?:` as a branch — passing 2 (the elvis default over a mode flag,
  *     and its comment-separated spelling)
- *   - drop `case`-label detection — shapes 46 (`case is_iterable($extra):`)
- *   - drop the match-arm selector — shapes 42
+ *   - drop `case`-label detection — shapes 47 (`case is_iterable($extra):`)
+ *   - drop the match-arm selector — shapes 43
  *   - drop the parenthesised-condition scan — passing 2, failing 2, shapes 28
  *   - drop the `;` terminator — passing 5; the array `=>` terminator —
  *     passing 1; the `{` terminator — passing 1. One boundary per statement of
@@ -161,35 +168,35 @@
  * Which tokens the scan reads as its own — a group in the way is jumped whole,
  * and what a comma means is settled by the group holding it:
  *
- *   - drop the group jump entirely — passing 2, shapes 45; and one closer kind
- *     at a time: the `scope_closer` jump — passing 1, shapes 46 (the
+ *   - drop the group jump entirely — passing 2, shapes 46; and one closer kind
+ *     at a time: the `scope_closer` jump — passing 1, shapes 47 (the
  *     alternative-syntax `foreach` starts reporting; the bare `match` operand
- *     stops); the `parenthesis_closer` jump — shapes 46; the `bracket_closer`
+ *     stops); the `parenthesis_closer` jump — shapes 47; the `bracket_closer`
  *     jump — passing 1
- *   - treat a comma as an unconditional terminator — shapes 40
+ *   - treat a comma as an unconditional terminator — shapes 41
  *   - resume at the comma itself rather than at its group's closer —
  *     passing 1 (a ternary in the *sibling* argument on line 240 is read as
  *     the flag's own branch)
  *   - resume at a `match` arm's condition-list comma from the arm list's
- *     closing brace instead of carrying on — shapes 45 (both multi-condition
+ *     closing brace instead of carrying on — shapes 46 (both multi-condition
  *     arms stop reporting)
  *   - stop ending an arm at the comma behind its body — passing 1
  *   - map the commas of a block as though it were an expression group —
  *     passing 1 (the statement-level comma in NestedGroupEnds runs on to the
  *     ternary in the statement after it)
- *   - stop recognising a `match` arm list among braced groups — shapes 45
+ *   - stop recognising a `match` arm list among braced groups — shapes 46
  *   - drop one group opener at a time from the comma map: the brace —
- *     shapes 45; the parenthesis — shapes 44; the short array — shapes 45
- *   - read a group's end from its `parenthesis_closer` alone — shapes 43 — or
- *     from its `bracket_closer` alone — shapes 44
+ *     shapes 46; the parenthesis — shapes 45; the short array — shapes 46
+ *   - read a group's end from its `parenthesis_closer` alone — shapes 44 — or
+ *     from its `bracket_closer` alone — shapes 45
  *
  * Two guards report no count of their own, and both are stated as observed
  * rather than assumed:
  *
- *   - the per-position selector cache changes only how long the answers take
- *     to reach, so no fixture count moves. It is pinned by the linear-time
- *     assertion below instead: with it, one constructor holding 4000 uses of a
- *     single flag in one expression is scanned in 0.14s; without it, 7.5s.
+ *   - the three caches — the per-position selector answers, each construct's
+ *     branch verdicts, and each `if` chain's head — change only how long the
+ *     answers take to reach, so no fixture count moves. Each is pinned by its
+ *     own linear-time assertion below instead, one per walk it amortizes.
  *   - removing the bodiless-declaration guard makes PHPCS abort the file with
  *     an `Internal.Exception` error ("Undefined array key scope_opener"), so
  *     passing.php reports one error and no warnings, and this test file's
@@ -218,7 +225,8 @@ it('is registered in the master ruleset', function (): void {
  * coalesce defaults over a mode flag,
  * a non-boolean parameter in a condition, a predicate applied to a derived
  * value — through a property read, a subscript, and a named argument as well as
- * a nested call — a `bool|string` union that is not a flag, all three signals in
+ * a nested call and a grouping parenthesis holding more than the parameter — a
+ * `bool|string` union that is not a flag, all three signals in
  * a named constructor, an ordinary method, a nested named function, a closure,
  * an arrow function and an anonymous class, member calls named like a predicate
  * and like the argument readers with a comment splitting the object operator,
@@ -343,6 +351,8 @@ it('marks no violation fixable', function (): void {
  *  431         — a flag branching in the *arguments* of an anonymous class,
  *                which this constructor evaluates however far its body is from
  *                being constructor code
+ *  448         — a predicate whose subject is wrapped in a redundant grouping
+ *                parenthesis, which groups the parameter and nothing else
  */
 it('warns on every branching, declaration, and argument-reader shape', function (): void {
     $file = analyzeFixture(COMBINED_CONSTRUCTOR, 'shapes.php');
@@ -395,40 +405,77 @@ it('warns on every branching, declaration, and argument-reader shape', function 
         ['line' => 401, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
         ['line' => 416, 'column' => 51, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
         ['line' => 431, 'column' => 37, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 448, 'column' => 24, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
     ]);
 });
 
 /**
- * The forward scan's answers are kept per position rather than re-derived per
- * use, and what a comma means is settled in one pass over the body. Both are
- * what keep a constructor that uses one parameter many times in one expression
- * off a quadratic curve — a shape a generated file reaches easily, and the same
+ * Three shapes cost a walk of the whole enclosing construct per signal found in
+ * it, and each is held rather than re-derived: the forward scan's answers per
+ * position, what each branch of a construct does, and where an `if` chain
+ * begins. A generated file reaches every one of these easily, and the same
  * defect class the repo already fixed once in ArrayAccessorsSniff (#239).
  *
- * No fixture reddens on the cache alone, since it changes only how long the
- * answers take to reach; this is the assertion that pins it. Without it, this
- * body cost 4.3s at n=4000 and 17.7s at n=8000 on the machine that wrote it,
- * against 0.26s with it — so the bound below is roughly a fiftieth of the
- * quadratic cost and fifty times the linear one, and mirrors the bound
- * ArrayAccessorsTest sets on its own linearity assertion.
+ * No fixture reddens on any of the three caches, since they change only how
+ * long the answers take to reach; these are the assertions that pin them, one
+ * per shape, so a cache lost from one walk cannot hide behind another. Every
+ * bound below sits between the two costs measured on the machine that wrote it,
+ * and each was confirmed to redden with its own cache removed and to pass with
+ * it — measured, not derived:
+ *
+ *   repeated use in one expression  n=4000   0.09s cached, 7.7s without, bound 3s
+ *   `match` arms                    n=4000   0.24s cached, 23.0s without, bound 4s
+ *   `if`/`elseif` chain             n=4000   0.75s cached, 7.8s without, bound 3s
+ *
+ * A `switch` of the same size is deliberately not asserted on: PHP_CodeSniffer's
+ * own tokenizer is quadratic on a `switch` body that large — measured at
+ * 2.5s/9.4s for n=2000/4000 with *any* single sniff, this one included and
+ * PSR2.ControlStructures.SwitchDeclaration alike — so a wall-clock bound there
+ * would assert PHPCS's behaviour rather than the sniff's. The case walk shares
+ * the per-construct cache the `match` assertion below pins, and the count
+ * assertion in each test proves the walk still reports every branch.
  */
-it('scans one constructor in linear time', function (): void {
+it('scans repeated uses of one parameter in linear time', function (): void {
     $size = 4000;
     $source = "<?php\n\nclass ScaleProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
         . '        $this->mode = ' . implode(' . ', array_fill(0, $size, '$flag')) . "\n"
         . "            ? new Mailer()\n            : new NullLogger();\n    }\n}\n";
 
-    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-combined-scale-', true) . '.php';
-    file_put_contents($path, $source);
-
-    try {
-        $startedAt = hrtime(true);
-        $file = analyzeWithSniffs([COMBINED_CONSTRUCTOR], $path);
-        $elapsed = (hrtime(true) - $startedAt) / 1e9;
-    } finally {
-        unlink($path);
-    }
+    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
 
     expect($file->getWarningCount())->toBe($size, 'every use is still reported')
+        ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
+});
+
+it('scans a many-armed match in linear time', function (): void {
+    $size = 4000;
+    $arms = implode("\n", array_map(
+        static fn (int $index): string => "            \$flag => new Mode{$index}(),",
+        range(0, $size - 1)
+    ));
+    $source = "<?php\n\nclass ScaleProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
+        . "        \$this->mode = match (true) {\n{$arms}\n"
+        . "            default => throw new LogicException('unreachable'),\n        };\n    }\n}\n";
+
+    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
+
+    expect($file->getWarningCount())->toBe($size, 'every arm condition is still reported')
+        ->and($elapsed)->toBeLessThan(4.0, "n={$size} took {$elapsed}s");
+});
+
+it('scans a long if chain in linear time', function (): void {
+    $size = 4000;
+    $links = "        if (\$flag) {\n            \$this->mode = new Mode0();\n        }";
+
+    for ($index = 1; $index < $size; $index++) {
+        $links .= " elseif (\$flag) {\n            \$this->mode = new Mode{$index}();\n        }";
+    }
+
+    $source = "<?php\n\nclass ScaleProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
+        . $links . " else {\n            throw new LogicException('unreachable');\n        }\n    }\n}\n";
+
+    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
+
+    expect($file->getWarningCount())->toBe($size, 'every link condition is still reported')
         ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
 });

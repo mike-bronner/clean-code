@@ -220,6 +220,35 @@ function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
 }
 
 /**
+ * Processes generated source through a ruleset narrowed to the given sniffs,
+ * and reports how long the processing took in seconds.
+ *
+ * A linearity assertion needs a body far larger than any fixture on disk, and
+ * needs it written to a real path, since a sniff reads scope and parenthesis
+ * maps a stdin file builds the same way. The file is removed whether the run
+ * succeeds or not.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array{0: LocalFile, 1: float}
+ */
+function analyzeSourceTimed(array $sniffCodes, string $source): array
+{
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-timed-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs($sniffCodes, $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    return [$file, $elapsed];
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, resolving the
  * fixture directory from the sniff code.
  *

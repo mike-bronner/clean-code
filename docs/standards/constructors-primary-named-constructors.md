@@ -141,8 +141,11 @@ Deliberately silent on:
   precondition rather than selecting an initialization path, so its condition
   is exempt whatever signal it carries — a mode flag, a type test, or an
   argument-list read alike, since `if (func_num_args() > 1) { throw … }`
-  rejects a call rather than choosing how to build one. A `switch` or `match`
-  qualifies when every one of its branches throws.
+  rejects a call rather than choosing how to build one. A construct whose own
+  condition stands in front of every branch — a `switch` or `match` subject, a
+  ternary's condition — has no branch of its own to judge, so it qualifies when
+  at least one branch throws and no more than one survives: the rest reject,
+  and the single surviving branch is the one construction path.
 - **Coalesce defaults** — `$this->x = $x ?? new Default();` carries no
   branching token at all, and the elvis `?:` supplies a default for one
   expression rather than selecting between two. `is_null()` is left out of the
