@@ -46,6 +46,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.TooManyFields',
+    'CleanCode.Methods.DeclaredParameters',
     'CleanCode.Naming.BooleanGetMethodName',
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.LongVariable',

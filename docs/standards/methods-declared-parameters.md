@@ -77,12 +77,13 @@ via the CleanCode standard
   safely, so the sniff is delivered detection-only; declaring the parameters is
   left to the developer performing the refactor.
 
-Ruleset-integration tests covering compliant code, per-line/column violation
-reporting for all three functions, the exemption boundary around closures and
-arrow functions, name resolution through `use function` imports, the
-`namespace\` qualifier in namespaced files, global files, and braced namespace
-blocks, the reported message, and the non-fixable (detection-only) guarantee
-live at `tests/Ruleset/DeclaredParametersTest.php`.
+Tests covering compliant code, per-line/column violation reporting for all
+three functions, the exemption boundary around closures and arrow functions,
+name resolution through `use function` imports, the `namespace\` qualifier in
+namespaced files, global files, and braced namespace blocks, the reported
+message, and the non-fixable (detection-only) guarantee live at
+`tests/Standards/DeclaredParametersTest.php`, with their fixtures in
+`tests/fixtures/DeclaredParametersSniff/`.
 
 ## What remains code review
 
