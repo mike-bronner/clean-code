@@ -17,6 +17,7 @@ dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
 dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.Indentation.LogicalGroupings',
     'CleanCode.Operators.BinaryOperatorSpacing',
     'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
