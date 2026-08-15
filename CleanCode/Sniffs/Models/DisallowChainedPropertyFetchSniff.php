@@ -44,11 +44,34 @@ class DisallowChainedPropertyFetchSniff implements Sniff
      * The tokens a grouping parenthesis may follow, beyond the operator unions
      * PHP_CodeSniffer already publishes. See isGroupingParenthesis().
      *
+     * Arrived at by sweeping PHP_CodeSniffer's whole token catalogue once —
+     * every T_* constant it defines, not the members that came to mind — and
+     * admitting each token a parenthesis can legally follow and still be
+     * grouping one expression. Every admission below is a shape `php -l`
+     * accepts and a fixture line reports; every token left out is refused on
+     * purpose and recorded as such by the catalogue test, which fails on any
+     * token this list and that one both leave unclassified. Adding the next
+     * omission one at a time is what this is written to stop.
+     *
+     * No member is redundant with those unions, which is asserted rather than
+     * assumed: `=>` was listed here until the sweep found Tokens::$assignmentTokens
+     * already supplying it, and group-preceders.php pins the shape either way.
+     *
      * @var array<int, int|string>
      */
     private const GROUP_PRECEDERS = [
+        // Where an expression starts: the file's own opening tags, the end of
+        // the statement before, and the brace opening a block or a braced
+        // member name. The matching closers are absent — see the method.
         T_OPEN_TAG,
+        T_OPEN_TAG_WITH_ECHO,
         T_SEMICOLON,
+        T_OPEN_CURLY_BRACKET,
+        T_GOTO_LABEL,
+
+        // Openers and separators inside an expression: an argument list, a
+        // subscript, an array literal, and the punctuation between their
+        // elements or a ternary's arms.
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
@@ -56,13 +79,35 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         T_COLON,
         T_INLINE_THEN,
         T_INLINE_ELSE,
-        T_DOUBLE_ARROW,
         T_FN_ARROW,
         T_MATCH_ARROW,
+
+        // Keywords that take an expression without parenthesising it.
         T_RETURN,
         T_ECHO,
         T_PRINT,
         T_THROW,
+        T_YIELD,
+        T_YIELD_FROM,
+        T_CASE,
+        T_CLONE,
+        T_INCLUDE,
+        T_INCLUDE_ONCE,
+        T_REQUIRE,
+        T_REQUIRE_ONCE,
+
+        // Keywords that take a bare statement, which an expression may be.
+        T_ELSE,
+        T_DO,
+
+        // Prefix operators PHP_CodeSniffer's own unions leave out.
+        T_BOOLEAN_NOT,
+        T_BITWISE_NOT,
+        T_ASPERAND,
+        T_ELLIPSIS,
+
+        // Concatenation, the one binary operator absent from those unions.
+        T_STRING_CONCAT,
     ];
 
     /**
@@ -477,8 +522,23 @@ class DisallowChainedPropertyFetchSniff implements Sniff
      * its own, so a parenthesis after it can only open one: the start of a
      * statement or of the file, an assignment, an operator of any kind, a
      * separator, or a keyword that takes an expression without parenthesising
-     * it. The closers a call or a subscript can follow are absent deliberately
-     * — isInvokedOn() has already claimed those.
+     * it.
+     *
+     * Three groups of tokens are left out for reasons worth naming, because
+     * each reads at a glance like it belongs:
+     *
+     * - The closers — `)`, `]`, `}` and a short array's — are absent
+     *   deliberately: a parenthesis after one of them invokes what precedes it
+     *   (`${'fn'}($book)` calls `fn` with `$book`), and isInvokedOn() has
+     *   already claimed them. Admitting `}` alongside its opener for symmetry
+     *   would read that argument list as a group and report a chain against
+     *   the argument — the false positive this whole method exists to avoid.
+     * - `new` and `instanceof` take a class, not an expression, so
+     *   `new ($book)->author->name` and `$x instanceof ($book)->author->name`
+     *   are both source PHP rejects outright.
+     * - `break`, `continue`, `exit`, `static`, `namespace` and `goto` cannot be
+     *   followed by a parenthesised expression at all; each was checked against
+     *   `php -l` rather than assumed.
      *
      * @param array<int, array<string, mixed>> $tokens
      * @param int|false                        $beforeOpenerPtr pointer to the

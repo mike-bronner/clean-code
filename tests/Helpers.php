@@ -1020,3 +1020,51 @@ function nestedChainFixture(int $depth): array
 
     return [implode("\n", $lines), $chainLine];
 }
+
+/**
+ * The T_* token names listed in a class constant, read out of the source that
+ * declares it.
+ *
+ * Lets a test assert against the enumeration a sniff actually uses rather than
+ * against a copy of it kept alongside, which is the whole point: a copy drifts
+ * silently, and an enumeration a test only restates is an enumeration nothing
+ * checks. Reading it needs no Reflection, which this package's own
+ * CleanCode.Testing.NoReflectionAccess forbids in tests — PHP_CodeSniffer
+ * tokenizes the file and the names are read off the tokens.
+ *
+ * Every T_* name between the constant's own name and the semicolon ending its
+ * declaration. A constant that cannot be found yields an empty list, so a
+ * caller asserting completeness reddens rather than passing on nothing.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<int, string>
+ */
+function tokenNamesInConstant(string $path, string $constant, array $sniffCodes): array
+{
+    $tokens = analyzeWithSniffs($sniffCodes, $path)->getTokens();
+    $names = [];
+    $reading = false;
+
+    foreach ($tokens as $token) {
+        if ($token['code'] === T_STRING && $token['content'] === $constant) {
+            $reading = true;
+
+            continue;
+        }
+
+        if ($reading === false) {
+            continue;
+        }
+
+        if ($token['code'] === T_SEMICOLON) {
+            break;
+        }
+
+        if ($token['code'] === T_STRING && str_starts_with($token['content'], 'T_') === true) {
+            $names[] = $token['content'];
+        }
+    }
+
+    return $names;
+}

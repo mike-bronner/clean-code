@@ -37,6 +37,95 @@ const CHAINED_FAILING_LINES = [
     36, 41,
 ];
 
+/**
+ * Every line of group-preceders.php, which carries one chain per token a
+ * grouping parenthesis may follow. One line per admission, and one admission
+ * per line: the sweep below asserts the correspondence both ways.
+ */
+const CHAINED_PRECEDER_LINES = [
+    11, 16, 19, 20, 22, 24, 28, 29, 30, 31, 32, 33, 34, 36, 38, 42, 43, 44, 45,
+    46, 47, 48, 49, 52, 56, 61, 66, 71, 76, 82, 83, 84, 85, 91, 92, 93, 94, 95,
+    98,
+];
+
+/**
+ * Every token PHP_CodeSniffer can put before a grouping parenthesis that the
+ * sniff refuses, grouped by the reason it is refused. Together with the tokens
+ * it admits this accounts for the whole catalogue, which is what the catalogue
+ * test asserts — a token in neither list is an unclassified one, and that is
+ * the failure this constant exists to make impossible.
+ */
+const CHAINED_REFUSED_PRECEDERS = [
+    // Closers. A parenthesis after one of these invokes what precedes it
+    // (`${'fn'}($book)` calls `fn`), so isInvokedOn() has already claimed them.
+    'T_CLOSE_PARENTHESIS', 'T_CLOSE_SQUARE_BRACKET', 'T_CLOSE_CURLY_BRACKET',
+    'T_CLOSE_SHORT_ARRAY', 'T_CLOSE_USE_GROUP', 'T_ATTRIBUTE_END',
+    'T_CLOSE_TAG', 'T_CLOSE_OBJECT',
+
+    // Constructs that write their own subject or body in brackets. Reading one
+    // as a group is the false positive the admission set exists to prevent.
+    'T_ARRAY', 'T_ISSET', 'T_EMPTY', 'T_EVAL', 'T_EXIT', 'T_LIST', 'T_UNSET',
+    'T_MATCH', 'T_IF', 'T_ELSEIF', 'T_WHILE', 'T_FOR', 'T_FOREACH', 'T_SWITCH',
+    'T_CATCH', 'T_DECLARE', 'T_FUNCTION', 'T_FN', 'T_CLOSURE', 'T_CLASS',
+    'T_ANON_CLASS', 'T_INTERFACE', 'T_TRAIT', 'T_ENUM', 'T_USE',
+    'T_HALT_COMPILER', 'T_TRY', 'T_FINALLY',
+
+    // Keywords a parenthesised expression cannot legally follow. `new` and
+    // `instanceof` take a class rather than an expression; the rest take a
+    // name, a literal, a block or nothing. Each was put to `php -l` rather
+    // than assumed.
+    'T_NEW', 'T_INSTANCEOF', 'T_BREAK', 'T_CONTINUE', 'T_STATIC',
+    'T_NAMESPACE', 'T_GOTO', 'T_GLOBAL', 'T_DEFAULT', 'T_MATCH_DEFAULT',
+    'T_ENUM_CASE', 'T_AS', 'T_INSTEADOF', 'T_EXTENDS', 'T_IMPLEMENTS',
+    'T_CONST', 'T_ENDDECLARE', 'T_ENDFOR', 'T_ENDFOREACH', 'T_ENDIF',
+    'T_ENDSWITCH', 'T_ENDWHILE',
+
+    // Declaration modifiers and type declarations. A parenthesis after one is
+    // part of a signature, not an expression at all.
+    'T_ABSTRACT', 'T_FINAL', 'T_VAR', 'T_PUBLIC', 'T_PRIVATE', 'T_PROTECTED',
+    'T_READONLY', 'T_PUBLIC_SET', 'T_PRIVATE_SET', 'T_PROTECTED_SET',
+    'T_CALLABLE', 'T_ARRAY_HINT', 'T_RETURN_TYPE', 'T_PARAM_NAME',
+    'T_PROPERTY', 'T_PROTOTYPE', 'T_NULLABLE', 'T_TYPE_UNION',
+    'T_TYPE_INTERSECTION', 'T_TYPE_OPEN_PARENTHESIS',
+    'T_TYPE_CLOSE_PARENTHESIS',
+
+    // Expression atoms — names, literals and magic constants. A parenthesis
+    // after one invokes it, which again belongs to isInvokedOn().
+    'T_STRING', 'T_VARIABLE', 'T_NAME_QUALIFIED', 'T_NAME_FULLY_QUALIFIED',
+    'T_NAME_RELATIVE', 'T_LNUMBER', 'T_DNUMBER', 'T_CONSTANT_ENCAPSED_STRING',
+    'T_DOUBLE_QUOTED_STRING', 'T_HEREDOC', 'T_NOWDOC', 'T_TRUE', 'T_FALSE',
+    'T_NULL', 'T_SELF', 'T_PARENT', 'T_THIS', 'T_CLASS_C', 'T_DIR', 'T_FILE',
+    'T_FUNC_C', 'T_LINE', 'T_METHOD_C', 'T_NS_C', 'T_TRAIT_C', 'T_PROPERTY_C',
+    'T_BACKTICK',
+
+    // Operators and punctuation that need a name or a variable next, not a
+    // parenthesised expression.
+    'T_OBJECT_OPERATOR', 'T_NULLSAFE_OBJECT_OPERATOR', 'T_DOUBLE_COLON',
+    'T_PAAMAYIM_NEKUDOTAYIM', 'T_NS_SEPARATOR', 'T_INC', 'T_DEC', 'T_DOLLAR',
+    'T_ATTRIBUTE', 'T_OPEN_USE_GROUP',
+    'T_AMPERSAND_FOLLOWED_BY_VAR_OR_VARARG',
+    'T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG',
+
+    // Never reached: the walk skips Tokens::$emptyTokens before it asks, and
+    // inline HTML cannot sit inside an expression.
+    'T_WHITESPACE', 'T_COMMENT', 'T_DOC_COMMENT', 'T_DOC_COMMENT_OPEN_TAG',
+    'T_DOC_COMMENT_CLOSE_TAG', 'T_DOC_COMMENT_STAR', 'T_DOC_COMMENT_STRING',
+    'T_DOC_COMMENT_TAG', 'T_DOC_COMMENT_WHITESPACE', 'T_PHPCS_DISABLE',
+    'T_PHPCS_ENABLE', 'T_PHPCS_IGNORE', 'T_PHPCS_IGNORE_FILE', 'T_PHPCS_SET',
+    'T_INLINE_HTML', 'T_NONE', 'T_BAD_CHARACTER',
+
+    // String interpolation internals and heredoc markers, where a parenthesis
+    // is content rather than syntax.
+    'T_CURLY_OPEN', 'T_DOLLAR_OPEN_CURLY_BRACES', 'T_STRING_VARNAME',
+    'T_NUM_STRING', 'T_ENCAPSED_AND_WHITESPACE', 'T_START_HEREDOC',
+    'T_END_HEREDOC', 'T_START_NOWDOC', 'T_END_NOWDOC',
+
+    // Defined by PHP_CodeSniffer for its JavaScript and CSS tokenizers, and
+    // never emitted for a PHP file.
+    'T_COLOUR', 'T_URL', 'T_STYLE', 'T_HASH', 'T_TYPEOF', 'T_OBJECT',
+    'T_LABEL', 'T_ZSR', 'T_REGULAR_EXPRESSION', 'T_EMBEDDED_PHP',
+];
+
 // Fixtures are copied outside the repository before processing, because PHPCS
 // decides rules.xml's test-path exclusion from the file's path alone. The
 // staged copies are removed by the afterEach() hook in tests/Pest.php.
@@ -226,6 +315,100 @@ it('names the first completing pair and the accessor remedy', function () use ($
         ->and($messages[7][0])->not->toContain('address->city')
         ->and($messages[3][0])->toContain('getAuthorNameAttribute()')
         ->and($messages[3][0])->toContain('accessor attribute on the first model');
+});
+
+/**
+ * A grouping parenthesis is recognised from the token in front of it, against a
+ * closed admission set — so the set being short by one token is a chain that
+ * goes unreported, silently and for exactly one shape. `!($book)->author->name`
+ * reporting nothing while `($book)->author->name` reported correctly is how
+ * that reads from outside, and it is not a shape a reader would think to try.
+ *
+ * group-preceders.php therefore carries one chain per admitted token, and this
+ * asserts every one of them is reported. It is the coverage half of the pair:
+ * the file exists so that no member of the set can be removed — or fail to be
+ * added — without a line here going quiet. Each of the 33 tokens the sniff
+ * lists, and each of the five PHP_CodeSniffer unions it defers to, was checked
+ * that way: deleting it silences its own line and no other, so no line is
+ * carried by a neighbour and no member is dead weight. `=>` was the one that
+ * was: Tokens::$assignmentTokens already supplied it, and the list no longer
+ * repeats it.
+ *
+ * The catalogue test below is the other half. Between them, a token is either
+ * admitted with a line proving it, or refused with a reason recorded.
+ */
+it('reports a chain behind every admitted grouping-parenthesis preceder', function () use ($stagedRun): void {
+    $file = $stagedRun('group-preceders.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_PRECEDER_LINES, [CHAINED_ERROR]));
+});
+
+/**
+ * The admission set is only as good as its completeness, and completeness is
+ * not something a reader can see by looking at a list of plausible tokens. This
+ * sniff has already been short by one twice — once for `!`, `~`, `.`, `yield`,
+ * `yield from` and `case` at the same time — because each round added the
+ * tokens that had been reported and left the rest of the catalogue unexamined.
+ *
+ * So the enumeration is closed against PHP_CodeSniffer's own catalogue rather
+ * than against judgement: every T_* token it defines, whether from PHP's
+ * tokenizer or its own, is either admitted (the list in the sniff, plus the
+ * five unions it defers to) or refused with its reason recorded in
+ * CHAINED_REFUSED_PRECEDERS. A token in neither is unclassified, and that is
+ * what fails here — including a token a future PHP_CodeSniffer adds, which is
+ * precisely the case no fixture can anticipate.
+ *
+ * The admitted half is read out of the sniff's own source rather than restated,
+ * so the two cannot drift apart: a member deleted from the constant leaves its
+ * token in neither list and reddens this test as an unclassified one. Read by
+ * tokenizing the file with PHP_CodeSniffer, because this package forbids
+ * Reflection in its own tests (CleanCode.Testing.NoReflectionAccess) and a test
+ * that broke the standard it ships would be an odd thing to ship.
+ */
+it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
+    $catalogue = [];
+
+    foreach (['tokenizer', 'user'] as $group) {
+        foreach (array_keys(get_defined_constants(true)[$group] ?? []) as $name) {
+            if (str_starts_with($name, 'T_') === true) {
+                $catalogue[$name] = constant($name);
+            }
+        }
+    }
+
+    // Combined with `+` rather than array_merge(), which renumbers the integer
+    // keys these are looked up by and would leave every union-sourced token
+    // reading as unclassified.
+    $unions = \PHP_CodeSniffer\Util\Tokens::$assignmentTokens
+        + \PHP_CodeSniffer\Util\Tokens::$operators
+        + \PHP_CodeSniffer\Util\Tokens::$comparisonTokens
+        + \PHP_CodeSniffer\Util\Tokens::$booleanOperators
+        + \PHP_CodeSniffer\Util\Tokens::$castTokens;
+
+    $admitted = array_merge(
+        tokenNamesInConstant(
+            cleanCodeRoot() . '/CleanCode/Sniffs/Models/DisallowChainedPropertyFetchSniff.php',
+            'GROUP_PRECEDERS',
+            [CHAINED]
+        ),
+        array_keys(array_filter($catalogue, static fn ($code): bool => isset($unions[$code]) === true))
+    );
+
+    $classified = array_merge($admitted, CHAINED_REFUSED_PRECEDERS);
+
+    sort($classified);
+    $expected = array_keys($catalogue);
+    sort($expected);
+
+    expect(array_values(array_diff(array_keys($catalogue), $classified)))
+        ->toBe([], 'every token PHP_CodeSniffer defines is admitted or refused')
+        ->and(array_values(array_diff($classified, array_keys($catalogue))))
+        ->toBe([], 'neither list names a token PHP_CodeSniffer does not define')
+        ->and(array_values(array_intersect($admitted, CHAINED_REFUSED_PRECEDERS)))
+        ->toBe([], 'no token is both admitted and refused')
+        ->and($classified)->toBe($expected);
 });
 
 /**
