@@ -34,7 +34,8 @@
  *     and nothing else does. Run for all 47 entries; all 47 killed, so the
  *     enumeration carries no member the suite leaves untested. Dropping
  *     T_OPEN_SQUARE_BRACKET, the one entry the fixtures also reach, additionally
- *     reddens passing.php 128, 129, 229 to 234, 237 to 241 and 269 to 286
+ *     reddens passing.php 269 and 270, the two subscript keys whose grouping
+ *     parenthesis sits immediately after the `[`
  *   - accept a write in the assignment target (drop the rejection outright) —
  *     failing.php loses 302, 303, 304, 305, 306 and 307, and every dataset of
  *     "flags every writing assignment target" reddens
@@ -478,7 +479,7 @@ it('leaves a reading assignment target alone', function (): void {
  * nothing at all. Line 239 is the one that reaches the check and still has to
  * pass — `$key` interpolates for real, so PHPCS hands the token over as the
  * interpolated kind, while the `\${literal}` beside it is escaped text.
- * Line 254 keeps the rejection on the target side of the assignment operator:
+ * Line 301 keeps the rejection on the target side of the assignment operator:
  * that right-hand side really does invoke.
  */
 it('leaves a reading assignment target and an invoking right-hand side alone', function (): void {
@@ -491,7 +492,7 @@ it('leaves a reading assignment target and an invoking right-hand side alone', f
         ->not->toContain(237)  // "{\$this->key()}", the dollar escaped
         ->not->toContain(238)  // "\${key}", the dollar escaped
         ->not->toContain(239)  // "$key \${literal}", interpolated *and* escaped
-        ->not->toContain(254); // "{$this->key()}" on the right-hand side
+        ->not->toContain(301); // "{$this->key()}" on the right-hand side
 });
 
 /**
