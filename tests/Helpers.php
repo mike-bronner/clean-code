@@ -14,10 +14,12 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
 use PHP_CodeSniffer\Tests\ConfigDouble;
 
 /**
@@ -1071,6 +1073,39 @@ function nestedChainFixture(int $depth): array
     ]);
 
     return [implode("\n", $lines), $chainLine];
+}
+
+/**
+ * The set CleanCode.WhiteSpace.PassiveOperatorSpacing uses to decide a `+`/`-`
+ * is a unary sign, read off the real class through reflection so the divergence
+ * tests compare live behaviour rather than a transcription of it.
+ *
+ * @return array<int|string, int|string>
+ */
+function passiveNonOperandTokens(): array
+{
+    $method = new ReflectionMethod(PassiveOperatorSpacingSniff::class, 'nonOperandTokens');
+    $method->setAccessible(true);
+
+    return $method->invoke(new PassiveOperatorSpacingSniff());
+}
+
+/**
+ * The same set as Squiz.WhiteSpace.OperatorSpacing computes it — the baseline
+ * both CleanCode.Operators.BinaryOperatorSpacing and the passive sniff are
+ * measured against. register() is what populates it, so it must run first.
+ *
+ * @return array<int|string, int|string>
+ */
+function squizNonOperandTokens(): array
+{
+    $sniff = new OperatorSpacingSniff();
+    $sniff->register();
+
+    $property = new ReflectionProperty($sniff, 'nonOperandTokens');
+    $property->setAccessible(true);
+
+    return $property->getValue($sniff) ?? [];
 }
 
 /**
