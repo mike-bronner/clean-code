@@ -977,6 +977,37 @@ function measuredComplexities(LocalFile $file): array
 }
 
 /**
+ * Reads the nesting level CleanCode.Metrics.MethodNestingLevel measured back out
+ * of each of its reports, keyed by the line it reported on.
+ *
+ * The counterpart of measuredComplexities() above, and there for the same
+ * reason: a test asserting only *where* the sniff reported holds just as well
+ * against one that measures every level wrongly and still lands over the limit,
+ * and the level is the whole content of the diagnostic. A report whose message
+ * carries no level is skipped rather than guessed at.
+ *
+ * One entry per line, which is safe only next to an assertion that pins the
+ * reports themselves — violationTuples() — since a second report on a line
+ * would overwrite the first here.
+ *
+ * @return array<int, int>
+ */
+function reportedNestingLevels(LocalFile $file): array
+{
+    $levels = [];
+
+    foreach (violationMessagesByLine($file->getErrors()) as $line => $messages) {
+        foreach ($messages as $message) {
+            if (preg_match('/^Method nesting level \((\d+)\) exceeds/', $message, $matches) === 1) {
+                $levels[$line] = (int) $matches[1];
+            }
+        }
+    }
+
+    return $levels;
+}
+
+/**
  * Executes a fixture in an isolated scope and returns the variables it
  * defined, so a fixer's before/after string values can be compared directly.
  *
