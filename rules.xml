@@ -2091,4 +2091,28 @@
     <rule ref="Generic.CodeAnalysis.AssignmentInCondition">
         <type>error</type>
     </rule>
+
+    <!--
+        Properties: Are Required (#55) —
+        docs/standards/properties-are-required.md.
+
+        The custom CleanCode.Classes.RequireProperties sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted.
+
+        No <exclude-pattern> for test paths, unlike the
+        DisallowExternalPersistenceCalls block above. There is no test idiom
+        that makes a stateless class legitimate — a test case holds its
+        fixtures, and a Pest test file declares no class at all — so a path
+        filter would only hide the rule where it still applies.
+
+        Nothing existing covers it. Slevomat's class sniffs speak about how
+        properties are declared (RequireConstructorPropertyPromotion), their
+        visibility (ForbiddenPublicProperty) and their ordering
+        (ClassStructure); none reports their *absence*, and neither PSR12,
+        Squiz nor Generic has an equivalent. That search is re-run on every
+        suite pass by tests/Standards/RequirePropertiesTest.php, so a future
+        vendor upgrade that does cover this case says so rather than leaving
+        the custom sniff unexamined.
+    -->
 </ruleset>

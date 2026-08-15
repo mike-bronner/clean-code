@@ -27,20 +27,21 @@ standard is therefore enforced by the custom
 via the CleanCode standard
 ([#55](https://github.com/mike-bronner/phpcs-rules/issues/55)).
 
-- **Detection** — every `class` that declares no instance or static property is
-  reported at the class declaration keyword as
+- **Detection** — every `class` that encapsulates no state is reported at the
+  class declaration keyword as
   `CleanCode.Classes.RequireProperties.MissingProperty`. This includes the
   empty stub class (no members at all), since it too has no state.
-- **Counts as a property** — a conventional member variable (`private int
-  $total;`), instance or `static`, **and** a constructor-promoted parameter
-  (`__construct(private int $total)`). Promotion declares a real instance
-  property, so a class whose only state is promoted is compliant; this also
-  keeps the sniff consistent with the enforced *Constructors: Property
-  Promotion* standard.
+- **Counts as state** — a conventional member variable (`private int $total;`),
+  instance or `static`; a constructor-promoted parameter (`__construct(private
+  int $total)`); an `extends` clause; and a trait `use` in the class body.
+  Promotion declares a real instance property, so a class whose only state is
+  promoted is compliant — which also keeps the sniff consistent with the
+  enforced *Constructors: Property Promotion* standard.
 - **Does not count** — plain (non-promoted) constructor or method parameters
   (they are arguments, not stored state), class constants (not the target of
-  this standard), and properties belonging to a nested or anonymous class
-  inside a method (they are not members of the outer class).
+  this standard), an `implements` clause (an interface declares no instance
+  state to inherit), and properties, `extends` clauses or trait uses belonging
+  to a nested or anonymous class inside a method (they are not this class's).
 - **Not flagged** — interfaces and traits cannot declare instance state the way
   a class does, and enums carry identity through their cases; the sniff
   registers only on `T_CLASS`, so all three (and anonymous classes) are
@@ -50,10 +51,45 @@ via the CleanCode standard
   design decision, not a token rewrite. The sniff surfaces the gap and leaves
   the fix to the developer.
 
-Ruleset-integration tests covering compliant code (instance, static, and
-promoted properties), per-line violation reporting for a methods-only class and
-an empty stub, the exclusion of interfaces/traits/enums, and the non-fixable
-(detection-only) guarantee live at `tests/Ruleset/RequirePropertiesTest.php`.
+### Why inherited and composed state count
+
+`extends` and `use` are read as state deliberately, and the choice is the
+repository owner's rather than the sniff author's. The narrower reading — only
+a class's *own* declaration counts — flags two very common shapes that plainly
+do hold data:
+
+```php
+class NotFoundException extends HttpException {}   // state lives in the parent
+class Post { use HasTimestamps; }                  // state lives in the trait
+```
+
+Reporting those serves the letter of "declares no properties" and contradicts
+the rationale above, which is about a class having *no state*, so the wider
+reading wins.
+
+It is a heuristic, and knowingly so: a single-file sniff cannot confirm the
+parent or the trait really declares anything, so a class composing a genuinely
+stateless trait slips through. The hole is small — a stateless parent declares
+no properties of its own and is flagged in its own right, so at least one class
+in every inheritance chain has to own state.
+
+### Known gap: this package's own sniff classes
+
+A PHP_CodeSniffer sniff is a stateless strategy object — constants and methods,
+no data — so this standard reports 26 of this package's own classes, including
+the sniff that implements it. The rule is right about them; bringing them into
+compliance is a package-wide refactor with its own issue, so until that lands
+the package does not pass this one standard against itself. The one test that
+asserts a sniff file's own cleanliness
+(`tests/Standards/ManualModelResolutionTest.php`) pins that single expected
+violation by name rather than silencing the rule.
+
+Behaviour tests covering compliant code (instance, static, promoted, inherited
+and trait-composed state), per-line violation reporting for a methods-only
+class and an empty stub, the exclusion of interfaces/traits/enums, the
+existing-sniff search, and the non-fixable (detection-only) guarantee live at
+`tests/Standards/RequirePropertiesTest.php`, with fixtures in
+`tests/fixtures/RequirePropertiesSniff/`.
 
 ## What remains code review
 

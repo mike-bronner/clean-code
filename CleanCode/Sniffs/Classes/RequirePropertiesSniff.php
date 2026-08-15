@@ -11,26 +11,40 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * Enforces the "Properties: Are Required" standard.
  *
  * A class represents a concept, and every concept has attributes. A class that
- * declares no properties encapsulates no state and has no identity — it is
- * procedural, non-object-oriented code wearing a class keyword. This sniff
- * flags every `class` declaration that declares zero instance or static
- * properties, reporting at the class declaration keyword.
+ * encapsulates no state has no identity — it is procedural, non-object-oriented
+ * code wearing a class keyword. This sniff flags every `class` declaration that
+ * has no state at all, reporting at the class declaration keyword.
  *
- * What counts as a property declaration:
+ * What counts as state the class holds:
  *
  * - a conventional member variable in the class body (`private int $total;`),
  *   instance or `static`;
  * - a constructor-promoted parameter (`__construct(private int $total)`) — the
  *   visibility modifier turns the parameter into a real instance property, so a
  *   class whose only state is promoted is compliant. This also keeps the sniff
- *   consistent with the enforced "Constructors: Property Promotion" standard.
+ *   consistent with the enforced "Constructors: Property Promotion" standard;
+ * - an `extends` clause — the parent's properties are this class's state;
+ * - a `use` of a trait in the class body — the trait's properties become this
+ *   class's own.
+ *
+ * The last two make this a deliberate *heuristic*. A single-file sniff cannot
+ * confirm the parent or the trait really declares anything, so a class using a
+ * genuinely stateless trait slips through. The residual hole is small: a
+ * stateless parent declares no properties of its own and is itself flagged, so
+ * at least one class in every inheritance chain has to own state. The
+ * alternative — reading `extends` and `use` as irrelevant — routinely flags
+ * idiomatic code that plainly *has* state (`class NotFoundException extends
+ * HttpException {}`, an entity composing `HasTimestamps`), which contradicts
+ * the standard this sniff exists to enforce.
  *
  * What does NOT count, so a class with only these is still flagged:
  *
  * - plain (non-promoted) constructor or method parameters — they are call
  *   arguments, not stored state;
  * - class constants — constants are not the target of this standard;
- * - properties belonging to a nested class or anonymous class inside a method.
+ * - an `implements` clause — an interface declares no instance state to inherit;
+ * - properties, `extends` clauses, and trait uses belonging to a nested class
+ *   or an anonymous class inside a method.
  *
  * Only classes are checked. Interfaces and traits cannot declare instance
  * state the way a class does, and enums carry identity through their cases;
@@ -78,18 +92,30 @@ class RequirePropertiesSniff implements Sniff
             return;
         }
 
-        if ($this->hasProperty($phpcsFile, $stackPtr)) {
+        if ($this->hasState($phpcsFile, $stackPtr)) {
             return;
         }
 
         $name = $phpcsFile->getDeclarationName($stackPtr) ?? 'class';
 
         $phpcsFile->addError(
-            'Class %s declares no properties; a class must encapsulate state (add at least one property)',
+            'Class %s encapsulates no state; it declares no property, extends no class, and uses no trait'
+                . ' (add at least one property)',
             $stackPtr,
             'MissingProperty',
             [$name]
         );
+    }
+
+    /**
+     * Whether the class at $classPtr holds state: a property of its own, a
+     * parent to inherit properties from, or a trait to compose them in.
+     */
+    private function hasState(File $phpcsFile, int $classPtr): bool
+    {
+        return $phpcsFile->findExtendedClassName($classPtr) !== false
+            || $this->hasProperty($phpcsFile, $classPtr)
+            || $this->usesTrait($phpcsFile, $classPtr);
     }
 
     /**
@@ -122,6 +148,28 @@ class RequirePropertiesSniff implements Sniff
 
             // Otherwise it is a parameter; it only counts when promoted.
             if ($this->isPromotedParameter($phpcsFile, $i)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether the class at $classPtr composes a trait. Only a `use` sitting
+     * directly in this class's body is a trait import: a file-level import is
+     * outside the class scope entirely, and a closure's `use (...)` binding —
+     * or a trait imported by a nested/anonymous class — resolves to an inner
+     * scope, so neither reaches belongsToClass().
+     */
+    private function usesTrait(File $phpcsFile, int $classPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$classPtr]['scope_closer'];
+        $usePtr = $tokens[$classPtr]['scope_opener'];
+
+        while (($usePtr = $phpcsFile->findNext(T_USE, ($usePtr + 1), $closer)) !== false) {
+            if ($this->belongsToClass($tokens[$usePtr]['conditions'], $classPtr)) {
                 return true;
             }
         }
