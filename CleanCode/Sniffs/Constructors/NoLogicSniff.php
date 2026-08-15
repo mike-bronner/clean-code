@@ -40,11 +40,15 @@ use PHP_CodeSniffer\Util\Tokens;
  * the property before writing it, so they are computation rather than plain
  * assignment), assignments whose target is not a property (a local variable is
  * intermediate computation, not object state), and assignments whose target
- * contains a call (`$this->make()->x = …`, `$this->items[$this->key()] = …`) —
- * the call runs on every instantiation. Statements nested inside a flagged
- * control structure are not examined separately, and a chained construct
- * (`if … elseif … else`, `try … catch … finally`, `do … while`) is reported
- * once at its opening keyword.
+ * invokes something, because it runs on every instantiation — a call
+ * parenthesis (`$this->make()->x = …`, `$this->items[$this->key()] = …`), a
+ * backtick shell execution, or a complex interpolation, which can hide a call
+ * inside a string PHPCS keeps opaque (`$this->items["{$this->key()}"] = …`).
+ *
+ * Statements nested inside a flagged control structure are not examined
+ * separately, and a chained construct (`if … elseif … else`,
+ * `try … catch … finally`, `do … while`) is reported once at its opening
+ * keyword.
  *
  * Detection only: moving logic out of a constructor is a refactor — the code
  * has to land somewhere deliberate (a named constructor, a factory, or a
@@ -125,6 +129,19 @@ class NoLogicSniff implements Sniff
         T_CLOSE_SQUARE_BRACKET,
         T_CLOSE_SHORT_ARRAY,
         T_CLOSE_CURLY_BRACKET,
+    ];
+
+    /**
+     * The string tokens PHPCS hands over as one opaque token — one per physical
+     * line for a multi-line literal — without tokenising what is interpolated
+     * inside them. A call spelled into one of these is invisible to a token
+     * scan, so its text has to be read instead. Mirrors the STRING_TOKENS
+     * convention in the sibling UnusedPrivateElementsSniff, minus the nowdoc and
+     * single-quoted forms, neither of which interpolates.
+     */
+    private const INTERPOLATABLE_STRING_TOKENS = [
+        T_DOUBLE_QUOTED_STRING,
+        T_HEREDOC,
     ];
 
     /**
@@ -374,11 +391,21 @@ class NoLogicSniff implements Sniff
      *
      * The scan runs left-to-right and stops at that first depth-0 `=`, so the
      * right-hand side is never inspected (a call or `??`/ternary default there
-     * stays compliant). A call parenthesis in the target, however, executes
-     * logic on every instantiation (`$this->make()->x = …`,
-     * `$this->items[$this->key()] = …`) and is rejected; array-subscript writes
-     * to this object's own properties (`$this->arr[] = …`, `$this->cfg['k'] = …`)
-     * carry no parenthesis and stay compliant.
+     * stays compliant). Anything in the target that *invokes*, however, runs on
+     * every instantiation and is rejected — in each of the three spellings that
+     * reach here:
+     *
+     * - a call parenthesis (`$this->make()->x = …`,
+     *   `$this->items[$this->key()] = …`);
+     * - a backtick, which executes a shell command and carries no parenthesis
+     *   to be caught by the one above;
+     * - a complex interpolation, `{$…}` or `${…}`, inside a double-quoted string
+     *   or a heredoc (`$this->items["{$this->key()}"] = …`). PHPCS collapses an
+     *   interpolated string into one opaque token, so a call spelled inside it
+     *   surfaces no parenthesis at all.
+     *
+     * Array-subscript writes to this object's own properties (`$this->arr[] =
+     * …`, `$this->cfg['k'] = …`) invoke nothing and stay compliant.
      */
     private function hasPlainAssignmentTarget(File $phpcsFile, int $start, int $end): bool
     {
@@ -388,7 +415,14 @@ class NoLogicSniff implements Sniff
         for ($ptr = $start; $ptr <= $end; $ptr++) {
             $code = $tokens[$ptr]['code'];
 
-            if ($code === T_OPEN_PARENTHESIS) {
+            if ($code === T_OPEN_PARENTHESIS || $code === T_BACKTICK) {
+                return false;
+            }
+
+            if (
+                in_array($code, self::INTERPOLATABLE_STRING_TOKENS, true)
+                && $this->hasComplexInterpolation($tokens[$ptr]['content']) === true
+            ) {
                 return false;
             }
 
@@ -402,6 +436,38 @@ class NoLogicSniff implements Sniff
         }
 
         return false;
+    }
+
+    /**
+     * Whether one interpolatable string token's raw text carries a *complex*
+     * interpolation — `{$…}` or `${…}`.
+     *
+     * Complex is the whole family that can hold a call: `"{$this->key()}"`,
+     * `"${$this->key()}"`. Simple interpolation cannot — `"$key"` and
+     * `"$this->prefix"` admit no parentheses — so it stays compliant, spelling
+     * the same read as the bare `$this->arr[$this->prefix]` that already is.
+     *
+     * The test is presence, not a call found inside: PHPCS hands the string over
+     * as text rather than tokens, and splits a multi-line one at every physical
+     * line, so matching a call in it would mean re-lexing PHP across token
+     * boundaries. Rejecting the syntax that can carry a call is the conservative
+     * side of that trade, and the compliant spelling of a genuinely
+     * call-free key is the direct one the sniff already accepts.
+     *
+     * Only `\\` and `\$` change whether what follows opens an interpolation, so
+     * dropping those two pairs left to right leaves the text PHP really
+     * interpolates. `\{` is not an escape sequence at all — `"\{$x}"` keeps its
+     * interpolation, and stripping its backslash would hide one.
+     *
+     * Falling back to the raw text keeps a failed strip on the conservative
+     * side: escapes left in place can only make this read *more* of the string
+     * as interpolation, never less, so nothing escapes detection by it.
+     */
+    private function hasComplexInterpolation(string $content): bool
+    {
+        $unescaped = preg_replace('/\\\\[\\\\$]/', '', $content) ?? $content;
+
+        return str_contains($unescaped, '{$') || str_contains($unescaped, '${');
     }
 
     /**

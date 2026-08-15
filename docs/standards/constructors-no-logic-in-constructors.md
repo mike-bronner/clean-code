@@ -58,12 +58,21 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     $this->boot();` and `parent::__construct($a)->initializeExtra();` run work
     on every instantiation, and a bare `parent::__construct;` is a reference
     rather than a call. None of the three is delegation.
-  - **Assignments whose target contains a call** — a call in the assignment
-    *target* (`$this->getConfig()->value = …;`, `$this->items[$this->key()] = …;`,
-    `$this->loadDefaults()['k'] = …;`) runs logic on every instantiation, so it
-    is flagged even though the statement ends in an assignment. Only the target
-    is inspected — a call on the *right-hand side* (`$this->foo = compute();`)
-    stays outside the sniff's scope, as noted above.
+  - **Assignments whose target invokes something** — work in the assignment
+    *target* runs on every instantiation, so the statement is flagged even
+    though it ends in an assignment. Three spellings, and only the first
+    carries a parenthesis:
+    - a **call** (`$this->getConfig()->value = …;`,
+      `$this->items[$this->key()] = …;`, `$this->loadDefaults()['k'] = …;`);
+    - a **backtick shell execution** (`` $this->items[`hostname`] = …; ``);
+    - a **complex interpolation**, `{$…}` or `${…}`, inside a double-quoted
+      string or a heredoc (`$this->items["{$this->key()}"] = …;`). PHPCS hands
+      an interpolated string over as one opaque token, so a call spelled inside
+      it surfaces no parenthesis at all.
+
+    Only the target is inspected — a call on the *right-hand side*
+    (`$this->foo = compute();`, `$this->foo = "{$this->key()}";`) stays outside
+    the sniff's scope, as noted above.
 - **Compliant edge cases** — an **empty constructor**, a constructor with only
   **promoted-property parameters** (no body), a constructor **mixing promoted
   parameters with body assignments**, a constructor **calling only
@@ -99,6 +108,17 @@ A few intentional edges, decided rather than accidental:
   arrow function, or an anonymous class assigned to a property — is
   **compliant** however much logic it contains. It runs when something calls
   it, not on instantiation, and the right-hand side is not inspected.
+- **A complex interpolation in an assignment target is flagged on sight**, even
+  when it holds no call (`$this->items["{$this->prefix}"] = …;`). PHPCS gives an
+  interpolated string as text rather than tokens, and splits a multi-line one at
+  every physical line, so finding a call inside it would mean re-lexing PHP
+  across token boundaries; rejecting the syntax that *can* carry one is the
+  conservative side of that trade, and the call-free key has a compliant
+  spelling already — the direct `$this->items[$this->prefix] = …;`. **Simple
+  interpolation stays compliant** (`$this->items["$key"] = …;`,
+  `$this->items["$this->prefix"] = …;`): it admits no parentheses, so it can
+  only read, exactly like the bare subscript it spells. A **nowdoc** key is
+  compliant too — it interpolates nothing.
 
 The sniff's behaviour lives at `tests/Standards/NoLogicTest.php`, over the
 fixtures at `tests/fixtures/NoLogicSniff/`: `passing.php` for compliant code

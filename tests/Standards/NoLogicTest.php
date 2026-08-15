@@ -48,6 +48,32 @@
  *     delegation `parent::__construct(...$args)`
  *   - carve out a statement that opens with `[` — failing.php loses 197, the
  *     list destructuring into properties
+ *   - accept a backtick in the assignment target — failing.php loses 221
+ *   - accept an interpolated string in the assignment target (drop the check
+ *     outright) — failing.php loses 222, 223, 224, 225, 226, 227, 228, 229
+ *     and 231
+ *   - drop T_HEREDOC from the interpolatable-string list — failing.php loses
+ *     231, the heredoc key
+ *   - drop T_DOUBLE_QUOTED_STRING from that list — failing.php loses 222, 223,
+ *     224, 225, 226, 227, 228 and 229
+ *   - detect `{$…}` only — failing.php loses 227 and 228, the two keys whose
+ *     call hides in a `${…}` with no `{$` anywhere in it
+ *   - detect `${…}` only — failing.php loses 222, 224, 225, 226, 229 and 231
+ *   - strip every backslash escape before looking, rather than only `\\` and
+ *     `\$` — failing.php loses 226: `\{` is not an escape sequence, so
+ *     `"\{$this->prefix}"` really does interpolate and stripping its backslash
+ *     hides the `{$`
+ *   - strip no escapes at all — passing.php reddens on 239, where a real
+ *     interpolation (`$key`) puts the token in scope and the escaped
+ *     `\${literal}` beside it is then read as the syntax that would be rejected
+ *   - swap the escape strip for the `(?<!\\)` lookbehind the sibling
+ *     ShortVariableSniff uses — failing.php loses 228: `\\` escapes only itself,
+ *     so the `${…}` after it interpolates while the lookbehind reads that
+ *     backslash as escaping the `$`
+ *   - run the interpolation check over the whole statement instead of the
+ *     target — passing.php reddens on 147, 154, 155 and 254, the closure, arrow
+ *     function and anonymous class held on a right-hand side, and the
+ *     right-hand-side interpolation that really does hold a call
  */
 
 declare(strict_types=1);
@@ -129,7 +155,73 @@ it('flags every non-assignment statement once, at its first token', function ():
         ['line' => 161, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // explicit-ancestor delegation
         ['line' => 180, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // body of `__CONSTRUCT`
         ['line' => 197, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // list destructuring
+        ['line' => 221, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // backtick shell execution
+        ['line' => 222, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call inside `{$…}`
+        ['line' => 223, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call inside `${$…}`
+        ['line' => 224, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // `{$…}` without a call
+        ['line' => 225, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // interpolation mid-string
+        ['line' => 226, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // `\{` is not an escape
+        ['line' => 227, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call inside `${…}`
+        ['line' => 228, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // `\\` escapes only itself
+        ['line' => 229, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // multi-line string
+        ['line' => 231, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // heredoc
     ]);
+});
+
+/**
+ * The invoking-assignment-target family, stated as its own assertion so a
+ * regression in one spelling names itself instead of drowning in the list above.
+ *
+ * Only the parenthesis of `$this->items[$this->key()]` (line 115) is visible to
+ * a token scan. A backtick executes a shell command carrying no parenthesis at
+ * all, and PHPCS collapses an interpolated string into one opaque token — one
+ * per *physical line*, so line 229's interpolation lives in the fragment on 230
+ * and the statement is still reported at its first token — leaving the call
+ * inside it invisible. Both interpolation syntaxes are covered because either
+ * one alone carries a call: `${resolveKey()}` (227) holds one with no `{$` in
+ * it, and `{$this->key()}` (222) one with no `${`.
+ */
+it('flags every spelling of an invoking assignment target', function (): void {
+    $lines = array_column(violationTuples(analyzeFixture(NO_LOGIC, 'failing.php')), 'line');
+
+    expect($lines)
+        ->toContain(221)   // `hostname` backtick
+        ->toContain(222)   // "{$this->key()}"
+        ->toContain(223)   // "${$this->key()}"
+        ->toContain(224)   // "{$this->prefix}", no call to find
+        ->toContain(225)   // "prefix {$this->key()} suffix"
+        ->toContain(226)   // "\{$this->prefix}"
+        ->toContain(227)   // "${resolveKey()}"
+        ->toContain(228)   // "\\${resolveKey()}"
+        ->toContain(229)   // the multi-line string, reported at its opening line
+        ->not->toContain(230)  // never at the fragment the interpolation sits in
+        ->toContain(231);  // the heredoc, reported at its opening line
+});
+
+/**
+ * The other side of the same rule, pinned by line because "produces no
+ * violations on the compliant fixture" above passes just as well against a
+ * sniff that rejects every string in a target.
+ *
+ * A subscript key that only *reads* stays compliant, whatever it is spelled
+ * with: simple interpolation admits no parentheses, and a nowdoc interpolates
+ * nothing at all. Line 239 is the one that reaches the check and still has to
+ * pass — `$key` interpolates for real, so PHPCS hands the token over as the
+ * interpolated kind, while the `\${literal}` beside it is escaped text.
+ * Line 254 keeps the rejection on the target side of the assignment operator:
+ * that right-hand side really does invoke.
+ */
+it('leaves a reading assignment target and an invoking right-hand side alone', function (): void {
+    $lines = array_column(violationTuples(analyzeFixture(NO_LOGIC, 'passing.php')), 'line');
+
+    expect($lines)
+        ->not->toContain(230)  // "$key"
+        ->not->toContain(231)  // "$this->prefix"
+        ->not->toContain(234)  // a nowdoc key
+        ->not->toContain(237)  // "{\$this->key()}", the dollar escaped
+        ->not->toContain(238)  // "\${key}", the dollar escaped
+        ->not->toContain(239)  // "$key \${literal}", interpolated *and* escaped
+        ->not->toContain(254); // "{$this->key()}" on the right-hand side
 });
 
 /**
@@ -176,7 +268,7 @@ it('does not report the terminator of an alternative-syntax construct', function
 it('reports the failing fixture as errors, never warnings', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(34)
+    expect($file->getErrorCount())->toBe(44)
         ->and($file->getWarningCount())->toBe(0);
 });
 
@@ -188,7 +280,7 @@ it('reports the failing fixture as errors, never warnings', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(34)
+    expect($file->getErrorCount())->toBe(44)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
 });

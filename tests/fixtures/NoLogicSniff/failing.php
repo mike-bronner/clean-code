@@ -197,3 +197,44 @@ final class ListDestructuringIntoProperties
         [$this->a, $this->b] = $pair;
     }
 }
+
+/**
+ * An assignment target invokes in three spellings, and only the first carries a
+ * parenthesis for a token scan to find. PHPCS collapses an interpolated string
+ * into one opaque token — one per physical line for a multi-line one — so a call
+ * inside `{$…}`/`${…}` never surfaces a parenthesis at all, and a backtick runs
+ * a shell command without one either.
+ *
+ * Both interpolation syntaxes carry a call on their own: `${resolveKey()}` holds
+ * one with no `{$` anywhere in it. The escapes decide which of these really
+ * interpolate — `\{` is not an escape sequence, so `"\{$this->prefix}"` still
+ * does, and `\\` escapes only itself, so `"\\${resolveKey()}"` does too.
+ */
+final class InvokingAssignmentTargets
+{
+    private array $items;
+
+    private string $prefix;
+
+    public function __construct(string $value)
+    {
+        $this->items[`hostname`] = $value;
+        $this->items["{$this->key()}"] = $value;
+        $this->items["${$this->key()}"] = $value;
+        $this->items["{$this->prefix}"] = $value;
+        $this->items["prefix {$this->key()} suffix"] = $value;
+        $this->items["\{$this->prefix}"] = $value;
+        $this->items["${resolveKey()}"] = $value;
+        $this->items["\\${resolveKey()}"] = $value;
+        $this->items["opens
+        here {$this->key()}"] = $value;
+        $this->items[<<<KEY
+        {$this->key()}
+        KEY] = $value;
+    }
+
+    private function key(): string
+    {
+        return 'k';
+    }
+}

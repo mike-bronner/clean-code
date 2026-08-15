@@ -206,3 +206,56 @@ trait AssignsInConstructor
         $this->a = $a;
     }
 }
+
+/**
+ * The near-misses for the invoking-target rejection. A subscript key reads
+ * something without invoking it in every one of these spellings.
+ *
+ * The last three only look like an interpolation. `{\$…}` and `\${…}` escape the
+ * dollar, which leaves the string with nothing to interpolate at all, so PHPCS
+ * hands it over as an ordinary non-interpolating string token. The mixed one is
+ * the case that reaches the check and still has to pass: `$key` interpolates for
+ * real, so the token *is* the interpolated kind, while the `\${literal}` beside
+ * it is escaped text that only reads like the syntax that would be rejected.
+ */
+final class ReadingAssignmentTargets
+{
+    private array $cfg;
+
+    private string $prefix;
+
+    public function __construct(string $key, string $value)
+    {
+        $this->cfg[$this->prefix] = $value;
+        $this->cfg["$key"] = $value;
+        $this->cfg["$this->prefix"] = $value;
+        $this->cfg["plain text"] = $value;
+        $this->cfg['single quoted'] = $value;
+        $this->cfg[<<<'KEY'
+        nowdoc interpolates nothing, not even {$this->key()}
+        KEY] = $value;
+        $this->cfg["{\$this->key()}"] = $value;
+        $this->cfg["\${key}"] = $value;
+        $this->cfg["$key \${literal}"] = $value;
+    }
+}
+
+/**
+ * The right-hand side stays uninspected under the invoking-target rejection
+ * too: the scan stops at the assignment operator, so an interpolation that
+ * really does hold a call is beyond where it looks.
+ */
+final class InterpolationOnRightHandSide
+{
+    private string $label;
+
+    public function __construct()
+    {
+        $this->label = "{$this->key()}";
+    }
+
+    private function key(): string
+    {
+        return 'k';
+    }
+}
