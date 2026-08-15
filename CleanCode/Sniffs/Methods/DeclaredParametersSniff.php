@@ -37,7 +37,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *   (`$collector->func_num_args()`, `Collector::func_num_args()`), function
  *   declarations (`function func_get_args()`, including return-by-reference
  *   `function &func_get_args()`), instantiations (`new func_get_args()`), and
- *   names bound by a `use function` import to another namespace.
+ *   names bound to another namespace by a function import — either the
+ *   statement-wide `use function Acme\func_get_args;` or the per-entry prefix
+ *   of a mixed group (`use Acme\{ClassA, function func_get_args};`).
  * - **`namespace\func_get_args()` inside a named namespace** — the relative
  *   qualifier resolves against the current namespace with no fallback to the
  *   global one, so it is not PHP's function. Where the current namespace *is*
@@ -280,9 +282,11 @@ class DeclaredParametersSniff implements Sniff
     }
 
     /**
-     * The local names bound by a `use function` import to a symbol outside the
-     * global namespace, lowercased and used as keys (PHP function names are
-     * case-insensitive).
+     * The local names bound by a function import to a symbol outside the global
+     * namespace, lowercased and used as keys (PHP function names are
+     * case-insensitive). Both spellings count: the statement-wide
+     * `use function Acme\one;` and the per-entry `use Acme\{ClassA, function
+     * one};` of a mixed group.
      *
      * An unqualified import under the same name (`use function func_get_args;`)
      * binds PHP's own function and so is deliberately not collected — calls
@@ -300,23 +304,18 @@ class DeclaredParametersSniff implements Sniff
      */
     private function getImportedFunctionNames(File $phpcsFile): array
     {
-        $tokens = $phpcsFile->getTokens();
         $names = [];
         $usePtr = $phpcsFile->findNext(T_USE, 0);
 
         while ($usePtr !== false) {
-            // PHPCS tokenizes the `function` of `use function` as a plain
-            // T_STRING, which also tells an import apart from a closure's
-            // `use (` and a trait's `use SomeTrait;`.
-            $keywordPtr = $phpcsFile
+            $startPtr = $phpcsFile
                 ->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
 
             if (
-                $keywordPtr !== false
-                && $tokens[$keywordPtr]['code'] === T_STRING
-                && strtolower($tokens[$keywordPtr]['content']) === 'function'
+                $startPtr !== false
+                && $this->bindsFunctionNames($phpcsFile, $startPtr) === true
             ) {
-                $this->collectImportedNames($phpcsFile, $keywordPtr, $names);
+                $this->collectImportedNames($phpcsFile, $startPtr, $names);
             }
 
             $usePtr = $phpcsFile->findNext(T_USE, ($usePtr + 1));
@@ -326,18 +325,57 @@ class DeclaredParametersSniff implements Sniff
     }
 
     /**
-     * Collects the local names bound by the `use function` statement whose
-     * keyword sits at $keywordPtr, covering comma-separated lists, group use
-     * (`use function Acme\{one, two};`) and aliases (`… as name`).
+     * Reports whether the `use` statement starting at $startPtr can bind a
+     * function name at all: it carries a `function` keyword of its own, or it
+     * is a group, whose entries carry their own.
+     *
+     * Everything else binds names this sniff never consults — a trait's
+     * `use SomeTrait;`, a plain class or const import — or is not an import at
+     * all: a closure's `use ($captured)`, whose body must not be read as a list
+     * of entries.
+     */
+    private function bindsFunctionNames(File $phpcsFile, int $startPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (
+            $tokens[$startPtr]['code'] === T_STRING
+            && strtolower($tokens[$startPtr]['content']) === 'function'
+        ) {
+            return true;
+        }
+
+        $endPtr = $phpcsFile->findNext(T_SEMICOLON, $startPtr);
+
+        if ($endPtr === false) {
+            return false;
+        }
+
+        return $phpcsFile->findNext(T_OPEN_USE_GROUP, $startPtr, $endPtr) !== false;
+    }
+
+    /**
+     * Collects the local names a `use` statement binds to a function, reading
+     * from $startPtr — the first token after the `use` keyword. Covers
+     * comma-separated lists, group use (`use function Acme\{one, two};`) and
+     * aliases (`… as name`).
+     *
+     * PHPCS tokenizes the `function` of an import as a plain T_STRING. It
+     * prefixes the whole statement (`use function Acme\one;`) or, inside a
+     * group, only the entry that follows it (`use Acme\{ClassA, function
+     * one};`); an entry with no prefix of its own falls back to the
+     * statement's, so the class entries of a mixed group bind no function name.
+     * A `const` entry needs no handling of its own: its keyword reads as a name
+     * segment, and the entry stays on the statement's kind either way.
      *
      * @param array<string, true> $names
      *
      * @return void
      */
-    private function collectImportedNames(File $phpcsFile, int $keywordPtr, array &$names): void
+    private function collectImportedNames(File $phpcsFile, int $startPtr, array &$names): void
     {
         $tokens = $phpcsFile->getTokens();
-        $endPtr = $phpcsFile->findNext(T_SEMICOLON, ($keywordPtr + 1));
+        $endPtr = $phpcsFile->findNext(T_SEMICOLON, $startPtr);
 
         if ($endPtr === false) {
             return;
@@ -347,11 +385,25 @@ class DeclaredParametersSniff implements Sniff
         $segments = [];
         $alias = null;
         $afterAs = false;
+        $statementImportsFunctions = false;
+        $entryImportsFunction = false;
 
-        for ($ptr = ($keywordPtr + 1); $ptr <= $endPtr; $ptr++) {
+        for ($ptr = $startPtr; $ptr <= $endPtr; $ptr++) {
             $code = $tokens[$ptr]['code'];
 
             if ($code === T_STRING) {
+                if ($this->isFunctionKeyword($phpcsFile, $ptr) === true) {
+                    $entryImportsFunction = true;
+
+                    // Before the group opens the keyword prefixes every entry
+                    // in the statement; inside it, only the entry that follows.
+                    if ($groupPrefix === []) {
+                        $statementImportsFunctions = true;
+                    }
+
+                    continue;
+                }
+
                 if ($afterAs === true) {
                     $alias = $tokens[$ptr]['content'];
                 } else {
@@ -383,7 +435,7 @@ class DeclaredParametersSniff implements Sniff
             // namespace — *and* is bound under that same name. Anything else
             // (a namespaced target, or an alias renaming one function onto
             // another's name) binds a different symbol.
-            if ($segments !== []) {
+            if ($entryImportsFunction === true && $segments !== []) {
                 $targetName = (string) end($segments);
                 $localName = $alias ?? $targetName;
 
@@ -398,11 +450,34 @@ class DeclaredParametersSniff implements Sniff
             $segments = [];
             $alias = null;
             $afterAs = false;
+            $entryImportsFunction = $statementImportsFunctions;
 
             if ($code === T_CLOSE_USE_GROUP) {
                 $groupPrefix = [];
             }
         }
+    }
+
+    /**
+     * Reports whether the T_STRING at $ptr is an import's `function` keyword
+     * rather than a name.
+     *
+     * PHP 8 allows a reserved word as a name segment, so `function` is not a
+     * keyword everywhere it appears: in `use Acme\function\Collector;` it names
+     * part of the namespace being imported from. A separator after it is what
+     * tells the two apart — a keyword is followed by the name it prefixes.
+     */
+    private function isFunctionKeyword(File $phpcsFile, int $ptr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (strtolower($tokens[$ptr]['content']) !== 'function') {
+            return false;
+        }
+
+        $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
+
+        return $afterPtr !== false && $tokens[$afterPtr]['code'] !== T_NS_SEPARATOR;
     }
 
     /**

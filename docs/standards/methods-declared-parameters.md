@@ -65,12 +65,15 @@ via the CleanCode standard
     *is* the global one the same spelling resolves to PHP's function and *is*
     flagged: in a file that declares no namespace, and inside a braced
     `namespace { … }` block whatever named blocks surround it.
-  - **Names bound by a `use function` import to another symbol** — a qualified
-    import (`use function Acme\Support\func_get_args;`, including group use and
+  - **Names bound by a function import to another symbol** — a qualified import
+    (`use function Acme\Support\func_get_args;`, including group use and
     aliases) makes the unqualified call resolve to the import, not to PHP's
-    function. An import that still names PHP's own function — unqualified under
-    the same name (`use function func_get_args;`) or a self-alias — *is*
-    flagged, and a *class* import never affects function resolution at all.
+    function. A mixed group prefixes the individual entry
+    (`use Acme\Support\{ClassA, function func_get_args};`) and counts the same.
+    An import that still names PHP's own function — unqualified under the same
+    name (`use function func_get_args;`) or a self-alias — *is* flagged, and a
+    *class* import never affects function resolution at all, in a group or on
+    its own.
 - **Auto-fixable — No (detection only).** Replacing a dynamic read with a
   declared parameter changes the method's signature, and every call site has to
   change with it. A token-based fixer cannot make those call-site changes
@@ -79,7 +82,8 @@ via the CleanCode standard
 
 Tests covering compliant code, per-line/column violation reporting for all
 three functions, the exemption boundary around closures and arrow functions,
-name resolution through `use function` imports, the `namespace\` qualifier in
+name resolution through function imports (statement-wide, aliased, and the
+per-entry prefix of a mixed group), the `namespace\` qualifier in
 namespaced files, global files, and braced namespace blocks, the reported
 message, and the non-fixable (detection-only) guarantee live at
 `tests/Standards/DeclaredParametersTest.php`, with their fixtures in

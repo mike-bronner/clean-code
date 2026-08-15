@@ -6,14 +6,14 @@
  * tests/fixtures/DeclaredParametersSniff/: every shape that must stay silent in
  * passing.php, the flagged dynamic-argument reads in failing.php, and one
  * fixture per resolution rule the sniff has to get right — scopes.php for the
- * boundary of the magic-method exemption, imports.php and imports-aliased.php
- * for `use function` resolution, global-namespace.php and braced-namespaces.php
- * for what `namespace\` resolves against.
+ * boundary of the magic-method exemption, imports.php, imports-aliased.php and
+ * imports-mixed-group.php for function-import resolution, global-namespace.php
+ * and braced-namespaces.php for what `namespace\` resolves against.
  *
  * The rule is detection-only — declaring the parameter list a call reads
  * dynamically needs names no fixer can invent — so there is no autofixed
  * fixture, and that omission is pinned rather than assumed: the last test here
- * asserts every reported violation is non-fixable across all six flagging
+ * asserts every reported violation is non-fixable across all seven flagging
  * fixtures.
  *
  * The sniff is isolated from the rest of the master ruleset (analyzeFixture()
@@ -101,6 +101,26 @@ it('binds an aliased import to the local name, not the builtin', function (): vo
     expect(violationTuples($file))->toBe([
         // The self-alias still names PHP's own function.
         ['line' => 32, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
+    ]);
+});
+
+/**
+ * A mixed group import prefixes the individual entry rather than the whole
+ * statement, so each entry's own kind decides what it binds: the
+ * `function`-prefixed entry names a different symbol, while the unprefixed
+ * entry beside it is a class import and leaves function resolution alone. PHP 8
+ * also allows `function` as a name *segment*, which prefixes nothing.
+ */
+it('classifies each entry of a mixed group import on its own', function (): void {
+    $file = analyzeFixture(DECLARED_PARAMETERS, 'imports-mixed-group.php');
+
+    expect(violationTuples($file))->toBe([
+        // The unprefixed entry imported a *class* of that name, so the call
+        // still resolves to PHP's own function.
+        ['line' => 31, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
+        // `function\func_get_arg` is a class import from a namespace whose
+        // segment is spelled `function` — not a function import.
+        ['line' => 36, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
     ]);
 });
 
@@ -193,6 +213,7 @@ it('reports every violation as non-fixable', function (string $fixture): void {
     'scopes.php',
     'imports.php',
     'imports-aliased.php',
+    'imports-mixed-group.php',
     'global-namespace.php',
     'braced-namespaces.php',
 ]);
