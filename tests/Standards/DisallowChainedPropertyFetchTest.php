@@ -344,30 +344,34 @@ class DisallowChainedPropertyFetchTest extends TestCase
      *   result rather than merely reading defensively: without it the false
      *   opener is used as a bound instead (`false + 1`), the walk reads back
      *   into `b`, steps over its hop to `$a`, and reports `c->d`.
-     * - line 4, `$a->5->b->c;` — a numeric member name. The walk lands on a
+     * - lines 4-5, `$a->b]->c->d;` and `$a->b}->c->d;` — the bracket forms of
+     *   line 3. These are the only fixtures anywhere that reach openerOf()'s
+     *   bracket_opener branch with an *unmatched* closer (the matched case is
+     *   reached by every subscript fixture, e.g. failing.inc:10), and both
+     *   return false from it. Unlike line 3 the guard is defensive here rather
+     *   than deciding: removing it leaves both lines silent anyway, because the
+     *   walk then runs off the start of the file instead of reading back into
+     *   the chain. They are pinned because the branch is live — a stray `]` is
+     *   an ordinary mid-edit typo that reaches this sniff intact, and reading
+     *   an opener out of it is how the parenthesis form went wrong.
+     * - line 6, `$a->5->b->c;` — a numeric member name. The walk lands on a
      *   token that is neither a name nor a variable, and the catch-all guard
      *   refuses it. Without that guard the walk falls through to the
      *   object-operator branch below, reaches `$a`, and reports `b->c`.
      *
-     * Both are false positives on source that cannot run, which at error
+     * All are false positives on source that cannot run, which at error
      * severity is a broken build over a typo mid-edit.
      *
-     * Line 5 keeps the assertion honest: a well-formed chain in the same file
+     * Line 7 keeps the assertion honest: a well-formed chain in the same file
      * must still be reported, so a sniff that gave up on the file at the first
      * malformed line would fail here rather than pass.
-     *
-     * The bracket forms of line 3 (`$a->b]->c->d;`, `$a->b}->c->d;`) reach the
-     * same guard through openerOf()'s bracket_opener branch and are left out
-     * deliberately: both abort processing in the sibling
-     * CleanCode.Arrays.ArrayAccessors sniff, which reads bracket_opener
-     * unguarded on main, before this sniff sees the file at all.
      */
     public function testMalformedSourceIsRefusedRatherThanGuessedAt(): void
     {
         $file = $this->processFixture('malformed.inc');
 
         $this->assertSame([], $file->getWarnings());
-        $this->assertSame([5 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
+        $this->assertSame([7 => [self::ERROR_CODE]], $this->sourcesByLine($file->getErrors()));
     }
 
     /**
@@ -472,12 +476,18 @@ class DisallowChainedPropertyFetchTest extends TestCase
         $config->cache = false;
         $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
 
-        // ConfigDouble blanks CodeSniffer.conf, where Composer registers
-        // Slevomat's installed path; the master ruleset references Slevomat,
-        // so restore it (in memory only) for the rules.xml parse.
+        // ConfigDouble blanks CodeSniffer.conf, where Composer registers the
+        // third-party standards' installed paths; the master ruleset
+        // references both of them, and a missing entry does not fail loudly —
+        // it makes the referenced sniffs fail to resolve and takes the whole
+        // rules.xml parse down. Restored in memory only, matching
+        // tests/Helpers.php's restoreInstalledPaths().
         ConfigDouble::setConfigData(
             'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            implode(',', [
+                dirname(__DIR__, 2) . '/vendor/sirbrillig/phpcs-variable-analysis',
+                dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
+            ]),
             true
         );
 
