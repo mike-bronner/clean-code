@@ -3,7 +3,8 @@
 /**
  * Tests the binary-operator and concatenation spacing configured in the master
  * rules.xml for "Arrays: Operator spacing & line breaks" (#35): the bundled
- * Squiz.WhiteSpace.OperatorSpacing and Squiz.Strings.ConcatenationSpacing
+ * CleanCode.Operators.BinaryOperatorSpacing (the Squiz.WhiteSpace.OperatorSpacing
+ * subclass rules.xml wires in for #64's sake) and Squiz.Strings.ConcatenationSpacing
  * sniffs enforce exactly one space on each side. It also pins that both custom
  * CleanCode.Operators.* sniffs are reachable through the master ruleset.
  *
@@ -22,7 +23,7 @@
 
 declare(strict_types=1);
 
-const SQUIZ_OPERATOR_SPACING = 'Squiz.WhiteSpace.OperatorSpacing';
+const SQUIZ_OPERATOR_SPACING = 'CleanCode.Operators.BinaryOperatorSpacing';
 
 const SQUIZ_CONCAT_SPACING = 'Squiz.Strings.ConcatenationSpacing';
 
