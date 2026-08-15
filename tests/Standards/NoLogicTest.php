@@ -15,10 +15,12 @@
  *
  *   - drop the OO-scope gate — passing.php reddens on 33 and 35, the body of
  *     the file-scope `function __construct()`
- *   - drop the `__construct` name check — passing.php reddens on 159, 171, 181
- *     and 185 (the anonymous class's `run()`, `__constructor()`, and both
- *     control structures in `configure()`) and failing.php gains 129, 134 and
- *     139, the bodies of the helper methods beside the constructor
+ *   - drop the `__construct` name check — passing.php reddens on 158, 170, 180
+ *     and 184: the body statements of the anonymous class's `run()` and of
+ *     `__constructor()`, then the `if` and the `foreach` of `configure()`, each
+ *     at its opening keyword because a block construct is reported once and its
+ *     nested body is never examined separately; and failing.php gains 129, 134
+ *     and 139, the body statements of the helper methods beside the constructor
  *   - match `__construct` case-sensitively — failing.php loses 180, the body
  *     of `__CONSTRUCT`
  *   - accept a call parenthesis in the assignment target — failing.php loses
