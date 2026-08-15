@@ -9,8 +9,15 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration tests for the No Dead Code standard as wired into the master
  * rules.xml: third-party rules (Squiz commented-out code, Slevomat unused
- * parameter / unused imports) plus the custom UnusedPrivateElements sniff,
- * exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ * imports) plus the custom UnusedPrivateElements and UnusedFormalParameter
+ * sniffs, exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ *
+ * The unused-parameter half of this standard was carried by
+ * SlevomatCodingStandard.Functions.UnusedParameter until #120 landed, and is
+ * now carried by CleanCode.DeadCode.UnusedFormalParameter. The replacement is
+ * a strict superset on everything this fixture exercises; it differs only by
+ * exempting a method annotated @inheritdoc or #[\Override], or overriding a
+ * parent declared in the same file.
  *
  * The runs scope to this standard's own sniffs via --sniffs (see SNIFFS): the
  * fixtures are clean only of dead code, not of every other standard sharing
@@ -33,7 +40,7 @@ class NoDeadCodeRulesetTest extends TestCase
      * master ruleset cannot trip the zero-violation fixtures.
      */
     private const SNIFFS = 'Squiz.PHP.CommentedOutCode,'
-        . 'SlevomatCodingStandard.Functions.UnusedParameter,'
+        . 'CleanCode.DeadCode.UnusedFormalParameter,'
         . 'SlevomatCodingStandard.Namespaces.UnusedUses,'
         . 'CleanCode.DeadCode.UnusedPrivateElements';
 
@@ -62,7 +69,7 @@ class NoDeadCodeRulesetTest extends TestCase
 
     public function testUnusedParameterIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter', 14);
+        $this->assertViolationAt('CleanCode.DeadCode.UnusedFormalParameter.Found', 14);
     }
 
     public function testUnusedImportIsFlaggedAtTheCorrectLine(): void

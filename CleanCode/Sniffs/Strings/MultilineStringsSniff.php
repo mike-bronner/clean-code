@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
+use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -114,10 +115,7 @@ class MultilineStringsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // Only the first fragment of a split string reports. A multi-line
-        // string arrives as consecutive string tokens; a tail fragment is one
-        // whose immediate predecessor is also a string token.
-        if ($this->isStringLiteral($tokens, ($stackPtr - 1))) {
+        if ($this->opensLiteral($tokens, $stackPtr) === false) {
             return;
         }
 
@@ -257,6 +255,34 @@ class MultilineStringsSniff implements Sniff
     }
 
     /**
+     * Whether the token at $ptr *opens* a quoted string literal, which is what
+     * every rewrite below assumes about the fragment run it starts.
+     *
+     * Two predecessors say it does not, and both are read at the immediately
+     * adjacent index rather than through findPrevious(), because a literal's
+     * own pieces are always adjacent:
+     *
+     * - **Another string token** — this is a tail fragment of a multi-line
+     *   literal, and only its first fragment reports.
+     * - **A fragment of a double-quoted body** (`T_ENCAPSED_AND_WHITESPACE`).
+     *   PHP_CodeSniffer cannot tokenize an *interpolated* binary-prefixed
+     *   string: it types the `B"` opener `T_NONE` and then mis-types the rest
+     *   of the statement, so the sniff is handed a "literal" that is really the
+     *   string's closing quote plus the source that follows it. Rewriting that
+     *   run replaced live code with a HEREDOC — `$plainDouble = "Hi $name` was
+     *   swallowed into a doc-string body. The construct stays unreported rather
+     *   than reported off wrong positions; there is no token stream to read it
+     *   from.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function opensLiteral(array $tokens, int $ptr): bool
+    {
+        return $this->isStringLiteral($tokens, ($ptr - 1)) === false
+            && ($tokens[$ptr - 1]['code'] ?? null) !== T_ENCAPSED_AND_WHITESPACE;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $tokens
      */
     private function isStringLiteral(array $tokens, int $ptr): bool
@@ -270,18 +296,34 @@ class MultilineStringsSniff implements Sniff
      * the conversion is not feasible (a body line would collide with the
      * closing marker). The marker sits at column 0, so PHP strips no
      * indentation and the value is preserved byte-for-byte.
+     *
+     * The delimiter is read through StringLiteral rather than off $raw's first
+     * character, and any binary-string prefix is carried onto the opener. An
+     * uppercase `B` stays inside the literal's token, so reading the first
+     * character saw `B` — never `'` — and sent every single-quoted literal
+     * carrying that prefix down the interpolating HEREDOC branch, dropping the
+     * prefix and leaving the real opening quote in the body: `B'a\nb'` came
+     * back a byte longer, with a leading apostrophe in its value. `B<<<'TEXT'`
+     * is the same shape the lowercase spelling already produces, because there
+     * the `b` is a separate token the fixer never touches.
+     *
+     * $raw is always a whole literal, which is StringLiteral::inner()'s stated
+     * precondition, so nothing re-checks it here: opensLiteral() has
+     * established that the run starts at an opening delimiter, and PHP_CodeSniffer
+     * types an *unterminated* literal T_ENCAPSED_AND_WHITESPACE rather than one
+     * of STRING_TOKENS — so it never reaches this sniff at all.
      */
     private function buildDocString(File $phpcsFile, string $raw): ?string
     {
-        $quote = $raw[0];
-        $inner = substr($raw, 1, -1);
+        $prefix = StringLiteral::prefix($raw);
+        $inner = StringLiteral::inner($raw);
 
-        if ($quote === "'") {
+        if (StringLiteral::delimiter($raw) === "'") {
             $body = $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES);
-            $opener = "<<<'" . self::MARKER . "'";
+            $opener = $prefix . "<<<'" . self::MARKER . "'";
         } else {
             $body = $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES);
-            $opener = '<<<' . self::MARKER;
+            $opener = $prefix . '<<<' . self::MARKER;
         }
 
         foreach (preg_split('/\r\n|\n|\r/', $body) as $line) {

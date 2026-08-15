@@ -563,6 +563,42 @@ function autofixedContents(LocalFile $file): string
 }
 
 /**
+ * Every token PHP_CodeSniffer's tokenizer failed to classify in $source, as
+ * `line:content` strings — the signature of source that PHP itself accepts but
+ * PHPCS cannot read.
+ *
+ * The two are not the same language. A binary-string prefix on an interpolating
+ * double-quoted string (`B"Hi {$name}"`) is the known case: `php -l` passes, and
+ * PHPCS types the `B"` opener T_NONE and then folds the rest of the statement —
+ * and the source after it — into one bogus string token, so every sniff
+ * downstream reads live code as string body. A fixer that emits such a shape
+ * corrupts the file for the next pass while looking correct to every
+ * content-comparing assertion.
+ *
+ * Whitespace-only T_NONE tokens are excluded: PHPCS uses that code for ordinary
+ * inter-token filler, and only a non-empty one marks unclassified source.
+ *
+ * @return array<int, string>
+ */
+function unclassifiedTokens(string $source): array
+{
+    [$config, $ruleset] = buildRuleset();
+
+    $file = new DummyFile($source, $ruleset, $config);
+    $file->parse();
+
+    $faults = [];
+
+    foreach ($file->getTokens() as $token) {
+        if ($token['type'] === 'T_NONE' && trim($token['content']) !== '') {
+            $faults[] = $token['line'] . ':' . trim($token['content']);
+        }
+    }
+
+    return $faults;
+}
+
+/**
  * Collapses PHPCS's line => column => violations structure to a map of
  * line number => list of violation source codes.
  *

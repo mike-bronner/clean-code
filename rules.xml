@@ -57,6 +57,14 @@
     -->
     <rule ref="./CleanCode/ruleset.xml"/>
 
+    <!--
+        Strings: Interpolation, quoting, HereDocs (#25) — enforced by the
+        custom CleanCode.Strings.* sniffs (RequireStringInterpolation,
+        HtmlAttributeQuotes, RequireHeredocForMarkup, EscapeNestedQuotes),
+        auto-included via the CleanCode standard referenced above. Listed here
+        for traceability; no separate ref is needed.
+    -->
+
     <!-- Constructors: Property Promotion (#47) -->
     <rule ref="SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion"/>
 
@@ -86,9 +94,29 @@
         every one of them. tests/Standards/BooleanOperatorSpacingTest.php's
         "keeps the spacing sniffs that do overlap out of the master ruleset"
         fails if that happens.
+
+        PSR2.Methods.FunctionCallSignature.Indent is excluded for the same
+        reason, one step worse. It measures the argument lines and the closing
+        bracket of a multi-line call, which is a subset of what
+        CleanCode.WhiteSpace.MultiLineStatementIndent (#38) measures for every
+        multi-line statement — so on a misindented call both fire on the same
+        two lines. They also disagree on one shape, and both are auto-fixers:
+        where a statement starts on the line a multi-line comment closes on,
+        PSR2 reads the indent as the comment's own last fragment. PHPCS emits
+        one token per physical line of a comment and folds that line's leading
+        whitespace into the token, so the fragment's column is 1 and PSR2
+        concludes the call is at indent 0 — the same per-physical-line
+        tokenizer quirk it already special-cases for multi-line strings
+        (PEAR/Sniffs/Functions/FunctionCallSignatureSniff.php:343-354) but not
+        for comments. Left in, `phpcbf` oscillates between the two answers for
+        the whole 50-pass budget and exits PHPCBF FAILED TO FIX, discarding
+        every other otherwise-fixable violation in that file. Excluded, the
+        remaining FunctionCallSignature codes (bracket spacing, argument
+        placement) still apply.
     -->
     <rule ref="PSR12">
         <exclude name="PSR12.Operators.OperatorSpacing"/>
+        <exclude name="PSR2.Methods.FunctionCallSignature.Indent"/>
     </rule>
 
     <!--
@@ -207,9 +235,12 @@
          code. Unused private methods/properties are covered by the custom
          CleanCode.DeadCode.UnusedPrivateElements sniff above (Slevomat's
          Classes.UnusedPrivateElements was removed in slevomat/coding-standard
-         7.0). -->
+         7.0), and unused parameters by the custom
+         CleanCode.DeadCode.UnusedFormalParameter sniff below, which replaced
+         SlevomatCodingStandard.Functions.UnusedParameter when #120 landed: the
+         Slevomat sniff reports every override, having no inherited-signature
+         exemption at all. -->
     <rule ref="Squiz.PHP.CommentedOutCode"/>
-    <rule ref="SlevomatCodingStandard.Functions.UnusedParameter"/>
     <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
         <properties>
             <!-- Imports referenced only in doc-block annotations are used —
@@ -1782,7 +1813,10 @@
           drops them in removeParameters(), and skips any node whose parent is
           a FormalParameter. The sniff has no such split — one UnusedVariable
           code covers locals and parameters alike — so parameters are silenced
-          here and #120 flips this to false when it lands.
+          here. #120 has since landed as the custom sniff
+          CleanCode.DeadCode.UnusedFormalParameter, which owns the parameter
+          half outright, so this property stays true: flipping it to false
+          would report every unused parameter twice.
         - allowUnusedForeachVariables=false — matches PHPMD's own default for
           allow-unused-foreach-variables, so an unused foreach key or value is
           flagged. Note the sniff's default is true, hence the explicit set.
@@ -2216,6 +2250,55 @@
     </rule>
 
     <!--
+        PHPMD UnusedCode: UnusedFormalParameter (#120) —
+        docs/phpmd/unusedcode-unusedformalparameter.md.
+
+        This is the custom CleanCode.DeadCode.UnusedFormalParameter sniff,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed, and
+        tests/Standards/UnusedFormalParameterTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        Two wirings were built and measured against a live PHPMD 2.15.0 before
+        the custom sniff was written, and each stays silent on shapes PHPMD
+        reports — the one direction that would put phpmd back in the pipeline:
+
+        - Generic.CodeAnalysis.UnusedFunctionParameter decides the inherited-
+          signature exemption per *class*, by switching its error code whenever
+          the enclosing class extends or implements anything. Excluding those
+          six codes to buy the exemption also silences the class's own
+          non-inherited methods. It additionally exempts an empty or
+          comment-only body and __unserialize(), both of which PHPMD reports.
+        - SlevomatCodingStandard.Functions.UnusedParameter has no inherited-
+          signature exemption at all, so it reports every override — the false
+          positive #120's acceptance criteria explicitly forbid. It was wired
+          here for the No Dead Code standard (#29) and is replaced by this
+          sniff, which is a strict superset of it apart from the two
+          annotations below.
+
+        The custom sniff exempts an override it can resolve inside the same
+        file, plus @inheritdoc (which PHPMD honours too) and #[\Override]
+        (which PHPMD does not, and which PHP 8.3 itself refuses to compile
+        unless the method really does override something).
+
+        No <properties> are configured, and there is no <rule> block below:
+        PHPMD's rule carries no thresholds, so there is nothing to transfer and
+        nothing to drift. The sniff reports errors already, so no <type>
+        override is needed either — unlike Squiz.PHP.Eval and VariableAnalysis
+        above, which report warnings out of the box.
+
+        Stricter than PHPMD on closures, arrow functions and anonymous-class
+        methods, which PDepend never hands to a MethodAware rule, and on an
+        override of a parent declared in another file carrying neither
+        annotation. Every shape is pinned by
+        tests/fixtures/UnusedFormalParameterSniff/divergences.php and set out in
+        the doc above.
+
+        Detection only: deleting a parameter changes the signature and breaks
+        every caller, so there is nothing safe to auto-fix. PHPMD reports this
+        rule rather than rewriting the code too.
+    -->
+    <!--
         Operators: Passive (#64) — a passive operator sits flush against the
         operand it acts on, no space between. Enforced by a combination of
         rules: the custom CleanCode.WhiteSpace.PassiveOperatorSpacing sniff
@@ -2273,5 +2356,19 @@
         suite pass by tests/Standards/RequirePropertiesTest.php, so a future
         vendor upgrade that does cover this case says so rather than leaving
         the custom sniff unexamined.
+    -->
+
+    <!--
+        Methods: No Null Arguments (#71) —
+        docs/standards/methods-no-null-arguments.md. A literal null is never
+        passed positionally into a parameter that declares a default; a named
+        argument says which parameter is meant instead.
+
+        Enforced by the custom CleanCode.Methods.NoNullArguments sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. No existing
+        PHPCS or Slevomat sniff covers this: Slevomat's
+        Functions.DisallowNamedArguments is the inverse rule, and
+        Functions.NamedArgumentSpacing only governs spacing around an argument
+        that is already named.
     -->
 </ruleset>
