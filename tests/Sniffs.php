@@ -41,6 +41,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
+    'CleanCode.Livewire.ComponentMarkup',
     'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.CyclomaticComplexity',
     'CleanCode.Metrics.ExcessiveClassComplexity',

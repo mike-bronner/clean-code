@@ -760,6 +760,27 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * Writes source to a file outside the repository and returns its path, for a
+ * case that varies one detail of a view or too large a body to keep on disk.
+ * Staged paths are purged after each test by tests/Pest.php.
+ */
+function stageSource(string $source, string $filename = 'view.blade.php'): string
+{
+    // Its own directory, because purgeStagedFixtures() removes the parent.
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    $path = $directory . '/' . $filename;
+    stagedFixtures($path);
+    file_put_contents($path, $source);
+
+    return $path;
+}
+
+/**
  * Copies a fixture to a directory outside the repository and returns the new
  * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
  * scoping from the file's path alone — so this is what lets either of them see
