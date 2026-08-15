@@ -513,3 +513,13 @@ class ByReferenceDeclarationNamedLikeTheFunction
         });
     }
 }
+
+// A bare global function spelling a magic method's name. The fixed-signature
+// exemption is a *method's* to claim: outside a class nothing imposes the
+// signature, so this one is the author's own and the parameter is dead. PHPMD
+// agrees and reports it, measured on the same 2.15.0 run as the rest of this
+// file. Appended last so the lines above it keep their numbers.
+function __get(string $unusedAZ): void
+{
+    echo 'x';
+}

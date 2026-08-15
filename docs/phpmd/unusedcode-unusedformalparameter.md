@@ -129,6 +129,7 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Empty or comment-only body | flags | flags |
 | `__unserialize()` | flags | flags |
 | `__invoke()` | flags | flags |
+| Bare function named like a magic method — a top-level `__get()` | flags | flags |
 | Non-override method in a class that extends or implements | flags | flags |
 | Variadic, by-reference, or defaulted parameter, unread | flags | flags |
 | Static, trait, and enum methods | flags | flags |
@@ -143,7 +144,8 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Dynamic read — `${'name'}` | flags | flags |
 | Closure parameter | silent | **flags** |
 | Arrow-function parameter | silent | **flags** |
-| Method of an anonymous class | silent | **flags** |
+| Method of an anonymous class, overriding nothing in this file | silent | **flags** |
+| Method of an anonymous class or enum, overriding a same-file type | silent | silent |
 | Override of a parent in another file, unannotated | silent | **flags** |
 | Method colliding with a trait used by a *nested anonymous class* | silent | **flags** |
 | `#[\Override]` on a method that overrides nothing | flags | **silent** |
@@ -190,7 +192,7 @@ measured:
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-fifty-one findings, same lines, same parameters. On `passing.php` this
+fifty-two findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
 On `namespaces.php` both are silent.

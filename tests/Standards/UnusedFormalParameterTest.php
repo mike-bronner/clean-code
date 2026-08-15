@@ -15,9 +15,9 @@
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
  * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222, 243,
  * 252, 260, 270, 278, 287, 294, 307, 317, 325, 333, 344, 349, 354, 362, 369,
- * 378, 400, 411, 423, 439, 446, 453, 463, 476, 492 and 504 — fifty-one
- * findings, naming $unusedA through $unusedAY (with $unusedJ absent, since
- * that one is read) plus $id. This sniff reproduces all fifty-one, on the same
+ * 378, 400, 411, 423, 439, 446, 453, 463, 476, 492, 504 and 522 — fifty-two
+ * findings, naming $unusedA through $unusedAZ (with $unusedJ absent, since
+ * that one is read) plus $id. This sniff reproduces all fifty-two, on the same
  * lines, naming the same parameters.
  *
  * On namespaces.php both are silent, which is the point of that fixture: every
@@ -88,8 +88,16 @@ it('is registered in the master ruleset', function (): void {
  * - `compact('kappa')` naming the parameter;
  * - bodyless interface and abstract declarations;
  * - same-file override resolution, at one level, transitively at two, through
- *   an interface reached via the parent's own `implements` clause, and onto a
- *   method the parent draws from a trait;
+ *   an interface reached via the parent's own `implements` clause, onto a
+ *   method the parent draws from a trait, and — for the two class-likes that
+ *   reach it through a token of their own — from inside an anonymous class and
+ *   from inside an enum. Those last two are the whole coverage of T_ANON_CLASS
+ *   and T_ENUM in the sniff's CLASS_LIKE list: every other anonymous class and
+ *   enum in the fixture set declares no ancestor, so it exercises the reported
+ *   half of the exemption and never the exempt half. PHPMD is silent on both,
+ *   though only the enum for the same reason this sniff is — it reports
+ *   failing.php's ReportingEnum, so PDepend does surface an enum's methods,
+ *   while an anonymous class it never surfaces at all;
  * - `@inheritdoc` bare, braced and mixed-case, and `#[\Override]` both alone,
  *   below a second attribute, and in the lowercase spelling PHP resolves to
  *   the same attribute;
@@ -215,6 +223,13 @@ it('produces no violations on the compliant fixture', function (): void {
  *   declaration, so it is stepped over rather than listed: the same `&` also
  *   stands in `$mask & compact('x')` and `$ref = &compact('x')`, which are
  *   genuine calls, and only the token behind it tells the three apart.
+ * - line 522, a bare global function named `__get`. The fixed-signature
+ *   exemption belongs to a method: outside a class nothing imposes the
+ *   signature, so the parameter is the author's own dead weight. PHPMD reports
+ *   it too — measured, not assumed, on the same 2.15.0 run. This is the
+ *   `enclosingClass() === null` arm of hasFixedSignature(); the exemption's
+ *   other arm is pinned from the compliant side by passing.php's
+ *   FixedSignatures, which carries all seven magic methods as real methods.
  *
  * Lines 184 to 243 were each mutation-checked, one defect at a time: taking the
  * body as unfiltered text drops 184, 192 and 198; walking `Tokens::$emptyTokens`
@@ -239,15 +254,18 @@ it('produces no violations on the compliant fixture', function (): void {
  *     | drop the qualified-name hop from the call test          | 439, 446, 453        |
  *     | drop the attribute-group guard from the call test       | 463, 476             |
  *     | drop the by-reference `&` hop from the call test        | 492, 504             |
+ *     | let a bare function claim the fixed-signature exemption | 522                  |
  *
  * The decisions that are a keeping rather than a dropping are checked from the
  * other side, on passing.php, where each mutation reddens the compliant
  * fixture: removing T_DOUBLE_QUOTED_STRING from the searched text reddens its
  * three interpolation spellings and one half of escapedBackslashRead(),
  * removing T_HEREDOC reddens heredocRead() and the other half, dropping the
- * T_STRING_VARNAME read reddens shellStringRead()'s `${name}` spelling, and
+ * T_STRING_VARNAME read reddens shellStringRead()'s `${name}` spelling,
  * collecting a `compact()` argument only at the call's own depth reddens
- * compactNestedNames().
+ * compactNestedNames(), and dropping T_ANON_CLASS or T_ENUM from CLASS_LIKE
+ * reddens $seventh or $eighth respectively — each of those two moving its own
+ * parameter and nothing else, here or in any other fixture.
  */
 it('flags every unused formal parameter in the failing fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
@@ -304,6 +322,7 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 476, 'column' => 51, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 492, 'column' => 47, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 504, 'column' => 51, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 522, 'column' => 23, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
@@ -504,4 +523,118 @@ it('indexes same-file ancestors once per file, not once per method', function ()
         ($sniffedBySize[250] * 8.0),
         "1000 methods took {$sniffedBySize[1000]}s against 250 at {$sniffedBySize[250]}s"
     );
+});
+
+/**
+ * The same claim for the two indexes the *ancestor walk* keeps, which the test
+ * above cannot make.
+ *
+ * That one's fixture is a lone `class Big`, so inheritedNames() hands back an
+ * empty queue and the walk never runs a step: it pins buildDeclarations() and
+ * nothing beyond it. Everything the walk itself re-reads was left uncovered,
+ * and both of the file-wide scans it makes were still being made once per
+ * descendant method:
+ *
+ * - methodNames(), which reads an ancestor's method list, and
+ * - traitNames(), which reads the traits that ancestor uses.
+ *
+ * The two are reached by *different* shapes, which is why both are measured
+ * here. The walk stops at the first ancestor declaring the method it is asked
+ * about, so a class whose methods all override their parent's returns before
+ * traitNames() is ever called; only a class whose method the parent does *not*
+ * declare drains the queue and reaches it. Memoising methodNames() alone leaves
+ * that second shape — a class that adds methods rather than replacing them,
+ * which is the ordinary one — quadratic through the other door, measured at
+ * 0.11s for 250 methods, 0.46s for 500, 2.21s for 1,000 and 9.38s for 2,000,
+ * a clean 4x per doubling with the first index already in place.
+ *
+ * Both shapes are asserted the same way the test above asserts its own, and for
+ * the same reasons: a report count per size, so an index that had stopped
+ * resolving cannot run fast by answering wrongly, and a cost measured against
+ * PHP_CodeSniffer's own parse of the same file, which is the scale-free bound.
+ *
+ * The report counts are what make the two shapes discriminating rather than
+ * merely slow: the overriding shape must report *nothing* — every parameter is
+ * dead and every method exempt — and the extending shape must report *every*
+ * one of them. An exemption that stopped resolving would redden the first, and
+ * one that started over-resolving would redden the second. That is also what
+ * keeps the overriding shape worth its runtime once the timings are met: the
+ * extending shape alone would let the exemption break silently.
+ *
+ * Mutation-checked one cache at a time, by deleting its `isset()` guard. The
+ * two are not symmetric, because the walk reaches them by different paths:
+ *
+ *     | Cache dropped  | overriding | extending |
+ *     |----------------|------------|-----------|
+ *     | methodNames()  | reddens    | reddens   |
+ *     | traitNames()   | passes     | reddens   |
+ *
+ * methodNames() is read on the way to both, so dropping it reddens both.
+ * traitNames() is read only after the walk fails to match, so the extending
+ * shape is the only thing in the suite that holds it — drop that shape and
+ * memoising traitNames() could be reverted with every test still green.
+ */
+it('indexes an ancestor once per file, not once per descendant method', function (): void {
+    $shapes = [
+        // Every method overrides its parent's, so the walk matches on the first
+        // ancestor and returns: methodNames() is the index it re-reads.
+        'overriding' => ['name' => 'getThing', 'reports' => false],
+        // No method overrides anything, so the walk drains the queue and asks
+        // the ancestor for its traits too: traitNames() is the second index.
+        'extending' => ['name' => 'ownThing', 'reports' => true],
+    ];
+
+    foreach ($shapes as $shape => $spec) {
+        $sizes = [250, 500, 1000];
+        $sniffedBySize = [];
+
+        foreach ($sizes as $size) {
+            $base = '';
+            $derived = '';
+
+            for ($index = 0; $index < $size; $index++) {
+                $base .= "    public function getThing{$index}(): int\n"
+                    . "    {\n        return {$index};\n    }\n\n";
+                $derived .= "    public function {$spec['name']}{$index}(int \$unused{$index}): int\n"
+                    . "    {\n        return {$index};\n    }\n\n";
+            }
+
+            $source = "<?php\n\nclass Base\n{\n" . $base . "}\n\n"
+                . "class Derived extends Base\n{\n" . $derived . "}\n";
+
+            [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
+            $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-ancestor-', true) . '.php';
+            file_put_contents($path, $source);
+
+            try {
+                $file = new LocalFile($path, $ruleset, $config);
+
+                $parseAt = hrtime(true);
+                $file->parse();
+                $parsed = (hrtime(true) - $parseAt) / 1e9;
+
+                $sniffAt = hrtime(true);
+                $file->process();
+                $sniffed = (hrtime(true) - $sniffAt) / 1e9;
+                $reported = $file->getErrorCount();
+            } finally {
+                unlink($path);
+            }
+
+            $sniffedBySize[$size] = $sniffed;
+
+            expect($reported)->toBe(
+                $spec['reports'] === true ? $size : 0,
+                "{$shape} n={$size}: the override exemption still resolves"
+            )->and($sniffed)->toBeLessThan(
+                ($parsed * 2.0),
+                "{$shape} n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
+            );
+        }
+
+        expect($sniffedBySize[1000])->toBeLessThan(
+            ($sniffedBySize[250] * 8.0),
+            "{$shape}: 1000 methods took {$sniffedBySize[1000]}s against 250 at {$sniffedBySize[250]}s"
+        );
+    }
 });

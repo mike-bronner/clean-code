@@ -323,3 +323,41 @@ class FixedSignatures
         return new self();
     }
 }
+
+interface Signal
+{
+    public function signal(string $reason): void;
+}
+
+// The two class-likes that reach the same-file override exemption through a
+// token of their own. Each is in the sniff's CLASS_LIKE list for this shape
+// alone, and neither the parity fixture nor the divergence fixture reaches
+// either: every anonymous class in those two declares no ancestor, and their
+// one enum implements nothing, so both exercise "no override, reported" and
+// never "override, exempt".
+//
+// An anonymous class resolving its own override. Drop T_ANON_CLASS from
+// CLASS_LIKE and the method's enclosing scope no longer resolves, so the
+// override goes unseen and $seventh is reported. PHPMD is silent here too, but
+// for the unrelated reason that PDepend never surfaces an anonymous class at
+// all — divergences.php pins that blindness on its own.
+$anonymousOverride = new class implements Signal {
+    public function signal(string $seventh): void
+    {
+        echo 'signalled';
+    }
+};
+
+// An enum resolving its own override. Drop T_ENUM from CLASS_LIKE and $eighth
+// is reported. PHPMD is silent on this one by resolving the override rather
+// than by blindness: it reports failing.php's ReportingEnum, so PDepend does
+// surface an enum's methods.
+enum SignalLevel: string implements Signal
+{
+    case Ready = 'ready';
+
+    public function signal(string $eighth): void
+    {
+        echo 'signalled';
+    }
+}

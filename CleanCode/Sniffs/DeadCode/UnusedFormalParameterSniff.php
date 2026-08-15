@@ -132,9 +132,14 @@ class UnusedFormalParameterSniff implements Sniff
     ];
 
     /**
-     * Class-like scopes a method can be declared in. T_ANON_CLASS is present
-     * so that a method of an anonymous class resolves its own overrides;
-     * PHPMD never sees one at all, which is a documented divergence.
+     * Class-like scopes a method can be declared in.
+     *
+     * T_ANON_CLASS and T_ENUM earn their place the same way the other three do
+     * — a method declared in one resolves its own overrides — but they are the
+     * two whose exempt half no parity fixture reaches, because PHPMD is silent
+     * on an anonymous class for its own unrelated reason and the parity set's
+     * one enum implements nothing. passing.php carries a purpose-built shape
+     * for each: drop either member and that shape's parameter is reported.
      */
     private const CLASS_LIKE = [
         T_ANON_CLASS,
@@ -246,6 +251,22 @@ class UnusedFormalParameterSniff implements Sniff
      * @var array<int, string>
      */
     private array $declarationNamespace = [];
+
+    /**
+     * The method names of each class-like the ancestor walk has reached, keyed
+     * by its pointer.
+     *
+     * @var array<int, array<int, string>>
+     */
+    private array $methodNames = [];
+
+    /**
+     * The trait lookup keys of each class-like the ancestor walk has reached,
+     * keyed by its pointer.
+     *
+     * @var array<int, array<int, string>>
+     */
+    private array $traitNames = [];
 
     /**
      * @return array<int|string>
@@ -824,11 +845,30 @@ class UnusedFormalParameterSniff implements Sniff
     /**
      * The lookup keys of the traits a class-like uses.
      *
+     * Held per ancestor for the same reason as methodNames():
+     * usedTraitNames() scans the ancestor's whole body too, and the walk
+     * reaches it once per descendant method whose name the ancestor does not
+     * declare. Memoising methodNames() alone leaves that shape — a class whose
+     * methods override nothing, which is the ordinary one — still quadratic
+     * through this door, measured with that first index already in place at
+     * 0.11s for 250 methods, 0.46s for 500, 2.21s for 1,000 and 9.38s for
+     * 2,000.
+     *
      * @return array<int, string>
      */
     private function traitNames(File $phpcsFile, int $classPtr): array
     {
-        return $this->qualifiedNames($phpcsFile, $classPtr, $this->usedTraitNames($phpcsFile, $classPtr));
+        $this->buildDeclarations($phpcsFile);
+
+        if (isset($this->traitNames[$classPtr]) === true) {
+            return $this->traitNames[$classPtr];
+        }
+
+        return $this->traitNames[$classPtr] = $this->qualifiedNames(
+            $phpcsFile,
+            $classPtr,
+            $this->usedTraitNames($phpcsFile, $classPtr)
+        );
     }
 
     /**
@@ -934,6 +974,13 @@ class UnusedFormalParameterSniff implements Sniff
      * 500 and 5.01s for 1,000, better than 3x per doubling, on shapes the
      * repo's own TooManyMethods sniffs exempt by ignorepattern and real entity
      * classes reach easily.
+     *
+     * This is the class list only, and caching it did not on its own make the
+     * sniff linear: methodNames() and traitNames() each re-read an ancestor's
+     * whole body, and each was still doing so once per descendant method. Both
+     * are held here too, and discarded with the rest whenever the key changes,
+     * so that the three indexes cannot disagree about which stream they
+     * describe.
      */
     private function buildDeclarations(File $phpcsFile): void
     {
@@ -949,6 +996,8 @@ class UnusedFormalParameterSniff implements Sniff
         $this->declarationsKey = $key;
         $this->declarations = [];
         $this->declarationNamespace = [];
+        $this->methodNames = [];
+        $this->traitNames = [];
 
         $targets = array_merge([T_NAMESPACE], self::CLASS_LIKE);
         $namespace = '';
@@ -1020,17 +1069,31 @@ class UnusedFormalParameterSniff implements Sniff
      * innermost class-like condition against this one: a closure assigned
      * inside a method is not a method of the class.
      *
+     * Held per ancestor for the life of the token stream, because the walk that
+     * calls this reaches the same ancestor again for every method of every
+     * class that descends from it. Scanning that ancestor's body once per
+     * descendant method cost a `Derived extends Base` pair of n overrides O(n²)
+     * — the same shape buildDeclarations() was memoised for, reached through
+     * another door, and measured on that pair at 0.15s for 250 methods, 0.60s
+     * for 500, 2.94s for 1,000 and 12.21s for 2,000: a clean 4x per doubling.
+     *
      * @return array<int, string>
      */
     private function methodNames(File $phpcsFile, int $classPtr): array
     {
+        $this->buildDeclarations($phpcsFile);
+
+        if (isset($this->methodNames[$classPtr]) === true) {
+            return $this->methodNames[$classPtr];
+        }
+
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$classPtr]['scope_opener'] ?? null;
         $closer = $tokens[$classPtr]['scope_closer'] ?? null;
         $names = [];
 
         if ($opener === null || $closer === null) {
-            return $names;
+            return $this->methodNames[$classPtr] = $names;
         }
 
         $pointer = $phpcsFile->findNext(T_FUNCTION, $opener + 1, $closer);
@@ -1045,7 +1108,7 @@ class UnusedFormalParameterSniff implements Sniff
             $pointer = $phpcsFile->findNext(T_FUNCTION, $pointer + 1, $closer);
         }
 
-        return $names;
+        return $this->methodNames[$classPtr] = $names;
     }
 
     /**
