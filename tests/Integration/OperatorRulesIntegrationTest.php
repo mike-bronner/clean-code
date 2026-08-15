@@ -8,7 +8,7 @@
  * violation is reported exactly once.
  *
  * That whole-ruleset view is where operator diagnostics can duplicate:
- *   - the stricter Squiz.WhiteSpace.OperatorSpacing stacking on the "at least
+ *   - the stricter CleanCode.Operators.BinaryOperatorSpacing stacking on the "at least
  *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
@@ -59,8 +59,8 @@ it('reports every operator violation exactly once', function (): void {
         // that is what makes a second *operator* source here a failure.
         9 => [
             'CleanCode.Naming.DisallowMagicNumbers.Found',
-            'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
-            'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceAfter',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceBefore',
         ],
         // concatenation spacing — ConcatenationSpacing only, no PSR12
         10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
@@ -68,7 +68,7 @@ it('reports every operator violation exactly once', function (): void {
         // #136 on the "3" that line assigns
         11 => [
             'CleanCode.Naming.DisallowMagicNumbers.Found',
-            'Squiz.WhiteSpace.OperatorSpacing.SpacingBefore',
+            'CleanCode.Operators.BinaryOperatorSpacing.SpacingBefore',
         ],
         // dangling "." outside a condition — OperatorLineBreak's to own
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
