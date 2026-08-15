@@ -35,7 +35,10 @@ declare(strict_types=1);
  *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
  *     operator inside a multi-condition slips through unreported (line 28), and
  *   - re-registering the math or bitwise group on both line-break sniffs at
- *     once, doubling every wrapped math operator (line 35).
+ *     once, doubling every wrapped math operator (line 35), and
+ *   - narrowing ManipulationOperatorPlacement's deferral so a wrapped math
+ *     operator inside a single condition is reported by it *and* collapsed by
+ *     OneConditionPerLine (line 38/39).
  *
  * The fixture opens with a four-line preamble assigning every name it goes on
  * to use, so the master ruleset's undefined-variable rule (#85) stays quiet
@@ -112,5 +115,16 @@ it('reports every operator violation exactly once', function (): void {
         // so the two register disjoint token sets; were the math or bitwise
         // group added back to either one, this line would carry two sources.
         35 => ['CleanCode.Operators.ManipulationOperatorPlacement.OperatorNotLeading'],
+        // A dangling "+" inside a *single* condition — one carrying no
+        // top-level boolean. OneConditionPerLine collapses that whole condition
+        // onto one line, so ManipulationOperatorPlacement stands down and only
+        // the collapse is reported, on the "if" line. This is the one deferral
+        // no per-sniff test can pin: narrowing the ruleset to one sniff proves
+        // only that this sniff is silent, never that the other one speaks. Were
+        // the deferral dropped, line 39 would gain a second, duplicate source.
+        38 => [
+            'CleanCode.Conditionals.AvoidConditionals.IfStatement',
+            'CleanCode.Conditionals.OneConditionPerLine.SingleConditionNotOnOneLine',
+        ],
     ]);
 });

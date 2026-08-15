@@ -45,7 +45,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * form and is not subject to the rule. Some tokens double as non-binary forms
  * that are never manipulation operators and so are exempt regardless of layout:
  * a unary sign (`-5`, `+5`), recognised because no real left-hand operand ends
- * the previous line; a reference `&` (`&$ref`, a by-reference parameter,
+ * the previous line — including the sign that opens a discarded statement right
+ * after a control structure's closing brace, which is told from a `match`,
+ * closure, or anonymous-class brace by the scope the brace closes; a reference
+ * `&` (`&$ref`, a by-reference parameter,
  * return, assignment, `foreach`, or array element), recognised by PHP_CodeSniffer's
  * own reference detection rather than by what token happens to precede it; and a
  * `|`/`&` separating exception types in a `catch (TypeA | TypeB $e)` clause,
@@ -104,11 +107,43 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     /**
      * Tokens that terminate a left-hand operand: literals, identifiers that
-     * resolve to a value, string terminators, and closing brackets. Used to
-     * tell a binary `+`/`-` (preceded by a value) from its unary sign form
-     * (preceded by punctuation, a keyword, or another operator). The magic
-     * constants (`__LINE__`, `__FILE__`, …) are covered separately via
-     * {@see Tokens::$magicConstants} so the set stays complete as PHP adds more.
+     * resolve to a value, string terminators, postfix `++`/`--`, and closing
+     * brackets. Used to tell a binary `+`/`-` (preceded by a value) from its
+     * unary sign form (preceded by punctuation, a keyword, or another
+     * operator). The magic constants (`__LINE__`, `__FILE__`, …) are covered
+     * separately via {@see Tokens::$magicConstants} so the set stays complete
+     * as PHP adds more.
+     *
+     * The set is *admission*, not exclusion, on purpose. Both forms are
+     * hand-maintained lists that a new PHP construct can outdate, so the choice
+     * is between their failure modes: a member missing from this set costs a
+     * false negative — one real violation goes unreported — while a member
+     * missing from the inverted "these tokens mean a unary sign follows" set
+     * costs a false positive, and the fixer then rewrites correct code.
+     *
+     * Every entry was derived by tokenising the construct rather than by
+     * reasoning about it, and the families are closed:
+     *
+     * - **Values** — `T_VARIABLE`, the two numeric literals, `T_TRUE`,
+     *   `T_FALSE`, `T_NULL`, and `T_STRING` (which is what a constant, a class
+     *   constant, and a property fetch all end on).
+     * - **String terminators** — `Tokens::$stringTokens` (a single-quoted and
+     *   an interpolated literal each end on their own token) plus the two
+     *   heredoc/nowdoc closers from `Tokens::$heredocTokens`, and `T_BACKTICK`
+     *   for shell execution. A backtick opener can never be mistaken for the
+     *   closer here: the delimited body tokenises as encapsed content, so a
+     *   leading `-` inside it (`` `ls -la` ``) is never a `T_MINUS`.
+     * - **Closing brackets** — `Tokens::$bracketTokens`' three closers plus
+     *   `T_CLOSE_SHORT_ARRAY`, the separate token PHP_CodeSniffer gives a short
+     *   array's `]`. `T_CLOSE_CURLY_BRACKET` is admitted here but qualified in
+     *   {@see self::endsLeftOperand()}, since only some `}` close a value.
+     * - **Postfix operators** — `T_INC`/`T_DEC`. A prefix `++`/`--` cannot
+     *   precede a `+`/`-` (its own operand does), so no qualification is needed.
+     *
+     * tests/Standards/ManipulationOperatorPlacementTest.php pins the string and
+     * bracket families against those PHP_CodeSniffer enumerations directly, so
+     * a token added to either upstream fails the suite instead of silently
+     * widening the gap.
      *
      * @var array<int|string>
      */
@@ -120,13 +155,36 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_DOUBLE_QUOTED_STRING,
         T_END_HEREDOC,
         T_END_NOWDOC,
+        T_BACKTICK,
         T_STRING,
         T_TRUE,
         T_FALSE,
         T_NULL,
+        T_INC,
+        T_DEC,
         T_CLOSE_PARENTHESIS,
         T_CLOSE_SQUARE_BRACKET,
+        T_CLOSE_SHORT_ARRAY,
         T_CLOSE_CURLY_BRACKET,
+    ];
+
+    /**
+     * The constructs whose closing `}` yields a value, so that a `+`/`-`
+     * directly after it is binary. Everything else PHP_CodeSniffer can hang a
+     * scope off — `if`, `while`, `for`, `foreach`, `switch`, `try`, `function`,
+     * `class`, … — closes a *statement*, and a sign following that brace opens
+     * a new expression instead of continuing the old one.
+     *
+     * A `}` with no scope at all (`${$name}`, `$object->{$name}`) is a value
+     * too, and is admitted in {@see self::endsLeftOperand()} rather than here,
+     * having no owner to name.
+     *
+     * @var array<int|string>
+     */
+    private const VALUE_PRODUCING_SCOPE_OWNERS = [
+        T_ANON_CLASS,
+        T_CLOSURE,
+        T_MATCH,
     ];
 
     /**
@@ -217,7 +275,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
         // manipulation operators only when a real operand ends the previous line.
         if (
             in_array($tokens[$stackPtr]['code'], self::UNARY_CAPABLE, true) === true
-            && $this->endsLeftOperand($tokens[$previous]['code']) === false
+            && $this->endsLeftOperand($phpcsFile, $previous) === false
         ) {
             return;
         }
@@ -246,17 +304,49 @@ class ManipulationOperatorPlacementSniff implements Sniff
     }
 
     /**
-     * Whether the given preceding token can terminate a left-hand operand —
-     * true for value literals, closing brackets, and the magic constants, which
-     * makes a following `+`/`-` a binary manipulation operator rather than a
-     * unary sign.
+     * Whether the token at $previous terminates a left-hand operand — true for
+     * value literals, postfix `++`/`--`, closing brackets, and the magic
+     * constants, which makes a following `+`/`-` a binary manipulation operator
+     * rather than a unary sign.
      *
-     * @param int|string $code
+     * A closing `}` is the one entry that cannot be decided by its token alone:
+     * the same `T_CLOSE_CURLY_BRACKET` ends a `match` expression, an anonymous
+     * class, and a closure — all values — as ends an `if`/`while`/`foreach`
+     * body, which is not one. Reading the brace's scope owner is what tells
+     * `match (…) { … } - 5` (a subtraction) from the discarded `-5;` statement
+     * that follows `if (…) { … }`.
      */
-    private function endsLeftOperand($code): bool
+    private function endsLeftOperand(File $phpcsFile, int $previous): bool
     {
+        $tokens = $phpcsFile->getTokens();
+        $code = $tokens[$previous]['code'];
+
+        if ($code === T_CLOSE_CURLY_BRACKET) {
+            return $this->closesValue($phpcsFile, $previous);
+        }
+
         return in_array($code, self::OPERAND_END_TOKENS, true) === true
             || isset(Tokens::$magicConstants[$code]) === true;
+    }
+
+    /**
+     * Whether a closing `}` ends an expression that yields a value. A brace
+     * carrying no `scope_condition` closes an interpolation-style construct
+     * (`${$name}`, `$object->{$name}`), which is always a value; a brace that
+     * does carry one is a value only for the constructs named in
+     * {@see self::VALUE_PRODUCING_SCOPE_OWNERS}.
+     */
+    private function closesValue(File $phpcsFile, int $closer): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$closer]['scope_condition']) === false) {
+            return true;
+        }
+
+        $owner = $tokens[$tokens[$closer]['scope_condition']]['code'];
+
+        return in_array($owner, self::VALUE_PRODUCING_SCOPE_OWNERS, true);
     }
 
     /**

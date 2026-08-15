@@ -34,3 +34,10 @@ if (
 
 $total = $first -
     $second;
+
+if (
+    $first +
+    $second > $total
+) {
+    $reached = true;
+}

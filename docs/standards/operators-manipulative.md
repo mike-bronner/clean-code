@@ -102,7 +102,17 @@ end-to-end over the whole master ruleset, line by line.
     interpolated string, or a heredoc/nowdoc body, not just literals and
     variables. A `&` is told apart from bitwise-AND by PHP_CodeSniffer's own
     reference detection, so a by-reference parameter, return, assignment,
-    `foreach`, or array element is exempt regardless of what precedes it.
+    `foreach`, or array element is exempt regardless of what precedes it. The
+    operand test admits every construct that can end a value — a short-array
+    literal (`[1, 2] + [3]`), a postfix `++`/`--` (`$count++ + $step`), a
+    backtick shell execution, and the closing brace of a `match`, an anonymous
+    class, a closure, or a `$object->{$name}` fetch.
+  - **A sign after a control structure's closing brace** — a `}` that ends an
+    `if`, `while`, `for`, `foreach`, `switch`, `try`, function, or class body
+    ends a *statement*, so the `-` in `} -5;` opens a new (discarded) statement
+    rather than continuing the previous expression, and is left alone. The brace
+    token is identical to the value-producing one above; the scope it closes is
+    what separates them.
   - **Catch-clause type unions** — a `|` (or `&`) separating exception types in a
     `catch (TypeA | TypeB $e)` clause is a type-union separator, not a bitwise
     operator, so it is never flagged even across a line break. PHP_CodeSniffer
@@ -110,7 +120,17 @@ end-to-end over the whole master ruleset, line by line.
     in parameter, return, and property positions but leaves the catch-clause
     separator as `T_BITWISE_OR`/`T_BITWISE_AND`, so it is exempted by its
     enclosing `catch` parenthesis.
-- **Auto-fixable — Yes.** The fixer moves the trailing operator down to lead the
+- **Auto-fixable — the math and bitwise groups, yes; `.`, `&&` and `||`, no.**
+  The wrapped `.`, `&&` and `||` this standard also covers belong to
+  `CleanCode.Operators.OperatorLineBreak`, which reports them and deliberately
+  does not rewrite them: where the operator lands on the rewritten line is a
+  layout judgement, a boundary the "Arrays: Operator Spacing & Line Breaks"
+  standard (#35) set and this one does not reopen. So the standard is fully
+  *detected* and partly *fixed*. That split is a decision, not an oversight —
+  Mike settled it on [#59](https://github.com/mike-bronner/phpcs-rules/issues/59)
+  rather than force a fixer onto another standard's sniff.
+
+  For the groups this sniff owns, the fixer moves the trailing operator down to lead the
   continuation line, indented one level past the statement's *root* line (escaping
   any enclosing parentheses, brackets, or array literal so a wrapped operator
   inside an `if (...)` condition, call-argument list, or array lands level with
@@ -122,8 +142,10 @@ end-to-end over the whole master ruleset, line by line.
 
 Tests covering the token-level split, compliant inline and multi-line code,
 per-line/column violation reporting for every operator category, operand-boundary
-disambiguation (magic constants, interpolated strings, heredoc/nowdoc bodies, and
-reference `&`), the catch-clause exemption, and the fixer's continuation indent
+disambiguation (magic constants, interpolated strings, heredoc/nowdoc bodies,
+short arrays, postfix `++`/`--`, backticks, value-producing versus
+scope-closing braces, and reference `&`), the catch-clause exemption, and the
+fixer's continuation indent
 inside brackets live at `tests/Standards/ManipulationOperatorPlacementTest.php`,
 over the fixtures in `tests/fixtures/ManipulationOperatorPlacementSniff/`. The
 byte-for-byte auto-fix output, its idempotency, and the passing/failing floor
@@ -131,7 +153,8 @@ come from the generic sweep in `tests/Contract/SniffContractTest.php`.
 
 ## What remains code review
 
-Nothing about *placement* — that is fully machine-enforced. The math and bitwise
+Nothing about *placement* — every wrap the standard governs is detected by one of
+the three cooperating sniffs. Only the *fix* is partial: the math and bitwise
 groups are auto-fixable; a wrapped `.`, `&&`, or `||` is reported by
 `CleanCode.Operators.OperatorLineBreak`, which is deliberately report-only
 because where the operator lands on the rewritten line is a layout judgement it

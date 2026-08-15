@@ -49,6 +49,38 @@ $nowdoc = <<<'NUM'
     NUM
     - 1;
 
+// Every remaining shape that ends a left-hand operand, so the trailing sign is
+// binary and must be flagged: a short-array literal's `]`, a postfix `++`/`--`,
+// a backtick shell execution, and the value-producing braces (`match`, an
+// anonymous class, a closure) — none of which a control-structure brace shares.
+$union = [1, 2, 3]
+    + [4, 5, 6];
+
+$postIncrement = $counter++
+    + $step;
+
+$postDecrement = $counter--
+    - $step;
+
+$executed = `printf 41`
+    + 1;
+
+$matched = match ($mode) {
+    default => 41,
+}
+    + 1;
+
+$anonymous = new class () {
+}
+    + 1;
+
+$closure = function () {
+}
+    + 1;
+
+$dynamicProperty = $object->{$name}
+    + 1;
+
 // Wrapped inside a call-argument list and an array literal: the fixer must lead
 // the continuation line one level past the statement's *root* line, never one
 // level deeper because the operator sits inside a bracket.

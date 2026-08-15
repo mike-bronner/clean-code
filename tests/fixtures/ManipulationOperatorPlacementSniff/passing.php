@@ -82,6 +82,51 @@ $reference = &
 $total = $base
     + -$adjustment;
 
+// Near-miss: a control structure's closing brace ends a *statement*, not a
+// value, so the sign that follows it opens a new (discarded) statement and is
+// unary — however it wraps. Only the value-producing braces of failing.php
+// (`match`, an anonymous class, a closure, `$object->{…}`) continue an
+// expression. One case per scope owner, since the brace token is identical in
+// all of them and only the scope it closes tells them apart.
+if ($isActive) {
+    //
+} -
+    5;
+
+while ($isVerified) {
+    //
+} +
+    5;
+
+foreach ($items as $item) {
+    //
+} -
+    5;
+
+for ($index = 0; $index < 3; $index++) {
+    //
+} +
+    5;
+
+switch ($mode) {
+    default:
+        break;
+} -
+    5;
+
+try {
+    //
+} finally {
+    //
+} +
+    5;
+
+function scopeClosingBrace(): void
+{
+    //
+} -
+    5;
+
 // A reference `&` is recognised by context, not by the preceding token, so a
 // by-reference parameter after a type name — itself an operand terminator —
 // and a by-reference `use (` capture are both left alone.
