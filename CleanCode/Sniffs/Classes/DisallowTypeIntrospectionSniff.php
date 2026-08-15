@@ -30,12 +30,19 @@ use PHP_CodeSniffer\Util\Tokens;
  * exception message, a log line, an assertion, or a `return $x instanceof Y;`
  * predicate reports a type, it does not choose behaviour based on one.
  *
- * A closure or arrow function bounds the search. Introspection inside a
- * callback decides that callback's *return value*, so it is a predicate — even
- * when the callback is itself an argument inside some enclosing branch's
- * condition, as in `if (array_filter($rows, fn ($r) => $r instanceof Failure))`.
- * Every branch a check is measured against must therefore live inside the same
- * callback the check does.
+ * A function body bounds the search — any function body, whether it opened with
+ * `function`, a closure, or `fn`. Introspection inside one decides that body's
+ * *return value*, so it is a predicate, even when the body is itself written as
+ * an argument inside some enclosing branch's condition:
+ *
+ * - `if (array_filter($rows, fn ($r) => $r instanceof Failure))`
+ * - `if (array_filter($rows, function ($r) { return $r instanceof Failure; }))`
+ * - `if (array_filter($rows, new class { public function __invoke($r) {
+ *   return $r instanceof Failure; } }))`
+ *
+ * All three pass a predicate to `array_filter()`; which keyword opened it says
+ * nothing about the role the check plays. Every branch a check is measured
+ * against must therefore live inside the same function body the check does.
  *
  * A bare `name(` only reaches the global function when nothing in the file
  * shadows that name — a `use function` import (aliased or not) or a function of
@@ -112,6 +119,29 @@ class DisallowTypeIntrospectionSniff implements Sniff
     ];
 
     /**
+     * Every token that declares a body whose result is that body's own return
+     * value — the complete set, not a sample.
+     *
+     * PHP has exactly three: `function` (a named function or a method, whether
+     * declared at file scope, in a named class, or in an anonymous one),
+     * `function () {}` (a closure), and `fn () =>` (an arrow function). A
+     * `static` prefix changes neither token, and an abstract or interface
+     * method declares no body at all — {@see functionScopes()} drops it for
+     * having no scope, so the enumeration needs no case for it.
+     *
+     * Enumerating the whole set is the point: an introspection check is a
+     * *predicate* whenever the nearest thing its value flows into is a return,
+     * and that is true of all three equally. Listing only the two callback
+     * forms made the sniff flag the third — a method body written inline as an
+     * argument — which is what this list being complete now prevents.
+     */
+    private const FUNCTION_LIKE = [
+        T_CLOSURE,
+        T_FN,
+        T_FUNCTION,
+    ];
+
+    /**
      * Scopes whose `function` declarations are methods. A method never shadows
      * the resolution of a bare `name(` — PHP only consults the current
      * namespace and then the global one.
@@ -139,6 +169,22 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * @var array<int, string>
      */
     private array $shadowedNames = [];
+
+    /**
+     * Path of the file {@see $functionScopes} was computed for, or null before
+     * the first computation. Memoised for the same reason as
+     * {@see $shadowedNamesFile}: one file is finished before the next begins.
+     */
+    private ?string $functionScopesFile = null;
+
+    /**
+     * Every function-like body in the file at {@see $functionScopesFile}, keyed
+     * by declaration pointer and ordered innermost-first (see
+     * {@see functionScopes()} for why that order).
+     *
+     * @var array<int, array{start: int, end: int}>
+     */
+    private array $functionScopes = [];
 
     /**
      * @return array<int|string>
@@ -395,18 +441,21 @@ class DisallowTypeIntrospectionSniff implements Sniff
     /**
      * True when the introspection at $stackPtr decides which branch runs.
      *
-     * The innermost callback enclosing the token is resolved once and passed to
-     * each check, which confines it to that callback's own body.
+     * The innermost function-like scope enclosing the token is resolved once
+     * and passed to each check, which confines every one of them to that
+     * scope's own body. Resolving it in a single place is deliberate: the four
+     * checks look for four different constructs, and giving each its own notion
+     * of where the body starts is how they came to disagree.
      */
     private function decidesABranch(File $phpcsFile, int $stackPtr): bool
     {
-        $callback = $this->enclosingCallback($phpcsFile, $stackPtr);
+        $scope = $this->enclosingFunctionScope($phpcsFile, $stackPtr);
 
-        if ($this->isInsideAConditionParenthesis($phpcsFile, $stackPtr, $callback)) {
+        if ($this->isInsideAConditionParenthesis($phpcsFile, $stackPtr, $scope)) {
             return true;
         }
 
-        if ($this->isATernaryCondition($phpcsFile, $stackPtr, $callback)) {
+        if ($this->isATernaryCondition($phpcsFile, $stackPtr, $scope)) {
             return true;
         }
 
@@ -421,43 +470,35 @@ class DisallowTypeIntrospectionSniff implements Sniff
         if ($innermost === T_MATCH) {
             $matchPtr = (int) array_key_last($conditions);
 
-            return $this->isAMatchArmCondition($phpcsFile, $stackPtr, $matchPtr, $callback);
+            return $this->isAMatchArmCondition($phpcsFile, $stackPtr, $matchPtr, $scope);
         }
 
         return $innermost === T_SWITCH
-            && $this->isASwitchCaseCondition($phpcsFile, $stackPtr, $callback);
+            && $this->isASwitchCaseCondition($phpcsFile, $stackPtr, $scope);
     }
 
     /**
-     * Returns the pointer of the innermost closure or arrow function whose body
-     * contains $stackPtr, or null when the token sits in no callback.
+     * Returns the pointer of the innermost function-like declaration whose body
+     * contains $stackPtr, or null when the token sits in no function body.
      *
-     * Scanning backwards, the first such callback found is the innermost, since
-     * any callback enclosing the token starts before it and the nearest opener
-     * is the most deeply nested. A callback whose scope PHPCS could not resolve
-     * is skipped rather than assumed to enclose the token: that only happens on
-     * source PHPCS already reports a parse error for, and treating it as a
-     * boundary would silence the sniff for the whole remainder of the file.
+     * This is the one place the sniff decides what "the same scope" means, and
+     * every branch check below is confined by its answer. Resolving it against
+     * the whole of {@see FUNCTION_LIKE} rather than a chosen subset is what
+     * makes the confinement general: a body is a body regardless of the keyword
+     * that opened it, so a method written inline as an argument bounds the
+     * search exactly as a closure or an arrow function does.
+     *
+     * Bodies nest properly — they never partially overlap — so of the bodies
+     * containing the token, the one that starts last is the innermost. The
+     * index is stored in descending start order, which makes the first match
+     * that innermost one and lets the common case (a token inside the nearest
+     * declaration) return after a step or two.
      */
-    private function enclosingCallback(File $phpcsFile, int $stackPtr): ?int
+    private function enclosingFunctionScope(File $phpcsFile, int $stackPtr): ?int
     {
-        $tokens = $phpcsFile->getTokens();
-
-        for ($i = ($stackPtr - 1); $i >= 0; $i--) {
-            if (in_array($tokens[$i]['code'], [T_CLOSURE, T_FN], true) === false) {
-                continue;
-            }
-
-            $opener = $tokens[$i]['scope_opener'] ?? null;
-            $closer = $tokens[$i]['scope_closer'] ?? null;
-
-            if (
-                $opener !== null
-                && $closer !== null
-                && $opener < $stackPtr
-                && $stackPtr < $closer
-            ) {
-                return $i;
+        foreach ($this->functionScopes($phpcsFile) as $declaration => $scope) {
+            if ($scope['start'] < $stackPtr && $stackPtr < $scope['end']) {
+                return $declaration;
             }
         }
 
@@ -465,25 +506,78 @@ class DisallowTypeIntrospectionSniff implements Sniff
     }
 
     /**
+     * Every function-like body in the file, keyed by declaration pointer and
+     * ordered by start position descending.
+     *
+     * Built in one forward pass per file and memoised, so resolving the
+     * enclosing scope never re-walks the token stream: the old backward token
+     * scan repeated that walk for every introspection token in the file, which
+     * on a large file with many checks cost more than tokenising it.
+     *
+     * A declaration whose scope PHPCS could not resolve is omitted rather than
+     * assumed to enclose anything — an abstract or interface method (which has
+     * no body) reaches this path legitimately, and malformed source reaches it
+     * with a parse error PHPCS reports itself. Omitting it keeps a token that
+     * follows from being read as living inside a body that never opened.
+     *
+     * @return array<int, array{start: int, end: int}>
+     */
+    private function functionScopes(File $phpcsFile): array
+    {
+        if ($this->functionScopesFile === $phpcsFile->getFilename()) {
+            return $this->functionScopes;
+        }
+
+        $tokens = $phpcsFile->getTokens();
+        $scopes = [];
+
+        for ($i = 0; $i < $phpcsFile->numTokens; $i++) {
+            if (in_array($tokens[$i]['code'], self::FUNCTION_LIKE, true) === false) {
+                continue;
+            }
+
+            $opener = $tokens[$i]['scope_opener'] ?? null;
+            $closer = $tokens[$i]['scope_closer'] ?? null;
+
+            if ($opener === null || $closer === null) {
+                continue;
+            }
+
+            $scopes[$i] = ['start' => $opener, 'end' => $closer];
+        }
+
+        $this->functionScopesFile = $phpcsFile->getFilename();
+        $this->functionScopes = array_reverse($scopes, true);
+
+        return $this->functionScopes;
+    }
+
+    /**
      * True when the token sits inside the parentheses of an `if`, `elseif`,
      * `while`, `switch`, or `match` — i.e. inside the branch condition itself,
      * at any nesting depth.
      *
-     * A condition opening *before* the enclosing callback belongs to the code
-     * that receives the callback, not to the callback's body: the token decides
-     * what the callback returns, and the caller decides the branch.
+     * A condition opening *before* the enclosing function-like scope belongs to
+     * the code that receives that body's result, not to the body itself: the
+     * token decides what the body returns, and the caller decides the branch.
+     *
+     * `nested_parenthesis` tracks physical paren nesting only and walks
+     * straight through an intervening body, so an enclosing `if`'s opener stays
+     * in the chain of a token written inside a callback — or inside an inline
+     * method — that the `if` condition merely calls. The scope check is what
+     * takes it back out.
      */
     private function isInsideAConditionParenthesis(
         File $phpcsFile,
         int $stackPtr,
-        ?int $callback
+        ?int $scope
     ): bool {
         $tokens = $phpcsFile->getTokens();
 
         foreach (array_keys($tokens[$stackPtr]['nested_parenthesis'] ?? []) as $opener) {
             if (
-                $callback !== null
-                && $opener < $callback
+                $scope !== null
+                && $opener < $scope
             ) {
                 continue;
             }
@@ -507,14 +601,15 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * outward: `f(get_class($x)) ? a : b` is a ternary condition, whereas
      * `f(get_class($x), $y ? a : b)` terminates at the argument comma.
      *
-     * An enclosing callback caps that outward walk at its own end, so a `?`
-     * belonging to the caller — `array_filter($i, fn ($x) => $x instanceof Y) ? a : b`
-     * — is never mistaken for the arrow function's own ternary.
+     * An enclosing function-like scope caps that outward walk at its own end,
+     * so a `?` belonging to the caller —
+     * `array_filter($i, fn ($x) => $x instanceof Y) ? a : b` — is never
+     * mistaken for the arrow function's own ternary.
      */
-    private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?int $callback): bool
+    private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?int $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $limit = $callback === null ? $phpcsFile->numTokens : $tokens[$callback]['scope_closer'];
+        $limit = $scope === null ? $phpcsFile->numTokens : $tokens[$scope]['scope_closer'];
 
         for ($i = ($stackPtr + 1); $i < $limit; $i++) {
             $code = $tokens[$i]['code'];
@@ -543,14 +638,15 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * arm's condition list keep the flag set, so multi-condition arms are
      * covered). Reaching `{` with no `=>` behind is the first arm.
      *
-     * A callback opening inside the `match` holds the token in its own body, so
-     * the arm boundaries around it are the caller's, not the token's.
+     * A function-like body opening inside the `match` holds the token in its
+     * own body, so the arm boundaries around it are the caller's, not the
+     * token's.
      */
     private function isAMatchArmCondition(
         File $phpcsFile,
         int $stackPtr,
         int $matchPtr,
-        ?int $callback
+        ?int $scope
     ): bool {
         $tokens = $phpcsFile->getTokens();
         $scopeOpener = $tokens[$matchPtr]['scope_opener'] ?? null;
@@ -560,8 +656,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         if (
-            $callback !== null
-            && $callback > $scopeOpener
+            $scope !== null
+            && $scope > $scopeOpener
         ) {
             return false;
         }
@@ -590,13 +686,14 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * body — walking back reaches `case` before the label's `:` or any
      * statement boundary.
      *
-     * An enclosing callback floors that walk: a `case` further back than the
-     * callback's own opener labels the caller's branch, not the token's.
+     * An enclosing function-like scope floors that walk: a `case` further back
+     * than that body's own declaration labels the caller's branch, not the
+     * token's.
      */
-    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr, ?int $callback): bool
+    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr, ?int $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $floor = $callback ?? 0;
+        $floor = $scope ?? 0;
 
         for ($i = ($stackPtr - 1); $i > $floor; $i--) {
             $code = $tokens[$i]['code'];

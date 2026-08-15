@@ -26,6 +26,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Arrays.DuplicatedArrayKey',
     'CleanCode.Classes.DisallowStaticMembers',
+    'CleanCode.Classes.DisallowTypeIntrospection',
     'CleanCode.Classes.ExcessiveClassLength',
     'CleanCode.Classes.RequireProperties',
     'CleanCode.Classes.TooManyPublicMethods',

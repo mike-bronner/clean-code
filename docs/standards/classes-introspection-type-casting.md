@@ -59,12 +59,22 @@ The standard is therefore enforced by the custom
   - **Assertions** — `assert($value instanceof Throwable)`.
   - **Predicates** — `return $value instanceof Throwable;`. The method reports
     a type; its caller decides what to do with the answer.
-  - **Callback predicates** — `if (array_filter($rows, fn ($r) => $r instanceof
-    Failure))`. A closure or arrow function bounds the search, so a check inside
-    one is a predicate deciding that callback's *return value*, even when the
-    callback is an argument inside an enclosing condition. A branch written
-    *inside* the callback body is still flagged — the boundary limits which
-    branches a check is measured against, it does not exempt the callback.
+  - **Predicates written inline** — `if (array_filter($rows, fn ($r) => $r
+    instanceof Failure))`. Any function body bounds the search, so a check
+    inside one is a predicate deciding that body's *return value*, even when the
+    body is an argument inside an enclosing condition. The keyword that opened
+    the body is not what decides this — all three forms play the same role:
+
+    ```php
+    if (array_filter($rows, fn ($r) => $r instanceof Failure)) { }
+    if (array_filter($rows, function ($r) { return $r instanceof Failure; })) { }
+    if (array_filter($rows, new class {
+        public function __invoke($r) { return $r instanceof Failure; }
+    })) { }
+    ```
+
+    A branch written *inside* the body is still flagged — the boundary limits
+    which branches a check is measured against, it does not exempt the body.
   - **Branch *bodies*** — a `get_class()` inside an `if` block, a `case` body,
     or a `match` arm's result, rather than in the condition that selected it.
   - **Same-named methods and functions** — `$this->gettype($value)`,
@@ -87,12 +97,18 @@ The standard is therefore enforced by the custom
   is a refactor, not a token rewrite, so the sniff reports and leaves the change
   to the developer.
 
-Ruleset-integration tests covering compliant code, per-line/column violation
-reporting for `instanceof` and for each introspection function, the
-non-branching boundary cases, the name-resolution cases above (imports,
-aliases, file-local declarations, first-class callables — each paired with a
-control that must still be reported), and the non-fixable (detection-only)
-guarantee live at `tests/Ruleset/DisallowTypeIntrospectionTest.php`.
+Tests covering compliant code, per-line/column violation reporting for
+`instanceof` and for each introspection function, the non-branching boundary
+cases, the name-resolution cases above (imports, aliases, file-local
+declarations, first-class callables — each paired with a control that must still
+be reported), and the non-fixable (detection-only) guarantee live at
+`tests/Standards/DisallowTypeIntrospectionTest.php`, with fixtures under
+`tests/fixtures/DisallowTypeIntrospectionSniff/`.
+
+The scope rule gets the whole grid rather than a sample, in both directions:
+`function-scopes.php` writes each function-body form into each branch-deciding
+position and asserts silence, and `function-scope-branches.php` puts a real
+branch inside those same bodies and asserts every one is still reported.
 
 ## What remains code review
 
