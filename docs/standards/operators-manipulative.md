@@ -106,13 +106,20 @@ end-to-end over the whole master ruleset, line by line.
     operand test admits every construct that can end a value — a short-array
     literal (`[1, 2] + [3]`), a postfix `++`/`--` (`$count++ + $step`), a
     backtick shell execution, and the closing brace of a `match`, an anonymous
-    class, a closure, or a `$object->{$name}` fetch.
-  - **A sign after a control structure's closing brace** — a `}` that ends an
-    `if`, `while`, `for`, `foreach`, `switch`, `try`, function, or class body
-    ends a *statement*, so the `-` in `} -5;` opens a new (discarded) statement
-    rather than continuing the previous expression, and is left alone. The brace
-    token is identical to the value-producing one above; the scope it closes is
-    what separates them.
+    class, a closure, or a brace dereference — `${$name}`, `$object->{$name}`,
+    `$object?->{$name}`, `Thing::{$name}()`, `Thing::${$name}`.
+  - **A sign after a statement's closing brace** — a `}` that ends an `if`,
+    `while`, `for`, `foreach`, `switch`, `try`, function, or class body ends a
+    *statement*, so the `-` in `} -5;` opens a new (discarded) statement rather
+    than continuing the previous expression, and is left alone. The same holds
+    for a **bare compound-statement block** — `{ … }` written standalone, with
+    no owning keyword — whose `}` also ends a statement, so `{ … } - 5;` is a
+    block followed by an independent discarded statement, not a subtraction.
+    The brace token is identical in every case above and below; what separates
+    them is what owns the brace. PHP_CodeSniffer names that owner for a brace
+    that opens a scope, and leaves it unset for both a bare block and a
+    dereference — so an absent owner is read as a value only when a `$`, `->`,
+    `?->`, or `::` opened the brace.
   - **Catch-clause type unions** — a `|` (or `&`) separating exception types in a
     `catch (TypeA | TypeB $e)` clause is a type-union separator, not a bitwise
     operator, so it is never flagged even across a line break. PHP_CodeSniffer
@@ -144,7 +151,8 @@ Tests covering the token-level split, compliant inline and multi-line code,
 per-line/column violation reporting for every operator category, operand-boundary
 disambiguation (magic constants, interpolated strings, heredoc/nowdoc bodies,
 short arrays, postfix `++`/`--`, backticks, value-producing versus
-scope-closing braces, and reference `&`), the catch-clause exemption, and the
+statement-closing braces — the owned ones and the ownerless bare block alike —
+and reference `&`), the catch-clause exemption, and the
 fixer's continuation indent
 inside brackets live at `tests/Standards/ManipulationOperatorPlacementTest.php`,
 over the fixtures in `tests/fixtures/ManipulationOperatorPlacementSniff/`. The

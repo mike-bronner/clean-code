@@ -46,8 +46,9 @@ use PHP_CodeSniffer\Util\Tokens;
  * that are never manipulation operators and so are exempt regardless of layout:
  * a unary sign (`-5`, `+5`), recognised because no real left-hand operand ends
  * the previous line — including the sign that opens a discarded statement right
- * after a control structure's closing brace, which is told from a `match`,
- * closure, or anonymous-class brace by the scope the brace closes; a reference
+ * after a control structure's or a bare block's closing brace, which is told
+ * from a `match`, closure, anonymous-class, or dereference brace by the scope
+ * the brace closes and the token that opened it; a reference
  * `&` (`&$ref`, a by-reference parameter,
  * return, assignment, `foreach`, or array element), recognised by PHP_CodeSniffer's
  * own reference detection rather than by what token happens to precede it; and a
@@ -175,9 +176,8 @@ class ManipulationOperatorPlacementSniff implements Sniff
      * `class`, … — closes a *statement*, and a sign following that brace opens
      * a new expression instead of continuing the old one.
      *
-     * A `}` with no scope at all (`${$name}`, `$object->{$name}`) is a value
-     * too, and is admitted in {@see self::endsLeftOperand()} rather than here,
-     * having no owner to name.
+     * A `}` with no scope at all has no owner to name, so it is settled by
+     * {@see self::CURLY_DEREFERENCE_INTRODUCERS} instead.
      *
      * @var array<int|string>
      */
@@ -185,6 +185,43 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_ANON_CLASS,
         T_CLOSURE,
         T_MATCH,
+    ];
+
+    /**
+     * The tokens that introduce a curly-brace *dereference*, read from the token
+     * before the brace's `bracket_opener`. PHP_CodeSniffer leaves
+     * `scope_condition` unset on two unrelated constructs, and the absent scope
+     * alone cannot tell them apart:
+     *
+     * - a dereference (`${$name}`, `$object->{$name}`, `$object?->{$name}`,
+     *   `Thing::{$name}`, `Thing::${$name}`), whose `}` closes a *value*; and
+     * - a bare compound-statement block — `{ … }` written standalone, with no
+     *   owning keyword — whose `}` closes a *statement*, exactly as an `if`
+     *   body's does. `{ … } - 5;` is a block followed by an independent
+     *   discarded statement, so its `-` is a unary sign, not a subtraction.
+     *
+     * The introducer is what separates them: a dereference's `{` always follows
+     * `$`, `->`, `?->`, or `::`, and a bare block's never can. Naming the value
+     * side rather than the block side keeps this an *admission* set, for the
+     * reason {@see self::OPERAND_END_TOKENS} gives — a missing member costs a
+     * false negative, while a missing member of the inverted set would make the
+     * fixer rewrite correct code.
+     *
+     * The set is closed over PHP's brace-dereference syntaxes: a variable
+     * variable and a dynamic static property both open on `$`, a dynamic
+     * property and method fetch on `->` or `?->`, and a dynamic static method
+     * call and (as of PHP 8.3) a dynamic class-constant fetch on `::`. Every
+     * entry was derived by tokenising the construct, and
+     * tests/fixtures/ManipulationOperatorPlacementSniff/ pins one of each
+     * against the bare block it must not be confused with.
+     *
+     * @var array<int|string>
+     */
+    private const CURLY_DEREFERENCE_INTRODUCERS = [
+        T_DOLLAR,
+        T_OBJECT_OPERATOR,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_DOUBLE_COLON,
     ];
 
     /**
@@ -311,10 +348,11 @@ class ManipulationOperatorPlacementSniff implements Sniff
      *
      * A closing `}` is the one entry that cannot be decided by its token alone:
      * the same `T_CLOSE_CURLY_BRACKET` ends a `match` expression, an anonymous
-     * class, and a closure — all values — as ends an `if`/`while`/`foreach`
-     * body, which is not one. Reading the brace's scope owner is what tells
-     * `match (…) { … } - 5` (a subtraction) from the discarded `-5;` statement
-     * that follows `if (…) { … }`.
+     * class, a closure, and a dereference — all values — as ends an
+     * `if`/`while`/`foreach` body or a bare block, neither of which is one.
+     * What owns the brace is what tells `match (…) { … } - 5` (a subtraction)
+     * from the discarded `-5;` statement that follows `if (…) { … }` — see
+     * {@see self::closesValue()}.
      */
     private function endsLeftOperand(File $phpcsFile, int $previous): bool
     {
@@ -331,22 +369,35 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     /**
      * Whether a closing `}` ends an expression that yields a value. A brace
-     * carrying no `scope_condition` closes an interpolation-style construct
-     * (`${$name}`, `$object->{$name}`), which is always a value; a brace that
-     * does carry one is a value only for the constructs named in
-     * {@see self::VALUE_PRODUCING_SCOPE_OWNERS}.
+     * carrying a `scope_condition` is a value only for the constructs named in
+     * {@see self::VALUE_PRODUCING_SCOPE_OWNERS}; a brace carrying none is a
+     * value only when it closes a dereference, told from a bare
+     * compound-statement block by the token introducing it — see
+     * {@see self::CURLY_DEREFERENCE_INTRODUCERS}.
      */
     private function closesValue(File $phpcsFile, int $closer): bool
     {
         $tokens = $phpcsFile->getTokens();
 
-        if (isset($tokens[$closer]['scope_condition']) === false) {
-            return true;
+        if (isset($tokens[$closer]['scope_condition']) === true) {
+            $owner = $tokens[$tokens[$closer]['scope_condition']]['code'];
+
+            return in_array($owner, self::VALUE_PRODUCING_SCOPE_OWNERS, true);
         }
 
-        $owner = $tokens[$tokens[$closer]['scope_condition']]['code'];
+        if (isset($tokens[$closer]['bracket_opener']) === false) {
+            return false;
+        }
 
-        return in_array($owner, self::VALUE_PRODUCING_SCOPE_OWNERS, true);
+        $introducer = $phpcsFile->findPrevious(
+            Tokens::$emptyTokens,
+            ($tokens[$closer]['bracket_opener'] - 1),
+            null,
+            true
+        );
+
+        return $introducer !== false
+            && in_array($tokens[$introducer]['code'], self::CURLY_DEREFERENCE_INTRODUCERS, true) === true;
     }
 
     /**

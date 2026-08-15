@@ -85,9 +85,9 @@ $total = $base
 // Near-miss: a control structure's closing brace ends a *statement*, not a
 // value, so the sign that follows it opens a new (discarded) statement and is
 // unary — however it wraps. Only the value-producing braces of failing.php
-// (`match`, an anonymous class, a closure, `$object->{…}`) continue an
-// expression. One case per scope owner, since the brace token is identical in
-// all of them and only the scope it closes tells them apart.
+// (`match`, an anonymous class, a closure, and the four dereference forms)
+// continue an expression. One case per scope owner, since the brace token is
+// identical in all of them and only the scope it closes tells them apart.
 if ($isActive) {
     //
 } -
@@ -122,6 +122,38 @@ try {
     5;
 
 function scopeClosingBrace(): void
+{
+    //
+} -
+    5;
+
+// Near-miss: a bare compound-statement block carries no scope owner at all, the
+// same as the dynamic fetches of failing.php — so the absent owner cannot be
+// read as "this brace closes a value". Its `}` ends a statement, so the sign
+// after it opens a new (discarded) one and is unary. Each position a bare block
+// can take, since the brace is identical in all of them and only the token that
+// opened it separates a block from a fetch.
+{
+    //
+} -
+    5;
+
+{
+    //
+}
+{
+    //
+} +
+    5;
+
+if ($isActive) {
+    {
+        //
+    } -
+        5;
+}
+
+barelyLabelled:
 {
     //
 } -

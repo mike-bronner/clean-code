@@ -68,11 +68,11 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * Every trailing manipulation operator in failing.php, at its exact line and
- * column. Lines 56-93 are the operand-terminator sweep — a short-array `]`, a
- * postfix `++`/`--`, a backtick, and the three value-producing braces plus a
- * dynamic property fetch — each of which the sniff must read as a real left-hand
- * operand rather than exempting the sign as unary. Line 121 is the comment case
- * — reported, but not fixable.
+ * column. Lines 56-96 are the operand-terminator sweep — a short-array `]`, a
+ * postfix `++`/`--`, a backtick, the three value-producing braces, and one
+ * dereference per introducing token — each of which the sniff must read as a
+ * real left-hand operand rather than exempting the sign as unary. Line 136 is
+ * the comment case — reported, but not fixable.
  */
 it('flags every trailing operator at its exact line and column', function (): void {
     $tuples = violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
@@ -104,13 +104,17 @@ it('flags every trailing operator at its exact line and column', function (): vo
         ['line' => 70, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 74, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 78, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        // a dynamic property fetch — a brace with no scope at all
-        ['line' => 81, 'column' => 37, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 88, 'column' => 12, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 93, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 103, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 113, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 121, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // the dereference braces, one per introducing token: `->`, `?->`, `$`, `::`
+        ['line' => 84, 'column' => 37, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 87, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 90, 'column' => 30, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 93, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 96, 'column' => 42, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 103, 'column' => 12, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 108, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 118, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 128, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 136, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
     ]);
 });
 
@@ -146,15 +150,15 @@ it('admits every operand terminator PHP_CodeSniffer enumerates', function (): vo
 
 /**
  * The brace half of the operand model, in both directions. A `}` that closes a
- * value (`match`, an anonymous class, a closure, `$object->{…}`) continues the
+ * value (`match`, an anonymous class, a closure, a dereference) continues the
  * expression, so a sign after it is binary; a `}` that closes a statement body
  * does not, so the sign opens a new — discarded — statement and is unary.
  * Flagging the latter would not merely over-report: the fixer would rewrite
  * code this standard has no claim on.
  *
  * Asserted as one test over both fixtures because the token is identical in
- * every case and only the scope it closes separates them — a regression that
- * dropped the scope check would satisfy either half alone.
+ * every case and only what owns the brace separates them — a regression that
+ * dropped either half of that reading would satisfy one side alone.
  */
 it('separates a value-producing brace from a scope-closing one', function (): void {
     $flagged = array_column(
@@ -163,10 +167,60 @@ it('separates a value-producing brace from a scope-closing one', function (): vo
     );
     $compliant = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php');
 
-    // match, anonymous class, closure, dynamic property — all values.
-    expect($flagged)->toContain(70, 74, 78, 81)
+    // match, anonymous class, closure, and the four dereferences — all values.
+    expect($flagged)->toContain(70, 74, 78, 84, 87, 90, 93, 96)
         // if, while, foreach, for, switch, try/finally, function — all statements.
         ->and($compliant->getErrors())->toBe([]);
+});
+
+/**
+ * The half of that reading PHP_CodeSniffer's `scope_condition` cannot settle.
+ * It leaves the field unset on two unrelated constructs — a dereference, whose
+ * `}` closes a value, and a bare compound-statement block (`{ … }` with no
+ * owning keyword), whose `}` closes a statement exactly as an `if` body's does.
+ * Reading an absent owner as "value" flags `{ … } - 5;` — two independent
+ * statements — and the fixer then welds them into one, which is why this is
+ * pinned separately from the owned-brace cases above.
+ *
+ * Asserted over the exact bare-block lines rather than over the fixture's
+ * emptiness, so the four blocks stay named as the regression they guard: the
+ * check that a brace with no owner is a value only when a dereference token
+ * opened it.
+ */
+it('reads a bare block as a statement, not as an ownerless value', function (): void {
+    $blockOperatorLines = [138, 146, 152, 159];
+    $flagged = array_column(
+        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+        'line'
+    );
+
+    expect($flagged)->not->toContain(...$blockOperatorLines);
+
+    // Each line is genuinely a `}`-then-sign wrap, so the assertion above has
+    // something to discriminate — a fixture edit that moved these cases away
+    // would otherwise silently make it vacuous.
+    $source = file(fixturePath(sniffFixtureDirectory(MANIPULATION_OPERATOR_PLACEMENT), 'passing.php'));
+
+    foreach ($blockOperatorLines as $line) {
+        expect(trim($source[$line - 1]))->toMatch('/^\}\s[+-]$/');
+    }
+});
+
+/**
+ * The introducers are a hand-maintained set, so this pins what closes it: every
+ * brace-dereference syntax PHP has. A missing member costs a false negative —
+ * the sniff reads a real subtraction after the fetch as a unary sign — which is
+ * the failure mode this direction is chosen for, but it is still a gap.
+ */
+it('admits every token that can open a brace dereference', function (): void {
+    $reflected = new ReflectionClass(
+        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+    );
+
+    expect($reflected->getConstant('CURLY_DEREFERENCE_INTRODUCERS'))
+        // `${$name}` and `Thing::${$name}`; `$object->{$name}`;
+        // `$object?->{$name}`; `Thing::{$name}()` and `Thing::{$name}`.
+        ->toBe([T_DOLLAR, T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON]);
 });
 
 /**
@@ -179,8 +233,8 @@ it('offers a fix for every violation except the one behind a comment', function 
     $fixable = violationFixableFlags(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
 
     // The flags come back in report order, so the comment case is the last of
-    // the twenty-eight violations the test above pins line by line.
-    expect($fixable)->toBe(array_merge(array_fill(0, 27, true), [false]));
+    // the thirty-two violations the test above pins line by line.
+    expect($fixable)->toBe(array_merge(array_fill(0, 31, true), [false]));
 });
 
 /**

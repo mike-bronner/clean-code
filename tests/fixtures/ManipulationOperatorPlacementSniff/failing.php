@@ -78,7 +78,22 @@ $closure = function () {
 } +
     1;
 
+// A dereference brace also carries no scope owner, so what opened it is what
+// tells it from the bare block of passing.php. One case per introducing token:
+// `->`, `?->`, `$`, and `::`.
 $dynamicProperty = $object->{$name} +
+    1;
+
+$nullsafeProperty = $object?->{$name} +
+    1;
+
+$variableVariable = ${$name} +
+    1;
+
+$dynamicStaticCall = Thing::{$name}() +
+    1;
+
+$dynamicStaticProperty = Thing::${$name} +
     1;
 
 // Wrapped inside a call-argument list and an array literal: the fixer must lead
