@@ -1,0 +1,199 @@
+<?php
+
+/**
+ * Integration test for the Generic.CodeAnalysis.AssignmentInCondition rule as
+ * configured in the master rules.xml, which replaces PHPMD's
+ * CleanCode/IfStatementAssignment rule (issue #79). Fixtures live in
+ * tests/fixtures/AssignmentInConditionSniff/.
+ *
+ * The fixtures partition the two tools' behaviour, each partition verified
+ * against phpmd 2.15 running rulesets/cleancode.xml/IfStatementAssignment:
+ *
+ * - passing.php — neither tool reports anything.
+ * - failing.php — both tools report the same lines, the same number of times
+ *   each. This is the "no gaps" half of the mapping. It also carries the
+ *   short-list destructuring form, which the custom sniff deliberately leaves
+ *   to the Generic sniff (see IF_STATEMENT_ASSIGNMENT_SHARED).
+ * - divergences.php — only the Generic sniff reports. PHPMD's rule reads
+ *   if/elseif clauses only, accepts a plain "=" only, and visits function and
+ *   method bodies only, so compound operators, the other conditions, and
+ *   file-scope code fall outside it. Kept rather than narrowed: it is the same
+ *   smell, no other PHPMD rule owns those shapes, and the sniff's two codes
+ *   group the constructs together so the subset is not expressible as
+ *   configuration.
+ * - list-gap.php — only PHPMD reports, because the Generic sniff's
+ *   left-hand-side walk abandons a list() destructuring target at its closing
+ *   parenthesis. This is the gap the custom
+ *   CleanCode.Conditionals.DisallowListAssignmentInCondition sniff closes, so
+ *   the assertion here is that the *master ruleset* reports those lines even
+ *   though the Generic sniff alone does not.
+ *
+ * Every fixture is run through both sniffs at once, and only those two, so a
+ * sibling standard landing in rules.xml cannot shift the line map. Both are
+ * needed in every run: the point of the mapping is that together they cover
+ * what PHPMD covers, and asserting the source on each report is what keeps the
+ * division of labour between them visible.
+ *
+ * Two properties beyond plain detection are pinned. The sniff reports warnings
+ * out of the box; rules.xml raises it to an error so an assignment in a
+ * condition fails a phpcs run the way it fails a phpmd run. It also has no
+ * fixer, matching PHPMD, which the fixable-count assertion pins.
+ */
+
+declare(strict_types=1);
+
+const IF_STATEMENT_ASSIGNMENT_SNIFF = 'Generic.CodeAnalysis.AssignmentInCondition';
+
+const IF_STATEMENT_ASSIGNMENT_LIST_SNIFF = 'CleanCode.Conditionals.DisallowListAssignmentInCondition';
+
+const IF_STATEMENT_ASSIGNMENT_FOUND = IF_STATEMENT_ASSIGNMENT_SNIFF . '.Found';
+
+const IF_STATEMENT_ASSIGNMENT_IN_WHILE = IF_STATEMENT_ASSIGNMENT_SNIFF . '.FoundInWhileCondition';
+
+/**
+ * Every report on failing.php, at the line and column of the assignment
+ * operator — the shapes PHPMD reports too, confirmed identical under phpmd
+ * 2.15. Lines 20 and 28 carry two assignments each, so the pair also proves
+ * the sniff reports per assignment rather than per line.
+ *
+ * Line 56 is short-list destructuring, and it carries the division of labour
+ * between the two sniffs: the custom sniff excludes that form because the
+ * Generic sniff's left-hand-side walk already accepts a target ending in "]".
+ * Both sides are pinned by the one assertion — the entry goes red if the
+ * Generic sniff ever stops reporting it, and its source goes red if the custom
+ * sniff starts covering it as well.
+ */
+const IF_STATEMENT_ASSIGNMENT_SHARED = [
+    ['line' => 14, 'column' => 18, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 16, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 20, 'column' => 20, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 20, 'column' => 35, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 24, 'column' => 28, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 28, 'column' => 23, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 28, 'column' => 37, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 32, 'column' => 29, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 36, 'column' => 23, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 40, 'column' => 23, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 44, 'column' => 20, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 45, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 56, 'column' => 41, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+];
+
+/**
+ * Every report on divergences.php — the shapes only the Generic sniff reports,
+ * confirmed silent under phpmd 2.15. Two of them come under the sniff's second
+ * code, which is what a source-blind assertion would let slip.
+ */
+const IF_STATEMENT_ASSIGNMENT_BROADER = [
+    ['line' => 20, 'column' => 21, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 24, 'column' => 23, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 28, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 32, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
+    ['line' => 36, 'column' => 36, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 42, 'column' => 26, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
+    ['line' => 44, 'column' => 26, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 45, 'column' => 25, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 49, 'column' => 32, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+    ['line' => 57, 'column' => 16, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+];
+
+/**
+ * Every report on list-gap.php — the long-form list() shapes PHPMD reports and
+ * the Generic sniff does not. Each source names the custom sniff, which is
+ * what makes this an assertion about the gap rather than about the total.
+ */
+const IF_STATEMENT_ASSIGNMENT_LIST_GAP = [
+    ['line' => 18, 'column' => 35, 'source' => IF_STATEMENT_ASSIGNMENT_LIST_SNIFF . '.Found'],
+    ['line' => 20, 'column' => 55, 'source' => IF_STATEMENT_ASSIGNMENT_LIST_SNIFF . '.Found'],
+    ['line' => 24, 'column' => 33, 'source' => IF_STATEMENT_ASSIGNMENT_LIST_SNIFF . '.Found'],
+];
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(IF_STATEMENT_ASSIGNMENT_SNIFF);
+});
+
+/**
+ * passing.php is deliberately discriminating: alongside the comparisons in
+ * every condition-bearing construct, it carries the near misses both sniffs
+ * must stay silent on — an assignment as an ordinary statement, a compound
+ * assignment in a for loop's increment, and an array key written with "=>"
+ * inside a condition, which is not an assignment at all.
+ */
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'passing.php')
+    );
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('flags every assignment PHPMD reports, at the same line', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'failing.php')
+    );
+
+    expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_SHARED);
+});
+
+it('flags the conditions PHPMD overlooks too', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'divergences.php')
+    );
+
+    expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_BROADER);
+});
+
+/**
+ * The Generic sniff alone is silent on a long-form list() destructuring
+ * target, so this asserts the gap is real — nothing sourced to that sniff —
+ * *and* closed, every line PHPMD reports carried by the custom one. Asserting
+ * only the lines would pass if the Generic sniff had quietly started covering
+ * them.
+ */
+it('closes the list() destructuring gap with the custom sniff', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'list-gap.php')
+    );
+
+    expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_LIST_GAP);
+});
+
+/**
+ * Error, not warning. The sniff ships as a warning and rules.xml raises it, so
+ * a dropped <type> element leaves detection identical and only a severity
+ * assertion catches it — an error is what makes phpcs fail the run the way
+ * phpmd does.
+ */
+it('reports at error severity rather than as a warning', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'failing.php')
+    );
+
+    expect($file->getErrorCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_SHARED))
+        ->and($file->getWarningCount())->toBe(0)
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The fixable-count assertion comes with the error count beside it: an empty
+ * report also has zero fixable violations, so the count is what stops this
+ * passing vacuously.
+ */
+it('reports without offering an auto-fix', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'failing.php')
+    );
+
+    expect($file->getErrorCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_SHARED))
+        ->and($file->getFixableCount())->toBe(0)
+        ->and(violationFixableFlags($file))->each->toBeFalse();
+});
