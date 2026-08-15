@@ -298,3 +298,108 @@ final class ParenthesisedOperandShapes
             : new NullLogger();
     }
 }
+
+/**
+ * A flag and a type test whose selector sits behind a comma-separated sibling
+ * the tokenizer ends *with the group's own closing token*: an arrow function
+ * standing last in a call's argument list, then last in an array literal. The
+ * comma is resolved from the group holding it rather than by scanning for a
+ * closer, so the sibling cannot swallow the group's end and hide the selector.
+ */
+final class TrailingArrowFunctionSiblings
+{
+    public function __construct(bool $legacy, mixed $source, array $items)
+    {
+        $this->transport = $this->pick($legacy, fn ($item) => $item + 1)
+            ? new Mailer()
+            : new NullLogger();
+        $this->logger = [$legacy, fn () => $items][0]
+            ? new Mailer()
+            : new NullLogger($source);
+    }
+}
+
+/**
+ * A `match` arm listing several conditions, with the signal in front of the
+ * comma rather than last. The arm's condition list is bounded by the arm's own
+ * `=>` and by nothing else, so the comma carries the scan on to that arrow
+ * instead of ending the expression.
+ */
+final class MultiConditionArms
+{
+    public function __construct(bool $legacy, mixed $source, float $size)
+    {
+        $this->transport = match (true) {
+            $legacy, $size > 0.0 => new Mailer(),
+            default => new NullLogger(),
+        };
+        $this->logger = match (true) {
+            is_string($source), $size > 0.0 => new Mailer(),
+            default => new NullLogger(),
+        };
+    }
+}
+
+/**
+ * The global functions written in their fully-qualified form. A leading `\`
+ * with no namespace in front of it names the global function itself, so both
+ * signals report exactly as the bare spelling does.
+ */
+final class RootQualifiedCalls
+{
+    public function __construct(mixed $source)
+    {
+        $this->kind = \is_string($source) ? 'text' : 'other';
+        $this->count = \func_num_args();
+    }
+}
+
+/**
+ * A `switch` with no case at all. Nothing in it throws, so the flag is not
+ * guarding a precondition — a guard needs a branch that rejects the call.
+ */
+final class EmptyBranchConstruct
+{
+    public function __construct(bool $legacy)
+    {
+        switch ($legacy) {
+        }
+    }
+}
+
+/**
+ * Two surviving construction paths and a rejecting third. One throwing branch
+ * does not make the condition a guard while more than one way of constructing
+ * is left, whichever construct spells the branches.
+ */
+final class SurvivingPathsBesideAThrow
+{
+    public function __construct(bool $legacy, mixed $source)
+    {
+        if ($legacy) {
+            $this->transport = new Mailer();
+        } elseif ($source instanceof Mailer) {
+            $this->transport = $source;
+        } else {
+            throw new InvalidArgumentException('unsupported construction');
+        }
+    }
+}
+
+/**
+ * A `match` whose flag arm rejects while two arms still construct. The flag's
+ * own branch throws, so the flag is a guard however many paths survive beside
+ * it; the type test that picks between those two paths is the mode switch, and
+ * reports.
+ */
+final class RejectingArmBesideSurvivors
+{
+    public function __construct(bool $legacy, mixed $source)
+    {
+        $this->transport = match (true) {
+            $legacy => throw new InvalidArgumentException('legacy construction is not supported'),
+            is_string($source) => new Mailer(),
+            default => new NullLogger(),
+        };
+    }
+}

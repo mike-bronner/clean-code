@@ -560,3 +560,97 @@ final class NestedGuardBranches
         }
     }
 }
+
+/**
+ * The same guards as above with the arms the other way round: the condition's
+ * own branch constructs, and every other branch rejects. `if ($legacy) { throw
+ * … } else { $this->value = $value; }` and `if ($legacy) { $this->value =
+ * $value; } else { throw … }` are one construct written two ways, so an
+ * exemption that held for the first and not the second would be a fact about
+ * where the author put the `throw`. One construction path survives in each
+ * shape here — the `if` chain, the ternary, the `match`, and the `switch`.
+ */
+final class MirroredGuards
+{
+    public function __construct(bool $verbose, string $mode, mixed $value)
+    {
+        if ($verbose) {
+            $this->transport = new Mailer();
+        } else {
+            throw new InvalidArgumentException('verbose is not a construction mode');
+        }
+
+        $this->logger = $verbose ? new NullLogger() : throw new InvalidArgumentException($mode);
+
+        $this->formatter = match ($verbose) {
+            true => new Mailer(),
+            default => throw new InvalidArgumentException('verbose is not a construction mode'),
+        };
+
+        switch ($verbose) {
+            case true:
+                $this->encoder = new Mailer();
+
+                break;
+            default:
+                throw new InvalidArgumentException('verbose is not a construction mode');
+        }
+    }
+}
+
+/**
+ * Names that merely end in a global function's spelling. A qualified name
+ * resolves outside the global namespace, so `App\Utils\func_get_args()` is not
+ * the argument reader and `App\Validation\is_string()` is not the predicate —
+ * the same test the sibling debug-function sniff applies. An instantiation and
+ * a nullsafe member call named alike are not those functions either.
+ */
+final class QualifiedLookalikes
+{
+    public function __construct(mixed $source, ?object $factory)
+    {
+        $this->count = \App\Utils\func_get_args();
+        $this->kind = \App\Validation\is_string($source) ? 'text' : 'other';
+        $this->parser = new is_string($source) ? 'text' : 'other';
+        $this->format = $factory?->is_string($source) ? 'text' : 'other';
+    }
+}
+
+/**
+ * Two shapes the guard walk has to read exactly, both silent:
+ *
+ *   - a `switch` guard with an empty fall-through `case`. The empty label has
+ *     no body of its own to judge, so it is left out of the count rather than
+ *     read as a branch that does not throw.
+ *   - a mode flag inside a `match` *arm's body*. The comma after that arm ends
+ *     it, so the arrow of the arm that follows is not the flag's own selector.
+ */
+final class ArmBodiesAndFallThroughCases
+{
+    public function __construct(bool $verbose, string $mode)
+    {
+        switch ($mode) {
+            case 'draft':
+            case 'live':
+                throw new InvalidArgumentException('mode is not a construction signal');
+            default:
+                throw new InvalidArgumentException('mode is not a construction signal');
+        }
+    }
+
+    public static function fromMode(string $mode, bool $verbose): self
+    {
+        return new self($verbose, $mode);
+    }
+}
+
+final class FlagInsideAnArmBody
+{
+    public function __construct(bool $verbose, string $mode)
+    {
+        $this->transport = match ($mode) {
+            'draft' => $this->pick($verbose),
+            default => new NullLogger(),
+        };
+    }
+}
