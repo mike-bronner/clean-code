@@ -48,6 +48,7 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 13, 'column' => 15, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
         ['line' => 16, 'column' => 14, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
         ['line' => 21, 'column' => 19, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
+        ['line' => 29, 'column' => 23, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
     ]);
 });
 
@@ -65,6 +66,31 @@ it('reads the delimiter past a binary-string prefix', function (): void {
 
     expect(autofixedContents($file))
         ->toContain('$binaryPrefixed = B"He said \\"hi\\" to me";');
+});
+
+/**
+ * What makes carrying that prefix safe here, unlike in the sibling
+ * RequireStringInterpolation fixer, which refuses a prefixed literal outright:
+ * this fixer's output never interpolates, because isSafeToConvert() has already
+ * rejected `$` and `{`. PHP_CodeSniffer can read `B"He said \"hi\""` — it is a
+ * plain T_CONSTANT_ENCAPSED_STRING — but not `B"echo \"$value\" here"`, whose
+ * opener it types T_NONE before swallowing the source after it.
+ *
+ * So the two guards are coupled, and nothing said so. Loosening isSafeToConvert()
+ * to admit `$` would turn the prefix branch into a corrupting fixer. This pins
+ * the coupling: the prefixed literal carrying an interpolation trigger stays on
+ * the manual-conversion branch and comes back from the fixer unchanged.
+ */
+it('never carries a prefix onto output that would interpolate', function (): void {
+    $file = analyzeFixture(ESCAPE_NESTED_QUOTES, 'failing.php');
+
+    // Flat and in line order, matching the tuples above: lines 4, 5, 9, 13, 16,
+    // 21, 29. The whole list is pinned rather than the last entry alone, so a
+    // fixer that went unfixable everywhere would fail here too.
+    expect(violationFixableFlags($file))
+        ->toBe([true, true, false, false, false, true, false])
+        ->and(autofixedContents($file))
+        ->toContain("\$binaryWithVariable = B'echo \"\$value\" here';");
 });
 
 /**
@@ -91,7 +117,7 @@ it('never re-delimits one fragment of a multi-line literal', function (): void {
 it('marks only the meaning-preserving conversions fixable', function (): void {
     $file = analyzeFixture(ESCAPE_NESTED_QUOTES, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(6)
+    expect($file->getErrorCount())->toBe(7)
         ->and($file->getFixableCount())->toBe(3);
 });
 

@@ -28,13 +28,13 @@ $parenthesized = ($b) . 'y';
 $doubleParenthesized = (($c)) . 'x';
 $spacedParenthesized = ( $d ) . 'q';
 
-// Fixable, and load-bearing: an uppercase binary-string prefix stays inside the
-// token's content, so the literal's first character is `B`, not its delimiter.
-// Reading the delimiter off that character sends a double-quoted literal down
-// the single-quoted branch, which escapes the real opening quote into the
-// value: `B"Count: " . $n` came out as `"\"Count: {$n}"`.
-$binaryDouble = B"Total: {$sum}";
-$binarySingle = B"Total: {$sum}";
+// Detection-only, and load-bearing: an uppercase binary-string prefix stays in
+// the token's content, and has no fixable form — this fixer's output always
+// interpolates, and PHP_CodeSniffer cannot read `B"…{$sum}…"`: it types the
+// `B"` opener T_NONE and swallows the rest of the statement, and the source
+// after it, into one bogus string token. Both were fixed until this refusal.
+$binaryDouble = B"Total: " . $sum;
+$binarySingle = B'Total: ' . $sum;
 
 // Detection-only, and load-bearing: a grouping parenthesis with a member,
 // index, or call chain hanging off its closer. operandPointer() bounded its

@@ -58,8 +58,8 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 27, 'column' => 23, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 28, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 29, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 36, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
-        ['line' => 37, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 36, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 37, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 45, 'column' => 40, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 46, 'column' => 39, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 47, 'column' => 35, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
@@ -67,7 +67,7 @@ it('flags every violation at its own line and column', function (): void {
 });
 
 /**
- * Only the seven direct two-operand cases are fixable; the eleven
+ * Only the five direct two-operand cases are fixable; the thirteen
  * detection-only ones are not. Asserted as a count rather than a boolean so a
  * fixer that started claiming the complex cases would fail here rather than
  * silently widening its reach.
@@ -76,32 +76,44 @@ it('marks only the direct two-operand cases fixable', function (): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
 
     expect($file->getErrorCount())->toBe(18)
-        ->and($file->getFixableCount())->toBe(7);
+        ->and($file->getFixableCount())->toBe(5);
 });
 
 /**
- * The regression this pins: the literal's delimiter was read off the token's
- * first character, which for `B"Total: "` is the binary-string prefix rather
- * than the quote. The literal took the single-quoted branch, whose job is to
- * escape double quotes for their new context — so it escaped the literal's own
- * opening quote into the value, and `B"Total: " . $sum` was fixed to
- * `"\"Total: {$sum}"`: a different string at runtime.
+ * The regression this pins: the fixer used to carry a binary-string prefix onto
+ * its own interpolated output, emitting `B"Total: {$sum}"`. PHP itself accepts
+ * that, so `php -l` stayed silent — but PHP_CodeSniffer's tokenizer does not
+ * read it: it types the `B"` opener T_NONE and folds the rest of the statement,
+ * and the source *after* it, into one bogus T_DOUBLE_QUOTED_STRING. Every later
+ * sniff then reads live code as string body. The previous fixture committed
+ * that corrupted output as the expected result.
  *
- * Asserted on the fixer's output, because the violation was reported correctly
- * either way. Both delimiters are covered under that prefix: the double-quoted
- * literal is the one the defect corrupted, and the single-quoted one pins that
- * the prefix is carried over rather than dropped on the branch that already
- * re-encoded its inner text. Only the uppercase spelling can exercise either —
- * PHP_CodeSniffer splits a lowercase `b` off into its own token and leaves an
- * uppercase `B` inside the literal's content.
+ * There is no correct fixed form — the result of this fixer always interpolates,
+ * and dropping the prefix instead would rest on it being a no-op — so the shape
+ * is now refused and reported as detection-only. Only the uppercase spelling can
+ * reach the sniff at all: PHP_CodeSniffer splits a lowercase `b` into its own
+ * T_BINARY_CAST token and leaves an uppercase `B` inside the literal's content.
+ *
+ * Asserted on the fixer's own output rather than on the committed autofixed.php,
+ * so a fixer that resumed rewriting these fails here.
  */
-it('keeps a binary-string prefix out of the interpolated value', function (): void {
+it('refuses to rewrite a literal carrying a binary-string prefix', function (int $line): void {
+    $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
+
+    expect(violationSourcesByLine($file->getErrors())[$line] ?? null)
+        ->toBe([REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation']);
+})->with([
+    'double-quoted' => [36],
+    'single-quoted' => [37],
+]);
+
+it('leaves a binary-prefixed concatenation byte-for-byte unfixed', function (): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
 
     expect(autofixedContents($file))
-        ->toContain('$binaryDouble = B"Total: {$sum}";')
+        ->toContain('$binaryDouble = B"Total: " . $sum;')
         ->and(autofixedContents($file))
-        ->toContain('$binarySingle = B"Total: {$sum}";');
+        ->toContain("\$binarySingle = B'Total: ' . \$sum;");
 });
 
 /**

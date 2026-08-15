@@ -32,6 +32,15 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * Only a whole literal is considered, and its delimiter is read past any
  * binary-string prefix — see the Support\StringLiteral docblock for why the
  * token's first character answers neither question.
+ *
+ * The fixer carries that prefix onto its output, which is safe only because the
+ * `$`/`{` guard above has already run: PHP_CodeSniffer reads a prefixed
+ * *non*-interpolating string (`B"He said \"hi\""`) as an ordinary literal, but
+ * cannot tokenize a prefixed interpolating one (`B"…$value…"`) at all. The two
+ * guards are therefore coupled — admitting `$` here would make this fixer emit
+ * source the tokenizer cannot read. Its sibling RequireStringInterpolation
+ * refuses a prefixed literal outright for exactly that reason: its own output
+ * always interpolates.
  */
 class EscapeNestedQuotesSniff implements Sniff
 {

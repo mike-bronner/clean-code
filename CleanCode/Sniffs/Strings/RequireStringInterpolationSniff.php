@@ -30,10 +30,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * Detection-only — everything else that is still interpolatable but not a
  * mechanical rewrite: multi-expression chains (`'a' . $b . 'c'`), complex
  * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), operands wrapped
- * in grouping parentheses (`($b) . 'y'`), and any operand that is itself an
+ * in grouping parentheses (`($b) . 'y'`), any operand that is itself an
  * already-interpolated double-quoted string (`"Hi {$a}" . $b`) — which the
  * standard wants written with `{...}` but whose safe rewrite is a judgement
- * call left to the developer.
+ * call left to the developer — and a literal carrying a binary-string prefix
+ * (`B'Total: ' . $sum`), whose interpolated form this tokenizer cannot read.
  *
  * Silent — a literal operand whose source spans several physical lines. It
  * tokenizes one token per line, so no single token holds the literal and
@@ -366,6 +367,21 @@ class RequireStringInterpolationSniff implements Sniff
         }
 
         $content = $tokens[$literal]['content'];
+
+        // A binary-string prefix makes this rewrite unfixable, because the
+        // result always interpolates and no spelling of the prefix survives
+        // that. Dropping the prefix would rest on it being a no-op, and
+        // carrying it over emits `B"…{$var}…"`, which PHP_CodeSniffer's own
+        // tokenizer cannot read: it types the `B"` opener T_NONE and folds the
+        // rest of the statement — and the source after it — into one bogus
+        // string token, so every later sniff reads live code as string body.
+        // (The prefix is safe on the *non*-interpolating outputs its sibling
+        // fixers build, which is why only this one refuses.) The violation is
+        // still reported, as detection-only.
+        if (StringLiteral::prefix($content) !== '') {
+            return null;
+        }
+
         $inner = $this->literalInnerAsDoubleQuoted($content);
 
         if ($inner === null) {
@@ -373,14 +389,10 @@ class RequireStringInterpolationSniff implements Sniff
         }
 
         $interpolated = '{' . $tokens[$variable]['content'] . '}';
-        // A binary-string prefix is carried over rather than dropped, so the
-        // rewrite is meaning-preserving without resting on the argument that
-        // the prefix is a no-op.
-        $prefix = StringLiteral::prefix($content);
 
         return $literal < $variable
-            ? $prefix . '"' . $inner . $interpolated . '"'
-            : $prefix . '"' . $interpolated . $inner . '"';
+            ? '"' . $inner . $interpolated . '"'
+            : '"' . $interpolated . $inner . '"';
     }
 
     /**
@@ -410,9 +422,11 @@ class RequireStringInterpolationSniff implements Sniff
      * in a double-quoted string, or null when the literal is single-quoted and
      * carries backslash escapes whose meaning conversion could change.
      *
-     * The delimiter is read past the prefix: `B"Count: "` is double-quoted, and
-     * reading its `B` as the delimiter would send it down the single-quoted
-     * branch, which escapes the real opening quote into the string's content.
+     * The delimiter is still read past any prefix rather than off the token's
+     * first character, so this stays correct on its own terms — but no
+     * prefixed literal reaches it any more: simpleInterpolation() refuses
+     * those outright, because its interpolated result is untokenizable however
+     * the inner text is encoded.
      *
      * Only whole literals reach here — hasNonInterpolatableOperand() has
      * already rejected a fragment of a multi-line one.

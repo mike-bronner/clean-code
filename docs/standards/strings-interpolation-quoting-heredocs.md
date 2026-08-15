@@ -44,7 +44,10 @@ single interpolated string, and it is left alone.
 - **Detection-only** — multi-expression chains (`'a' . $b . 'c'`) and complex
   variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`,
   `'x' . $svc->run()`). These are interpolatable with `{...}`, but the safe
-  rewrite is a judgement call left to the developer.
+  rewrite is a judgement call left to the developer. A literal carrying a
+  binary-string prefix (`B'Total: ' . $sum`) is detection-only too, for a
+  different reason: the interpolated result would be source PHPCS cannot read
+  (see the tokenizer note under *Known limitations*).
 
 ### `CleanCode.Strings.HtmlAttributeQuotes` — auto-fixable
 
@@ -137,12 +140,22 @@ escape; otherwise the violation is reported for manual conversion.
   convention, and it reads that from the opening fragment only — a later
   fragment holds body text, and body text can open with the same characters a
   delimiter is read from (`B'day` reads as a binary prefix plus an apostrophe).
-- **A binary-string prefix is carried over, not dropped.** `b'x'` / `B"y"` are
-  handled in all three fixers, and the prefix survives the rewrite
-  (`B"Total: " . $sum` → `B"Total: {$sum}"`). Worth knowing when reading the
-  code: PHPCS splits a lowercase `b` off into its own token but leaves an
-  uppercase `B` inside the literal's content, so the delimiter is read through
-  `Support\StringLiteral` rather than off the token's first character.
+- **A binary-string prefix is carried over where the result stays
+  non-interpolating, and blocks the fix where it would not.** The constraint is
+  the tokenizer, not PHP: `php -l` accepts `B"Total: {$sum}"`, but PHPCS types
+  its `B"` opener `T_NONE` and swallows the source after it, so a fixer emitting
+  that shape corrupts the file for the next pass. `EscapeNestedQuotes` and
+  `MultilineStrings` therefore keep the prefix — their output never interpolates
+  (`B'He said "hi"'` → `B"He said \"hi\""`; `B'a\nb'` → `B<<<'TEXT'`) — while
+  `RequireStringInterpolation` refuses a prefixed literal outright, because its
+  output always does, and reports it as detection-only instead. Dropping the
+  prefix would rest on it being a no-op, which is not this standard's call to
+  make. Worth knowing when reading the code: PHPCS splits a lowercase `b` off
+  into its own token but leaves an uppercase `B` inside the literal's content,
+  so the delimiter is read through `Support\StringLiteral` rather than off the
+  token's first character. The invariant behind all of it — no fixer emits
+  source the tokenizer cannot read — is swept across every auto-fixable sniff in
+  the package by `tests/Contract/SniffContractTest.php`.
 
 ## Tests
 
