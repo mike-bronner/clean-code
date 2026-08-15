@@ -138,53 +138,83 @@ it('derives the expected indent from the immediate parent group', function (): v
  * downstream lint pipelines that run over contributed code, so the cost of one
  * ordinary-looking file is CI CPU somebody else pays for.
  *
- * The two implementations are a factor of ~17 apart at this depth — 0.06s for
- * the walk that jumps nested regions against 0.96s for the walk that stepped
- * through them, both measured in-process here — so the budget can sit an order
- * of magnitude above the linear time and still an order below the quadratic
- * one. That is what a single absolute threshold needs to be safe on a machine
- * of unknown speed, since both numbers scale together with the machine.
+ * What is asserted is a ratio, not a stopwatch reading. The same number of
+ * groups is analysed twice — once nested inside one another, once laid out as
+ * siblings — and the nested run must not cost several times the flat one. A
+ * fixed budget in seconds cannot do this job: the CI runner takes ~11x this
+ * machine's time for the *linear* walk, which is already more than this
+ * machine spends on the quadratic one, so any threshold safe there would be
+ * blind here. Measuring both shapes in the same process cancels the machine,
+ * the tokenizer, and the ruleset build out of the comparison.
  *
- * The depth is capped at 600 by PHP_CodeSniffer itself, not by taste: past
- * roughly a thousand levels its tokenizer exhausts PHP's default 128M limit
- * while building the file, and a regression test that only runs under a raised
- * memory_limit is one nobody runs.
+ * The two implementations sit an order of magnitude either side of the
+ * threshold: 1.04x for the walk that jumps each nested region against 16.7x
+ * for the walk that stepped through it (0.06s/0.06s against 0.95s/0.06s,
+ * measured in-process). The flat fixture is deliberately the *larger* of the
+ * two in tokens, so the bias in the ratio is towards passing.
  *
- * The tuple assertion is what stops the timing passing vacuously: a walk that
- * gave up early, or a tokenizer that never got that far, would be both fast
- * and silent.
+ * The count is capped at 600 by PHP_CodeSniffer itself, not by taste: past
+ * roughly a thousand levels of nesting its tokenizer exhausts PHP's default
+ * 128M limit while building the file, and a regression test that only runs
+ * under a raised memory_limit is one nobody runs.
+ *
+ * The violation assertions are what stop the timings passing vacuously: a walk
+ * that gave up early, or a tokenizer that never got that far, would be both
+ * fast and silent.
  */
 it('stays linear as groupings nest', function (): void {
-    $depth = 600;
-    $lines = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {', '        if ('];
+    $count = 600;
+    $nested = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {', '        if ('];
 
-    for ($level = 0; $level < $depth; $level++) {
+    for ($level = 0; $level < $count; $level++) {
         // Every group but the outermost opens its first condition two spaces
         // shallow, so each level contributes exactly one violation.
         $indent = (12 + (4 * $level));
-        $lines[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
-        $lines[] = str_repeat(' ', $indent) . '&& (';
+        $nested[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
+        $nested[] = str_repeat(' ', $indent) . '&& (';
     }
 
-    $lines[] = str_repeat(' ', ((12 + (4 * $depth)) - 2)) . '$this->first';
-    $lines[] = str_repeat(' ', (12 + (4 * $depth))) . '&& $this->second';
+    $nested[] = str_repeat(' ', ((12 + (4 * $count)) - 2)) . '$this->first';
+    $nested[] = str_repeat(' ', (12 + (4 * $count))) . '&& $this->second';
 
-    for ($level = ($depth - 1); $level >= 0; $level--) {
-        $lines[] = str_repeat(' ', (12 + (4 * $level))) . ')';
+    for ($level = ($count - 1); $level >= 0; $level--) {
+        $nested[] = str_repeat(' ', (12 + (4 * $level))) . ')';
     }
 
-    $lines = array_merge($lines, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
-    $fixture = stageGeneratedFixture('nested-groupings.php', implode("\n", $lines));
+    $nested = array_merge($nested, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
+
+    // The same 600 groups, and the same one violation each, with no group
+    // inside another: whatever this run costs is what 600 groups cost when
+    // nesting is not a factor.
+    $flat = ['<?php', '', 'final class Flat', '{', '    public function siblings(): void', '    {'];
+    $flat[] = '        if (';
+    $flat[] = '            $this->seed';
+
+    for ($index = 0; $index < $count; $index++) {
+        $flat[] = '            && (';
+        $flat[] = '              $this->b' . $index;
+        $flat[] = '                && $this->c' . $index;
+        $flat[] = '            )';
+    }
+
+    $flat = array_merge($flat, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
 
     buildRuleset([LOGICAL_GROUPINGS]);
 
-    $started = hrtime(true);
-    $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
-    $elapsed = ((hrtime(true) - $started) / 1e9);
+    $measure = function (string $name, array $lines): array {
+        $fixture = stageGeneratedFixture($name, implode("\n", $lines));
+        $started = hrtime(true);
+        $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
+
+        return [((hrtime(true) - $started) / 1e9), violationTuples($file)];
+    };
+
+    [$nestedElapsed, $nestedViolations] = $measure('nested-groupings.php', $nested);
+    [$flatElapsed, $flatViolations] = $measure('flat-groupings.php', $flat);
 
     $expected = [];
 
-    for ($level = 1; $level < $depth; $level++) {
+    for ($level = 1; $level < $count; $level++) {
         $expected[] = [
             'line' => (8 + (2 * $level)),
             'column' => ((4 * $level) + 11),
@@ -193,13 +223,14 @@ it('stays linear as groupings nest', function (): void {
     }
 
     $expected[] = [
-        'line' => (8 + (2 * $depth)),
-        'column' => ((4 * $depth) + 11),
+        'line' => (8 + (2 * $count)),
+        'column' => ((4 * $count) + 11),
         'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
     ];
 
-    expect(violationTuples($file))->toBe($expected)
-        ->and($elapsed)->toBeLessThan(0.5);
+    expect($nestedViolations)->toBe($expected)
+        ->and($flatViolations)->toHaveCount($count)
+        ->and($nestedElapsed)->toBeLessThan(($flatElapsed * 4));
 });
 
 it('moves the reported condition lines and nothing else', function (): void {
