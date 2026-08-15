@@ -54,17 +54,26 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   be a false positive on valid code; asking this one means an unrecognised
   construct is left alone instead.
 
+  Only the condition's own tokens are read at all. An array literal, a
+  subscript, a brace block, and an arrow-function body are each jumped whole, so
+  nothing below them is examined: a parenthesized boolean used as an array value
+  (`'flag' => ($a && $b)`) or element, as a subscript, or as an assignment inside
+  a closure body is that construct's own expression, not a grouping of the
+  condition it happens to sit inside. This is why the rule above ("a parenthesis
+  after `[` or `,` may open a grouping") never fires within an array: the walk
+  never gets there.
+
   Three interiors are held out of the measured conditions as well, because none
   of them is a condition: a comment line inside a grouping, the body of an arrow
   function (`fn () => …`) used as a boolean operand, and the continuation lines
   of a multi-line string, heredoc, or nowdoc. The last matters most — PHP_CodeSniffer
   splits such a literal into one token per physical line, and each of those
   tokens begins a line, so measuring them would report violations and reindenting
-  one would rewrite the string's value rather than the code's layout. The two
+  one would rewrite the string's value rather than the code's layout. All three
   walks that read a grouping — the one deciding whether a parenthesis opens one,
-  and the one measuring the conditions inside it — share a single list of the
-  constructs to step over, so a construct can never be recognised by one and
-  missed by the other.
+  the one testing it for a top-level boolean, and the one measuring the
+  conditions inside it — share a single list of the constructs to step over, so a
+  construct can never be recognised by one and missed by another.
 - **Cost** — a group is measured from its own direct tokens, stepping over each
   nested construct in one jump rather than walking through it, so the work is
   linear in the size of the condition however deeply its groups nest. This

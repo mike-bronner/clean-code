@@ -312,4 +312,80 @@ from t"
             $this->grant();
         }
     }
+
+    public function arrayValueOperandUntouched(): void
+    {
+        // A parenthesized boolean used as an array *value* is not a grouping of
+        // this condition: it sits inside `[`, one structural level below the
+        // boolean expression, and `=>` before it says only that an operand may
+        // begin — of the array, not of the `if`. The enclosing group is
+        // deliberately unindented, so the fixer does run here; the array's own
+        // odd indentation must survive it untouched.
+        if (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && $this->options === [
+                    'flag' => ($this->hasLicense
+                && $this->isTrial),
+                ]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function arrayElementOperandUntouched(): void
+    {
+        // The same boundary reached through `,` rather than `=>`: an array
+        // element is no more part of the enclosing condition than a value is.
+        if (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && $this->options === [$this->flag, ($this->hasLicense
+                    && $this->isTrial)]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function arrayOffsetOperandUntouched(): void
+    {
+        // And through `[` used as a subscript rather than a literal. The
+        // expression indexing the operand belongs to the operand.
+        if (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && $this->map[($this->hasLicense
+                    && $this->isTrial)]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function closureBodyOperandUntouched(): void
+    {
+        // A statement inside a closure *body* sits below `{`, a further level
+        // down again, and `=` before its parentheses opens an assignment in
+        // that body — not a grouping in the condition the closure is an
+        // operand of.
+        if (
+            $this->isAdmin
+            || (
+            $this->isActive
+            && (function (): bool {
+                $granted = ($this->hasLicense
+                        && $this->isTrial);
+
+                return $granted;
+            })()
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

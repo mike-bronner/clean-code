@@ -314,4 +314,72 @@ from t"
             $this->grant();
         }
     }
+
+    public function arrayValueOperandIgnored(): void
+    {
+        // The compliant form of the same four boundaries. A parenthesized
+        // boolean used as an array value belongs to the array, so a clean
+        // condition around it has to stay clean.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && $this->options === [
+                    'flag' => ($this->hasLicense
+                        && $this->isTrial),
+                ]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function arrayElementOperandIgnored(): void
+    {
+        // Same, for an array element reached through `,`.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && $this->options === [$this->flag, ($this->hasLicense
+                    && $this->isTrial)]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function arrayOffsetOperandIgnored(): void
+    {
+        // Same, for a subscript expression.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && $this->map[($this->hasLicense
+                    && $this->isTrial)]
+            )
+        ) {
+            $this->grant();
+        }
+    }
+
+    public function closureBodyOperandIgnored(): void
+    {
+        // Same, for an assignment inside a closure body.
+        if (
+            $this->isAdmin
+            || (
+                $this->isActive
+                && (function (): bool {
+                    $granted = ($this->hasLicense
+                        && $this->isTrial);
+
+                    return $granted;
+                })()
+            )
+        ) {
+            $this->grant();
+        }
+    }
 }

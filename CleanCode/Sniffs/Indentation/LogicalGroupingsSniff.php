@@ -34,6 +34,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * the continuation lines of a multi-line string, heredoc, or nowdoc. None of
  * these is a condition, so none is reported or reindented.
  *
+ * Nor is anything nested below the condition. An array literal, a subscript, a
+ * brace block, and an arrow-function body are each jumped whole wherever the
+ * sniff walks, so a parenthesis inside one of them — an array value or element,
+ * a statement in a closure body — is never mistaken for a grouping of the
+ * condition that encloses it.
+ *
  * All violations are auto-fixable — phpcbf reindents each offending condition
  * line to the correct nesting level.
  */
@@ -46,10 +52,13 @@ class LogicalGroupingsSniff implements Sniff
      * construct rather than to the grouping being measured, mapped to the
      * token-array key holding its closer.
      *
-     * One list, read by both walks in this class, so a construct can never be
-     * skipped by the walk that decides what a grouping is and missed by the
-     * walk that measures one — the drift that let an arrow-function body be
-     * reindented after `T_FN` was added to only the first of the two.
+     * One list, read by all three walks in this class — the one collecting
+     * groupings, the one testing a grouping for a top-level boolean, and the
+     * one measuring a grouping's conditions — so a construct can never be
+     * opaque to one walk and transparent to another. That drift is what let an
+     * arrow-function body be reindented when `T_FN` reached only one list, and
+     * what let an array literal's contents be read as conditions when only two
+     * of the three walks stepped over brackets.
      *
      * An arrow function is here because its body — everything after `=>` — has
      * no bracket delimiter, so without the scope closer the body's tokens read
@@ -104,6 +113,14 @@ class LogicalGroupingsSniff implements Sniff
      * least one top-level boolean operator. Nested groupings are included, so
      * each is later checked against its own enclosing level.
      *
+     * Only the condition's own tokens are considered. An array literal, a
+     * subscript, a brace block, or an arrow-function body is jumped whole,
+     * because its interior sits a structural level below the condition: a
+     * parenthesis in there groups that construct's own expression, never the
+     * enclosing boolean one. Both other walks in this class already jump the
+     * same regions through the same map, so a construct cannot be opaque to
+     * one walk and transparent to another.
+     *
      * @return array<int>
      */
     private function groupingParentheses(File $phpcsFile, int $opener, int $closer): array
@@ -113,11 +130,29 @@ class LogicalGroupingsSniff implements Sniff
 
         for ($i = ($opener + 1); $i < $closer; $i++) {
             if ($tokens[$i]['code'] !== T_OPEN_PARENTHESIS) {
+                $skipTo = $this->skipNested($tokens, $i);
+
+                if ($skipTo !== $i) {
+                    $i = $skipTo;
+
+                    continue;
+                }
+
+                if (isset(self::NESTED_REGION_CLOSERS[$tokens[$i]['code']]) === true) {
+                    // A region opener whose closer PHP_CodeSniffer never
+                    // recorded (unbalanced or unparsable source): from here the
+                    // walk cannot tell the condition's own parentheses from a
+                    // nested construct's, so it collects no more rather than
+                    // classify on a guess.
+                    return $groups;
+                }
+
                 continue;
             }
 
             if (isset($tokens[$i]['parenthesis_closer']) === false) {
-                continue;
+                // Same reasoning, for the parenthesis family itself.
+                return $groups;
             }
 
             if ($this->opensGrouping($phpcsFile, $i) === false) {
@@ -222,7 +257,7 @@ class LogicalGroupingsSniff implements Sniff
      * closer so the caller can jump past it in one step; otherwise returns the
      * pointer unchanged.
      *
-     * Jumping rather than counting depth is what keeps both walks linear: a
+     * Jumping rather than counting depth is what keeps the walks linear: a
      * group's walk touches only its own direct tokens, so n nested groups cost
      * n walks of their own contents instead of n overlapping rescans of the
      * whole condition.

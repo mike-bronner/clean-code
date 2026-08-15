@@ -90,6 +90,18 @@ it('flags every violation at its exact line, column, and code', function (): voi
         // assignedGroupIndented — a grouping after `=`
         ['line' => 308, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 309, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // arrayValueOperandUntouched — the enclosing group only; lines 329-331 are the array
+        ['line' => 327, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 328, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // arrayElementOperandUntouched — line 346 ends inside the array, so 347 is not a condition
+        ['line' => 345, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 346, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // arrayOffsetOperandUntouched — line 363 is inside the subscript
+        ['line' => 361, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 362, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        // closureBodyOperandUntouched — lines 381-385 are the closure's body
+        ['line' => 379, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+        ['line' => 380, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -222,14 +234,16 @@ it('stays linear as groupings nest', function (): void {
  *
  * The sweep proves failing.php fixes into autofixed.php byte for byte, which
  * pins what the fixer *did*. It cannot say that what changed was only the
- * condition lines. failing.php deliberately carries seven constructs that look
+ * condition lines. failing.php deliberately carries eleven constructs that look
  * like groupings but are not — a `new class(...)` argument list, a `match`
  * subject, a closure parameter list, an arrow-function body, a comment line, a
- * heredoc body, and a wrapped double-quoted string — each at odd indentation
- * inside a file the fixer genuinely rewrites. Reindenting a heredoc body would
- * change a string's value rather than its layout; the rest would move code the
- * sniff has no business moving. Comparing the two fixtures line by line is
- * what proves none of that happened.
+ * heredoc body, a wrapped double-quoted string, and the four bracketed regions
+ * that sit below the condition rather than in it (an array value, an array
+ * element, a subscript, and a statement in a closure body) — each at odd
+ * indentation inside a file the fixer genuinely rewrites. Reindenting a heredoc
+ * body would change a string's value rather than its layout; the rest would
+ * move code the sniff has no business moving. Comparing the two fixtures line
+ * by line is what proves none of that happened.
  */
 it('moves the reported condition lines and nothing else', function (): void {
     $before = file(fixturePath('LogicalGroupingsSniff', 'failing.php'));
