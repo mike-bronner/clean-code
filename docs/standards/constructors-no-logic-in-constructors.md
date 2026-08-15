@@ -34,7 +34,7 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
     `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
     with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
-  - a **`parent::__construct(...)` call** — delegating to the parent constructor
+  - a **`parent::__construct(…)` call** — delegating to the parent constructor
     is assignment, not logic. The statement has to be *exactly* that call: a
     real argument list whose closing parenthesis is the last thing before the
     semicolon.
@@ -67,7 +67,7 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
 - **Compliant edge cases** — an **empty constructor**, a constructor with only
   **promoted-property parameters** (no body), a constructor **mixing promoted
   parameters with body assignments**, a constructor **calling only
-  `parent::__construct(...)`**, and assignments whose RHS uses **null-coalescing
+  `parent::__construct(…)`**, and assignments whose RHS uses **null-coalescing
   (`??`) or a ternary** default all pass.
 - **Auto-fixable — No (detection only).** Moving logic out of a constructor is a
   refactor, not a mechanical rewrite: the code has to land somewhere deliberate
@@ -86,9 +86,15 @@ A few intentional edges, decided rather than accidental:
   is **flagged**: the statement begins with `[`, not `$this->`, so it does not
   match the property-assignment form. Uncommon in constructors and treated as
   logic by design.
-- **Explicit-ancestor delegation** (`ParentClass::__construct(...)`, naming the
+- **Explicit-ancestor delegation** (`ParentClass::__construct(…)`, naming the
   class instead of using the `parent` keyword) is **flagged**; only the
-  `parent::__construct(...)` form is recognised as delegation.
+  `parent::__construct(…)` form is recognised as delegation.
+- **The first-class callable `parent::__construct(...)`** (PHP 8.1, the argument
+  list being a lone `...`) is **flagged**. It builds a `Closure` over the parent
+  constructor and discards it — the parent constructor never runs, so the
+  statement delegates nothing and is a call-shaped lookalike. Every argument
+  list that really invokes stays compliant, including the spread
+  `parent::__construct(...$args)` and named arguments.
 - **A declaration held on an assignment's right-hand side** — a closure, an
   arrow function, or an anonymous class assigned to a property — is
   **compliant** however much logic it contains. It runs when something calls

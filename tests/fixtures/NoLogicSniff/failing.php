@@ -141,9 +141,11 @@ final class CallsAndComputation
 }
 
 /**
- * `parent::__construct(...)` is delegation only when the statement is exactly
- * that call. Anything trailing it runs on every instantiation, and a bare
- * `parent::__construct` is not even a call.
+ * `parent::__construct(…)` is delegation only when the statement is exactly
+ * that call. Anything trailing it runs on every instantiation, a bare
+ * `parent::__construct` is not even a call, and `parent::__construct(...)` is
+ * the first-class callable syntax: it builds a Closure and throws it away, so
+ * the parent constructor never runs.
  */
 final class ParentDelegationLookalikes extends BraceControlStructures
 {
@@ -155,6 +157,7 @@ final class ParentDelegationLookalikes extends BraceControlStructures
         parent::__construct($a) or $this->boot();
         parent::__construct($a)->initializeExtra();
         parent::__construct;
+        parent::__construct(...);
         \ParentClass::__construct($a);
     }
 
@@ -175,5 +178,22 @@ final class UpperCasedConstructor
     {
         $this->a = $a;
         doSomething($a);
+    }
+}
+
+/**
+ * List destructuring writes properties without ever matching the
+ * property-assignment form: the statement begins with `[`, not `$this`, so the
+ * documented "Known boundaries" entry that calls it flagged is pinned here.
+ */
+final class ListDestructuringIntoProperties
+{
+    private int $a;
+
+    private int $b;
+
+    public function __construct(array $pair)
+    {
+        [$this->a, $this->b] = $pair;
     }
 }

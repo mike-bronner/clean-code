@@ -12,8 +12,8 @@ declare(strict_types=1);
  *      spelling the standard allows: plain assignment, promoted parameters,
  *      promoted parameters mixed with body assignments, a `??`/ternary default
  *      on the right-hand side, a subscript write to an own property, an
- *      exact `parent::__construct(...)` delegation, and a body with no
- *      statements at all.
+ *      exact `parent::__construct(…)` delegation in every spelling that really
+ *      invokes it, and a body with no statements at all.
  *   2. Every near-miss shape the sniff must stay silent on: a plain function
  *      named `__construct` at file scope, a method whose name merely resembles
  *      `__construct`, an ordinary method full of logic, an abstract and an
@@ -83,6 +83,21 @@ final class DelegatesToParent extends PromotedPropertiesOnly
     public function __construct()
     {
         parent::__construct(1, 'y');
+    }
+}
+
+/**
+ * Every argument list that really invokes the parent stays delegation, however
+ * it is spelled. The spread is the near-miss for the first-class-callable
+ * rejection: both open on an ellipsis, and only the spread carries an argument
+ * after it, so treating any ellipsis as the callable syntax reddens this class.
+ */
+final class DelegatesToParentInEverySpelling extends PromotedPropertiesOnly
+{
+    public function __construct(array $args)
+    {
+        parent::__construct(...$args);
+        parent::__construct(x: 1, y: 'y');
     }
 }
 

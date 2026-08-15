@@ -24,11 +24,14 @@ use PHP_CodeSniffer\Util\Tokens;
  *   property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
  *   `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
  *   with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
- * - a **`parent::__construct(...)` call** — delegating to the parent
+ * - a **`parent::__construct(…)` call** — delegating to the parent
  *   constructor is assignment, not logic. The statement has to be *exactly*
  *   that call: a real argument list whose closing parenthesis is the last thing
  *   before the semicolon, so trailing logic (`parent::__construct($a) or
- *   $this->boot();`, `parent::__construct($a)->extra();`) is still flagged.
+ *   $this->boot();`, `parent::__construct($a)->extra();`) is still flagged, and
+ *   an argument list that actually invokes — the first-class callable
+ *   `parent::__construct(...)` only builds a Closure, never runs the parent
+ *   constructor, and is flagged too.
  *
  * Everything else is flagged at the statement's first token:
  * control structures (`if`/`for`/`foreach`/`while`/`do`/`switch`/`try`, in both
@@ -403,19 +406,19 @@ class NoLogicSniff implements Sniff
 
     /**
      * Whether the statement running from $start to $end is exactly a
-     * `parent::__construct(...)` call.
+     * `parent::__construct(…)` call.
      *
      * The argument list has to be real — `parent::__construct;` is a bare
-     * reference, not delegation — and its closing parenthesis has to be the
-     * last thing in the statement, so anything trailing the call
-     * (`… or $this->boot();`, `…->initializeExtra();`) leaves this false and
-     * the statement is reported.
+     * reference and `parent::__construct(...)` a first-class callable, neither
+     * of which delegates — and its closing parenthesis has to be the last thing
+     * in the statement, so anything trailing the call (`… or $this->boot();`,
+     * `…->initializeExtra();`) leaves this false and the statement is reported.
      */
     private function isParentConstructorCall(File $phpcsFile, int $start, int $end): bool
     {
         $open = $this->parentConstructorParenthesis($phpcsFile, $start, $end);
 
-        if ($open === null) {
+        if ($open === null || $this->isFirstClassCallable($phpcsFile, $open) === true) {
             return false;
         }
 
@@ -432,7 +435,40 @@ class NoLogicSniff implements Sniff
     }
 
     /**
-     * The position of the `(` that opens `parent::__construct(...)`'s argument
+     * Whether the argument list opened at $openerPtr is PHP 8.1's first-class
+     * callable syntax — a list that is exactly one ellipsis.
+     *
+     * `parent::__construct(...)` builds a Closure over the parent constructor
+     * and discards it; the parent constructor never runs, so the statement
+     * delegates nothing and is a call-shaped lookalike like the rest of this
+     * family. It is the only spelling of an argument list that does not invoke:
+     * empty (`()`), positional, named (`(a: 1)`) and spread (`(...$args)`)
+     * lists all call the parent for real, which is why the token *after* the
+     * ellipsis is checked rather than the ellipsis being taken alone — a spread
+     * carries its argument there, a first-class callable carries nothing.
+     *
+     * The sibling DisallowCountInLoopExpressionSniff::isFirstClassCallable()
+     * makes the same distinction for the same reason.
+     *
+     * $openerPtr always carries a `parenthesis_closer`: it comes from
+     * parentConstructorParenthesis(), which returns null without one.
+     */
+    private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$openerPtr]['parenthesis_closer'];
+
+        $ellipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($openerPtr + 1), $closer, true);
+
+        if ($ellipsis === false || $tokens[$ellipsis]['code'] !== T_ELLIPSIS) {
+            return false;
+        }
+
+        return $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsis + 1), $closer, true) === false;
+    }
+
+    /**
+     * The position of the `(` that opens `parent::__construct(…)`'s argument
      * list, or null when the statement does not open with that call.
      */
     private function parentConstructorParenthesis(File $phpcsFile, int $start, int $end): ?int

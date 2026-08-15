@@ -15,10 +15,11 @@
  *
  *   - drop the OO-scope gate — passing.php reddens on 33 and 35, the body of
  *     the file-scope `function __construct()`
- *   - drop the `__construct` name check — passing.php reddens on 143, 155, 165
- *     and 169: the anonymous class's `run()`, `__constructor()`, and both
- *     control structures in `configure()`
- *   - match `__construct` case-sensitively — failing.php loses 177, the body
+ *   - drop the `__construct` name check — passing.php reddens on 159, 171, 181
+ *     and 185 (the anonymous class's `run()`, `__constructor()`, and both
+ *     control structures in `configure()`) and failing.php gains 129, 134 and
+ *     139, the bodies of the helper methods beside the constructor
+ *   - match `__construct` case-sensitively — failing.php loses 180, the body
  *     of `__CONSTRUCT`
  *   - accept a call parenthesis in the assignment target — failing.php loses
  *     114, 115 and 116
@@ -34,9 +35,17 @@
  *     88, 91 and 95, the `;` after each `endif`/`endforeach`/`endfor`/
  *     `endwhile`/`endswitch`
  *   - drop the trailing-token check on the parent call — failing.php loses
- *     155 and 156
+ *     157 and 158
  *   - drop the argument-list requirement on the parent call — failing.php
- *     loses 157, the bare `parent::__construct` reference
+ *     loses 159, the bare `parent::__construct` reference
+ *   - drop the first-class-callable rejection on the parent call —
+ *     failing.php loses 160, the `parent::__construct(...)` that builds a
+ *     Closure instead of delegating
+ *   - treat the ellipsis alone as the first-class-callable syntax, without
+ *     checking what follows it — passing.php reddens on 99, the spread
+ *     delegation `parent::__construct(...$args)`
+ *   - carve out a statement that opens with `[` — failing.php loses 197, the
+ *     list destructuring into properties
  */
 
 declare(strict_types=1);
@@ -55,12 +64,12 @@ it('is registered in the master ruleset', function (): void {
  * passing.php carries the compliant form of the construct the sniff registers
  * on — a constructor that only assigns to its own properties, promoted or in
  * the body, with `??`/ternary defaults and subscript writes, delegating to
- * `parent::__construct(...)`, or empty — plus every near-miss shape the sniff
- * must stay silent on: a file-scope `function __construct()`, a
- * `__constructor()` method, an ordinary method full of logic, an abstract and
- * an interface constructor with no body, a trait constructor, and logic held
- * inside a closure, an arrow function and an anonymous class on an
- * assignment's right-hand side.
+ * `parent::__construct(…)` in any spelling that really invokes, or empty — plus
+ * every near-miss shape the sniff must stay silent on: a file-scope
+ * `function __construct()`, a `__constructor()` method, an ordinary method full
+ * of logic, an abstract and an interface constructor with no body, a trait
+ * constructor, and logic held inside a closure, an arrow function and an
+ * anonymous class on an assignment's right-hand side.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'passing.php');
@@ -78,7 +87,7 @@ it('produces no violations on the compliant fixture', function (): void {
  * construct, the continuation clauses (26 `elseif`, 28 `else`, 42 the
  * `do … while` tail, 49 `catch`, 51 `finally`, 56 the two-word `else if`, 78
  * `elseif`, 80 `else`), the `;` closing each alternative-syntax construct, and
- * the exact `parent::__construct(...)` delegation in passing.php.
+ * the exact `parent::__construct(…)` delegation in passing.php.
  */
 it('flags every non-assignment statement once, at its first token', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
@@ -111,11 +120,13 @@ it('flags every non-assignment statement once, at its first token', function ():
         ['line' => 118, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // .=
         ['line' => 119, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // ??=
         ['line' => 120, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // throw
-        ['line' => 155, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `or …`
-        ['line' => 156, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `->…()`
-        ['line' => 157, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // bare `parent::__construct`
-        ['line' => 158, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // explicit-ancestor delegation
-        ['line' => 177, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // body of `__CONSTRUCT`
+        ['line' => 157, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `or …`
+        ['line' => 158, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `->…()`
+        ['line' => 159, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // bare `parent::__construct`
+        ['line' => 160, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // first-class callable `(...)`
+        ['line' => 161, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // explicit-ancestor delegation
+        ['line' => 180, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // body of `__CONSTRUCT`
+        ['line' => 197, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // list destructuring
     ]);
 });
 
@@ -163,7 +174,7 @@ it('does not report the terminator of an alternative-syntax construct', function
 it('reports the failing fixture as errors, never warnings', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(32)
+    expect($file->getErrorCount())->toBe(34)
         ->and($file->getWarningCount())->toBe(0);
 });
 
@@ -175,7 +186,7 @@ it('reports the failing fixture as errors, never warnings', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(32)
+    expect($file->getErrorCount())->toBe(34)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
 });
