@@ -53,14 +53,16 @@ wired into the master `rules.xml` via the CleanCode standard
   `send('body', subject: null)`). Because PHP rejects a positional argument that
   follows a named one, every positional argument *after* the flagged one is
   named in the same rewrite — `new Notifier(null, 'sms')` becomes
-  `new Notifier(mailer: null, channel: 'sms')`. Where one of those later
-  arguments cannot be given a name — it is unpacked from a spread
-  (`f(null, ...$rest)`) or lands in a variadic parameter (`f(null, 'extra')`
-  against `f(?string $first = null, ...$rest)`) — the violation is still
-  reported but marked **not fixable**, and the message says so. Rewriting it
-  would produce code that does not parse. The second exception is a call whose
-  target is chosen at runtime — see *Late-bound calls are reported, not
-  rewritten* below.
+  `new Notifier(mailer: null, channel: 'sms')`. A later argument the call
+  already names is left as it stands — `notify(null, retries: 3)` becomes
+  `notify(channel: null, retries: 3)`, because naming it a second time would
+  not parse. Where one of those later arguments cannot be given a name — it is
+  unpacked from a spread (`f(null, ...$rest)`) or lands in a variadic parameter
+  (`f(null, 'extra')` against `f(?string $first = null, ...$rest)`) — the
+  violation is still reported but marked **not fixable**, and the message says
+  so. Rewriting it would produce code that does not parse. The second exception
+  is a call whose target is chosen at runtime — see *Late-bound calls are
+  reported, not rewritten* below.
 
 ### Resolution stops at the file boundary
 
