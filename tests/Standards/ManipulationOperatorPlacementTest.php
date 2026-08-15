@@ -114,7 +114,19 @@ it('flags every trailing operator at its exact line and column', function (): vo
         ['line' => 108, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 118, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 128, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 136, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // the anchor sweep: a named argument's `:`, an array key's `=>`, and the
+        // keyed/unkeyed pair inside one literal
+        ['line' => 140, 'column' => 18, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 145, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 150, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 152, 'column' => 20, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // a nested call and the array literal it must agree with
+        ['line' => 162, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 169, 'column' => 26, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // the boundary side: a `match` arm and a `switch` case body
+        ['line' => 178, 'column' => 22, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 184, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 191, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
     ]);
 });
 
@@ -224,6 +236,49 @@ it('admits every token that can open a brace dereference', function (): void {
 });
 
 /**
+ * The continuation anchor's third hand-maintained set, swept whole rather than
+ * case by case. Every token PHP_CodeSniffer halts its findStartOfStatement()
+ * walk on either divides an expression (the anchor escapes past it), ends a
+ * statement (it does not), or is `:` — the one token whose answer depends on
+ * which colon it is. A token in none of the three is a token the walk meets and
+ * silently mis-anchors, one indent level too deep.
+ *
+ * The failure mode is why this is asserted over the sets and not over fixtures:
+ * an unclassified token costs a wrong indent on a construct no fixture happens
+ * to hold, and PHP_CodeSniffer can add one without this package changing at all.
+ */
+it('classifies every token findStartOfStatement halts on', function (): void {
+    $reflected = new ReflectionClass(
+        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+    );
+
+    $classified = array_merge(
+        $reflected->getConstant('STATEMENT_ANCHOR_GROUPING_OPENERS'),
+        $reflected->getConstant('STATEMENT_ANCHOR_SEPARATORS'),
+        $reflected->getConstant('STATEMENT_ANCHOR_BOUNDARY_TOKENS'),
+        // Decided per occurrence, by the label in front of it — a named
+        // argument's colon escapes, every other colon ends a statement.
+        [T_COLON]
+    );
+
+    // PHP_CodeSniffer\Files\File::findStartOfStatement() halts on its
+    // $startTokens — Tokens::$blockOpeners plus a short array's `[` and the two
+    // opening tags — and on its $endTokens. blockOpeners is read from
+    // PHP_CodeSniffer live; the rest are local variables there, so they are
+    // named here and this assertion is what keeps the copy honest.
+    $halts = array_merge(
+        array_keys(PHP_CodeSniffer\Util\Tokens::$blockOpeners),
+        [T_OPEN_SHORT_ARRAY, T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO],
+        [T_CLOSE_TAG, T_COLON, T_COMMA, T_DOUBLE_ARROW, T_MATCH_ARROW, T_SEMICOLON]
+    );
+
+    sort($classified);
+    sort($halts);
+
+    expect($classified)->toBe($halts);
+});
+
+/**
  * Moving the operator across a comment sitting between the two operands would
  * reorder the comment, so that one violation is reported without a fixer while
  * every other one carries one. Asserted per violation rather than as a count,
@@ -233,8 +288,8 @@ it('offers a fix for every violation except the one behind a comment', function 
     $fixable = violationFixableFlags(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
 
     // The flags come back in report order, so the comment case is the last of
-    // the thirty-two violations the test above pins line by line.
-    expect($fixable)->toBe(array_merge(array_fill(0, 31, true), [false]));
+    // the forty violations the test above pins line by line.
+    expect($fixable)->toBe(array_merge(array_fill(0, 39, true), [false]));
 });
 
 /**
@@ -251,6 +306,60 @@ it('fixes a bracketed operator to the statement root indent', function (): void 
     expect($fixed)->toContain("\$called = someCall(\n    \$value\n    + \$four\n);")
         ->and($fixed)->toContain("\$array = [\n    \$base\n    - \$discount,\n];")
         ->and($fixed)->toContain("    return between(\n        \$left\n        + \$right\n    );");
+});
+
+/**
+ * The invariant the anchor exists to hold, asserted as the pairs that have to
+ * agree rather than as bytes: two structurally identical wraps land on the same
+ * indent whatever expression-dividing token stands between the operand and the
+ * statement root. Each pair discriminates — drop `=>` from the escape set and
+ * the keyed member moves to eight spaces while its keyless twin stays at four,
+ * which is the stair-stepping continuationIndent() exists to prevent.
+ *
+ * Pinned per pair rather than by the contract sweep's byte comparison alone, so
+ * a regression names the divider it broke instead of reporting a whole-file diff.
+ */
+it('anchors a wrapped operator identically either side of every expression divider', function (): void {
+    $fixed = autofixedContents(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
+
+    expect($fixed)
+        // a named argument's `:`, against the positional argument it must match
+        ->toContain("\$named = someCall(\n    name: \$value\n    + \$four,\n);")
+        ->and($fixed)->toContain("\$called = someCall(\n    \$value\n    + \$four\n);")
+        // an array key's `=>`, against the keyless element it must match
+        ->and($fixed)->toContain("\$keyed = [\n    'timeout' => \$base\n    + \$padding,\n];")
+        ->and($fixed)->toContain("\$array = [\n    \$base\n    - \$discount,\n];")
+        // both dividers inside one literal — the sharpest form of the same pair
+        ->and($fixed)->toContain("\$mixed = [\n    \$base\n    + \$one,\n    'key' => \$base\n    + \$two,\n];")
+        // a nested call, against the nested array literal it must match
+        ->and($fixed)->toContain("\$nestedCall = outer(\n    inner(\n        \$base\n    * \$factor,\n    ),\n);")
+        ->and($fixed)->toContain(
+            "\$nestedArray = [\n    'outer' => [\n        'inner' => \$base\n    * \$factor,\n    ],\n];"
+        );
+});
+
+/**
+ * The other half of that walk: a brace block genuinely ends the statement, so a
+ * wrap inside one anchors on its own line and not on whatever encloses the
+ * block. Asserted next to the escapes above because a walk that escaped
+ * *everything* would satisfy those and still be wrong here — which is exactly
+ * what the `switch` case body catches. Escaping past `:` unconditionally, the
+ * obvious way to admit a named argument's colon, pulls that body's indent back
+ * to the `case` label's line and fails this test.
+ *
+ * The `match` arm is coverage, not a discriminator, and is pinned as such: an
+ * arm's condition and its body share a line, so the anchor lands on that same
+ * line whether the walk escapes past `T_MATCH_ARROW` or stops at it. No reading
+ * of that token changes this output, which is why the sniff classifies it by
+ * what the construct *is* rather than by a behaviour a test could pin. The value
+ * here is the regression guard for a future rewrite that does read it
+ * differently.
+ */
+it('anchors a wrap inside a brace block on its own statement line', function (): void {
+    $fixed = autofixedContents(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
+
+    expect($fixed)->toContain("    case 1:\n        \$cased = \$base\n            << \$shift;")
+        ->and($fixed)->toContain("\$armed = match (\$mode) {\n    default => \$base\n        & \$mask,\n};");
 });
 
 /**

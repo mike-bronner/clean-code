@@ -226,21 +226,79 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     /**
      * Tokens the continuation-indent anchor escapes past to reach the
-     * statement's true root line: expression-grouping openers (`(`, `[`, short
-     * array `[`) and the argument/element separator `,`. A wrapped operator
-     * inside any of these lives on a line already indented one or more levels
-     * below its statement's first line, so {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()}
-     * — which halts at the nearest of them — must be escaped outward. Curly
-     * braces are intentionally absent: a `{` is a real scope boundary, and a
-     * statement inside a block should indent relative to that block.
+     * statement's true root line: the expression-grouping openers (`(`, `[`,
+     * short array `[`) and the two separators that divide one expression into
+     * parts — the argument/element `,` and the key/value `=>`. A wrapped
+     * operator behind any of them lives on a line already indented one or more
+     * levels below its statement's first line, so
+     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} — which halts
+     * at the nearest of them — must be escaped outward.
+     *
+     * This set, {@see self::STATEMENT_ANCHOR_SEPARATORS}, and
+     * {@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS} together classify *every*
+     * token that method halts on, minus the one token whose answer depends on
+     * context: `:` — see {@see self::escapesStatementAnchor()}.
+     * The classification is deliberately exhaustive rather than case-by-case,
+     * because a token this walk fails to recognise does not fail loudly; it
+     * silently anchors the indent one level too deep, which is precisely the
+     * stair-stepping {@see self::continuationIndent()} exists to prevent.
+     * tests/Standards/ManipulationOperatorPlacementTest.php pins the split
+     * against PHP_CodeSniffer's own halt set, so a token added upstream fails
+     * the suite instead of quietly widening the gap.
+     *
+     * The escaping half is split in two because the openers are also what the
+     * walk has to recognise *underneath* itself — see
+     * {@see self::outermostStatementStart()}.
      *
      * @var array<int|string>
      */
-    private const STATEMENT_ANCHOR_ESCAPE_TOKENS = [
+    private const STATEMENT_ANCHOR_GROUPING_OPENERS = [
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
+    ];
+
+    /**
+     * The separator half of that set: the two tokens that divide one expression
+     * into parts without opening a group. See
+     * {@see self::STATEMENT_ANCHOR_GROUPING_OPENERS}.
+     *
+     * @var array<int|string>
+     */
+    private const STATEMENT_ANCHOR_SEPARATORS = [
         T_COMMA,
+        T_DOUBLE_ARROW,
+    ];
+
+    /**
+     * The other side of that classification: the tokens
+     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} halts on that
+     * the anchor walk must *not* escape, because each one genuinely ends the
+     * statement the operator belongs to.
+     *
+     * - `{` is a real scope boundary — a statement inside a block indents
+     *   relative to that block, not to whatever encloses the block. `=>` in a
+     *   `match` arm (`T_MATCH_ARROW`) is classified as the same case: the arm
+     *   body is a statement inside the match's braces. That reading is a
+     *   description rather than a behaviour, and honestly so — an arm's
+     *   condition and its body share a line, so the anchor lands on that line
+     *   either way, and no fixture can tell the two readings apart.
+     * - `;` and `?>` close the previous statement, so there is nothing outward
+     *   to escape *to*.
+     * - `<?php` / `<?=` are the file's root; the walk stops there anyway.
+     * - `T_OBJECT` is in `Tokens::$blockOpeners` for historical reasons and is a
+     *   type keyword, so it can never enclose an expression.
+     *
+     * @var array<int|string>
+     */
+    private const STATEMENT_ANCHOR_BOUNDARY_TOKENS = [
+        T_OPEN_CURLY_BRACKET,
+        T_OBJECT,
+        T_OPEN_TAG,
+        T_OPEN_TAG_WITH_ECHO,
+        T_CLOSE_TAG,
+        T_SEMICOLON,
+        T_MATCH_ARROW,
     ];
 
     /**
@@ -457,6 +515,18 @@ class ManipulationOperatorPlacementSniff implements Sniff
      * levels deep. Escaping outward past the grouping tokens reaches the true
      * root line, so the continuation indent lands one level past the statement —
      * not past the enclosing bracket.
+     *
+     * The walk escapes on two conditions, not one. Either the token *before* the
+     * anchor divides the enclosing expression ({@see self::escapesStatementAnchor()}),
+     * or the anchor *is* a grouping opener — which happens whenever the opener
+     * is the first thing on its own statement, as the inner `(` of a nested call
+     * is. `findStartOfStatement()` returns that opener rather than the callee
+     * that owns it, so without this second condition the walk would stop on the
+     * inner call's line while the same operator one bracket deeper in a nested
+     * *array* escapes all the way to the root — one statement, two indents. A
+     * grouping opener never starts a statement, so whatever precedes it (a
+     * callee name, `=`, `return`) belongs to the same one and the walk continues
+     * from there.
      */
     private function outermostStatementStart(File $phpcsFile, int $stackPtr): int
     {
@@ -466,17 +536,58 @@ class ManipulationOperatorPlacementSniff implements Sniff
         while ($start > 0) {
             $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
 
-            if (
-                $before === false
-                || in_array($tokens[$before]['code'], self::STATEMENT_ANCHOR_ESCAPE_TOKENS, true) === false
-            ) {
+            if ($before === false) {
                 break;
             }
 
+            $escapes = $this->escapesStatementAnchor($phpcsFile, $before)
+                || in_array($tokens[$start]['code'], self::STATEMENT_ANCHOR_GROUPING_OPENERS, true);
+
+            if ($escapes === false) {
+                break;
+            }
+
+            // findStartOfStatement() never returns past the token handed to it,
+            // and $before is already before $start, so $start strictly decreases.
             $start = $phpcsFile->findStartOfStatement($before);
         }
 
         return $start;
+    }
+
+    /**
+     * Whether the anchor walk continues outward past the token at $before —
+     * true when that token divides one expression into parts rather than ending
+     * the statement. Every token
+     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} halts on falls
+     * into one of three cases: it always escapes
+     * ({@see self::STATEMENT_ANCHOR_GROUPING_OPENERS} and
+     * {@see self::STATEMENT_ANCHOR_SEPARATORS}), it never does
+     * ({@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS}), or — for `:` alone — the
+     * answer depends on which colon it is.
+     *
+     * A named argument's colon (`someCall(name: $value)`) is expression-internal
+     * and escapes, exactly as the `,` before a positional argument does. Every
+     * other `:` PHP_CodeSniffer leaves as `T_COLON` — a `switch` case or default
+     * label, an alternative-syntax header, a `goto` label, a return type, an
+     * enum backing type — ends a statement or a declaration and must not.
+     * PHP_CodeSniffer tokenises the named-argument label as `T_PARAM_NAME` and
+     * nothing else, which separates the two directly; a ternary's `:` never
+     * reaches here at all, being retokenised to `T_INLINE_ELSE`.
+     */
+    private function escapesStatementAnchor(File $phpcsFile, int $before): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $code = $tokens[$before]['code'];
+
+        if ($code === T_COLON) {
+            $label = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true);
+
+            return $label !== false && $tokens[$label]['code'] === T_PARAM_NAME;
+        }
+
+        return in_array($code, self::STATEMENT_ANCHOR_GROUPING_OPENERS, true)
+            || in_array($code, self::STATEMENT_ANCHOR_SEPARATORS, true);
     }
 
     /**

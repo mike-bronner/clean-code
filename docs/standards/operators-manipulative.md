@@ -138,14 +138,23 @@ end-to-end over the whole master ruleset, line by line.
   rather than force a fixer onto another standard's sniff.
 
   For the groups this sniff owns, the fixer moves the trailing operator down to lead the
-  continuation line, indented one level past the statement's *root* line (escaping
-  any enclosing parentheses, brackets, or array literal so a wrapped operator
-  inside an `if (...)` condition, call-argument list, or array lands level with
-  its operand rather than one level deeper), with a single space before its
-  right-hand operand — the whitespace-only rewrite that preserves behaviour and
-  indentation. The one exception is a comment sitting between the two operands:
-  moving the operator would reorder the comment, so that violation is reported but
-  left for the developer.
+  continuation line, indented one level past the statement's *root* line, with a
+  single space before its right-hand operand — the whitespace-only rewrite that
+  preserves behaviour and indentation. The one exception is a comment sitting
+  between the two operands: moving the operator would reorder the comment, so that
+  violation is reported but left for the developer.
+
+  The *root* line is the point of that rule. Every continuation operator of one
+  statement lands on the same indent, however deep in brackets it sits, so a
+  multi-line expression never stair-steps. Reaching it means escaping outward past
+  everything that merely divides an expression — the grouping openers `(` and `[`
+  (short array included), the argument/element separator `,`, an array key's `=>`,
+  and a named argument's `:` — and stopping at everything that ends a statement,
+  chiefly `;` and `{`. So a wrapped operator inside an `if (...)` condition, a
+  call-argument list (positional or named), or an array literal (keyed or not)
+  anchors on the line the statement itself starts on; one inside a `{ … }` block,
+  a `switch` case body, or a `match` arm anchors on that inner statement's own
+  line, because a brace really does start a new statement.
 
 Tests covering the token-level split, compliant inline and multi-line code,
 per-line/column violation reporting for every operator category, operand-boundary
@@ -153,8 +162,10 @@ disambiguation (magic constants, interpolated strings, heredoc/nowdoc bodies,
 short arrays, postfix `++`/`--`, backticks, value-producing versus
 statement-closing braces — the owned ones and the ownerless bare block alike —
 and reference `&`), the catch-clause exemption, and the
-fixer's continuation indent
-inside brackets live at `tests/Standards/ManipulationOperatorPlacementTest.php`,
+fixer's continuation indent — each expression divider paired against the form it
+has to agree with, the brace boundaries that must *not* be escaped, and the
+classification swept against every token PHP_CodeSniffer halts its own
+statement-start walk on — live at `tests/Standards/ManipulationOperatorPlacementTest.php`,
 over the fixtures in `tests/fixtures/ManipulationOperatorPlacementSniff/`. The
 byte-for-byte auto-fix output, its idempotency, and the passing/failing floor
 come from the generic sweep in `tests/Contract/SniffContractTest.php`.

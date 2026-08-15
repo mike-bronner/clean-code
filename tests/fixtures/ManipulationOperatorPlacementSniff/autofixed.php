@@ -131,6 +131,61 @@ if (
     //
 }
 
+// The anchor escapes every token that divides an expression, not only the
+// bracket openers: a named argument's `:` and an array key's `=>` each leave
+// their operand on an already-indented line. A literal holding one keyed and one
+// unkeyed element is the discriminator — two structurally identical wraps that
+// land on different indents are the stair-stepping the anchor exists to prevent.
+$named = someCall(
+    name: $value
+    + $four,
+);
+
+$keyed = [
+    'timeout' => $base
+    + $padding,
+];
+
+$mixed = [
+    $base
+    + $one,
+    'key' => $base
+    + $two,
+];
+
+// The same case from underneath: findStartOfStatement() answers a nested call's
+// inner `(` with that `(` itself, so without escaping past an anchor that *is* a
+// grouping opener the inner call's line would anchor the indent while the
+// equivalent array literal escapes to the statement root.
+$nestedCall = outer(
+    inner(
+        $base
+    * $factor,
+    ),
+);
+
+$nestedArray = [
+    'outer' => [
+        'inner' => $base
+    * $factor,
+    ],
+];
+
+// The boundary side of that classification. A `match` arm and a `switch` case
+// body are statements inside a brace block, so each anchors on its own line —
+// one level past that, never past whatever encloses the block.
+$armed = match ($mode) {
+    default => $base
+        & $mask,
+};
+
+switch ($mode) {
+    case 1:
+        $cased = $base
+            << $shift;
+        break;
+}
+
 // A comment between the operands would be reordered by the fix, so this one is
 // reported but deliberately left unfixed.
 $commented = 4 + // trailing note
