@@ -283,8 +283,10 @@ class ManipulationOperatorPlacementSniff implements Sniff
      *   description rather than a behaviour, and honestly so — an arm's
      *   condition and its body share a line, so the anchor lands on that line
      *   either way, and no fixture can tell the two readings apart.
-     * - `;` and `?>` close the previous statement, so there is nothing outward
-     *   to escape *to*.
+     * - `?>` closes the previous statement, so there is nothing outward to
+     *   escape *to*. `;` is not here: it ends a statement everywhere except
+     *   inside a `for` header, where it divides one header into clauses, so it
+     *   is decided per occurrence in {@see self::escapesStatementAnchor()}.
      * - `<?php` / `<?=` are the file's root; the walk stops there anyway.
      * - `T_OBJECT` is in `Tokens::$blockOpeners` for historical reasons and is a
      *   type keyword, so it can never enclose an expression.
@@ -297,7 +299,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_OPEN_TAG,
         T_OPEN_TAG_WITH_ECHO,
         T_CLOSE_TAG,
-        T_SEMICOLON,
         T_MATCH_ARROW,
     ];
 
@@ -563,8 +564,8 @@ class ManipulationOperatorPlacementSniff implements Sniff
      * into one of three cases: it always escapes
      * ({@see self::STATEMENT_ANCHOR_GROUPING_OPENERS} and
      * {@see self::STATEMENT_ANCHOR_SEPARATORS}), it never does
-     * ({@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS}), or — for `:` alone — the
-     * answer depends on which colon it is.
+     * ({@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS}), or the answer depends on
+     * which occurrence of the token it is — `:` and `;`.
      *
      * A named argument's colon (`someCall(name: $value)`) is expression-internal
      * and escapes, exactly as the `,` before a positional argument does. Every
@@ -574,6 +575,15 @@ class ManipulationOperatorPlacementSniff implements Sniff
      * PHP_CodeSniffer tokenises the named-argument label as `T_PARAM_NAME` and
      * nothing else, which separates the two directly; a ternary's `:` never
      * reaches here at all, being retokenised to `T_INLINE_ELSE`.
+     *
+     * A `for` header's two semicolons are the same shape: inside those
+     * parentheses `;` divides one header into three clauses rather than ending
+     * a statement, so it escapes as `,` does. Read literally as a boundary, the
+     * increment clause anchors on its own already-indented line while the init
+     * clause escapes past the `(` to the `for` — two structurally identical
+     * clauses of one header, wrapped at two different indents. Everywhere else
+     * `;` genuinely closes the statement and there is nothing outward to escape
+     * to. The enclosing parenthesis's owner separates the two directly.
      */
     private function escapesStatementAnchor(File $phpcsFile, int $before): bool
     {
@@ -586,8 +596,36 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return $label !== false && $tokens[$label]['code'] === T_PARAM_NAME;
         }
 
+        if ($code === T_SEMICOLON) {
+            return $this->isForHeaderSeparator($phpcsFile, $before);
+        }
+
         return in_array($code, self::STATEMENT_ANCHOR_GROUPING_OPENERS, true)
             || in_array($code, self::STATEMENT_ANCHOR_SEPARATORS, true);
+    }
+
+    /**
+     * Whether the `;` at $stackPtr divides a `for` header's clauses rather than
+     * ending a statement — true when its innermost enclosing parenthesis is the
+     * one a `for` owns.
+     *
+     * Both degenerate readings fail the same way: a semicolon in no parenthesis
+     * at all, or in one with no owner, is treated as the statement terminator it
+     * is everywhere else, which is the behaviour this method narrows rather than
+     * widens.
+     */
+    private function isForHeaderSeparator(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (empty($tokens[$stackPtr]['nested_parenthesis']) === true) {
+            return false;
+        }
+
+        $opener = max(array_keys($tokens[$stackPtr]['nested_parenthesis']));
+
+        return isset($tokens[$opener]['parenthesis_owner']) === true
+            && $tokens[$tokens[$opener]['parenthesis_owner']]['code'] === T_FOR;
     }
 
     /**

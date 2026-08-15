@@ -68,11 +68,13 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * Every trailing manipulation operator in failing.php, at its exact line and
- * column. Lines 56-96 are the operand-terminator sweep — a short-array `]`, a
- * postfix `++`/`--`, a backtick, the three value-producing braces, and one
- * dereference per introducing token — each of which the sniff must read as a
- * real left-hand operand rather than exempting the sign as unary. Line 136 is
- * the comment case — reported, but not fixable.
+ * column. Lines 56-96 and 196-214 are the operand-terminator sweep — a
+ * short-array `]`, a postfix `++`/`--`, a backtick, the three value-producing
+ * braces, one dereference per introducing token, and the value family — each of
+ * which the sniff must read as a real left-hand operand rather than exempting
+ * the sign as unary. Lines 223-241 are the for-loop clauses this sniff owns
+ * because the sniff it otherwise defers to never reads them. Line 261 is the
+ * comment case — reported, but not fixable.
  */
 it('flags every trailing operator at its exact line and column', function (): void {
     $tuples = violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
@@ -126,7 +128,25 @@ it('flags every trailing operator at its exact line and column', function (): vo
         // the boundary side: a `match` arm and a `switch` case body
         ['line' => 178, 'column' => 22, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 184, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 191, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // the value family: a constant, a float, `true`, `false`, `null`, a
+        // single-quoted string, and an array index's `]` — each behind a
+        // `+`/`-`, the only operators the operand model gates
+        ['line' => 196, 'column' => 25, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 199, 'column' => 14, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 202, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 205, 'column' => 19, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 208, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 211, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 214, 'column' => 29, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // a for-loop's init and increment clauses, on both classifications of
+        // its condition
+        ['line' => 223, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 226, 'column' => 21, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 237, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 241, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // a closure argument's semicolons, which enclose nothing a `for` owns
+        ['line' => 256, 'column' => 13, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 261, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
     ]);
 });
 
@@ -158,6 +178,44 @@ it('admits every operand terminator PHP_CodeSniffer enumerates', function (): vo
         ->and($admitted)->toContain(...PHP_CodeSniffer\Util\Tokens::$stringTokens)
         ->and($admitted)->toContain(T_END_HEREDOC, T_END_NOWDOC, T_BACKTICK)
         ->and($admitted)->toContain(T_INC, T_DEC);
+});
+
+/**
+ * Membership is not behaviour: the test above pins what the set *holds*, and a
+ * member correct today but exercised by no fixture can be dropped without a
+ * single assertion noticing. So this closes the set from the other end — every
+ * admitted token must actually terminate a left-hand operand somewhere in
+ * failing.php, derived from the violations the sniff reports rather than from a
+ * second hand-written list that could drift from the first.
+ *
+ * Only the violations on a `+`, `-` or `&` count. Those are the operators whose
+ * reading the operand model gates; behind any other operator the terminator is
+ * never consulted, so a case there would satisfy this test while pinning
+ * nothing. Adding a member without a fixture fails here, which is the gap this
+ * exists to close.
+ */
+it('exercises every operand terminator it admits', function (): void {
+    $reflected = new ReflectionClass(
+        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+    );
+    $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
+    $errors = $file->getErrors();
+    $tokens = $file->getTokens();
+    $exercised = [];
+
+    foreach ($tokens as $pointer => $token) {
+        if (
+            isset($errors[$token['line']][$token['column']]) === false
+            || in_array($token['code'], $reflected->getConstant('UNARY_CAPABLE'), true) === false
+        ) {
+            continue;
+        }
+
+        $previous = $file->findPrevious(PHP_CodeSniffer\Util\Tokens::$emptyTokens, ($pointer - 1), null, true);
+        $exercised[] = $tokens[$previous]['code'];
+    }
+
+    expect($exercised)->toContain(...$reflected->getConstant('OPERAND_END_TOKENS'));
 });
 
 /**
@@ -200,7 +258,7 @@ it('separates a value-producing brace from a scope-closing one', function (): vo
  * opened it.
  */
 it('reads a bare block as a statement, not as an ownerless value', function (): void {
-    $blockOperatorLines = [138, 146, 152, 159];
+    $blockOperatorLines = [149, 157, 163, 170];
     $flagged = array_column(
         violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
         'line'
@@ -256,9 +314,10 @@ it('classifies every token findStartOfStatement halts on', function (): void {
         $reflected->getConstant('STATEMENT_ANCHOR_GROUPING_OPENERS'),
         $reflected->getConstant('STATEMENT_ANCHOR_SEPARATORS'),
         $reflected->getConstant('STATEMENT_ANCHOR_BOUNDARY_TOKENS'),
-        // Decided per occurrence, by the label in front of it — a named
-        // argument's colon escapes, every other colon ends a statement.
-        [T_COLON]
+        // Decided per occurrence, by what encloses them — a named argument's
+        // colon and a `for` header's semicolons divide an expression; every
+        // other colon and semicolon ends a statement.
+        [T_COLON, T_SEMICOLON]
     );
 
     // PHP_CodeSniffer\Files\File::findStartOfStatement() halts on its
@@ -288,8 +347,8 @@ it('offers a fix for every violation except the one behind a comment', function 
     $fixable = violationFixableFlags(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
 
     // The flags come back in report order, so the comment case is the last of
-    // the forty violations the test above pins line by line.
-    expect($fixable)->toBe(array_merge(array_fill(0, 39, true), [false]));
+    // the fifty-two violations the test above pins line by line.
+    expect($fixable)->toBe(array_merge(array_fill(0, 51, true), [false]));
 });
 
 /**
@@ -331,6 +390,12 @@ it('anchors a wrapped operator identically either side of every expression divid
         ->and($fixed)->toContain("\$array = [\n    \$base\n    - \$discount,\n];")
         // both dividers inside one literal — the sharpest form of the same pair
         ->and($fixed)->toContain("\$mixed = [\n    \$base\n    + \$one,\n    'key' => \$base\n    + \$two,\n];")
+        // a for header's `;`, as the init clause against the increment clause
+        // it must match — read as a statement terminator, the increment anchors
+        // on its own indented line while the init escapes to the `for`
+        ->and($fixed)->toContain(
+            "for (\n    \$index = 0\n    + \$offset;\n    \$index < \$limit;\n    \$index = \$index\n    + \$step\n)"
+        )
         // a nested call, against the nested array literal it must match
         ->and($fixed)->toContain("\$nestedCall = outer(\n    inner(\n        \$base\n    * \$factor,\n    ),\n);")
         ->and($fixed)->toContain(
@@ -363,6 +428,52 @@ it('anchors a wrap inside a brace block on its own statement line', function ():
 });
 
 /**
+ * The `;` half of the anchor's per-occurrence classification, asserted on the
+ * method rather than through the fixer's output — because the narrowing has no
+ * output to assert. Escaping past an ordinary `;` walks to the previous
+ * statement's start, and consecutive statements in a block share an indent, so
+ * the continuation lands in the same column read either way. Verified, not
+ * assumed: reading *every* `;` as a divider leaves the whole suite green.
+ *
+ * That makes the reading unfalsifiable through the fixed source and is exactly
+ * why it is pinned here instead. An anchor that walks out of the statement it
+ * belongs to is wrong on the classification even where the coincidence of equal
+ * indents hides it, and a future construct that breaks the coincidence would
+ * turn a silent wrong reading into a wrong indent with no test in between.
+ *
+ * Asserted over every semicolon in the fixture at once, so the narrow reading
+ * and the fail-open one cannot both satisfy it.
+ */
+it("reads only a for header's semicolons as clause dividers", function (): void {
+    $sniff = new MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff();
+    $separator = new ReflectionMethod($sniff, 'isForHeaderSeparator');
+    $separator->setAccessible(true);
+
+    $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
+    $dividers = [];
+    $terminators = [];
+
+    foreach ($file->getTokens() as $pointer => $token) {
+        if ($token['code'] !== T_SEMICOLON) {
+            continue;
+        }
+
+        if ($separator->invoke($sniff, $file, $pointer) === true) {
+            $dividers[] = $token['line'];
+
+            continue;
+        }
+
+        $terminators[] = $token['line'];
+    }
+
+    // The two for headers' four clause dividers, and no other semicolon in a
+    // fixture that is mostly semicolon-terminated statements.
+    expect($dividers)->toBe([224, 225, 238, 240])
+        ->and(count($terminators))->toBeGreaterThan(30);
+});
+
+/**
  * A `|` separating exception types in a multi-line `catch` clause stays
  * T_BITWISE_OR — PHP_CodeSniffer only retokenises a union to T_TYPE_UNION in
  * parameter, return, and property positions — so without the catch-clause
@@ -376,4 +487,63 @@ it('leaves a multi-line catch type union alone while still flagging a real bitwi
 
     expect($passing->getErrors())->toBe([])
         ->and(array_column($failing, 'line'))->toContain(27);
+});
+
+/**
+ * The exemption exempts `&` on the same footing as `|`, and that is a second
+ * live branch rather than a restatement of the first: PHP_CodeSniffer leaves a
+ * catch clause's separator a plain T_BITWISE_AND/T_BITWISE_OR, so each token
+ * reaches the check on its own. PHP itself rejects an intersection type in a
+ * catch, but the sniff never compiles the file — the tokenizer is the only
+ * reader — which is what makes the fixture legitimate.
+ *
+ * Asserted over the fixture's own lines rather than over its emptiness, so a
+ * fixture edit that moved either clause away cannot make this vacuous, and a
+ * regression naming only `|` fails on the `&` line specifically.
+ */
+it('exempts both catch-clause type separators, not only the union', function (): void {
+    $separatorLines = [64, 75];
+    $flagged = array_column(
+        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+        'line'
+    );
+
+    expect($flagged)->not->toContain(...$separatorLines);
+
+    $source = file(fixturePath(sniffFixtureDirectory(MANIPULATION_OPERATOR_PLACEMENT), 'passing.php'));
+
+    foreach ($separatorLines as $line) {
+        expect(trim($source[$line - 1]))->toMatch('/^\} catch \(\w+ [|&]$/');
+    }
+});
+
+/**
+ * A for-loop's init and increment clauses sit inside the condition's
+ * parentheses but outside the span CleanCode.Conditionals.OneConditionPerLine
+ * checks — it confines itself to the clause between the two semicolons — so
+ * standing down there would drop the violation entirely rather than hand it
+ * over. Both clauses are pinned on both classifications of the condition,
+ * because the deferral reads a boolean-carrying condition down a different
+ * branch from a single one and only the region check rules out both.
+ *
+ * The passing side is the same boundary inverted: a boolean in the *init*
+ * clause must not reach the classification of the condition, or a wrap the
+ * other sniff owns gets reported twice.
+ */
+it('keeps a for-loop init or increment wrap it cannot defer', function (): void {
+    $flagged = array_column(
+        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php')),
+        'line'
+    );
+    $deferred = array_column(
+        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+        'line'
+    );
+
+    // failing.php — init and increment, with a single condition then a multi one.
+    expect($flagged)->toContain(223, 226, 237, 241)
+        // passing.php:223 — the condition clause's own wrap, which
+        // OneConditionPerLine owns and still owns with a boolean sitting in
+        // the init clause beside it.
+        ->and($deferred)->not->toContain(223);
 });

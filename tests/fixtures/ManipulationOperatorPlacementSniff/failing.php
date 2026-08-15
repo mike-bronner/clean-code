@@ -186,6 +186,76 @@ switch ($mode) {
         break;
 }
 
+// The value half of the operand model. Unlike the string and bracket families
+// there is no PHP_CodeSniffer enumeration to pin these against, so each one
+// ends a left-hand operand here instead: a constant name, a bare float, `true`,
+// `false`, `null`, a single-quoted string and an array index's `]`. Every case
+// trails a `+` or a `-`, the only two operators whose reading the operand model
+// gates — `&` is settled by File::isReference() before the model is consulted,
+// so a case behind one would pin nothing.
+$constant = MAX_RETRIES -
+    1;
+
+$float = 4.5 +
+    0.5;
+
+$trueSum = true +
+    1;
+
+$falseSum = false -
+    1;
+
+$nullish = null +
+    1;
+
+$numericString = '41' +
+    1;
+
+$indexed = $values['count'] -
+    1;
+
+// A for-loop's init and increment clauses share the condition's parentheses but
+// not its ownership: CleanCode.Conditionals.OneConditionPerLine confines every
+// check it makes to the clause between the two semicolons, so a wrap in either
+// of the other two is this sniff's to report. Deferring it there would drop the
+// violation outright, the sniff deferred to never walking that far.
+for (
+    $index = 0 +
+        $offset;
+    $index < $limit;
+    $index = $index +
+        $step
+) {
+    echo $index;
+}
+
+// The same two clauses with a boolean in the condition, which classifies it as
+// a *multi*-condition and sends the deferral down its other branch. Neither
+// clause is deferred on either branch, so the pair holds the boundary whichever
+// way the condition reads.
+for (
+    $cursor = 0 +
+        $offset;
+    $cursor < $limit
+    && $cursor > 0;
+    $cursor = $cursor +
+        $step
+) {
+    echo $cursor;
+}
+
+// A `;` inside parentheses is not automatically a clause divider. A closure
+// passed as a call argument carries its whole body — statements and all —
+// inside the call's parentheses, so every `;` here reports an enclosing
+// parenthesis just as a for header's does. Only the parenthesis a `for` owns
+// divides clauses; these terminate statements exactly as a top-level `;` does.
+$mapped = array_map(function (int $x): int {
+    $doubled = $x * 2;
+
+    return $doubled;
+}, $values) +
+    $extra;
+
 // A comment between the operands would be reordered by the fix, so this one is
 // reported but deliberately left unfixed.
 $commented = 4 + // trailing note

@@ -37,12 +37,16 @@ use PHP_CodeSniffer\Util\Tokens;
  * deferred only when the condition carries no top-level boolean. Inside a
  * *multi*-condition a non-boolean operator is covered by neither, and the
  * calling sniff must still report it.
+ *
+ * Both readings are confined to the span OneConditionPerLine actually walks —
+ * {@see self::checkedRegion()} — which that sniff resolves from this same
+ * method, so the deferral boundary cannot drift from the boundary it defers to.
  */
 final class ConditionOperatorOwnership
 {
     /**
      * Bracket and brace openers whose contents are sub-expressions, skipped
-     * when scanning a condition for top-level boolean operators.
+     * by {@see self::findTopLevelTokens()}.
      *
      * @var array<int|string>
      */
@@ -65,10 +69,12 @@ final class ConditionOperatorOwnership
      * those keywords. A boolean nested in an inner grouping paren (`if (($a &&`
      * …) has no control-structure owner, so it stays with the caller.
      *
-     * (A for-loop's init/increment sections share the condition's parentheses;
-     * the top-level-boolean scan spans all three, so a — vanishingly rare —
-     * boolean in an init/increment can still tip a wrapped condition into the
-     * "multi" branch. Deemed acceptable given how contrived that construct is.)
+     * Sitting inside those parentheses is not enough: a for-loop's init and
+     * increment clauses share them with the condition, and OneConditionPerLine
+     * confines every check it makes to the condition clause alone. An operator
+     * outside {@see self::checkedRegion()} is therefore reported by the caller,
+     * whatever the header holds — deferring it would drop the violation, since
+     * the sniff deferred to never walks that far.
      */
     public static function isDeferredToOneConditionPerLine(File $phpcsFile, int $stackPtr): bool
     {
@@ -84,9 +90,21 @@ final class ConditionOperatorOwnership
             return false;
         }
 
-        $ownerCode = $tokens[$tokens[$innermostOpener]['parenthesis_owner']]['code'];
+        $owner = $tokens[$innermostOpener]['parenthesis_owner'];
 
-        if (in_array($ownerCode, self::CONDITION_OWNERS, true) === false) {
+        if (in_array($tokens[$owner]['code'], self::CONDITION_OWNERS, true) === false) {
+            return false;
+        }
+
+        $region = self::checkedRegion($phpcsFile, $owner);
+
+        if ($region === null) {
+            return false;
+        }
+
+        [$regionStart, $regionEnd] = $region;
+
+        if ($stackPtr <= $regionStart || $stackPtr >= $regionEnd) {
             return false;
         }
 
@@ -94,22 +112,70 @@ final class ConditionOperatorOwnership
             return true;
         }
 
-        return self::conditionHasNoTopLevelBoolean($phpcsFile, $innermostOpener);
+        // No top-level boolean in the checked region: OneConditionPerLine reads
+        // it as a single condition and collapses any wrap in it wholesale.
+        return self::findTopLevelTokens(
+            $phpcsFile,
+            ($regionStart + 1),
+            ($regionEnd - 1),
+            array_keys(Tokens::$booleanOperators)
+        ) === [];
     }
 
     /**
-     * Whether the condition delimited by $opener .. its closer carries no
-     * top-level boolean operator — i.e. OneConditionPerLine treats it as a
-     * single condition and collapses any wrap wholesale. Tokens nested inside a
-     * further parenthesis, square bracket, or brace are sub-expressions, not the
-     * condition's top level, and are skipped (mirroring OneConditionPerLine).
+     * The token span CleanCode.Conditionals.OneConditionPerLine checks for the
+     * control structure at $stackPtr, as the exclusive bounds
+     * [$regionStart, $regionEnd] — or null when it checks nothing at all.
+     *
+     * For an if/elseif/while that span is the condition parentheses. For a
+     * for-loop it is the condition clause only: the two top-level semicolons
+     * delimit it, and a header without exactly two of them is one that sniff
+     * declines to process.
+     *
+     * OneConditionPerLine resolves its own boundaries from here, so this is the
+     * single definition of "what that sniff looks at" rather than a copy of it.
+     *
+     * @return array{0: int, 1: int}|null
      */
-    private static function conditionHasNoTopLevelBoolean(File $phpcsFile, int $opener): bool
+    public static function checkedRegion(File $phpcsFile, int $stackPtr): ?array
     {
         $tokens = $phpcsFile->getTokens();
-        $closer = $tokens[$opener]['parenthesis_closer'];
 
-        for ($i = $opener + 1; $i < $closer; $i++) {
+        if (
+            isset($tokens[$stackPtr]['parenthesis_opener']) === false
+            || isset($tokens[$stackPtr]['parenthesis_closer']) === false
+        ) {
+            return null;
+        }
+
+        $opener = $tokens[$stackPtr]['parenthesis_opener'];
+        $closer = $tokens[$stackPtr]['parenthesis_closer'];
+
+        if ($tokens[$stackPtr]['code'] !== T_FOR) {
+            return [$opener, $closer];
+        }
+
+        $semicolons = self::findTopLevelTokens($phpcsFile, ($opener + 1), ($closer - 1), [T_SEMICOLON]);
+
+        return count($semicolons) === 2 ? [$semicolons[0], $semicolons[1]] : null;
+    }
+
+    /**
+     * Collects pointers to the given token codes between $start and $end
+     * inclusive, skipping everything nested inside parentheses, square
+     * brackets, or curly braces — those belong to sub-expressions, not to the
+     * top level of the clause.
+     *
+     * @param array<int|string> $codes
+     *
+     * @return array<int>
+     */
+    public static function findTopLevelTokens(File $phpcsFile, int $start, int $end, array $codes): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $pointers = [];
+
+        for ($i = $start; $i <= $end; $i++) {
             if ($tokens[$i]['code'] === T_OPEN_PARENTHESIS) {
                 $i = $tokens[$i]['parenthesis_closer'];
 
@@ -125,11 +191,11 @@ final class ConditionOperatorOwnership
                 continue;
             }
 
-            if (isset(Tokens::$booleanOperators[$tokens[$i]['code']]) === true) {
-                return false;
+            if (in_array($tokens[$i]['code'], $codes, true) === true) {
+                $pointers[] = $i;
             }
         }
 
-        return true;
+        return $pointers;
     }
 }

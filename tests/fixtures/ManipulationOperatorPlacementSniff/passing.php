@@ -66,6 +66,17 @@ try {
     //
 }
 
+// The `&` sibling of that clause. PHP itself rejects an intersection type in a
+// catch, but PHP_CodeSniffer only tokenises — and it leaves this `&` a plain
+// T_BITWISE_AND exactly as it leaves the `|` above a T_BITWISE_OR — so the
+// exemption has a second live branch, and this is what pins it.
+try {
+    //
+} catch (RuntimeException &
+    LogicException $error) {
+    //
+}
+
 // Unary sign and reference forms carry no left-hand operand, so they are not
 // manipulation operators even when a newline follows them.
 $negative = -5;
@@ -198,6 +209,20 @@ if (
 while (
     $alpha |
     $bravo
+) {
+    //
+}
+
+// The other side of that boundary in a for-loop header. Only the clause between
+// the semicolons is read for the top-level boolean that classifies the
+// condition, so the `&&` in the init below does not reach it: the condition is
+// single, OneConditionPerLine collapses it, and this sniff defers. Reading the
+// whole header instead would call it multi and report the wrap twice.
+for (
+    $ready = $isActive && $isVerified;
+    $alpha +
+    $bravo > $charlie;
+    $index++
 ) {
     //
 }

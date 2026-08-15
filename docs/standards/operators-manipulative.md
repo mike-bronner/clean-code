@@ -68,6 +68,14 @@ inside a *multi*-condition is covered by neither, so it stays with the sniff
 that owns its token. That decision has one implementation, shared by both
 sniffs: `CleanCode\Support\ConditionOperatorOwnership`.
 
+Standing down is bounded by what the other sniff actually reads. A `for`
+header's init and increment clauses sit inside the condition's parentheses, but
+`OneConditionPerLine` confines every check it makes to the clause between the
+two semicolons. A wrapped operator in either of the other two clauses is
+therefore reported here, on both readings of the condition — deferring it would
+drop the violation rather than hand it over. The same class defines that span
+for both sniffs, so the boundary deferred across is the boundary walked.
+
 `tests/Standards/ManipulationOperatorPlacementTest.php` pins the split directly,
 by intersecting this sniff's `register()` against `OperatorLineBreak`'s — no
 fixture involved, so it holds for every token either side claims rather than for
@@ -149,8 +157,12 @@ end-to-end over the whole master ruleset, line by line.
   multi-line expression never stair-steps. Reaching it means escaping outward past
   everything that merely divides an expression — the grouping openers `(` and `[`
   (short array included), the argument/element separator `,`, an array key's `=>`,
-  and a named argument's `:` — and stopping at everything that ends a statement,
-  chiefly `;` and `{`. So a wrapped operator inside an `if (...)` condition, a
+  a named argument's `:`, and a `for` header's `;` — and stopping at everything
+  that ends a statement, chiefly `{` and every other `;`. A `for` header's two
+  semicolons divide one header into clauses rather than closing a statement, so
+  its init and increment clauses wrap to the same indent as each other and as an
+  `if` condition's; read as terminators, the two clauses of one header would
+  stair-step. So a wrapped operator inside an `if (...)` condition, a
   call-argument list (positional or named), or an array literal (keyed or not)
   anchors on the line the statement itself starts on; one inside a `{ … }` block,
   a `switch` case body, or a `match` arm anchors on that inner statement's own
