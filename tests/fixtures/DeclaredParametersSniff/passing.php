@@ -69,6 +69,15 @@ class Reporter
         return new func_get_arg();
     }
 
+    public function instantiateQualified(): object
+    {
+        // Qualifying the name changes which symbol it reaches, never what the
+        // construct is: a leading separator reaches the global namespace's
+        // same-named *class*, and `new` can no more be a call here than it is
+        // in the unqualified instantiation above.
+        return new \func_get_args();
+    }
+
     public function __call(string $name, array $arguments): array
     {
         return func_get_args();

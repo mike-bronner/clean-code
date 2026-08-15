@@ -36,7 +36,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *   namespaced functions (`Acme\func_get_args()`), method calls
  *   (`$collector->func_num_args()`, `Collector::func_num_args()`), function
  *   declarations (`function func_get_args()`, including return-by-reference
- *   `function &func_get_args()`), instantiations (`new func_get_args()`), and
+ *   `function &func_get_args()`), instantiations in every spelling
+ *   (`new func_get_args()`, `new \func_get_args()`,
+ *   `new namespace\func_get_args()` — qualifying a name changes which symbol
+ *   it reaches, never what the construct is), and
  *   names bound to another namespace by a function import — either the
  *   statement-wide `use function Acme\func_get_args;` or the per-entry prefix
  *   of a mixed group (`use Acme\{ClassA, function func_get_args};`).
@@ -92,6 +95,10 @@ class DeclaredParametersSniff implements Sniff
      * Tokens that, sitting directly before the name, mean this is not a call to
      * PHP's own function: an object or static member access, a declaration of a
      * same-named function, or an instantiation of a same-named class.
+     *
+     * "Before the name" means before the *whole* name, qualifier included — a
+     * qualified spelling is the same construct as the unqualified one, so it
+     * gets the same exclusions.
      */
     private const NOT_A_CALL_BEFORE = [
         T_DOUBLE_COLON,
@@ -195,7 +202,8 @@ class DeclaredParametersSniff implements Sniff
 
     /**
      * Reports whether the qualified name whose last separator sits at
-     * $separatorPtr resolves to PHP's own function in the global namespace.
+     * $separatorPtr is a call to PHP's own function in the global namespace —
+     * both that it resolves there, and that the construct is a call at all.
      */
     private function isGlobalQualifiedName(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
     {
@@ -212,13 +220,35 @@ class DeclaredParametersSniff implements Sniff
             return false;
         }
 
+        // (PHPCS splits PHP 8's T_NAME_RELATIVE back into T_NAMESPACE +
+        // T_NS_SEPARATOR + T_STRING, so the qualifier of the relative form is
+        // the `namespace` keyword itself.)
+        $isRelative = ($tokens[$qualifierPtr]['code'] === T_NAMESPACE);
+
+        // Neither of the remaining qualifiers is a name segment, so the token
+        // before it precedes the *whole* name — and still decides whether this
+        // is a call at all. Qualifying a name changes which symbol it reaches,
+        // never what the construct is: `new \func_get_args()` instantiates a
+        // same-named class exactly as the unqualified `new func_get_args()`
+        // does. The whole exclusion list is applied rather than the one token
+        // that can reach here today, so the qualified spelling cannot silently
+        // skip an exclusion the unqualified spelling gets.
+        $precederPtr = ($isRelative === true
+            ? $phpcsFile->findPrevious(Tokens::$emptyTokens, ($qualifierPtr - 1), null, true)
+            : $qualifierPtr);
+
+        if (
+            $precederPtr !== false
+            && in_array($tokens[$precederPtr]['code'], self::NOT_A_CALL_BEFORE, true) === true
+        ) {
+            return false;
+        }
+
         // `namespace\func_get_args()` resolves against the *current*
         // namespace with no fallback to the global one, so it is PHP's
         // function only where that current namespace is itself the global
-        // one — an undeclared namespace or a braced block. (PHPCS splits
-        // PHP 8's T_NAME_RELATIVE back into T_NAMESPACE + T_NS_SEPARATOR +
-        // T_STRING, so the qualifier is the `namespace` keyword itself.)
-        if ($tokens[$qualifierPtr]['code'] === T_NAMESPACE) {
+        // one — an undeclared namespace or a braced block.
+        if ($isRelative === true) {
             return $this->isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
         }
 

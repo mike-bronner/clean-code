@@ -37,9 +37,9 @@ it('is registered in the master ruleset', function (): void {
 /**
  * Declared parameters, variadics, magic methods, same-named members, a
  * namespaced lookalike, a `namespace\`-relative call inside a named namespace,
- * a return-by-reference declaration, an instantiation, and a same-named
- * function declaration all stay silent. Every one of them is a near miss the
- * sniff must not fire on.
+ * a return-by-reference declaration, an instantiation in both its unqualified
+ * and its fully qualified spelling, and a same-named function declaration all
+ * stay silent. Every one of them is a near miss the sniff must not fire on.
  */
 it('stays silent on every compliant and near-miss shape', function (): void {
     $file = analyzeFixture(DECLARED_PARAMETERS, 'passing.php');
@@ -128,6 +128,10 @@ it('classifies each entry of a mixed group import on its own', function (): void
  * `namespace\` resolves against the *current* namespace with no fallback to the
  * global one — so it is exempt inside a named namespace (asserted on
  * passing.php) but is PHP's own function in a file that declares no namespace.
+ *
+ * Reaching PHP's function is not the same as calling it: the relative
+ * instantiation at line 28 stays silent beside the two flagged calls above it,
+ * which differ from it only by the preceding `new`.
  */
 it('flags a relative call when the file declares no namespace', function (): void {
     $file = analyzeFixture(DECLARED_PARAMETERS, 'global-namespace.php');

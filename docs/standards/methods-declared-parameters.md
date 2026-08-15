@@ -56,9 +56,12 @@ via the CleanCode standard
     object and static member calls (`$collector->func_num_args()`,
     `Collector::func_num_args()`), function declarations
     (`function func_get_args()`, including return-by-reference
-    `function &func_get_args()`), instantiations (`new func_get_args()`), and
-    constants (`FUNC_NUM_ARGS`). A leading separator alone
-    (`\func_get_args()`) still qualifies the global namespace and *is* flagged.
+    `function &func_get_args()`), instantiations in every spelling
+    (`new func_get_args()`, `new \func_get_args()`,
+    `new namespace\func_get_args()`), and constants (`FUNC_NUM_ARGS`).
+    Qualifying a name changes which symbol it reaches, never what the construct
+    is, so a *call* through a leading separator alone (`\func_get_args()`)
+    still qualifies the global namespace and *is* flagged.
   - **`namespace\func_get_args()` inside a named namespace** — the relative
     qualifier resolves against the current namespace with no fallback to the
     global one, so it names a different function. Where the current namespace

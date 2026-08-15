@@ -18,4 +18,13 @@ class Probe
     {
         return namespace\func_num_args();
     }
+
+    public function instantiate(): object
+    {
+        // The relative qualifier reaches PHP's own function here — but `new`
+        // still means this is a same-named *class*, not a call. The contrast
+        // with relative() above isolates the preceding keyword as the only
+        // difference between the two.
+        return new namespace\func_get_args();
+    }
 }
