@@ -1,0 +1,181 @@
+<?php
+
+/**
+ * Tests the custom CleanCode.Constructors.NoLogic sniff (Constructors: No Logic
+ * in Constructors, #40). Fixtures live in tests/fixtures/NoLogicSniff/.
+ *
+ * The sniff is detection-only: relocating logic out of a constructor needs a
+ * deliberate destination — a named constructor, a factory, or a collaborator
+ * object — which no token-based fixer can invent. So there is no autofixed
+ * fixture, and the tests below prove every reported violation is non-fixable.
+ *
+ * Each of the sniff's decisions was mutated against these fixtures and the
+ * result read off the sniff's own output, rather than assumed. Every mutation
+ * below was run; what it does to the reported lines is recorded exactly:
+ *
+ *   - drop the OO-scope gate — passing.php reddens on 33 and 35, the body of
+ *     the file-scope `function __construct()`
+ *   - drop the `__construct` name check — passing.php reddens on 143, 155, 165
+ *     and 169: the anonymous class's `run()`, `__constructor()`, and both
+ *     control structures in `configure()`
+ *   - match `__construct` case-sensitively — failing.php loses 177, the body
+ *     of `__CONSTRUCT`
+ *   - accept a call parenthesis in the assignment target — failing.php loses
+ *     114, 115 and 116
+ *   - stop consuming continuation clauses — failing.php gains 26, 28, 49, 51,
+ *     56, 78 and 80, reporting one construct once per clause
+ *   - drop the `do … while` tail branch — failing.php gains 42
+ *   - drop the two-word `else if` delegation — failing.php loses 59: the
+ *     `else` ends on a `;` inside its own body and the walk desynchronises
+ *   - send every statement to the semicolon scan (drop the block-statement
+ *     path) — failing.php loses 31, 34, 37, 40, 47, 54 and 59, each swallowed
+ *     by the construct before it
+ *   - drop the alternative-syntax closer handling — failing.php gains 82, 85,
+ *     88, 91 and 95, the `;` after each `endif`/`endforeach`/`endfor`/
+ *     `endwhile`/`endswitch`
+ *   - drop the trailing-token check on the parent call — failing.php loses
+ *     155 and 156
+ *   - drop the argument-list requirement on the parent call — failing.php
+ *     loses 157, the bare `parent::__construct` reference
+ */
+
+declare(strict_types=1);
+
+const NO_LOGIC = 'CleanCode.Constructors.NoLogic';
+
+const NO_LOGIC_FOUND = NO_LOGIC . '.LogicFound';
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(NO_LOGIC);
+});
+
+/**
+ * passing.php carries the compliant form of the construct the sniff registers
+ * on — a constructor that only assigns to its own properties, promoted or in
+ * the body, with `??`/ternary defaults and subscript writes, delegating to
+ * `parent::__construct(...)`, or empty — plus every near-miss shape the sniff
+ * must stay silent on: a file-scope `function __construct()`, a
+ * `__constructor()` method, an ordinary method full of logic, an abstract and
+ * an interface constructor with no body, a trait constructor, and logic held
+ * inside a closure, an arrow function and an anonymous class on an
+ * assignment's right-hand side.
+ */
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(NO_LOGIC, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The whole expectation in one list, so a statement that stops being reported
+ * and a statement that starts being reported both fail here.
+ *
+ * The lines absent from this list are the point of the assertion: the property
+ * assignment opening each constructor, every statement nested inside a flagged
+ * construct, the continuation clauses (26 `elseif`, 28 `else`, 42 the
+ * `do … while` tail, 49 `catch`, 51 `finally`, 56 the two-word `else if`, 78
+ * `elseif`, 80 `else`), the `;` closing each alternative-syntax construct, and
+ * the exact `parent::__construct(...)` delegation in passing.php.
+ */
+it('flags every non-assignment statement once, at its first token', function (): void {
+    $file = analyzeFixture(NO_LOGIC, 'failing.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 24, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // if … elseif … else
+        ['line' => 31, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // for
+        ['line' => 34, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // foreach
+        ['line' => 37, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // while
+        ['line' => 40, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // do … while
+        ['line' => 43, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // switch
+        ['line' => 47, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // try … catch … finally
+        ['line' => 54, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // if … else if
+        ['line' => 59, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // match
+        ['line' => 62, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // free { … } block
+        ['line' => 65, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // return
+        ['line' => 76, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // if … endif
+        ['line' => 83, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // foreach … endforeach
+        ['line' => 86, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // for … endfor
+        ['line' => 89, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // while … endwhile
+        ['line' => 92, 'column' => 9, 'source' => NO_LOGIC_FOUND],   // switch … endswitch
+        ['line' => 110, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // method call
+        ['line' => 111, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // function call
+        ['line' => 112, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // local-variable assignment
+        ['line' => 113, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // increment
+        ['line' => 114, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call in the assignment target
+        ['line' => 115, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call in the subscript index
+        ['line' => 116, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // chained call, then subscript
+        ['line' => 117, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // +=
+        ['line' => 118, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // .=
+        ['line' => 119, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // ??=
+        ['line' => 120, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // throw
+        ['line' => 155, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `or …`
+        ['line' => 156, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // parent call, then `->…()`
+        ['line' => 157, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // bare `parent::__construct`
+        ['line' => 158, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // explicit-ancestor delegation
+        ['line' => 177, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // body of `__CONSTRUCT`
+    ]);
+});
+
+/**
+ * The chained constructs, stated as their own assertion so a regression that
+ * reported a clause separately names itself instead of drowning in the list
+ * above. `endOfStatement()` is the subtlest part of the sniff, and each of
+ * these clause keywords reaches it by a different route: `elseif`/`else`/
+ * `catch`/`finally` through the continuation list, the `do … while` tail
+ * through its own condition-only branch, `else if` through the two-word
+ * delegation, and the alternative syntax through a `scope_closer` that points
+ * at the *next* clause's keyword.
+ */
+it('reports a chained construct once, never per clause', function (): void {
+    $lines = array_column(violationTuples(analyzeFixture(NO_LOGIC, 'failing.php')), 'line');
+
+    expect($lines)
+        ->not->toContain(26)   // elseif
+        ->not->toContain(28)   // else
+        ->not->toContain(42)   // the `while (…);` tail of the do … while
+        ->not->toContain(49)   // catch
+        ->not->toContain(51)   // finally
+        ->not->toContain(56)   // the two-word `else if`
+        ->not->toContain(78)   // elseif:
+        ->not->toContain(80);  // else:
+});
+
+/**
+ * The alternative syntax closes on `endif`/`endforeach`/`endfor`/`endwhile`/
+ * `endswitch`, each followed by a `;` that belongs to the same statement.
+ * Treating that `;` as a statement of its own reports a stray token and
+ * desynchronises the walk, so it is pinned here by line.
+ */
+it('does not report the terminator of an alternative-syntax construct', function (): void {
+    $lines = array_column(violationTuples(analyzeFixture(NO_LOGIC, 'failing.php')), 'line');
+
+    expect($lines)
+        ->not->toContain(82)   // endif;
+        ->not->toContain(85)   // endforeach;
+        ->not->toContain(88)   // endfor;
+        ->not->toContain(91)   // endwhile;
+        ->not->toContain(95);  // endswitch;
+});
+
+it('reports the failing fixture as errors, never warnings', function (): void {
+    $file = analyzeFixture(NO_LOGIC, 'failing.php');
+
+    expect($file->getErrorCount())->toBe(32)
+        ->and($file->getWarningCount())->toBe(0);
+});
+
+/**
+ * Detection only. A fixable flag set anywhere would mean phpcbf believed it
+ * could rewrite a constructor the sniff has no safe rewrite for. The count is
+ * asserted alongside the flags so the list cannot pass by being empty.
+ */
+it('marks no violation fixable', function (): void {
+    $file = analyzeFixture(NO_LOGIC, 'failing.php');
+
+    expect($file->getErrorCount())->toBe(32)
+        ->and($file->getFixableCount())->toBe(0)
+        ->and(violationFixableFlags($file))->each->toBeFalse();
+});

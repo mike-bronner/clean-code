@@ -35,17 +35,29 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
     with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
   - a **`parent::__construct(...)` call** — delegating to the parent constructor
-    is assignment, not logic.
+    is assignment, not logic. The statement has to be *exactly* that call: a
+    real argument list whose closing parenthesis is the last thing before the
+    semicolon.
 - **Flagged** — everything else in the body:
   - **Control structures** — `if`/`elseif`/`else`, `for`, `foreach`, `while`,
-    `do … while`, `switch`, and `try … catch … finally`. Each construct is
-    reported **once**, at its opening keyword; continuation clauses and nested
-    statements are not reported separately.
+    `do … while`, `switch`, and `try … catch … finally`, in both the brace form
+    and the `:` … `endif;` alternative syntax. Each construct is reported
+    **once**, at its opening keyword; continuation clauses (including the
+    two-word `else if`) and nested statements are not reported separately.
+  - **`match` expressions used as statements**, **free `{ … }` blocks** and
+    **`return`**.
   - **`throw` statements**, **method calls** (`$this->configure()`) and
     **function calls** (`doSomething()`).
   - **Non-property assignments** — a local-variable assignment (`$x = …;`) is
     intermediate computation, not object state, and an increment (`$this->n++;`)
     computes rather than assigns.
+  - **Compound assignments** — `+=`, `.=` and `??=` (`$this->n += 1;`,
+    `$this->s .= 'x';`, `$this->n ??= 2;`) read the property before writing it,
+    so they compute rather than plainly assign.
+  - **Trailing logic on a parent call** — `parent::__construct($a) or
+    $this->boot();` and `parent::__construct($a)->initializeExtra();` run work
+    on every instantiation, and a bare `parent::__construct;` is a reference
+    rather than a call. None of the three is delegation.
   - **Assignments whose target contains a call** — a call in the assignment
     *target* (`$this->getConfig()->value = …;`, `$this->items[$this->key()] = …;`,
     `$this->loadDefaults()['k'] = …;`) runs logic on every instantiation, so it
@@ -77,14 +89,16 @@ A few intentional edges, decided rather than accidental:
 - **Explicit-ancestor delegation** (`ParentClass::__construct(...)`, naming the
   class instead of using the `parent` keyword) is **flagged**; only the
   `parent::__construct(...)` form is recognised as delegation.
+- **A declaration held on an assignment's right-hand side** — a closure, an
+  arrow function, or an anonymous class assigned to a property — is
+  **compliant** however much logic it contains. It runs when something calls
+  it, not on instantiation, and the right-hand side is not inspected.
 
-Ruleset-integration tests covering compliant code (including array-subscript
-property writes and a skipped free `__construct` function), per-line violation
-reporting for every non-assignment statement kind (control structures including
-`for`, calls, increments, non-property and call-in-target assignments, `throw`),
-once-per-construct reporting across the `if … elseif … else`, `do … while`, and
-`try … catch … finally` chains, and the non-fixable (detection-only) guarantee
-live at `tests/Ruleset/NoLogicTest.php`.
+The sniff's behaviour lives at `tests/Standards/NoLogicTest.php`, over the
+fixtures at `tests/fixtures/NoLogicSniff/`: `passing.php` for compliant code
+and the near-miss shapes the sniff must stay silent on, `failing.php` for every
+flagged statement kind, asserted by exact line, column, and violation source.
+There is no `autofixed.php` — the sniff is detection-only.
 
 ## What remains code review
 
