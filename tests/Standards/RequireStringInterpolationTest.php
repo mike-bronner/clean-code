@@ -60,19 +60,22 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 29, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
         ['line' => 36, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
         ['line' => 37, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 45, 'column' => 40, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 46, 'column' => 39, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 47, 'column' => 35, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
     ]);
 });
 
 /**
- * Only the seven direct two-operand cases are fixable; the eight detection-only
- * ones are not. Asserted as a count rather than a boolean so a fixer that
- * started claiming the complex cases would fail here rather than silently
- * widening its reach.
+ * Only the seven direct two-operand cases are fixable; the eleven
+ * detection-only ones are not. Asserted as a count rather than a boolean so a
+ * fixer that started claiming the complex cases would fail here rather than
+ * silently widening its reach.
  */
 it('marks only the direct two-operand cases fixable', function (): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(15)
+    expect($file->getErrorCount())->toBe(18)
         ->and($file->getFixableCount())->toBe(7);
 });
 
@@ -133,6 +136,31 @@ it('sees through grouping parentheses around an operand', function (int $line): 
         ->and(violationSourcesByLine($file->getErrors())[$line])
         ->toBe([REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation']);
 })->with([27, 28, 29]);
+
+/**
+ * The rest of "parentheses are transparent": a member, index, or call chain
+ * hanging off the closing parenthesis. operandPointer() bounded its unwrapping
+ * walks by the *operand's* end, which such a chain runs past — so the wrapped
+ * token never matched the walk from the other side, the operand was classified
+ * non-interpolatable, and all three reported nothing at all.
+ *
+ * Asserted as parity with the unparenthesized twin rather than as "this line
+ * reports", because the defect was precisely a disagreement between the two:
+ * a sniff that fell silent on both, or reported both under different codes,
+ * fails here where a bare presence check would pass.
+ */
+it('sees through grouping parentheses a chain hangs off', function (int $twin, int $wrapped): void {
+    $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
+    $sources = violationSourcesByLine($file->getErrors());
+
+    expect($sources[$wrapped] ?? null)
+        ->toBe([REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'])
+        ->and($sources[$wrapped] ?? null)->toBe($sources[$twin] ?? null);
+})->with([
+    'property' => [18, 45],
+    'index' => [19, 46],
+    'method' => [20, 47],
+]);
 
 /**
  * The other half of that fix, and the reason the unwrapping is restricted to

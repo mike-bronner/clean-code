@@ -92,10 +92,19 @@ escape; otherwise the violation is reported for manual conversion.
 
 - **Grouping parentheses are transparent, but only around a single token.**
   `($b) . 'y'` is reported (detection-only — the parenthesized operand is never
-  auto-fixed). A *compound* parenthesized operand is deliberately left alone:
-  `'total: ' . ($count + 1)` opens with a variable just as `($b)` does, but
+  auto-fixed), as is a member, index, or call chain hanging off the closer
+  (`($user)->name . 'x'`, `($items)['key'] . 'x'`). A *compound* parenthesized
+  operand is deliberately left alone whether or not something is chained onto
+  it: `'total: ' . ($count + 1)` opens with a variable just as `($b)` does, but
   `"total: {$count + 1}"` is not valid PHP, so there is no interpolated form to
   steer towards.
+- **An interpolated binary-prefixed string is invisible to every sniff here.**
+  PHP_CodeSniffer cannot tokenize one: it types the `B"` opener `T_NONE` and
+  mis-types the rest of the statement, so there is no token stream to read the
+  literal from. `MultilineStrings` refuses such a run outright rather than
+  rewrite what is really the closing quote plus the source after it. The
+  non-interpolated forms (`B"a\nb"`, `B'a\nb'`) are handled normally, prefix and
+  all, and a lowercase `b` is a token of its own that no fixer touches.
 - **A tag with unbalanced quotes is never rewritten.** `HtmlAttributeQuotes`
   scopes its rewrite to tag spans that parse, stepping over quoted attribute
   values so a `>` inside one (`<a data-x="a>b" class='y'>`) does not end the

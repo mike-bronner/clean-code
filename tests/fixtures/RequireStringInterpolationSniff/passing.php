@@ -17,6 +17,14 @@ $staticCall = 'id: ' . Uuid::make();
 $arithmetic = 'total: ' . ($count + 1);
 $nestedConcat = 'sum: ' . ($x . $y);
 
+// The control for widening operandPointer() past a grouping parenthesis's
+// closer: a chain hanging off the closer must not also relax the single-token
+// restriction above. `"{($a ?: $b)->name}"` is no more valid PHP than
+// `"{$count + 1}"` is, so a compound wrapped expression stays silent whether or
+// not something is chained onto it.
+$compoundChain = 'name: ' . ($a ?: $b)->name;
+$compoundIndex = 'first: ' . ($a + $b)[0];
+
 // One of each kind is required before interpolation is even a question.
 $literalOnly = 'foo' . 'bar';
 $variablesOnly = $first . $last;

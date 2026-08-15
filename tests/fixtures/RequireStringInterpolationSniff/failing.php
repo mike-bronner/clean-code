@@ -35,3 +35,13 @@ $spacedParenthesized = ( $d ) . 'q';
 // value: `B"Count: " . $n` came out as `"\"Count: {$n}"`.
 $binaryDouble = B"Total: " . $sum;
 $binarySingle = B'Total: ' . $sum;
+
+// Detection-only, and load-bearing: a grouping parenthesis with a member,
+// index, or call chain hanging off its closer. operandPointer() bounded its
+// unwrapping walks by the *operand's* end, which a chain runs past — so the
+// wrapped token never matched, the operand was classified non-interpolatable,
+// and these reported nothing at all while their unparenthesized twins on lines
+// 18-20 reported. Each one pairs with the twin directly above it.
+$parenthesizedProperty = ($user)->name . 'x';
+$parenthesizedIndex = ($items)['key'] . 'x';
+$parenthesizedMethod = 'result: ' . ($service)->run();

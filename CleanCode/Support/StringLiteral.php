@@ -14,11 +14,14 @@ namespace MikeBronner\CleanCode\Support;
  *
  * - **Which quote delimits it?** Not simply the token's first character. A
  *   binary-string prefix (`b'x'`, `B"y"`) sits in front of the delimiter, and
- *   PHP_CodeSniffer's tokenizer only splits the *lowercase* `b` off into its
- *   own `T_STRING` token — an uppercase `B` stays inside the literal's content.
- *   A sniff reading `$content[0]` therefore sees `B` and treats the literal as
- *   single-quoted when it is double-quoted (or skips it entirely). Both
- *   spellings are handled here rather than depending on that asymmetry.
+ *   PHP_CodeSniffer's tokenizer splits the *lowercase* `b` off into a separate
+ *   `T_BINARY_CAST` token while an uppercase `B` stays inside the literal's
+ *   content. A sniff reading `$content[0]` therefore sees `B` and treats the
+ *   literal as single-quoted when it is double-quoted (or skips it entirely).
+ *   Uppercase is the only spelling that reaches this class: prefix() reads
+ *   either for symmetry, but its lowercase branch is unreachable for genuine
+ *   tokenizer output. Round-trip safety for `b` comes instead from a fixer
+ *   replacing only the string token, which leaves the cast token in place.
  * - **Is this the whole literal?** A string whose source spans several physical
  *   lines is tokenized one token per line, all of the same token type. Only the
  *   first fragment opens with the delimiter and only the last one closes with

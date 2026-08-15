@@ -231,9 +231,9 @@ class RequireStringInterpolationSniff implements Sniff
      * The code of the token that decides an operand's kind.
      *
      * Normally that is simply the operand's first token. The exception is an
-     * operand wrapped in grouping parentheses, which are transparent to the
-     * standard: `($b) . 'y'` says exactly what `$b . 'y'` says, and reads as
-     * `"{$b}y"` either way.
+     * operand that *opens* with grouping parentheses, which are transparent to
+     * the standard: `($b) . 'y'` says exactly what `$b . 'y'` says, and reads
+     * as `"{$b}y"` either way.
      *
      * The parentheses are unwrapped **only when they contain a single token**.
      * That restriction is the whole point: `($count + 1)` also opens with a
@@ -242,6 +242,14 @@ class RequireStringInterpolationSniff implements Sniff
      * interpolated form. A compound parenthesized expression therefore keeps
      * its `T_OPEN_PARENTHESIS` code and is classified non-interpolatable, which
      * is what keeps the sniff silent on it.
+     *
+     * What is unwrapped is the *parenthesized span*, not the whole operand. A
+     * member, index, or call chain can hang off the closing parenthesis
+     * (`($obj)->prop`, `($arr)['key']`, `($service)->run()`), and such a chain
+     * runs on past it — so reading to the operand's own end would compare the
+     * wrapped token against the chain's last token, never match, and drop the
+     * operand to non-interpolatable. That left the sniff silent on shapes whose
+     * unparenthesized twins it reports.
      *
      * Unwrapping never makes an operand *fixable* — singleTokenOfCode() still
      * requires the operand's own span to be one token, and a parenthesized one
@@ -263,6 +271,12 @@ class RequireStringInterpolationSniff implements Sniff
      * token's *content* as well as its code go through this rather than
      * operandCode(), so both read the same token.
      *
+     * The two walks are bounded by the opening parenthesis's own closer rather
+     * than by the operand's end, so a chain hanging off that closer is stepped
+     * over instead of being read as part of what the parentheses wrap. An
+     * unmatched parenthesis has no closer to bound them with, so the operand's
+     * end stands in and the operand stays classified by its `(`.
+     *
      * @param array{start: int, end: int} $operand
      * @param array<int, array<string, mixed>> $tokens
      */
@@ -272,8 +286,10 @@ class RequireStringInterpolationSniff implements Sniff
             return $operand['start'];
         }
 
-        $head = $this->skipGrouping($tokens, $operand['start'], $operand['end'], T_OPEN_PARENTHESIS, 1);
-        $tail = $this->skipGrouping($tokens, $operand['end'], $operand['start'], T_CLOSE_PARENTHESIS, -1);
+        $closer = $tokens[$operand['start']]['parenthesis_closer'] ?? $operand['end'];
+
+        $head = $this->skipGrouping($tokens, $operand['start'], $closer, T_OPEN_PARENTHESIS, 1);
+        $tail = $this->skipGrouping($tokens, $closer, $operand['start'], T_CLOSE_PARENTHESIS, -1);
 
         return $head === $tail ? $head : $operand['start'];
     }
