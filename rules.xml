@@ -4,7 +4,40 @@
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
     <description>Master ruleset for mike-bronner/phpcs-rules. Individual sniff standards get wired in here via rule refs as they land — see CONTRIBUTING.md.</description>
 
-    <arg name="extensions" value="php"/>
+    <!--
+        Blade views are scanned as well as plain PHP (#46). The `/php` suffix
+        picks the tokenizer, so a .blade.php file is handed to the PHP
+        tokenizer and its markup arrives as T_INLINE_HTML — which is what
+        CleanCode.Livewire.ComponentMarkup reads. Without the entry PHPCS's
+        file filter skips Blade views outright and the standard has nothing to
+        lint. Every other rule below sees Blade views too; that is deliberate,
+        since the PHP a view embeds is PHP like any other, and the file-level
+        PSR rules (file header, side effects) do not fire on a template.
+    -->
+    <arg name="extensions" value="php,blade.php/php"/>
+
+    <!--
+        The extensions entry above has one unavoidable side effect: a Blade view
+        is, by Blade's own design, normally all markup and directives with no
+        raw `<?php ?>` tag anywhere. Handing such a file to the PHP tokenizer
+        makes PHPCS report Internal.NoCodeFound ("No PHP code was found in this
+        file"), which exits 1 — so without this entry, installing this ruleset
+        would fail a consumer's CI on every idiomatic Blade view, whether or not
+        the view breaks any standard.
+
+        The suppression is an exclude-pattern rather than <severity>0</severity>
+        so the blast radius stops at Blade views: a plain .php file that really
+        contains no PHP still warns, which is the case the check exists for.
+
+        The trade this accepts: a .blade.php file whose PHP is written with
+        short open tags on a runtime that disallows them is silently unlinted
+        rather than reported. That is the same silence PHPCS gives any file it
+        cannot tokenise, and it is worth strictly less than a ruleset that
+        cannot be installed. Recorded in docs/standards/livewire-components.md.
+    -->
+    <rule ref="Internal.NoCodeFound">
+        <exclude-pattern>*\.blade\.php</exclude-pattern>
+    </rule>
 
     <!--
         Pin sniff behaviour to the package's PHP floor (composer.json requires
@@ -174,9 +207,12 @@
          code. Unused private methods/properties are covered by the custom
          CleanCode.DeadCode.UnusedPrivateElements sniff above (Slevomat's
          Classes.UnusedPrivateElements was removed in slevomat/coding-standard
-         7.0). -->
+         7.0), and unused parameters by the custom
+         CleanCode.DeadCode.UnusedFormalParameter sniff below, which replaced
+         SlevomatCodingStandard.Functions.UnusedParameter when #120 landed: the
+         Slevomat sniff reports every override, having no inherited-signature
+         exemption at all. -->
     <rule ref="Squiz.PHP.CommentedOutCode"/>
-    <rule ref="SlevomatCodingStandard.Functions.UnusedParameter"/>
     <rule ref="SlevomatCodingStandard.Namespaces.UnusedUses">
         <properties>
             <!-- Imports referenced only in doc-block annotations are used —
@@ -383,8 +419,29 @@
         (#56) — a deliberate overlap: the same newline breaks both standards,
         and the #56 auto-fix (joining the operands onto one line) satisfies
         both. Pinned by tests/Integration/OperatorRulesIntegrationTest.php.
+
+        The binary-operator half is carried by CleanCode.Operators.
+        BinaryOperatorSpacing rather than Squiz.WhiteSpace.OperatorSpacing
+        directly. It is that sniff — same checks, same message codes, same two
+        properties — with its unary-sign detection corrected, and it is
+        configured here rather than arriving bare via ./CleanCode/ruleset.xml
+        because these two properties are what #35 asks for.
+
+        The correction is what makes Operators: Passive (#64, below) possible.
+        The parent reads a `+`/`-` after `;`, after an open tag, or after `@` as
+        a *binary* operator and inserts a space; the passive standard reads the
+        same sign as unary and removes one. Wired together unchanged, the two
+        fixers undo each other and phpcbf abandons the whole file (exit 2) on
+        template code as ordinary as `<?= -$total ?>`.
+        The subclass cedes those four contexts so every sign has exactly one
+        owner. See CleanCode/Sniffs/Operators/BinaryOperatorSpacingSniff.php.
+
+        Swapping the ref does not widen or narrow what #35 enforces: the
+        register() sets and message codes are inherited untouched, which
+        tests/Standards/BinaryOperatorSpacingTest.php asserts against the
+        parent class directly.
     -->
-    <rule ref="Squiz.WhiteSpace.OperatorSpacing">
+    <rule ref="CleanCode.Operators.BinaryOperatorSpacing">
         <properties>
             <property name="ignoreNewlines" value="true"/>
             <!-- Enforce a space before assignment too; the standard wants 1
@@ -657,6 +714,23 @@
         paths.
     -->
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
+        <exclude-pattern>*/tests/*</exclude-pattern>
+    </rule>
+
+    <!--
+        Models: Relationship Properties (#42) —
+        docs/standards/models-relationship-properties.md.
+
+        The custom CleanCode.Models.DisallowChainedPropertyFetch sniff is
+        picked up automatically via the ./CleanCode/ruleset.xml ref above; this
+        block only scopes it. Test suites build object graphs inline and read
+        straight through them, so the sniff stays out of test paths, matching
+        the sibling Models standard above.
+
+        No <severity> or <type> override: the standard mandates the accessor,
+        so the sniff reports at its own error severity.
+    -->
+    <rule ref="CleanCode.Models.DisallowChainedPropertyFetch">
         <exclude-pattern>*/tests/*</exclude-pattern>
     </rule>
 
@@ -950,6 +1024,26 @@
         Detection only, matching PHPMD: renaming a function or method means
         updating every call site and every interface it satisfies, so there is
         no safe mechanical rewrite.
+    -->
+
+    <!--
+        Livewire: Components (#46) — docs/standards/livewire-components.md.
+
+        No existing PHPCS or Slevomat sniff reads Blade markup at all, so the
+        standard is the custom CleanCode.Livewire.ComponentMarkup sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed. It depends on the blade.php entry in
+        the extensions arg at the top of this file.
+
+        Best-effort by construction: the sniff regex-reads the T_INLINE_HTML
+        markup, and Blade control flow makes the *rendered* DOM undecidable
+        from one template, so it only reports shapes that are unambiguous in
+        the source and leaves the rest to code review. Its four codes can be
+        excluded individually where a project's markup defeats a heuristic.
+
+        Detection only: every fix needs a value a machine cannot derive —
+        which attributes belong on the root, what a wire:key should be keyed
+        to — so there is nothing to auto-fix.
     -->
 
     <!--
@@ -1659,7 +1753,10 @@
           drops them in removeParameters(), and skips any node whose parent is
           a FormalParameter. The sniff has no such split — one UnusedVariable
           code covers locals and parameters alike — so parameters are silenced
-          here and #120 flips this to false when it lands.
+          here. #120 has since landed as the custom sniff
+          CleanCode.DeadCode.UnusedFormalParameter, which owns the parameter
+          half outright, so this property stays true: flipping it to false
+          would report every unused parameter twice.
         - allowUnusedForeachVariables=false — matches PHPMD's own default for
           allow-unused-foreach-variables, so an unused foreach key or value is
           flagged. Note the sniff's default is true, hence the explicit set.
@@ -2091,4 +2188,127 @@
     <rule ref="Generic.CodeAnalysis.AssignmentInCondition">
         <type>error</type>
     </rule>
+
+    <!--
+        PHPMD UnusedCode: UnusedFormalParameter (#120) —
+        docs/phpmd/unusedcode-unusedformalparameter.md.
+
+        This is the custom CleanCode.DeadCode.UnusedFormalParameter sniff,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above — no
+        per-sniff registration is needed, and
+        tests/Standards/UnusedFormalParameterTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        Two wirings were built and measured against a live PHPMD 2.15.0 before
+        the custom sniff was written, and each stays silent on shapes PHPMD
+        reports — the one direction that would put phpmd back in the pipeline:
+
+        - Generic.CodeAnalysis.UnusedFunctionParameter decides the inherited-
+          signature exemption per *class*, by switching its error code whenever
+          the enclosing class extends or implements anything. Excluding those
+          six codes to buy the exemption also silences the class's own
+          non-inherited methods. It additionally exempts an empty or
+          comment-only body and __unserialize(), both of which PHPMD reports.
+        - SlevomatCodingStandard.Functions.UnusedParameter has no inherited-
+          signature exemption at all, so it reports every override — the false
+          positive #120's acceptance criteria explicitly forbid. It was wired
+          here for the No Dead Code standard (#29) and is replaced by this
+          sniff, which is a strict superset of it apart from the two
+          annotations below.
+
+        The custom sniff exempts an override it can resolve inside the same
+        file, plus @inheritdoc (which PHPMD honours too) and #[\Override]
+        (which PHPMD does not, and which PHP 8.3 itself refuses to compile
+        unless the method really does override something).
+
+        No <properties> are configured, and there is no <rule> block below:
+        PHPMD's rule carries no thresholds, so there is nothing to transfer and
+        nothing to drift. The sniff reports errors already, so no <type>
+        override is needed either — unlike Squiz.PHP.Eval and VariableAnalysis
+        above, which report warnings out of the box.
+
+        Stricter than PHPMD on closures, arrow functions and anonymous-class
+        methods, which PDepend never hands to a MethodAware rule, and on an
+        override of a parent declared in another file carrying neither
+        annotation. Every shape is pinned by
+        tests/fixtures/UnusedFormalParameterSniff/divergences.php and set out in
+        the doc above.
+
+        Detection only: deleting a parameter changes the signature and breaks
+        every caller, so there is nothing safe to auto-fix. PHPMD reports this
+        rule rather than rewriting the code too.
+    -->
+    <!--
+        Operators: Passive (#64) — a passive operator sits flush against the
+        operand it acts on, no space between. Enforced by a combination of
+        rules: the custom CleanCode.WhiteSpace.PassiveOperatorSpacing sniff
+        (picked up via ./CleanCode/ruleset.xml above) covers identity (+),
+        negation (-), error control (@), and execution (backticks) — the
+        operators no existing sniff handles — while the three sniffs below
+        cover the rest. Squiz.WhiteSpace.OperatorSpacing was evaluated and
+        does NOT apply: it deliberately skips unary +/-, so it flags none of
+        these operators.
+
+        Interaction with binary-operator spacing (#35, above): that standard
+        wants a space around a *binary* +/-, this one wants none around a
+        *unary* +/-, so the whole standard rests on the two sniffs agreeing on
+        which is which. They do not agree out of the box — the four contexts
+        where they diverge are ceded by CleanCode.Operators.BinaryOperatorSpacing,
+        which exists for that purpose and is wired in above for #35. Nothing is
+        ceded in the other direction: this standard enforces flush signs
+        everywhere, template context (`<?= -$total ?>`) and error control
+        (`@-$a`) included. See docs/standards/operators-passive.md.
+    -->
+    <rule ref="Generic.WhiteSpace.IncrementDecrementSpacing"/>
+    <rule ref="Squiz.WhiteSpace.ObjectOperatorSpacing">
+        <properties>
+            <!--
+                Only inline spacing (`$obj -> prop`) is a passive-operator
+                violation. A newline before `->` is a multi-line fluent chain,
+                which the Clear Code: One Thought Per Line standard (#7)
+                mandates — ignoreNewlines keeps the two standards from
+                contradicting each other.
+            -->
+            <property name="ignoreNewlines" value="true"/>
+        </properties>
+    </rule>
+    <rule ref="Squiz.Arrays.ArrayBracketSpacing"/>
+
+      <!--
+        Properties: Are Required (#55) —
+        docs/standards/properties-are-required.md.
+
+        The custom CleanCode.Classes.RequireProperties sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted.
+
+        No <exclude-pattern> for test paths, unlike the
+        DisallowExternalPersistenceCalls block above. There is no test idiom
+        that makes a stateless class legitimate — a test case holds its
+        fixtures, and a Pest test file declares no class at all — so a path
+        filter would only hide the rule where it still applies.
+
+        Nothing existing covers it. Slevomat's class sniffs speak about how
+        properties are declared (RequireConstructorPropertyPromotion), their
+        visibility (ForbiddenPublicProperty) and their ordering
+        (ClassStructure); none reports their *absence*, and neither PSR12,
+        Squiz nor Generic has an equivalent. That search is re-run on every
+        suite pass by tests/Standards/RequirePropertiesTest.php, so a future
+        vendor upgrade that does cover this case says so rather than leaving
+        the custom sniff unexamined.
+    -->
+
+    <!--
+        Methods: No Null Arguments (#71) —
+        docs/standards/methods-no-null-arguments.md. A literal null is never
+        passed positionally into a parameter that declares a default; a named
+        argument says which parameter is meant instead.
+
+        Enforced by the custom CleanCode.Methods.NoNullArguments sniff, picked
+        up automatically via the ./CleanCode/ruleset.xml ref above. No existing
+        PHPCS or Slevomat sniff covers this: Slevomat's
+        Functions.DisallowNamedArguments is the inverse rule, and
+        Functions.NamedArgumentSpacing only governs spacing around an argument
+        that is already named.
+    -->
 </ruleset>

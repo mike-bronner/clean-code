@@ -18,10 +18,12 @@ dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Indentation.LogicalGroupings',
+    'CleanCode.Operators.BinaryOperatorSpacing',
     'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
     'CleanCode.WhiteSpace.BlankLines',
+    'CleanCode.WhiteSpace.PassiveOperatorSpacing',
     'Generic.ControlStructures.InlineControlStructure',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
