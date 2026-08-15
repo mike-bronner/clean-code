@@ -63,8 +63,15 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     though it ends in an assignment. Three spellings, and only the first
     carries a parenthesis:
     - a **call** (`$this->getConfig()->value = …;`,
-      `$this->items[$this->key()] = …;`, `$this->loadDefaults()['k'] = …;`);
-    - a **backtick shell execution** (`` $this->items[`hostname`] = …; ``);
+      `$this->items[$this->key()] = …;`, `$this->loadDefaults()['k'] = …;`).
+      A parenthesis that only **groups** invokes nothing and stays compliant
+      (`$this->items[($this->a + $this->b)] = …;`) — what precedes it decides,
+      because a parenthesis calls whatever comes before it;
+    - an **invoking keyword** carrying no argument list of its own: a
+      **backtick shell execution** (`` $this->items[`hostname`] = …; ``), a
+      `new` or `clone` (`$this->items[(clone $this->seed)->k] = …;`,
+      `$this->items[(new class { … })->k] = …;`), or one of `eval`, `exit`,
+      `print`, `throw`, `yield`, `include` and `require`;
     - a **complex interpolation**, `{$…}` or `${…}`, inside a double-quoted
       string or a heredoc (`$this->items["{$this->key()}"] = …;`). PHPCS hands
       an interpolated string over as one opaque token, so a call spelled inside
@@ -119,6 +126,21 @@ A few intentional edges, decided rather than accidental:
   `$this->items["$this->prefix"] = …;`): it admits no parentheses, so it can
   only read, exactly like the bare subscript it spells. A **nowdoc** key is
   compliant too — it interpolates nothing.
+- **A backslash before `{$` makes it simple interpolation, not complex**, and
+  the key is then **compliant**. PHP reads `"\{$this->prefix}"` as a literal
+  `\{`, the simple interpolation `$this->prefix`, and a literal `}` — the
+  complex opener never forms, so `"\{$this->key()}"` never calls anything. The
+  parity of the backslash run decides: an odd count suppresses, an even count
+  leaves a real `\` and interpolates, so `"\\{$this->key()}"` is flagged and
+  `"\\\{$this->key()}"` is not. `${…}` follows the ordinary `\$` escape instead
+  — `"\${key}"` is literal text, `"\\${resolveKey()}"` interpolates.
+- **A construct that evaluates without calling user code** — `isset(…)`,
+  `empty(…)`, `array(…)` — is **flagged** in an assignment target. Its
+  parenthesis follows a keyword rather than an operator, and the sniff reads
+  every such parenthesis as invoking. Over-reporting is the deliberate side of
+  that trade: a missing entry in the grouping list costs a false positive on an
+  exotic key, while a missing entry in a list of *call* spellings would let real
+  work run unseen on every instantiation.
 
 The sniff's behaviour lives at `tests/Standards/NoLogicTest.php`, over the
 fixtures at `tests/fixtures/NoLogicSniff/`: `passing.php` for compliant code

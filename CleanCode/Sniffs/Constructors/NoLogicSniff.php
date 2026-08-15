@@ -41,9 +41,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * assignment), assignments whose target is not a property (a local variable is
  * intermediate computation, not object state), and assignments whose target
  * invokes something, because it runs on every instantiation — a call
- * parenthesis (`$this->make()->x = …`, `$this->items[$this->key()] = …`), a
- * backtick shell execution, or a complex interpolation, which can hide a call
- * inside a string PHPCS keeps opaque (`$this->items["{$this->key()}"] = …`).
+ * parenthesis (`$this->make()->x = …`, `$this->items[$this->key()] = …`), an
+ * invoking keyword that needs no parenthesis (a backtick shell execution, a
+ * `new` or `clone`), or a complex interpolation, which can hide a call inside a
+ * string PHPCS keeps opaque (`$this->items["{$this->key()}"] = …`). A
+ * parenthesis that merely *groups* invokes nothing and stays compliant
+ * (`$this->items[($this->a + $this->b)] = …`).
  *
  * Statements nested inside a flagged control structure are not examined
  * separately, and a chained construct (`if … elseif … else`,
@@ -142,6 +145,103 @@ class NoLogicSniff implements Sniff
     private const INTERPOLATABLE_STRING_TOKENS = [
         T_DOUBLE_QUOTED_STRING,
         T_HEREDOC,
+    ];
+
+    /**
+     * Tokens that run code on their own, with no parenthesis for the call scan
+     * below to classify. A backtick executes a shell command; `new` and `clone`
+     * run a constructor or `__clone()` and both have parenthesis-free spellings
+     * (`new Foo;`, `new class {…}`, `clone $obj`); the remaining keywords are
+     * PHP's expression-level constructs that evaluate or emit something, each of
+     * which also has a form without parentheses (`include 'x.php'`, `print $x`,
+     * `throw $e`, `yield $v`).
+     */
+    private const INVOKING_TOKENS = [
+        T_BACKTICK,
+        T_NEW,
+        T_CLONE,
+        T_EVAL,
+        T_EXIT,
+        T_PRINT,
+        T_THROW,
+        T_YIELD,
+        T_YIELD_FROM,
+        T_INCLUDE,
+        T_INCLUDE_ONCE,
+        T_REQUIRE,
+        T_REQUIRE_ONCE,
+    ];
+
+    /**
+     * The tokens after which an open parenthesis can only be grouping, never a
+     * call: operators, brackets, and separators, none of which can end an
+     * operand. Everything else — a name, a variable, a closing bracket, a
+     * construct keyword — either invokes or is the head of something that does.
+     *
+     * Enumerated as the grouping side on purpose. A missing entry makes a
+     * grouping parenthesis read as a call and over-reports, which is the safe
+     * direction; enumerating the *call* side instead would let an unlisted
+     * spelling invoke unseen. The PHPCS token groups are not reused because
+     * their membership is narrower than their names suggest — `Tokens::$operators`
+     * carries no `T_STRING_CONCAT`, `T_BOOLEAN_NOT`, `T_BITWISE_NOT` or ternary
+     * token — so the list is spelled out and pinned by fixtures.
+     */
+    private const GROUPING_PARENTHESIS_PRECEDERS = [
+        // Arithmetic and bitwise.
+        T_PLUS,
+        T_MINUS,
+        T_MULTIPLY,
+        T_DIVIDE,
+        T_MODULUS,
+        T_POW,
+        T_BITWISE_AND,
+        T_BITWISE_OR,
+        T_BITWISE_XOR,
+        T_BITWISE_NOT,
+        T_SL,
+        T_SR,
+        T_STRING_CONCAT,
+        // Comparison.
+        T_IS_EQUAL,
+        T_IS_NOT_EQUAL,
+        T_IS_IDENTICAL,
+        T_IS_NOT_IDENTICAL,
+        T_IS_GREATER_OR_EQUAL,
+        T_IS_SMALLER_OR_EQUAL,
+        T_GREATER_THAN,
+        T_LESS_THAN,
+        T_SPACESHIP,
+        // Logical.
+        T_BOOLEAN_AND,
+        T_BOOLEAN_OR,
+        T_BOOLEAN_NOT,
+        T_LOGICAL_AND,
+        T_LOGICAL_OR,
+        T_LOGICAL_XOR,
+        // Conditional.
+        T_INLINE_THEN,
+        T_INLINE_ELSE,
+        T_COALESCE,
+        // Type checks and error control.
+        T_INSTANCEOF,
+        T_ASPERAND,
+        // Casts, each a single token, so the parenthesis after one is grouping.
+        T_INT_CAST,
+        T_DOUBLE_CAST,
+        T_STRING_CAST,
+        T_ARRAY_CAST,
+        T_OBJECT_CAST,
+        T_BOOL_CAST,
+        T_UNSET_CAST,
+        T_BINARY_CAST,
+        // Openers and separators.
+        T_OPEN_PARENTHESIS,
+        T_OPEN_SQUARE_BRACKET,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_CURLY_BRACKET,
+        T_COMMA,
+        T_DOUBLE_ARROW,
+        T_EQUAL,
     ];
 
     /**
@@ -395,14 +495,16 @@ class NoLogicSniff implements Sniff
      * every instantiation and is rejected — in each of the three spellings that
      * reach here:
      *
-     * - a call parenthesis (`$this->make()->x = …`,
-     *   `$this->items[$this->key()] = …`);
-     * - a backtick, which executes a shell command and carries no parenthesis
-     *   to be caught by the one above;
-     * - a complex interpolation, `{$…}` or `${…}`, inside a double-quoted string
-     *   or a heredoc (`$this->items["{$this->key()}"] = …`). PHPCS collapses an
-     *   interpolated string into one opaque token, so a call spelled inside it
-     *   surfaces no parenthesis at all.
+     * - a **call parenthesis** (`$this->make()->x = …`,
+     *   `$this->items[$this->key()] = …`). A parenthesis that only *groups*
+     *   (`$this->items[($this->a + $this->b)] = …`) invokes nothing and stays
+     *   compliant, so each one is classified by what precedes it;
+     * - an **invoking token** carrying no parenthesis of its own — a backtick
+     *   shell execution, a `new`/`clone`, or one of PHP's expression keywords;
+     * - a **complex interpolation**, `{$…}` or `${…}`, inside a double-quoted
+     *   string or a heredoc (`$this->items["{$this->key()}"] = …`). PHPCS
+     *   collapses an interpolated string into one opaque token, so a call
+     *   spelled inside it surfaces no parenthesis at all.
      *
      * Array-subscript writes to this object's own properties (`$this->arr[] =
      * …`, `$this->cfg['k'] = …`) invoke nothing and stay compliant.
@@ -415,7 +517,11 @@ class NoLogicSniff implements Sniff
         for ($ptr = $start; $ptr <= $end; $ptr++) {
             $code = $tokens[$ptr]['code'];
 
-            if ($code === T_OPEN_PARENTHESIS || $code === T_BACKTICK) {
+            if (in_array($code, self::INVOKING_TOKENS, true)) {
+                return false;
+            }
+
+            if ($code === T_OPEN_PARENTHESIS && $this->isGroupingParenthesis($phpcsFile, $ptr, $start) === false) {
                 return false;
             }
 
@@ -439,6 +545,34 @@ class NoLogicSniff implements Sniff
     }
 
     /**
+     * Whether the open parenthesis at $ptr only groups a sub-expression, rather
+     * than opening a call's argument list.
+     *
+     * A parenthesis calls whatever precedes it, so the token before it decides:
+     * a name, a variable, or a closing bracket ends an operand and makes the
+     * parenthesis an invocation (`key(…)`, `$fn(…)`, `(fn() => …)()`,
+     * `$fns['k'](…)`, `$this->{$m}(…)`), and a construct keyword heads one
+     * (`match(…)`, `fn(…)`, `eval(…)`). Only after an operator, an opening
+     * bracket, or a separator can nothing be called, which is the list this
+     * checks — see GROUPING_PARENTHESIS_PRECEDERS for why it is the grouping
+     * side that is enumerated.
+     */
+    private function isGroupingParenthesis(File $phpcsFile, int $ptr, int $start): bool
+    {
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), $start, true);
+
+        // $start is the statement's own `$this`, so a parenthesis in the target
+        // always has a token before it. Read an unexpected miss as a call.
+        if ($previous === false) {
+            return false;
+        }
+
+        $tokens = $phpcsFile->getTokens();
+
+        return in_array($tokens[$previous]['code'], self::GROUPING_PARENTHESIS_PRECEDERS, true);
+    }
+
+    /**
      * Whether one interpolatable string token's raw text carries a *complex*
      * interpolation — `{$…}` or `${…}`.
      *
@@ -456,18 +590,34 @@ class NoLogicSniff implements Sniff
      *
      * Only `\\` and `\$` change whether what follows opens an interpolation, so
      * dropping those two pairs left to right leaves the text PHP really
-     * interpolates. `\{` is not an escape sequence at all — `"\{$x}"` keeps its
-     * interpolation, and stripping its backslash would hide one.
+     * interpolates.
+     *
+     * On that text, a backslash still sitting before `{$` suppresses the
+     * complex opener: PHP reads `"\{$this->key()}"` as a literal `\{`, the
+     * *simple* interpolation `$this->key`, and a literal `()`, so the call never
+     * runs. Parity is what decides, and the pair-strip already normalises it —
+     * an odd number of backslashes leaves one behind and suppresses, an even
+     * number leaves none and interpolates for real. Both directions were read
+     * off the PHP runtime, at one through four backslashes.
+     *
+     * `${` needs no such check: a backslash immediately before it *is* the `\$`
+     * escape the strip already removed, which is why `"\${key()}"` is literal
+     * text while `"\\${key()}"` interpolates.
      *
      * Falling back to the raw text keeps a failed strip on the conservative
      * side: escapes left in place can only make this read *more* of the string
-     * as interpolation, never less, so nothing escapes detection by it.
+     * as interpolation, never less, so nothing escapes detection by it. A failed
+     * match is read the same way, as an interpolation present.
      */
     private function hasComplexInterpolation(string $content): bool
     {
         $unescaped = preg_replace('/\\\\[\\\\$]/', '', $content) ?? $content;
 
-        return str_contains($unescaped, '{$') || str_contains($unescaped, '${');
+        if (preg_match('/(?<!\\\\)\{\$/', $unescaped) !== 0) {
+            return true;
+        }
+
+        return str_contains($unescaped, '${');
     }
 
     /**

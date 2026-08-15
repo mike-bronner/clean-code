@@ -206,9 +206,9 @@ final class ListDestructuringIntoProperties
  * a shell command without one either.
  *
  * Both interpolation syntaxes carry a call on their own: `${resolveKey()}` holds
- * one with no `{$` anywhere in it. The escapes decide which of these really
- * interpolate — `\{` is not an escape sequence, so `"\{$this->prefix}"` still
- * does, and `\\` escapes only itself, so `"\\${resolveKey()}"` does too.
+ * one with no `{$` anywhere in it. Backslash parity decides which of these really
+ * interpolate — `\\` escapes only itself, so `"\\${resolveKey()}"` and
+ * `"\\{$this->key()}"` both keep their opener, while the odd counts do not.
  */
 final class InvokingAssignmentTargets
 {
@@ -223,7 +223,7 @@ final class InvokingAssignmentTargets
         $this->items["${$this->key()}"] = $value;
         $this->items["{$this->prefix}"] = $value;
         $this->items["prefix {$this->key()} suffix"] = $value;
-        $this->items["\{$this->prefix}"] = $value;
+        $this->items["\\{$this->key()}"] = $value;
         $this->items["${resolveKey()}"] = $value;
         $this->items["\\${resolveKey()}"] = $value;
         $this->items["opens
@@ -236,5 +236,44 @@ final class InvokingAssignmentTargets
     private function key(): string
     {
         return 'k';
+    }
+}
+
+/**
+ * The invoking spellings a grouping-aware parenthesis check must still catch.
+ *
+ * Only a parenthesis that follows something callable opens an argument list, so
+ * the check reads the token before each one. These are the spellings where that
+ * token is not an operator: a name, a variable, a closing bracket, or one of
+ * PHP's construct keywords. `new class {…}` and `clone $obj` carry no argument
+ * list at all — their only parenthesis is the grouping one the check now lets
+ * through — so they are rejected on the keyword instead.
+ */
+final class InvokingWithoutACallName
+{
+    private array $items;
+
+    private $factory;
+
+    private $handlers;
+
+    private $seed;
+
+    public function __construct($value)
+    {
+        $this->items[(new class { public int $k = 1; })->k] = $value;
+        $this->items[(clone $this->seed)->k] = $value;
+        $this->items[(new Ancestor())->k] = $value;
+        $this->items[($this->factory)()] = $value;
+        $this->items[$this->handlers['k']()] = $value;
+        $this->items[$this->{'key'}()] = $value;
+        $this->items[match (true) { default => 1 }] = $value;
+        $this->items[(fn (): int => $this->k())()] = $value;
+        $this->items[isset($this->seed) ? 1 : 2] = $value;
+    }
+
+    private function k(): int
+    {
+        return 1;
     }
 }

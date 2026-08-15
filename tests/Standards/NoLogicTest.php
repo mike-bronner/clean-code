@@ -15,16 +15,30 @@
  *
  *   - drop the OO-scope gate — passing.php reddens on 33 and 35, the body of
  *     the file-scope `function __construct()`
- *   - drop the `__construct` name check — passing.php reddens on 158, 170, 180
- *     and 184: the body statements of the anonymous class's `run()` and of
+ *   - drop the `__construct` name check — passing.php reddens on 158, 170, 180,
+ *     184 and 306: the body statements of the anonymous class's `run()` and of
  *     `__constructor()`, then the `if` and the `foreach` of `configure()`, each
  *     at its opening keyword because a block construct is reported once and its
- *     nested body is never examined separately; and failing.php gains 129, 134
- *     and 139, the body statements of the helper methods beside the constructor
+ *     nested body is never examined separately; and failing.php gains 129, 134,
+ *     139, 238 and 277, the body statements of the helper methods beside the
+ *     constructors
  *   - match `__construct` case-sensitively — failing.php loses 180, the body
  *     of `__CONSTRUCT`
- *   - accept a call parenthesis in the assignment target — failing.php loses
- *     114, 115 and 116
+ *   - accept every parenthesis in the assignment target (drop the call check
+ *     outright) — failing.php loses 114, 115, 116, 267, 268, 269, 270, 271 and
+ *     272
+ *   - reject every parenthesis, grouping or not — passing.php reddens on 269
+ *     through 286, every statement of the grouping-parenthesis constructor
+ *   - drop any single entry from GROUPING_PARENTHESIS_PRECEDERS — its own probe
+ *     in "accepts a grouping parenthesis after every listed preceder" reddens,
+ *     and nothing else does. Run for all 48 entries; all 48 killed, so the
+ *     enumeration carries no member the suite leaves untested. Dropping
+ *     T_OPEN_SQUARE_BRACKET, the one entry the fixtures also reach, additionally
+ *     reddens passing.php 128, 129, 229 to 234, 237 to 241 and 269 to 286
+ *   - drop INVOKING_TOKENS entirely — failing.php loses 221, 264 and 265
+ *   - drop T_NEW and T_CLONE from it — failing.php loses 264 and 265, the two
+ *     spellings whose only parenthesis is a grouping one, so the call check
+ *     cannot see them
  *   - stop consuming continuation clauses — failing.php gains 26, 28, 49, 51,
  *     56, 78 and 80, reporting one construct once per clause
  *   - drop the `do … while` tail branch — failing.php gains 42
@@ -48,7 +62,7 @@
  *     delegation `parent::__construct(...$args)`
  *   - carve out a statement that opens with `[` — failing.php loses 197, the
  *     list destructuring into properties
- *   - accept a backtick in the assignment target — failing.php loses 221
+ *   - drop T_BACKTICK from INVOKING_TOKENS — failing.php loses 221
  *   - accept an interpolated string in the assignment target (drop the check
  *     outright) — failing.php loses 222, 223, 224, 225, 226, 227, 228, 229
  *     and 231
@@ -59,24 +73,31 @@
  *   - detect `{$…}` only — failing.php loses 227 and 228, the two keys whose
  *     call hides in a `${…}` with no `{$` anywhere in it
  *   - detect `${…}` only — failing.php loses 222, 224, 225, 226, 229 and 231
- *   - strip every backslash escape before looking, rather than only `\\` and
- *     `\$` — failing.php loses 226: `\{` is not an escape sequence, so
- *     `"\{$this->prefix}"` really does interpolate and stripping its backslash
- *     hides the `{$`
+ *   - drop the `(?<!\\)` lookbehind on `{$` — passing.php reddens on 240 and
+ *     241, the one- and three-backslash runs PHP does not interpolate
  *   - strip no escapes at all — passing.php reddens on 239, where a real
  *     interpolation (`$key`) puts the token in scope and the escaped
  *     `\${literal}` beside it is then read as the syntax that would be rejected
- *   - swap the escape strip for the `(?<!\\)` lookbehind the sibling
- *     ShortVariableSniff uses — failing.php loses 228: `\\` escapes only itself,
- *     so the `${…}` after it interpolates while the lookbehind reads that
- *     backslash as escaping the `$`
- *   - run the interpolation check over the whole statement instead of the
- *     target — passing.php reddens on 147, 154, 155 and 254, the closure, arrow
- *     function and anonymous class held on a right-hand side, and the
- *     right-hand-side interpolation that really does hold a call
+ *   - swap the escape strip for a `(?<!\\)` lookbehind on both syntaxes, the
+ *     way the sibling ShortVariableSniff matches — failing.php loses 226 and
+ *     228: `\\` escapes only itself, so both openers after it interpolate,
+ *     while a lookbehind with no strip reads that backslash as escaping them
+ *   - broaden the escape strip from `\\`/`\$` to every `\X` pair — **survives**:
+ *     with the lookbehind in place the two spellings agree on every fixture and
+ *     on the one-to-four-backslash runtime probes, because the only pair the
+ *     broader class adds before an opener is `\{`, which the lookbehind already
+ *     rejects. Recorded as an equivalent mutation rather than a killed one, so
+ *     the absence of a reddening fixture is not mistaken for missing coverage.
+ *     The narrow class stays because it is what PHP's escape rules say.
+ *   - scan past the assignment operator, inspecting the right-hand side too —
+ *     passing.php reddens on 147, 154, 155 and 301, the closure, arrow function
+ *     and anonymous class held on a right-hand side, and the right-hand-side
+ *     interpolation that really does hold a call
  */
 
 declare(strict_types=1);
+
+use MikeBronner\CleanCode\Sniffs\Constructors\NoLogicSniff;
 
 const NO_LOGIC = 'CleanCode.Constructors.NoLogic';
 
@@ -165,6 +186,15 @@ it('flags every non-assignment statement once, at its first token', function ():
         ['line' => 228, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // `\\` escapes only itself
         ['line' => 229, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // multi-line string
         ['line' => 231, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // heredoc
+        ['line' => 264, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // new anonymous class
+        ['line' => 265, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // clone
+        ['line' => 266, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // new, named class
+        ['line' => 267, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call on a grouped property
+        ['line' => 268, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // call on an array element
+        ['line' => 269, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // dynamic method name
+        ['line' => 270, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // match
+        ['line' => 271, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // immediately-invoked arrow fn
+        ['line' => 272, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // isset
     ]);
 });
 
@@ -190,12 +220,138 @@ it('flags every spelling of an invoking assignment target', function (): void {
         ->toContain(223)   // "${$this->key()}"
         ->toContain(224)   // "{$this->prefix}", no call to find
         ->toContain(225)   // "prefix {$this->key()} suffix"
-        ->toContain(226)   // "\{$this->prefix}"
+        ->toContain(226)   // "\\{$this->key()}", two backslashes, so still complex
         ->toContain(227)   // "${resolveKey()}"
         ->toContain(228)   // "\\${resolveKey()}"
         ->toContain(229)   // the multi-line string, reported at its opening line
         ->not->toContain(230)  // never at the fragment the interpolation sits in
         ->toContain(231);  // the heredoc, reported at its opening line
+});
+
+/**
+ * Backslash parity, both directions, because only one of them is obvious.
+ *
+ * A backslash before `{$` suppresses the complex opener: PHP reads
+ * `"\{$this->prefix}"` as a literal `\{`, the *simple* interpolation
+ * `$this->prefix`, and a literal `}` — the call in `"\{$this->key()}"` never
+ * runs. So the parity of the run of backslashes decides, and both parities are
+ * pinned here rather than one: the even counts stay flagged in failing.php, the
+ * odd counts stay silent in passing.php. Each expectation was read off the PHP
+ * runtime at one through four backslashes before asserting it.
+ *
+ * `${…}` is governed by `\$` instead, which is why the compliant `"\${key}"`
+ * and the flagged `"\\${resolveKey()}"` sit on opposite sides of the same rule.
+ */
+it('reads backslash parity the way PHP does, in both directions', function (
+    string $key,
+    bool $interpolates
+): void {
+    $source = "<?php\nclass ParityProbe {\nprivate array \$items;\n"
+        . "public function __construct(\$value) {\n\$this->items[$key] = \$value;\n}\n"
+        . "private function key(): string { return 'k'; } }\n";
+
+    expect(isset(analyzeStdinSource([NO_LOGIC], $source)->getErrors()[5]))->toBe($interpolates);
+})->with([
+    '{$…}, no backslash'      => ['"{$this->key()}"', true],
+    '{$…}, one backslash'     => ['"\\{$this->key()}"', false],
+    '{$…}, two backslashes'   => ['"\\\\{$this->key()}"', true],
+    '{$…}, three backslashes' => ['"\\\\\\{$this->key()}"', false],
+    '{$…}, four backslashes'  => ['"\\\\\\\\{$this->key()}"', true],
+    '${…}, no backslash'      => ['"${resolveKey()}"', true],
+    '${…}, one backslash'     => ['"\\${resolveKey()}"', false],
+    '${…}, two backslashes'   => ['"\\\\${resolveKey()}"', true],
+    '${…}, three backslashes' => ['"\\\\\\${resolveKey()}"', false],
+]);
+
+/**
+ * One probe per entry in GROUPING_PARENTHESIS_PRECEDERS, keyed by the token it
+ * covers, so the enumeration cannot carry an entry no test exercises.
+ *
+ * Each value is the subscript index of `$this->items[…] = $value;`, except the
+ * curly brace, whose grouping position is a dynamic property name rather than
+ * an index — it is spelled as a whole target below.
+ *
+ * @var array<string, string>
+ */
+const GROUPING_PROBES = [
+    'T_PLUS' => '+($this->a)',
+    'T_MINUS' => '-($this->a)',
+    'T_MULTIPLY' => '$this->a * ($this->b)',
+    'T_DIVIDE' => '$this->a / ($this->b)',
+    'T_MODULUS' => '$this->a % ($this->b)',
+    'T_POW' => '$this->a ** ($this->b)',
+    'T_BITWISE_AND' => '$this->a & ($this->b)',
+    'T_BITWISE_OR' => '$this->a | ($this->b)',
+    'T_BITWISE_XOR' => '$this->a ^ ($this->b)',
+    'T_BITWISE_NOT' => '~($this->a)',
+    'T_SL' => '$this->a << ($this->b)',
+    'T_SR' => '$this->a >> ($this->b)',
+    'T_STRING_CONCAT' => '$this->prefix . ($this->a)',
+    'T_IS_EQUAL' => '$this->a == ($this->b)',
+    'T_IS_NOT_EQUAL' => '$this->a != ($this->b)',
+    'T_IS_IDENTICAL' => '$this->a === ($this->b)',
+    'T_IS_NOT_IDENTICAL' => '$this->a !== ($this->b)',
+    'T_IS_GREATER_OR_EQUAL' => '$this->a >= ($this->b)',
+    'T_IS_SMALLER_OR_EQUAL' => '$this->a <= ($this->b)',
+    'T_GREATER_THAN' => '$this->a > ($this->b)',
+    'T_LESS_THAN' => '$this->a < ($this->b)',
+    'T_SPACESHIP' => '$this->a <=> ($this->b)',
+    'T_BOOLEAN_AND' => '$this->a && ($this->b)',
+    'T_BOOLEAN_OR' => '$this->a || ($this->b)',
+    'T_BOOLEAN_NOT' => '!($this->a)',
+    'T_LOGICAL_AND' => '$this->a and ($this->b)',
+    'T_LOGICAL_OR' => '$this->a or ($this->b)',
+    'T_LOGICAL_XOR' => '$this->a xor ($this->b)',
+    'T_INLINE_THEN' => '$this->a ? ($this->a) : 0',
+    'T_INLINE_ELSE' => '$this->a ? 0 : ($this->b)',
+    'T_COALESCE' => '$this->a ?? ($this->b)',
+    'T_INSTANCEOF' => '$this->other instanceof ($this->prefix)',
+    'T_ASPERAND' => '@($this->a)',
+    'T_INT_CAST' => '(int) ($this->a)',
+    'T_DOUBLE_CAST' => '(float) ($this->a)',
+    'T_STRING_CAST' => '(string) ($this->a)',
+    'T_ARRAY_CAST' => '(array) ($this->a)',
+    'T_OBJECT_CAST' => '(object) ($this->a)',
+    'T_BOOL_CAST' => '(bool) ($this->a)',
+    'T_UNSET_CAST' => '(unset) ($this->a)',
+    'T_BINARY_CAST' => '(binary) ($this->a)',
+    'T_OPEN_PARENTHESIS' => '(($this->a))',
+    'T_OPEN_SQUARE_BRACKET' => '($this->a)',
+    'T_OPEN_SHORT_ARRAY' => '[($this->a)][0]',
+    'T_COMMA' => '[$this->a, ($this->b)][0]',
+    'T_DOUBLE_ARROW' => '[1 => ($this->a)][1]',
+    'T_EQUAL' => '$k = ($this->a)',
+    'T_OPEN_CURLY_BRACKET' => '{($this->prefix)}',
+];
+
+/**
+ * A parenthesis that only groups invokes nothing, so the write stays a plain
+ * property assignment. Removing any single entry from the enumeration reddens
+ * its own probe here and nothing else — measured entry by entry, all 48.
+ */
+it('accepts a grouping parenthesis after every listed preceder', function (string $probe): void {
+    $target = str_starts_with($probe, '{') ? "\$this->$probe" : "\$this->items[$probe]";
+    $source = "<?php\nclass GroupingProbe { private array \$items; private int \$a = 1;\n"
+        . "private int \$b = 2; private string \$prefix = 'p'; private \$other;\n"
+        . "public function __construct(\$value) {\n$target = \$value;\n} }\n";
+
+    expect(analyzeStdinSource([NO_LOGIC], $source)->getErrors())->toBe([]);
+})->with(GROUPING_PROBES);
+
+/**
+ * The enumeration and its probes are kept in step here, so an entry added to
+ * GROUPING_PARENTHESIS_PRECEDERS without a probe fails rather than riding along
+ * untested — the failure mode the sniff's own docblock warns about.
+ */
+it('probes every entry in the grouping-preceder enumeration', function (): void {
+    $enumerated = (new ReflectionClass(NoLogicSniff::class))
+        ->getConstant('GROUPING_PARENTHESIS_PRECEDERS');
+    $probed = array_map(constant(...), array_keys(GROUPING_PROBES));
+
+    sort($enumerated);
+    sort($probed);
+
+    expect($probed)->toBe($enumerated);
 });
 
 /**
@@ -268,7 +424,7 @@ it('does not report the terminator of an alternative-syntax construct', function
 it('reports the failing fixture as errors, never warnings', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(44)
+    expect($file->getErrorCount())->toBe(53)
         ->and($file->getWarningCount())->toBe(0);
 });
 
@@ -280,7 +436,7 @@ it('reports the failing fixture as errors, never warnings', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(44)
+    expect($file->getErrorCount())->toBe(53)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
 });

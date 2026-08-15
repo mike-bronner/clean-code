@@ -237,6 +237,53 @@ final class ReadingAssignmentTargets
         $this->cfg["{\$this->key()}"] = $value;
         $this->cfg["\${key}"] = $value;
         $this->cfg["$key \${literal}"] = $value;
+        $this->cfg["\{$this->prefix}"] = $value;
+        $this->cfg["\\\{$this->prefix}"] = $value;
+    }
+}
+
+/**
+ * A parenthesis in the assignment target only invokes when something callable
+ * precedes it. After an operator, an opening bracket, or a separator there is
+ * nothing to call, so the parenthesis groups a sub-expression and the write
+ * stays a plain property assignment — it reads the object's own state to build
+ * a key and calls nothing while doing it.
+ *
+ * The `(int)` case is here because PHPCS gives a cast as one token: the
+ * parenthesis that follows it is the grouping one, not the cast's own.
+ */
+final class GroupingParenthesesInAssignmentTargets
+{
+    private array $items;
+
+    private int $a;
+
+    private int $b;
+
+    private string $prefix;
+
+    private $other;
+
+    public function __construct($value)
+    {
+        $this->items[($this->a + $this->b)] = $value;
+        $this->items[(($this->a))] = $value;
+        $this->items[-($this->a)] = $value;
+        $this->items[+($this->a)] = $value;
+        $this->items[~($this->a)] = $value;
+        $this->items[!($this->a)] = $value;
+        $this->items[@($this->a)] = $value;
+        $this->items[$this->prefix . ($this->a)] = $value;
+        $this->items[$this->a ** ($this->b)] = $value;
+        $this->items[$this->a === ($this->b)] = $value;
+        $this->items[$this->a && ($this->b)] = $value;
+        $this->items[$this->a ? ($this->a) : ($this->b)] = $value;
+        $this->items[$this->a ?? ($this->b)] = $value;
+        $this->items[$this->other instanceof ($this->prefix)] = $value;
+        $this->items[(int) ($this->a)] = $value;
+        $this->items[[$this->a, ($this->b)][0]] = $value;
+        $this->items[[1 => ($this->a)][1]] = $value;
+        $this->items[[($this->a)][0]] = $value;
     }
 }
 
