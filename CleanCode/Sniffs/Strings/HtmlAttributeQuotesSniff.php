@@ -29,8 +29,10 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * apostrophe attribute on any line is caught — the one boundary left alone is a
  * single tag physically split across lines, whose span no single token holds.
  *
- * An attribute whose value already contains a double quote is reported but left
- * for manual conversion (its escaping is ambiguous).
+ * An attribute whose value carries a double quote or a backslash is reported but
+ * left for manual conversion — the first is ambiguous to re-delimit, the second
+ * can merge with the injected escape and break the PHP string. See
+ * isSafeToConvert().
  */
 class HtmlAttributeQuotesSniff implements Sniff
 {
@@ -75,7 +77,7 @@ class HtmlAttributeQuotesSniff implements Sniff
         if ($fixed === null) {
             $phpcsFile->addError(
                 'HTML attributes must use double quotes, not apostrophes; the value contains a'
-                    . ' double quote, so convert this attribute manually',
+                    . ' double quote or a backslash, so convert this attribute manually',
                 $stackPtr,
                 'Apostrophe'
             );
@@ -113,24 +115,24 @@ class HtmlAttributeQuotesSniff implements Sniff
     /**
      * Rewrites every apostrophe-quoted attribute inside a tag span to double
      * quotes, escaped as the PHP string context requires, or returns null when
-     * any such value contains a double quote (its escaping is ambiguous and
-     * left to a human). Text outside tag spans is preserved verbatim.
+     * any such value is unsafe to re-delimit (see isSafeToConvert()). Text
+     * outside tag spans is preserved verbatim.
      */
     private function rewriteAttributes(string $content, string $apostrophe): ?string
     {
         // Double-quoted PHP context escapes the replacement quotes (`\"`);
         // single-quoted context takes them literally (`"`).
         $quote = $apostrophe === "\\'" ? '"' : '\\"';
-        $ambiguous = false;
+        $unsafe = false;
 
         $rewritten = preg_replace_callback(
             Markup::tagSpanPattern(),
-            function (array $match) use ($apostrophe, $quote, &$ambiguous): string {
+            function (array $match) use ($apostrophe, $quote, &$unsafe): string {
                 return (string) preg_replace_callback(
                     $this->attributePattern($apostrophe),
-                    static function (array $attr) use ($quote, &$ambiguous): string {
-                        if (strpos($attr[2], '"') !== false) {
-                            $ambiguous = true;
+                    static function (array $attr) use ($quote, &$unsafe): string {
+                        if (self::isSafeToConvert($attr[2]) === false) {
+                            $unsafe = true;
 
                             return $attr[0];
                         }
@@ -143,7 +145,36 @@ class HtmlAttributeQuotesSniff implements Sniff
             $content
         );
 
-        return $ambiguous ? null : $rewritten;
+        return $unsafe ? null : $rewritten;
+    }
+
+    /**
+     * Whether an attribute value can be re-delimited without changing what the
+     * PHP string evaluates to.
+     *
+     * Two characters make it unsafe. A double quote is ambiguous: it is the
+     * character being introduced as the new delimiter, so re-delimiting around
+     * it would need an escaping decision this sniff should not make on a
+     * human's behalf.
+     *
+     * A backslash is a corruption risk, and the reason is that the value is
+     * captured out of raw PHP source, not out of the evaluated string. In a
+     * double-quoted PHP string `\'` is not an escape sequence — PHP keeps both
+     * characters — so the capture can end on a backslash, which then lands
+     * immediately in front of the injected `\"` closer and pairs with its
+     * backslash instead. `"<a class='card\'>"` would become
+     * `"<a class=\"card\\">"`: one literal backslash followed by a now-bare
+     * quote that ends the string early, leaving the file unparseable.
+     *
+     * Bailing rather than counting backslash parity is deliberate — it is what
+     * the sibling fixers in this standard already do (EscapeNestedQuotes
+     * rejects `${\` outright, RequireStringInterpolation refuses a
+     * single-quoted literal carrying any backslash), and the violation is still
+     * reported for manual conversion either way.
+     */
+    private static function isSafeToConvert(string $value): bool
+    {
+        return strpbrk($value, '"\\') === false;
     }
 
     /**
@@ -176,30 +207,41 @@ class HtmlAttributeQuotesSniff implements Sniff
     /**
      * The PHP-source delimiter (`"` or `'`) of the string literal $stackPtr
      * belongs to. A multi-line string splits into several tokens; only the
-     * first opens with a quote, so a continuation token is resolved by walking
-     * back over the contiguous string tokens to that opener. An unresolved
-     * continuation defaults to `"` — a single-quoted literal cannot interpolate,
-     * so continuation tokens of an interpolated string are always double-quoted.
+     * first one opens with a quote, so a continuation token is resolved by
+     * walking back over the contiguous string tokens to that opener.
+     *
+     * The delimiter is read from the opener *only*, never from a fragment the
+     * walk passes over. A fragment carries ordinary body text, and body text
+     * can open with the very characters StringLiteral reads a delimiter from:
+     * "B'day wishes" on a continuation line looks exactly like a binary-string
+     * literal, and a line beginning with an apostrophe looks single-quoted.
+     * Asking each fragment in turn and stopping at the first answer therefore
+     * lets prose decide the delimiter for the whole literal, which flips the
+     * escaping convention hasApostropheAttribute() searches for and silently
+     * drops a real violation further down the string. Only the opener actually
+     * holds the delimiter, so only the opener is asked.
+     *
+     * Index adjacency is what identifies a fragment: PHP has no syntax that
+     * puts two separate literals in neighbouring token slots — an operator,
+     * comma, or whitespace token always separates them — so a string token
+     * immediately preceded by another is always a continuation of it.
      *
      * The opener is read through StringLiteral, not off the token's first
      * character, so a binary-string prefix (`B'<a class=\'x\'>'`) does not hide
-     * the delimiter and send the whole literal down the double-quoted path.
+     * the delimiter and send the whole literal down the double-quoted path. An
+     * opener that yields no delimiter at all defaults to `"` — a single-quoted
+     * literal cannot interpolate, so an interpolated string is always
+     * double-quoted.
      */
     private function phpStringDelimiter(File $phpcsFile, int $stackPtr): string
     {
         $tokens = $phpcsFile->getTokens();
-        $pointer = $stackPtr;
+        $opener = $stackPtr;
 
-        while ($pointer >= 0 && in_array($tokens[$pointer]['code'], self::STRING_TOKENS, true) === true) {
-            $delimiter = StringLiteral::delimiter($tokens[$pointer]['content']);
-
-            if ($delimiter !== null) {
-                return $delimiter;
-            }
-
-            $pointer--;
+        while ($opener > 0 && in_array($tokens[$opener - 1]['code'], self::STRING_TOKENS, true) === true) {
+            $opener--;
         }
 
-        return '"';
+        return StringLiteral::delimiter($tokens[$opener]['content']) ?? '"';
     }
 }

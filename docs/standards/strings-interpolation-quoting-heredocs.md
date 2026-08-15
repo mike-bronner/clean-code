@@ -49,12 +49,23 @@ single interpolated string, and it is left alone.
 ### `CleanCode.Strings.HtmlAttributeQuotes` — auto-fixable
 
 Within a string literal that contains HTML, flags attribute values written
-with apostrophes (`class='card'`) and rewrites them to double quotes. Because
-an apostrophe-quoted attribute can only survive inside a *double*-quoted PHP
-string, the fixer escapes the replacement for that context:
-`"<a class='card'>"` → `"<a class=\"card\">"`. The scan is gated on the string
-actually containing an HTML element, so SQL/prose such as
-`"WHERE name = 'x'"` is never touched.
+with apostrophes (`class='card'`) and rewrites them to double quotes. Both PHP
+string contexts carry such an attribute and both are handled; what differs is
+the escaping. In a double-quoted PHP string the attribute apostrophes are
+literal and the replacement quotes need escaping — `"<a class='card'>"` →
+`"<a class=\"card\">"`. In a single-quoted one the apostrophes are themselves
+escaped and the replacement needs no escaping — `'<a class=\'card\'>'` →
+`'<a class="card">'`. The rewrite is scoped to tag spans and gated on the
+string actually containing an HTML element, so SQL and prose — `"WHERE name =
+'x'"`, or `"<p>Query: name = 'admin'</p>"` between tags — are never touched.
+
+A value carrying a double quote or a backslash is reported without a fix. The
+double quote is ambiguous to re-delimit. The backslash is a corruption risk,
+because the value is captured out of raw PHP source rather than the evaluated
+string: `\'` is not an escape sequence in a double-quoted PHP string, so the
+capture can end on a backslash that would then pair with the injected `\"` and
+leave a bare quote closing the string early. The two sibling fixers below
+decline a backslash for the same reason.
 
 ### `CleanCode.Strings.RequireHeredocForMarkup` — detection-only
 
@@ -91,6 +102,14 @@ escape; otherwise the violation is reported for manual conversion.
   span. When a tag's quoting does not balance (`<a class="x>`), its attribute
   boundaries are not knowable and the sniff stays silent rather than guess.
   Detection is unaffected: such a string still counts as markup.
+- **An odd number of apostrophes inside one tag is the same case, and is also
+  left alone.** `<a class='card's'>` is not well-formed HTML — the value's own
+  apostrophe closes it — and stepping over quoted values needs them to pair, so
+  no span matches and the sniff reports nothing. The variable is the apostrophe
+  count, not the PHP string context: this is missed inside both a double-quoted
+  and a single-quoted PHP string, and the even-count case is reported inside
+  both. Pinned by 'stays silent on a tag whose apostrophes do not pair, in
+  either php context'.
 - **A single tag split across source lines is not rewritten.** PHPCS hands the
   sniff one token per physical line, and no single token holds that tag's span.
 - **`RequireHeredocForMarkup` reports once per physical line.** Same
@@ -104,7 +123,11 @@ escape; otherwise the violation is reported for manual conversion.
   on that shape and leave it to `CleanCode.Strings.MultilineStrings`, whose
   HereDoc conversion is the rewrite that shape actually wants.
   `HtmlAttributeQuotes` is unaffected: it edits inside a fragment and never
-  touches the delimiters, so it still converts an attribute on any line.
+  touches the delimiters, so it still converts an attribute on any line. It
+  does need to know *which* delimiter opened the literal, to pick the escaping
+  convention, and it reads that from the opening fragment only — a later
+  fragment holds body text, and body text can open with the same characters a
+  delimiter is read from (`B'day` reads as a binary prefix plus an apostrophe).
 - **A binary-string prefix is carried over, not dropped.** `b'x'` / `B"y"` are
   handled in all three fixers, and the prefix survives the rewrite
   (`B"Total: " . $sum` → `B"Total: {$sum}"`). Worth knowing when reading the

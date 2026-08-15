@@ -33,3 +33,21 @@ $nonFixable = "<a title='say \"hi\"'>x</a>";
 // single-quoted literal was scanned as if it were double-quoted — its escaped
 // attribute apostrophes never matched and the violation went unreported.
 $binaryPrefixed = B'<a class=\'card\'>link</a>';
+
+// The delimiter of a multi-line string used to be resolved by asking each
+// fragment in turn and taking the first answer. A continuation line whose prose
+// happens to open like a literal — `B'day` reads as a binary-string prefix plus
+// an apostrophe delimiter — answered for the whole string, so this
+// double-quoted literal was scanned with the single-quoted escaping convention
+// and the real violation two lines down went unreported. Only the opener holds
+// the delimiter, so only the opener is asked.
+$delimiterCollision = "greetings
+B'day wishes to you
+<a class='card'>link</a>";
+
+// Not fixable: in a double-quoted PHP string `\' ` is not an escape sequence, so
+// the captured value ends on a backslash. Injecting the `\"` closer straight
+// after it would pair the two backslashes and leave a bare quote that ends the
+// string early — `"<a class=\"card\\">link</a>"` no longer parses. Reported for
+// manual conversion instead.
+$backslashInValue = "<a class='card\'>link</a>";
