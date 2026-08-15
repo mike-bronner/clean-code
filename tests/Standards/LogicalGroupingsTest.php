@@ -114,21 +114,6 @@ it('derives the expected indent from the immediate parent group', function (): v
 });
 
 /**
- * The fixer's blast radius, as the complement of the round-trip the contract
- * sweep runs.
- *
- * The sweep proves failing.php fixes into autofixed.php byte for byte, which
- * pins what the fixer *did*. It cannot say that what changed was only the
- * condition lines. failing.php deliberately carries seven constructs that look
- * like groupings but are not — a `new class(...)` argument list, a `match`
- * subject, a closure parameter list, an arrow-function body, a comment line, a
- * heredoc body, and a wrapped double-quoted string — each at odd indentation
- * inside a file the fixer genuinely rewrites. Reindenting a heredoc body would
- * change a string's value rather than its layout; the rest would move code the
- * sniff has no business moving. Comparing the two fixtures line by line is
- * what proves none of that happened.
- */
-/**
  * Nesting cost has to stay linear in the number of groups.
  *
  * Each nested group is checked in its own right, so a walk that measured a
@@ -138,20 +123,25 @@ it('derives the expected indent from the immediate parent group', function (): v
  * downstream lint pipelines that run over contributed code, so the cost of one
  * ordinary-looking file is CI CPU somebody else pays for.
  *
- * What is asserted is a ratio, not a stopwatch reading. The same number of
- * groups is analysed twice — once nested inside one another, once laid out as
- * siblings — and the nested run must not cost several times the flat one. A
- * fixed budget in seconds cannot do this job: the CI runner takes ~11x this
- * machine's time for the *linear* walk, which is already more than this
- * machine spends on the quadratic one, so any threshold safe there would be
- * blind here. Measuring both shapes in the same process cancels the machine,
- * the tokenizer, and the ruleset build out of the comparison.
+ * What is asserted is a ratio, not a stopwatch reading. A fixed budget in
+ * seconds cannot do this job: the CI runner takes ~11x this machine's time for
+ * the *linear* walk, which is already more than this machine spends on the
+ * quadratic one, so any threshold safe there would be blind here.
+ *
+ * The baseline is the same file with the same parentheses nested to the same
+ * depth, differing only in that each one opens a call rather than a grouping —
+ * so the sniff skips them all and does no grouping work at all. That control
+ * matters: PHP_CodeSniffer's own tokenizer is superlinear in parenthesis
+ * depth, and on the CI runner it costs several times what this sniff does, so
+ * a baseline that nested its parentheses less deeply would measure the
+ * tokenizer and call it a regression. Holding the depth identical puts that
+ * cost on both sides of the ratio, leaving the sniff's own work as the only
+ * difference.
  *
  * The two implementations sit an order of magnitude either side of the
- * threshold: 1.04x for the walk that jumps each nested region against 16.7x
- * for the walk that stepped through it (0.06s/0.06s against 0.95s/0.06s,
- * measured in-process). The flat fixture is deliberately the *larger* of the
- * two in tokens, so the bias in the ratio is towards passing.
+ * threshold: 1.06x for the walk that jumps each nested region against 15.5x
+ * for the walk that stepped through it (0.06s/0.05s against 0.93s/0.06s,
+ * measured in-process here).
  *
  * The count is capped at 600 by PHP_CodeSniffer itself, not by taste: past
  * roughly a thousand levels of nesting its tokenizer exhausts PHP's default
@@ -160,57 +150,50 @@ it('derives the expected indent from the immediate parent group', function (): v
  *
  * The violation assertions are what stop the timings passing vacuously: a walk
  * that gave up early, or a tokenizer that never got that far, would be both
- * fast and silent.
+ * fast and silent. The baseline's own assertion is the complement — it has to
+ * report nothing, or it is not the no-grouping-work control it is used as.
  */
 it('stays linear as groupings nest', function (): void {
     $count = 600;
-    $nested = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {', '        if ('];
 
-    for ($level = 0; $level < $count; $level++) {
-        // Every group but the outermost opens its first condition two spaces
-        // shallow, so each level contributes exactly one violation.
-        $indent = (12 + (4 * $level));
-        $nested[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
-        $nested[] = str_repeat(' ', $indent) . '&& (';
-    }
+    // The same file either way: $count parentheses nested to the same depth,
+    // opened by `&& (` for the groupings and by `&& check(` for the control.
+    $build = function (string $opener) use ($count): string {
+        $lines = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {'];
+        $lines[] = '        if (';
 
-    $nested[] = str_repeat(' ', ((12 + (4 * $count)) - 2)) . '$this->first';
-    $nested[] = str_repeat(' ', (12 + (4 * $count))) . '&& $this->second';
+        for ($level = 0; $level < $count; $level++) {
+            // Every group but the outermost opens its first condition two
+            // spaces shallow, so each level contributes exactly one violation.
+            $indent = (12 + (4 * $level));
+            $lines[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
+            $lines[] = str_repeat(' ', $indent) . $opener;
+        }
 
-    for ($level = ($count - 1); $level >= 0; $level--) {
-        $nested[] = str_repeat(' ', (12 + (4 * $level))) . ')';
-    }
+        $lines[] = str_repeat(' ', ((12 + (4 * $count)) - 2)) . '$this->first';
+        $lines[] = str_repeat(' ', (12 + (4 * $count))) . '&& $this->second';
 
-    $nested = array_merge($nested, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
+        for ($level = ($count - 1); $level >= 0; $level--) {
+            $lines[] = str_repeat(' ', (12 + (4 * $level))) . ')';
+        }
 
-    // The same 600 groups, and the same one violation each, with no group
-    // inside another: whatever this run costs is what 600 groups cost when
-    // nesting is not a factor.
-    $flat = ['<?php', '', 'final class Flat', '{', '    public function siblings(): void', '    {'];
-    $flat[] = '        if (';
-    $flat[] = '            $this->seed';
+        $tail = ['        ) {', '            $this->grant();', '        }', '    }', '}', ''];
 
-    for ($index = 0; $index < $count; $index++) {
-        $flat[] = '            && (';
-        $flat[] = '              $this->b' . $index;
-        $flat[] = '                && $this->c' . $index;
-        $flat[] = '            )';
-    }
-
-    $flat = array_merge($flat, ['        ) {', '            $this->grant();', '        }', '    }', '}', '']);
+        return implode("\n", array_merge($lines, $tail));
+    };
 
     buildRuleset([LOGICAL_GROUPINGS]);
 
-    $measure = function (string $name, array $lines): array {
-        $fixture = stageGeneratedFixture($name, implode("\n", $lines));
+    $measure = function (string $name, string $source): array {
+        $fixture = stageGeneratedFixture($name, $source);
         $started = hrtime(true);
         $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
 
         return [((hrtime(true) - $started) / 1e9), violationTuples($file)];
     };
 
-    [$nestedElapsed, $nestedViolations] = $measure('nested-groupings.php', $nested);
-    [$flatElapsed, $flatViolations] = $measure('flat-groupings.php', $flat);
+    [$grouped, $groupedViolations] = $measure('nested-groupings.php', $build('&& ('));
+    [$skipped, $skippedViolations] = $measure('nested-calls.php', $build('&& check('));
 
     $expected = [];
 
@@ -228,11 +211,26 @@ it('stays linear as groupings nest', function (): void {
         'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
     ];
 
-    expect($nestedViolations)->toBe($expected)
-        ->and($flatViolations)->toHaveCount($count)
-        ->and($nestedElapsed)->toBeLessThan(($flatElapsed * 4));
+    expect($groupedViolations)->toBe($expected)
+        ->and($skippedViolations)->toBe([])
+        ->and($grouped)->toBeLessThan(($skipped * 4));
 });
 
+/**
+ * The fixer's blast radius, as the complement of the round-trip the contract
+ * sweep runs.
+ *
+ * The sweep proves failing.php fixes into autofixed.php byte for byte, which
+ * pins what the fixer *did*. It cannot say that what changed was only the
+ * condition lines. failing.php deliberately carries seven constructs that look
+ * like groupings but are not — a `new class(...)` argument list, a `match`
+ * subject, a closure parameter list, an arrow-function body, a comment line, a
+ * heredoc body, and a wrapped double-quoted string — each at odd indentation
+ * inside a file the fixer genuinely rewrites. Reindenting a heredoc body would
+ * change a string's value rather than its layout; the rest would move code the
+ * sniff has no business moving. Comparing the two fixtures line by line is
+ * what proves none of that happened.
+ */
 it('moves the reported condition lines and nothing else', function (): void {
     $before = file(fixturePath('LogicalGroupingsSniff', 'failing.php'));
     $after = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
