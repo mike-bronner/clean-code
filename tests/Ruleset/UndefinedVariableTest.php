@@ -7,10 +7,14 @@
  * tests/fixtures/VariableAnalysisSniff/.
  *
  * The sniff emits six codes; rules.xml keeps the two that mean "a variable is
- * read before it is defined" and excludes the other four, which belong to
- * other PHPMD rules or to none. Both halves are pinned below: the excluded
- * codes stay silent through rules.xml, and the same fixture proves they would
- * fire without the excludes — so dropping an <exclude> fails this suite.
+ * read before it is defined" and excludes three that belong to no PHPMD rule.
+ * Both halves are pinned below: the excluded codes stay silent through
+ * rules.xml, and the same fixture proves they would fire without the excludes
+ * — so dropping an <exclude> fails this suite.
+ *
+ * The sixth code, UnusedVariable, is neither kept for this rule nor excluded:
+ * it carries PHPMD's UnusedLocalVariable (#118) and is covered by
+ * tests/Ruleset/UnusedLocalVariableTest.php.
  *
  * Beyond the contract's passing.php and failing.php, two extra fixtures carry
  * shapes belonging to neither set:
@@ -19,11 +23,13 @@
  *   neither tool catches. Pinned by a test so the gap cannot drift back into
  *   an unearned parity claim; described in
  *   docs/phpmd/cleancode-undefinedvariable.md.
- * - excluded-codes.php — the four sniff codes rules.xml excludes.
+ * - excluded-codes.php — the three sniff codes rules.xml excludes.
  *
- * There is no autofixed.php: the rule is not fixable, and the byte-identical
- * test below proves it by running the real fixer rather than asserting the
- * absence.
+ * There is no autofixed.php: the rule is not fixable. That is asserted by the
+ * fixable-count and per-violation fixable-flag test below; the byte-identical
+ * test beside it adds nothing on that question — the fixer returns before
+ * touching a file with nothing fixable — and stands only as a tokenizer
+ * round-trip check.
  *
  * The severity override is pinned here too. The sniff reports warnings out of
  * the box and rules.xml raises them to errors, so an undefined variable fails a
@@ -45,8 +51,9 @@ const UNDEFINED_VARIABLE = VARIABLE_ANALYSIS_SNIFF . '.UndefinedVariable';
 
 const UNDEFINED_UNSET_VARIABLE = VARIABLE_ANALYSIS_SNIFF . '.UndefinedUnsetVariable';
 
+const UNUSED_VARIABLE_CODE = VARIABLE_ANALYSIS_SNIFF . '.UnusedVariable';
+
 const VARIABLE_ANALYSIS_EXCLUDED_CODES = [
-    VARIABLE_ANALYSIS_SNIFF . '.UnusedVariable',
     VARIABLE_ANALYSIS_SNIFF . '.VariableRedeclaration',
     VARIABLE_ANALYSIS_SNIFF . '.SelfOutsideClass',
     VARIABLE_ANALYSIS_SNIFF . '.StaticOutsideClass',
@@ -131,8 +138,15 @@ it('reports undefined reads as errors rather than warnings', function (): void {
  * asserting the whole map — the one shape neither tool reports.
  *
  * PHPMD 2.15.0 reports nothing at all on this fixture. This ruleset reports
- * exactly two lines. Line 75, the conditionally-assigned read, is absent from
- * both: it would appear in this map if the sniff caught it.
+ * exactly three lines. Line 75, the conditionally-assigned read, is absent
+ * from both: it would appear in this map if the sniff caught it.
+ *
+ * Line 52 is the same closure-scope divergence as line 56, seen from the other
+ * side. Because a closure body is its own scope to the sniff, $insideClosure is
+ * both undefined at the read on line 56 and unused at the assignment on line
+ * 52 — so enabling UnusedVariable for PHPMD's UnusedLocalVariable (#118) makes
+ * this fixture report it twice. PHPMD folds the closure into its enclosing
+ * method and so reports neither.
  *
  * Neither behaviour is configurable — VariableAnalysisSniff exposes no property
  * that toggles statement-order or closure scoping — so the gap is documented
@@ -142,8 +156,9 @@ it('flags the divergences from PHPMD exactly where they are recorded', function 
     $file = analyzeFixture(VARIABLE_ANALYSIS_SNIFF, 'divergences.php');
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
-        34 => [UNDEFINED_VARIABLE],    // read one line above its assignment
-        56 => [UNDEFINED_VARIABLE],    // closure local read outside the closure
+        34 => [UNDEFINED_VARIABLE],       // read one line above its assignment
+        52 => [UNUSED_VARIABLE_CODE],     // closure local unused inside the closure
+        56 => [UNDEFINED_VARIABLE],       // closure local read outside the closure
     ]);
 });
 
@@ -182,13 +197,26 @@ it('reports undefined reads without offering an auto-fix', function (): void {
 
 /**
  * The "autofixed" half of the fixture contract, for a rule that has no
- * autofixed.php to compare against: the fixer's real output on failing.php *is*
- * failing.php, byte for byte.
+ * autofixed.php to compare against: running phpcbf's own Fixer over
+ * failing.php returns failing.php, byte for byte.
  *
- * Proven by driving the same Fixer phpcbf drives, not by trusting the fixable
- * flag the test above reads. The error count is asserted both before and after
- * the run, so a fixture that stopped tripping the sniff — or a fixer that
- * silently swallowed every diagnostic — cannot pass this vacuously.
+ * What this shows is narrower than it looks, and is recorded here so nobody
+ * reads more into it. Fixer::fixFile() (vendor/squizlabs/php_codesniffer/src/
+ * Fixer.php:142-148) returns immediately when getFixableCount() is 0, and the
+ * test above already asserts that count is 0 for this fixture — so on the
+ * question of fixability the byte-identical result is a corollary of that
+ * assertion rather than a check on it: the identical bytes follow from the
+ * zero count, they do not test it, and nothing here reads the per-violation
+ * fixable flags the test above asserts. The error count asserted before the
+ * run guards something smaller still: that failing.php is tripping the sniff
+ * at all, since a fixture that had stopped violating would come back
+ * byte-identical just the same. The repeat assertion after the run adds
+ * nothing on top of that — the fixer returned before modifying anything.
+ *
+ * It still earns its place as the one assertion that PHPCS reassembles this
+ * fixture from its token stream unchanged: Fixer::getContents() concatenates
+ * the token contents the tokenizer produced, so a fixture edit PHPCS could not
+ * round-trip would show up here and nowhere else in this file.
  */
 it('leaves the failing fixture byte-identical when the fixer runs', function (): void {
     $file = analyzeFixture(VARIABLE_ANALYSIS_SNIFF, 'failing.php');

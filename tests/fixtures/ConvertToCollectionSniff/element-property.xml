@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="ConvertToCollectionElementProperty"
+         xsi:noNamespaceSchemaLocation="../../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Configures ConvertToCollection the way a consuming project's ruleset does — a real &lt;property type="array"&gt; holding &lt;element&gt; nodes, parsed by PHPCS's own ruleset reader. The sniff is referenced by file path so the standard needs no installed_paths entry; PHPCS still derives the CleanCode.Arrays.ConvertToCollection code from that path.</description>
+
+    <rule ref="../../../CleanCode/Sniffs/Arrays/ConvertToCollectionSniff.php">
+        <properties>
+            <property name="arrayFunctions" type="array">
+                <!-- Keyless, and shouted: the two halves of the list-form
+                     branch. PHPCS hands a keyless element over numerically
+                     keyed, and the sniff derives values from ARRAY_VALUES by
+                     lowercasing before it drops the array_ prefix. -->
+                <element value="ARRAY_VALUES"/>
+                <!-- Keyed, for a function whose Collection name the array_
+                     rule cannot derive. -->
+                <element key="usort" value="sortBy"/>
+            </property>
+        </properties>
+    </rule>
+</ruleset>
