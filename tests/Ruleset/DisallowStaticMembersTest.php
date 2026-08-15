@@ -1,146 +1,61 @@
 <?php
 
-declare(strict_types=1);
-
-namespace MikeBronner\CleanCode\Tests\Ruleset;
-
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
-
 /**
  * Integration test for the custom CleanCode.Classes.DisallowStaticMembers
  * sniff as wired into the master rules.xml (Classes: No Statics, issue #19).
- * Fixtures live in Fixtures/DisallowStaticMembers/ beside this file.
+ * Fixtures live in tests/fixtures/DisallowStaticMembersSniff/.
  *
- * The sniff is detection-only, so there is no auto-fix assertion — instead the
+ * The sniff is detection-only, so there is no autofixed fixture — instead the
  * tests prove every reported violation is non-fixable.
  */
-class DisallowStaticMembersTest extends TestCase
-{
-    private const SNIFF_CODE = 'CleanCode.Classes.DisallowStaticMembers';
 
-    public function testRuleIsRegisteredInMasterRuleset(): void
-    {
-        $ruleset = new Ruleset($this->createConfig());
+declare(strict_types=1);
 
-        $this->assertArrayHasKey(self::SNIFF_CODE, $ruleset->sniffCodes);
-    }
+const DISALLOW_STATIC_MEMBERS = 'CleanCode.Classes.DisallowStaticMembers';
 
-    public function testCompliantFileProducesNoViolations(): void
-    {
-        $file = $this->processFixture('compliant.inc');
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
 
-        $this->assertSame([], $file->getErrors());
-        $this->assertSame([], $file->getWarnings());
-    }
+    expect($ruleset->sniffCodes)->toHaveKey(DISALLOW_STATIC_MEMBERS);
+});
 
-    public function testStaticMethodsAndPropertiesAreFlaggedAtTheirOwnLineAndColumn(): void
-    {
-        $file = $this->processFixture('violations.inc');
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'passing.php');
 
-        $this->assertSame(
-            [
-                ['line' => 9, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticProperty'],
-                ['line' => 11, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-                ['line' => 21, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-                ['line' => 25, 'column' => 15, 'source' => self::SNIFF_CODE . '.StaticProperty'],
-            ],
-            $this->violations($file)
-        );
-    }
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
 
-    public function testStaticMethodsAreFlaggedInEveryObjectOrientedContainer(): void
-    {
-        $file = $this->processFixture('containers.inc');
+it('flags static methods and properties at their own line and column', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'failing.php');
 
-        // interface (12), abstract class (17), trait (22), enum (31). Line 17
-        // also has a `static` return type on the same line — only the modifier
-        // (column 21) is flagged, proving return types are not caught.
-        $this->assertSame(
-            [
-                ['line' => 12, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-                ['line' => 17, 'column' => 21, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-                ['line' => 22, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-                ['line' => 31, 'column' => 12, 'source' => self::SNIFF_CODE . '.StaticMethod'],
-            ],
-            $this->violations($file)
-        );
-    }
+    expect(violationTuples($file))->toBe([
+        ['line' => 9, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+        ['line' => 11, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+        ['line' => 21, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+        ['line' => 25, 'column' => 15, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+    ]);
+});
 
-    public function testViolationsAreNotAutoFixable(): void
-    {
-        foreach (['violations.inc', 'containers.inc'] as $fixture) {
-            $file = $this->processFixture($fixture);
+/**
+ * interface (12), abstract class (17), trait (22), enum (31). Line 17 also has
+ * a `static` return type on the same line — only the modifier (column 21) is
+ * flagged, proving return types are not caught.
+ */
+it('flags static methods in every object-oriented container', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'containers.php');
 
-            foreach ($file->getErrors() as $columns) {
-                foreach ($columns as $messages) {
-                    foreach ($messages as $message) {
-                        $this->assertFalse($message['fixable'], $fixture . ' violations must be detection-only');
-                    }
-                }
-            }
-        }
-    }
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+        ['line' => 17, 'column' => 21, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+        ['line' => 22, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+        ['line' => 31, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+    ]);
+});
 
-    /**
-     * Flattens a processed file's errors into an ordered list of
-     * line/column/source tuples for exact assertion.
-     *
-     * @return array<int, array{line: int, column: int, source: string}>
-     */
-    private function violations(LocalFile $file): array
-    {
-        $flat = [];
+it('reports violations that are not auto-fixable', function (string $fixture): void {
+    $flags = violationFixableFlags(analyzeFixture(DISALLOW_STATIC_MEMBERS, $fixture));
 
-        foreach ($file->getErrors() as $line => $columns) {
-            foreach ($columns as $column => $messages) {
-                foreach ($messages as $message) {
-                    $flat[] = ['line' => $line, 'column' => $column, 'source' => $message['source']];
-                }
-            }
-        }
-
-        usort($flat, static fn (array $a, array $b): int => [$a['line'], $a['column']] <=> [$b['line'], $b['column']]);
-
-        return $flat;
-    }
-
-    private function processFixture(string $fixture): LocalFile
-    {
-        $config = $this->createConfig();
-        $ruleset = new Ruleset($config);
-
-        // Isolate the sniff under test. A $config->sniffs restriction cannot
-        // be used here: under PHP_CODESNIFFER_IN_TESTS it makes Ruleset skip
-        // parsing rules.xml, dropping the <properties> configured there.
-        // populateTokenListeners() re-applies those properties.
-        $sniffClass = $ruleset->sniffCodes[self::SNIFF_CODE];
-        $ruleset->sniffs = [$sniffClass => $ruleset->sniffs[$sniffClass]];
-        $ruleset->populateTokenListeners();
-
-        $file = new LocalFile(__DIR__ . '/Fixtures/DisallowStaticMembers/' . $fixture, $ruleset, $config);
-        $file->process();
-
-        return $file;
-    }
-
-    private function createConfig(): ConfigDouble
-    {
-        $config = new ConfigDouble();
-        $config->cache = false;
-        $config->standards = [dirname(__DIR__, 2) . '/rules.xml'];
-
-        // ConfigDouble blanks CodeSniffer.conf, which is where Composer
-        // registers Slevomat's installed path — restore it (in memory only)
-        // so the ruleset can resolve the SlevomatCodingStandard sniffs.
-        ConfigDouble::setConfigData(
-            'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
-            true
-        );
-
-        return $config;
-    }
-}
+    expect($flags)->not->toBeEmpty()
+        ->and($flags)->each->toBeFalse();
+})->with(['failing.php', 'containers.php']);
