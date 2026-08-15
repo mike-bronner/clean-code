@@ -300,3 +300,12 @@ function dispatch(string $to, ?int $retries = null): void
 
 // Standalone function call.
 dispatch('a', null);
+
+function notify(?string $channel = null, ?int $retries = null): void
+{
+}
+
+// A later argument the call already names: the fixer names the flagged null
+// and leaves that argument as it found it. Naming it a second time would not
+// parse.
+notify(null, retries: 3);

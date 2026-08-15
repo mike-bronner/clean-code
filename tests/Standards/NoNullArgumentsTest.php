@@ -96,6 +96,8 @@ it('flags every positional null at its own line', function (): void {
         287 => [NO_NULL_ARGUMENTS_POSITIONAL],
         // Standalone function call.
         302 => [NO_NULL_ARGUMENTS_POSITIONAL],
+        // A null followed by an argument the call already names.
+        311 => [NO_NULL_ARGUMENTS_POSITIONAL],
     ]);
 });
 
@@ -193,10 +195,13 @@ it('offers a fixer only where the rewrite is provably safe', function (): void {
         287 => [true],
         // A namespace-level function is early-bound.
         302 => [true],
+        // An argument the call already names is skipped rather than named a
+        // second time, which leaves the flagged null nameable on its own.
+        311 => [true],
     ]);
 
-    expect($file->getErrorCount())->toBe(35)
-        ->and($file->getFixableCount())->toBe(23);
+    expect($file->getErrorCount())->toBe(36)
+        ->and($file->getFixableCount())->toBe(24);
 });
 
 /**
