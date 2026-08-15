@@ -135,21 +135,30 @@ table rather than these four.
 
 #### Layouts this table supersedes
 
-Four PRs each invented a layout for testing a rule wired into `rules.xml`,
-before this table existed. This section records what survived of each, so a
-reader of those PRs does not copy a dead pattern:
+Before this table existed, several PRs each settled on their own way to test a
+rule wired into `rules.xml`. This section records what survived of each, so a
+reader of those PRs does not copy a dead pattern. Rows are in the order they
+landed on `main`, which is what "first" means throughout — several of these
+branches were written in a different order than they merged:
 
-| Introduced by | The layout | Where it stands |
-|---|---|---|
-| PR #200 | `tests/Standards/<Name>Test.php`, namespace `MikeBronner\Tests\Standards`, its own `autoload-dev` mapping, a flat `.inc`/`.inc.fixed` fixture pair | **Directory kept, everything else dropped.** `tests/Standards/` is canonical for a custom sniff's behaviour; the `MikeBronner\Tests\` namespace and its mapping are gone, and fixtures moved to `tests/fixtures/<Name>Sniff/*.php`. |
-| PR #209 | `CleanCode/Tests/<Category>/<Name>Test.php`, namespace `MikeBronner\CleanCode\Tests\<Category>`, discovered by a `CleanCode/Tests` testsuite | **Dropped whole.** No testsuite names `CleanCode/Tests/` any more; only the two `AbstractSniffUnitTest` files above still sit there, uncollected. |
-| PR #196 | `tests/Ruleset/<Name>RulesetTest.php` with `tests/Ruleset/Fixtures/<subject>/` split `compliant.inc`/`violations.inc`/`violations.inc.fixed` | **Directory kept, fixtures dropped.** `tests/Ruleset/` is canonical for wiring tests; no `Fixtures/` directory survives, and the split-fixture idea became the repo-wide `passing.php`/`failing.php`/`autofixed.php` contract. |
-| PR #212 | `tests/Rules/` with `tests/Rules/Fixtures/*.inc`, and the `$ruleset->sniffCodes` registration assertion | **Closed to new work; its assertion kept.** `tests/Rules/` is `tests/Ruleset/` under an older name, but the registration assertion it introduced is now the standard opening of every wiring test. |
+| Landed | Introduced by | The layout | Where it stands |
+|---|---|---|---|
+| 2026-07-17 | PR #212 | `tests/Rules/<Name>RulesTest.php` with flat `tests/Rules/Fixtures/<Name>.inc`/`.inc.fixed`. Also the first `autoload-dev` mapping (`MikeBronner\CleanCode\Tests\` → `CleanCode/Tests/` and `tests/`) and the `$ruleset->sniffCodes` registration assertion. | **Directory closed to new work; the assertion kept.** `tests/Rules/` answers `tests/Ruleset/`'s question under the older name. The registration assertion is now the standard opening of every wiring test, and the mapping survives in narrowed form (`MikeBronner\CleanCode\Tests\` → `tests/`). |
+| 2026-07-17 | PR #196 | `tests/Ruleset/<Name>RulesetTest.php` with `tests/Ruleset/Fixtures/<subject>/` split `compliant.inc`/`violations.inc`/`violations.inc.fixed` | **Directory kept, fixtures dropped.** `tests/Ruleset/` is canonical for wiring tests; no capital-F `Fixtures/` directory survives, and the split-fixture idea became the repo-wide `passing.php`/`failing.php`/`autofixed.php` contract. |
+| 2026-07-17 | PR #200 | `tests/Standards/<Name>Test.php`, namespace `MikeBronner\CleanCode\Tests\Standards`, flat `tests/Standards/Fixtures/<Name>.inc`/`.inc.fixed`. It added no wiring of its own — `composer.json` is untouched by its merge. | **Directory kept, fixtures dropped.** `tests/Standards/` is canonical for a custom sniff's behaviour; its fixtures moved to `tests/fixtures/<Name>Sniff/*.php`. |
+| 2026-07-20 | PR #209 | **No new layout.** It reused PR #196's — `tests/Ruleset/RequireConstructorPropertyPromotionRulesetTest.php` plus split fixtures under `tests/Ruleset/Fixtures/RequireConstructorPropertyPromotion/`. | **As PR #196 above.** The test still stands, under the same name; only its fixtures moved. |
+| 2026-07-20 | PR #214 | **No new layout.** It reused PR #196's too — `tests/Ruleset/UnusedUsesTest.php` plus split fixtures under `tests/Ruleset/Fixtures/UnusedUses/`. | **As PR #196 above.** |
 
-What survived is two directories — PR #200's `tests/Standards/` and PR #196's
-`tests/Ruleset/` — and one assertion, PR #212's `sniffCodes` registration check.
-Every namespace, wiring and fixture layout those PRs introduced was replaced by
+What survived is two directories for new work — PR #196's `tests/Ruleset/` and
+PR #200's `tests/Standards/` — and one assertion, PR #212's `sniffCodes`
+registration check. Every fixture layout those PRs introduced was replaced by
 the `tests/fixtures/` contract below.
+
+**Read these PRs by their merge commits, not their branches.** Two of them carry
+a layout on the branch that was restructured away before the merge commit: PR
+#209 had a `CleanCode/Tests/Constructors/` variant, and PR #214 had a
+`MikeBronner\Tests\` namespace with a second `autoload-dev` mapping to match.
+Neither is in the tree the merge landed, and neither is a pattern to copy.
 
 `CONTRIBUTING.md` is the single source of truth for all of this. Where an
 issue's acceptance criteria carry an older fixture or harness convention —
