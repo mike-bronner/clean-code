@@ -315,7 +315,7 @@ final class FunctionCalls
         $imports = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
-            if ($tokens[$ptr]['code'] !== T_USE) {
+            if ($tokens[$ptr]['code'] !== T_USE || self::isNamespaceLevel($phpcsFile, $ptr) === false) {
                 continue;
             }
 
@@ -340,11 +340,42 @@ final class FunctionCalls
     }
 
     /**
+     * Whether the T_USE at $usePtr sits at namespace level, where an import is
+     * the only thing it can be.
+     *
+     * A trait use is ruled out here rather than by reading the statement,
+     * because reading it is what is unsafe: an import is measured by the next
+     * semicolon, and a trait use whose adaptation block is empty
+     * (`use A, B {}`) has none of its own. Measuring one that way runs the span
+     * on to whatever semicolon comes next in the file — a real import in some
+     * other namespace block, whose entries then bind against the block holding
+     * the trait use, silencing calls that block never imported anything for.
+     *
+     * A class-like or function condition is what marks that trait use, since
+     * an import is legal only where nothing encloses it but a namespace. The
+     * closure capture list that also sits at namespace level needs no such
+     * care: it ends at its own statement's semicolon like any expression, and
+     * the parenthesis it opens with is not the `function` keyword an import
+     * has to lead with.
+     */
+    private static function isNamespaceLevel(File $phpcsFile, int $usePtr): bool
+    {
+        foreach (($phpcsFile->getTokens()[$usePtr]['conditions'] ?? []) as $condition) {
+            if ($condition !== T_NAMESPACE) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * The function names bound by the single `use` statement spanning
      * $usePtr..$endPtr, lower-cased because PHP resolves function names
-     * case-insensitively. Empty for any `use` that is not a function import —
-     * a class or constant import, a trait use, or a closure's captured
-     * variables, none of which lead with the `function` keyword.
+     * case-insensitively. Empty for any statement that is not a function
+     * import — a class or constant import, or a closure's captured variables,
+     * none of which lead with the `function` keyword. A trait use never reaches
+     * here; isNamespaceLevel() has already turned it away.
      *
      * Both spellings bind more than one name at a time — `use function A\b,
      * A\c;` as much as `use function A\{b, c};` — so both are read as a comma
@@ -361,7 +392,7 @@ final class FunctionCalls
 
         // The `function` keyword leads the whole statement in the no-group
         // form, so one that does not carry it binds nothing however many names
-        // it lists — a trait use, a class import, or a closure's captured
+        // it lists — a class or constant import, or a closure's captured
         // variables, whose own commas must never be read as import entries.
         if (
             $groupOpener === false

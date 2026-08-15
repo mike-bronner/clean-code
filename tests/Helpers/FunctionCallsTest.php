@@ -140,3 +140,22 @@ it('scopes an import to its own braced namespace block', function (): void {
         'probeBracedImport' => [false, false, true, true],
     ]);
 });
+
+/**
+ * A trait use and an import share the T_USE token, and only the import binds a
+ * name. The trait use has to be ruled out before the statement is measured,
+ * because measuring is what is unsafe: an import ends at a semicolon, a trait
+ * use with an empty adaptation block has none, and a scan for one runs on into
+ * the next statement that does — a real import, in another block, whose
+ * entries then bind against the block holding the trait use. That silences a
+ * call in a block that imported nothing, which is the failure this pins.
+ */
+it('keeps a trait use out of the import scan', function (): void {
+    $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'trait-adaptation.php'), 'probe');
+
+    expect($verdicts)->toBe([
+        // The call in the block holding the trait use, then the import entry
+        // in the other block, then the call that import really does redirect.
+        'probeAdaptationLeak' => [true, false, false],
+    ]);
+});
