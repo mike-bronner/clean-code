@@ -83,6 +83,19 @@ class NotOperatorSpacingSniff implements Sniff
         $delimiter = $tokens[$stackPtr - 2] ?? null;
 
         if ($delimiter === null || isset(self::OPENING_DELIMITERS[$delimiter['code']]) === false) {
+            // The block matched here starts at this `return` and runs into the
+            // head of the addFixableError() call below — the guard that owns
+            // the `return` is itself outside the window, and so is the call's
+            // last argument and its fixer branch. What is left is the reporting
+            // signature PHP_CodeSniffer itself defines, written one argument
+            // per line: message, $stackPtr, code. Its twin is TooMuchSpaceAfter's
+            // report, whose guard tests an exact single space rather than a
+            // delimiter token, and whose fix collapses the space *after* the
+            // operator instead of deleting the one before it. The two carry no
+            // shared knowledge — only a shared API — and the third report in
+            // this file fixes with addContent(), so there is not even one
+            // fixer verb to extract across the set.
+            // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
             return;
         }
 
@@ -125,6 +138,15 @@ class NotOperatorSpacingSniff implements Sniff
         }
 
         if ($next['content'] === ' ') {
+            // The other end of the SpaceBefore match; every participating block
+            // is reported at its own first line. This `return` is the
+            // already-compliant exit — one space is exactly what the rule
+            // wants — where the matching one above exits because the preceding
+            // token is not a bracket the rule polices at all. One says "correct
+            // already", the other says "not my case": opposite meanings behind
+            // the same token shape, and neither report that follows can be
+            // reached from the other's branch.
+            // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
             return;
         }
 
