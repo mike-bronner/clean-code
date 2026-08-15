@@ -28,7 +28,8 @@ exactly, so both are wired into `rules.xml` — no custom sniff needed.
 `tests/Rules/ExceptionsRulesTest.php` guards this in two parts: a wiring test
 parses the master `rules.xml` through PHPCS's real ruleset path and asserts
 both rules are registered there, and per-sniff behaviour tests evaluate each
-rule in isolation against its fixture in `tests/Rules/Fixtures/`.
+rule in isolation against its fixtures in `tests/fixtures/ReferenceThrowableOnlySniff/`
+and `tests/fixtures/RequireNonCapturingCatchSniff/`.
 
 - **`SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly`** — flags any
   reference to the general `\Exception` (fully qualified, imported, or inside
