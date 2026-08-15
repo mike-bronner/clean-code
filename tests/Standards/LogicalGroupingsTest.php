@@ -229,6 +229,91 @@ it('stays linear as groupings nest', function (): void {
 });
 
 /**
+ * A nested region whose closer PHP_CodeSniffer never recorded stops every walk
+ * in the class, not just the two that already stopped.
+ *
+ * The source below is genuinely unparsable — an unterminated `[` inside a
+ * validly-closed grouping parenthesis — so the tokenizer records a
+ * `parenthesis_closer` for the `(` and no `bracket_closer` for the `[`. A walk
+ * that treats "no recorded closer" as "not a nested region" then reads the
+ * subscript's interior as the condition's own tokens: the `&&` in there makes
+ * the parenthesis look like a logical grouping, and the subscript line — which
+ * is not a condition at all — is reported and reindented by phpcbf.
+ *
+ * It cannot be a fixture file. The contract sweep runs every fixture through
+ * phpcs expecting a clean parse, so unparsable source is staged for this test
+ * alone and purged after it.
+ *
+ * Both halves are asserted because they fail independently: silencing the
+ * report without stopping the walk would still let the fixer move the line.
+ *
+ * Two shapes, because the three walks stop at different moments and each owns a
+ * different consequence. In the first the unresolved `[` sits before the only
+ * boolean, so the walk testing for a top-level boolean reaches it first and the
+ * parenthesis is never classified as a grouping at all. In the second a real
+ * top-level boolean comes first, so the grouping *is* classified and the walk
+ * measuring its condition lines is the one that has to stop — one line further
+ * on, inside the subscript, at an indent it would otherwise rewrite.
+ */
+it('classifies nothing inside a nested region whose closer was never recorded', function (string $source): void {
+    $file = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('unresolved-region.php', $source));
+
+    expect(violationTuples($file))->toBe([])
+        ->and(autofixedContents($file))->toBe($source);
+})->with([
+    'unresolved region before the group\'s first boolean' => [
+        <<<'PHP'
+        <?php
+
+        class Unresolved
+        {
+            public function run(array $data, bool $a, bool $b, bool $c): bool
+            {
+                if (
+                    $a
+                    || (
+                            $data[
+                        $b && $c
+                    )
+                ) {
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        PHP,
+    ],
+    'unresolved region after it' => [
+        <<<'PHP'
+        <?php
+
+        class Unresolved
+        {
+            public function run(array $data, bool $a, bool $b, bool $c, bool $d): bool
+            {
+                if (
+                    $a
+                    || (
+                        $b
+                        && $c
+                        && $data[
+                                    $d
+                    )
+                ) {
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        PHP,
+    ],
+]);
+
+/**
  * The fixer's blast radius, as the complement of the round-trip the contract
  * sweep runs.
  *

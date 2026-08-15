@@ -74,6 +74,14 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   the one testing it for a top-level boolean, and the one measuring the
   conditions inside it — share a single list of the constructs to step over, so a
   construct can never be recognised by one and missed by another.
+
+  On source PHP cannot parse, a construct can be opened and never closed, and
+  PHP_CodeSniffer then records no end for it. A walk that cannot find where a
+  nested construct ends cannot tell that construct's tokens from the condition's
+  own, so all three stop there: the parenthesis goes unclassified, nothing
+  inside it is measured, and `phpcbf` moves nothing. A file that does not lint is
+  a file this sniff reports nothing about, rather than one it reindents on a
+  guess.
 - **Cost** — a group is measured from its own direct tokens, stepping over each
   nested construct in one jump rather than walking through it, so the work is
   linear in the size of the condition however deeply its groups nest. This

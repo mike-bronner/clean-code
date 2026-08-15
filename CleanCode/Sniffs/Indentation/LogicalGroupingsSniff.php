@@ -38,7 +38,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * brace block, and an arrow-function body are each jumped whole wherever the
  * sniff walks, so a parenthesis inside one of them — an array value or element,
  * a statement in a closure body — is never mistaken for a grouping of the
- * condition that encloses it.
+ * condition that encloses it. Where such a region has no recorded end, which
+ * only happens on source PHP cannot parse, every walk stops rather than read
+ * its interior as the condition's own tokens: nothing is reported and nothing
+ * is reindented.
  *
  * All violations are auto-fixable — phpcbf reindents each offending condition
  * line to the correct nesting level.
@@ -132,20 +135,17 @@ class LogicalGroupingsSniff implements Sniff
             if ($tokens[$i]['code'] !== T_OPEN_PARENTHESIS) {
                 $skipTo = $this->skipNested($tokens, $i);
 
-                if ($skipTo !== $i) {
-                    $i = $skipTo;
-
-                    continue;
-                }
-
-                if (isset(self::NESTED_REGION_CLOSERS[$tokens[$i]['code']]) === true) {
-                    // A region opener whose closer PHP_CodeSniffer never
-                    // recorded (unbalanced or unparsable source): from here the
-                    // walk cannot tell the condition's own parentheses from a
-                    // nested construct's, so it collects no more rather than
-                    // classify on a guess.
+                if ($skipTo === null) {
+                    // A nested region with no usable end: from here the walk
+                    // cannot tell the condition's own parentheses from a nested
+                    // construct's, so it collects no more rather than classify
+                    // on a guess.
                     return $groups;
                 }
+
+                // A token that opens no region at all comes back unchanged, so
+                // this both jumps a region and advances past anything else.
+                $i = $skipTo;
 
                 continue;
             }
@@ -238,6 +238,15 @@ class LogicalGroupingsSniff implements Sniff
         for ($i = ($open + 1); $i < $close; $i++) {
             $skipTo = $this->skipNested($tokens, $i);
 
+            if ($skipTo === null) {
+                // A nested region with no usable end. Every boolean past this
+                // point may belong to that region rather than to these
+                // parentheses, so the honest answer is that no top-level
+                // boolean was found: the parenthesis is left unclassified, and
+                // nothing inside it is measured or reindented.
+                return false;
+            }
+
             if ($skipTo !== $i) {
                 $i = $skipTo;
 
@@ -254,17 +263,25 @@ class LogicalGroupingsSniff implements Sniff
 
     /**
      * If the token opens a nested region, returns the pointer to that region's
-     * closer so the caller can jump past it in one step; otherwise returns the
-     * pointer unchanged.
+     * closer so the caller can jump past it in one step; returns the pointer
+     * unchanged when the token opens no region at all; returns null when it
+     * opens one whose closer cannot be resolved.
      *
      * Jumping rather than counting depth is what keeps the walks linear: a
      * group's walk touches only its own direct tokens, so n nested groups cost
      * n walks of their own contents instead of n overlapping rescans of the
      * whole condition.
      *
+     * The null is the third answer on purpose. "This is not a region" and
+     * "this is a region I cannot resolve" were once the same return value, so
+     * every caller had to re-derive the difference from the map by hand — and
+     * a caller that did not was left walking a region's interior as though it
+     * were the condition's own tokens. One answer per case here is what makes
+     * the fail-closed branch impossible for a caller to omit.
+     *
      * @param array<int, array<string, mixed>> $tokens
      */
-    private function skipNested(array $tokens, int $i): int
+    private function skipNested(array $tokens, int $i): ?int
     {
         $closerKey = self::NESTED_REGION_CLOSERS[$tokens[$i]['code']] ?? null;
 
@@ -272,13 +289,19 @@ class LogicalGroupingsSniff implements Sniff
             return $i;
         }
 
-        $closer = ($tokens[$i][$closerKey] ?? $i);
+        $closer = ($tokens[$i][$closerKey] ?? null);
 
-        // Both callers advance to whatever this returns, so a closer that did
-        // not come after its opener would send the walk backwards and around
-        // again. PHP_CodeSniffer does not produce one, which is exactly why
-        // the walk must not depend on it never doing so.
-        return ($closer > $i ? $closer : $i);
+        // A closer PHP_CodeSniffer never recorded (unbalanced or unparsable
+        // source), or one recorded before its own opener: either way the region
+        // has no usable end. Callers advance to whatever this returns, so the
+        // second case would send a walk backwards and around again. PHP_CodeSniffer
+        // does not produce one, which is exactly why the walk must not depend on
+        // it never doing so.
+        if ($closer === null || $closer <= $i) {
+            return null;
+        }
+
+        return $closer;
     }
 
     /**
@@ -367,6 +390,13 @@ class LogicalGroupingsSniff implements Sniff
             $previousLine = $line;
             $skipTo = $this->skipNested($tokens, $i);
 
+            if ($skipTo === null) {
+                // A nested region with no usable end leaves the walk unable to
+                // tell nested tokens from this group's own. Stop measuring
+                // rather than report or reindent a line that may be neither.
+                return $lines;
+            }
+
             if ($skipTo !== $i) {
                 // The region's interior belongs to a nested construct, so it
                 // is measured — if at all — by that construct's own group, not
@@ -376,14 +406,6 @@ class LogicalGroupingsSniff implements Sniff
                 $i = $skipTo;
 
                 continue;
-            }
-
-            if (isset(self::NESTED_REGION_CLOSERS[$tokens[$i]['code']]) === true) {
-                // A region opener whose closer PHP_CodeSniffer never recorded
-                // (unbalanced or unparsable source) leaves the walk unable to
-                // tell nested tokens from this group's own. Stop measuring
-                // rather than report or reindent a line that may be neither.
-                return $lines;
             }
         }
 
