@@ -88,6 +88,14 @@ relationship. Expect these:
   single arm makes the verdict depend on the order the arms are written in, and
   the two orders say the same thing. Assign the group to a variable first if you
   want the chain checked.
+- **A chain read off a language construct is not flagged.** What may sit in
+  front of a chain is a closed list — a variable, a call, a subscript, a
+  grouping parenthesis — so a construct that writes its subject or body in
+  brackets is not a receiver the sniff models: `array($book)[0]->author->name`,
+  `(clone $book)->author->name` and an immediately-invoked closure are all
+  silent. Naming what is allowed rather than what is not means a construct
+  nobody anticipated is silent too, instead of being read as a chain and
+  breaking a build over it. Assign to a variable first if you want it checked.
 
 ### Suppressing an accepted false positive
 
