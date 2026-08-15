@@ -75,8 +75,9 @@ against the fixtures in `tests/Integration/fixtures/`, asserting exact
   declarations, mixed HTML/PHP, one-class-per-file, missing namespace,
   member visibility, line length, indentation, brace placement, and
   control-structure formatting.
-- **Fixer** — fixtures with a `.fixed` counterpart are run through PHPCS's
+- **Fixer** — fixtures with a `.fixed.php` counterpart are run through PHPCS's
   fixer and compared verbatim, verifying `phpcbf` support.
 
-Fixtures use the `.inc` extension so the repo's PSR-12 self-lint
-(`composer lint`) skips their deliberate violations.
+Fixtures are ordinary `.php` files; the repo's PSR-12 self-lint
+(`composer lint`) skips their deliberate violations by ignoring every
+`fixtures/` directory.
