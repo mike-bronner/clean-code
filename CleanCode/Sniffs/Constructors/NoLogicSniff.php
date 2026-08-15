@@ -48,6 +48,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * parenthesis that merely *groups* invokes nothing and stays compliant
  * (`$this->items[($this->a + $this->b)] = …`).
  *
+ * A target that *writes* runs on every instantiation for the same reason, so an
+ * assignment operator or an increment inside one is flagged wherever it hides
+ * (`$this->items[$this->total += 1] = …`, `$this->items[$this->total++] = …`,
+ * `$this->items[$this->a = $this->b] = …`). Reading those same properties to
+ * compute a key writes nothing and stays compliant.
+ *
  * Statements nested inside a flagged control structure are not examined
  * separately, and a chained construct (`if … elseif … else`,
  * `try … catch … finally`, `do … while`) is reported once at its opening
@@ -173,6 +179,30 @@ class NoLogicSniff implements Sniff
     ];
 
     /**
+     * The tokens that write, on top of PHPCS's own assignment family. A prefix
+     * or postfix `++`/`--` is one token either way, so the pair covers both
+     * spellings.
+     *
+     * The family itself is read from `Tokens::$assignmentTokens` rather than
+     * respelled here, so an operator PHP adds later is rejected the day PHPCS
+     * tokenises it, instead of waiting for this list to be noticed.
+     */
+    private const WRITING_TOKENS = [
+        T_INC,
+        T_DEC,
+    ];
+
+    /**
+     * The one member of PHPCS's assignment family that writes nothing. `=>`
+     * binds a key to a value inside an array literal — `$this->items[[1 =>
+     * $this->a][1]]` reads that literal and discards it — so it is an operand
+     * separator here, not a write, and is exempted from the rejection above.
+     */
+    private const NON_WRITING_ASSIGNMENT_TOKENS = [
+        T_DOUBLE_ARROW,
+    ];
+
+    /**
      * The tokens after which an open parenthesis can only be grouping, never a
      * call: operators, brackets, and separators, none of which can end an
      * operand. Everything else — a name, a variable, a closing bracket, a
@@ -185,6 +215,11 @@ class NoLogicSniff implements Sniff
      * their membership is narrower than their names suggest — `Tokens::$operators`
      * carries no `T_STRING_CONCAT`, `T_BOOLEAN_NOT`, `T_BITWISE_NOT` or ternary
      * token — so the list is spelled out and pinned by fixtures.
+     *
+     * An assignment operator is not among them, and cannot be: the scan ends at
+     * the statement's own `=` and rejects a nested one before either reaches a
+     * parenthesis, so no parenthesis this check ever sees has one in front of
+     * it. Listing one would be an entry no fixture could reach.
      */
     private const GROUPING_PARENTHESIS_PRECEDERS = [
         // Arithmetic and bitwise.
@@ -241,7 +276,6 @@ class NoLogicSniff implements Sniff
         T_OPEN_CURLY_BRACKET,
         T_COMMA,
         T_DOUBLE_ARROW,
-        T_EQUAL,
     ];
 
     /**
@@ -491,9 +525,14 @@ class NoLogicSniff implements Sniff
      *
      * The scan runs left-to-right and stops at that first depth-0 `=`, so the
      * right-hand side is never inspected (a call or `??`/ternary default there
-     * stays compliant). Anything in the target that *invokes*, however, runs on
-     * every instantiation and is rejected — in each of the three spellings that
-     * reach here:
+     * stays compliant). Anything in the target that *writes*, however, runs on
+     * every instantiation and is rejected: an assignment operator other than the
+     * statement's own, or an increment, in any position the target admits —
+     * `$this->items[$this->total += 1] = …`, `$this->items[$this->total++] = …`,
+     * `$this->items[$this->a = $this->b] = …`. See writes() for the set.
+     *
+     * Anything that *invokes* is rejected for the same reason, in each of the
+     * three spellings that reach here:
      *
      * - a **call parenthesis** (`$this->make()->x = …`,
      *   `$this->items[$this->key()] = …`). A parenthesis that only *groups*
@@ -517,6 +556,18 @@ class NoLogicSniff implements Sniff
         for ($ptr = $start; $ptr <= $end; $ptr++) {
             $code = $tokens[$ptr]['code'];
 
+            // The statement's own assignment operator: the target ends here, and
+            // it is plain. Tested before the rejection below, which every other
+            // assignment operator — and this one nested inside a bracket — falls
+            // into.
+            if ($code === T_EQUAL && $depth === 0) {
+                return true;
+            }
+
+            if ($this->writes($code) === true) {
+                return false;
+            }
+
             if (in_array($code, self::INVOKING_TOKENS, true)) {
                 return false;
             }
@@ -536,12 +587,38 @@ class NoLogicSniff implements Sniff
                 $depth++;
             } elseif (in_array($code, self::BRACKET_CLOSERS, true)) {
                 $depth--;
-            } elseif ($code === T_EQUAL && $depth === 0) {
-                return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether the token writes something.
+     *
+     * A target may compute — `$this->items[$this->a + $this->b] = …` reads two
+     * properties and throws the sum away — but it may not *write*, because that
+     * write runs on every instantiation, which is the whole of what this sniff
+     * exists to catch. Every assignment operator writes (`$this->items[$this->a
+     * = $this->b] = …`, `[$this->total += 1]`), and so does an increment or a
+     * decrement in either position (`[$this->total++]`, `[--$this->total]`).
+     *
+     * PHPCS's assignment family is consulted directly instead of being
+     * respelled, so the set stays complete as PHP grows; only `=>`, which
+     * separates operands rather than writing, is taken back out of it. The one
+     * member PHP itself cannot spell, `T_ZSR_EQUAL` (`>>>=`, from PHPCS's
+     * JavaScript tokeniser), stays in harmlessly — no PHP source produces it.
+     *
+     * @param int|string $code
+     */
+    private function writes($code): bool
+    {
+        if (in_array($code, self::WRITING_TOKENS, true)) {
+            return true;
+        }
+
+        return isset(Tokens::$assignmentTokens[$code])
+            && in_array($code, self::NON_WRITING_ASSIGNMENT_TOKENS, true) === false;
     }
 
     /**

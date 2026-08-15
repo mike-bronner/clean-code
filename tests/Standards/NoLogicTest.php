@@ -31,10 +31,22 @@
  *     through 286, every statement of the grouping-parenthesis constructor
  *   - drop any single entry from GROUPING_PARENTHESIS_PRECEDERS — its own probe
  *     in "accepts a grouping parenthesis after every listed preceder" reddens,
- *     and nothing else does. Run for all 48 entries; all 48 killed, so the
+ *     and nothing else does. Run for all 47 entries; all 47 killed, so the
  *     enumeration carries no member the suite leaves untested. Dropping
  *     T_OPEN_SQUARE_BRACKET, the one entry the fixtures also reach, additionally
  *     reddens passing.php 128, 129, 229 to 234, 237 to 241 and 269 to 286
+ *   - accept a write in the assignment target (drop the rejection outright) —
+ *     failing.php loses 302, 303, 304, 305, 306 and 307, and every dataset of
+ *     "flags every writing assignment target" reddens
+ *   - drop T_INC and T_DEC from WRITING_TOKENS — failing.php loses 303 and 304,
+ *     the two increments no assignment operator covers
+ *   - stop exempting T_DOUBLE_ARROW — passing.php reddens on 285 and 333, the
+ *     two array literals dereferenced for a subscript key, and the
+ *     T_DOUBLE_ARROW grouping probe reddens with them
+ *   - test the write rejection before the statement's own `=` rather than after
+ *     — passing.php reddens on 47 lines and failing.php gains 5, because every
+ *     property assignment there is rejected on its own operator; the ordering is
+ *     what separates the target from the assignment
  *   - drop INVOKING_TOKENS entirely — failing.php loses 221, 264 and 265
  *   - drop T_NEW and T_CLONE from it — failing.php loses 264 and 265, the two
  *     spellings whose only parenthesis is a grouping one, so the call check
@@ -98,6 +110,7 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Constructors\NoLogicSniff;
+use PHP_CodeSniffer\Util\Tokens;
 
 const NO_LOGIC = 'CleanCode.Constructors.NoLogic';
 
@@ -112,7 +125,8 @@ it('is registered in the master ruleset', function (): void {
 /**
  * passing.php carries the compliant form of the construct the sniff registers
  * on — a constructor that only assigns to its own properties, promoted or in
- * the body, with `??`/ternary defaults and subscript writes, delegating to
+ * the body, with `??`/ternary defaults, subscript writes, and subscript keys
+ * that compute without writing, delegating to
  * `parent::__construct(…)` in any spelling that really invokes, or empty — plus
  * every near-miss shape the sniff must stay silent on: a file-scope
  * `function __construct()`, a `__constructor()` method, an ordinary method full
@@ -195,6 +209,12 @@ it('flags every non-assignment statement once, at its first token', function ():
         ['line' => 270, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // match
         ['line' => 271, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // immediately-invoked arrow fn
         ['line' => 272, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // isset
+        ['line' => 302, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // += in the subscript
+        ['line' => 303, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // postfix ++ in the subscript
+        ['line' => 304, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // prefix -- in the subscript
+        ['line' => 305, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // nested = in the subscript
+        ['line' => 306, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // <<= in the subscript
+        ['line' => 307, 'column' => 9, 'source' => NO_LOGIC_FOUND],  // ??= in the subscript
     ]);
 });
 
@@ -320,14 +340,20 @@ const GROUPING_PROBES = [
     'T_OPEN_SHORT_ARRAY' => '[($this->a)][0]',
     'T_COMMA' => '[$this->a, ($this->b)][0]',
     'T_DOUBLE_ARROW' => '[1 => ($this->a)][1]',
-    'T_EQUAL' => '$k = ($this->a)',
     'T_OPEN_CURLY_BRACKET' => '{($this->prefix)}',
 ];
 
 /**
  * A parenthesis that only groups invokes nothing, so the write stays a plain
  * property assignment. Removing any single entry from the enumeration reddens
- * its own probe here and nothing else — measured entry by entry, all 48.
+ * its own probe here and nothing else — measured entry by entry, all 47.
+ *
+ * No assignment operator is probed because none can be reached: the scan ends at
+ * the statement's own `=` and rejects a nested one, so neither ever reaches the
+ * parenthesis check. `T_EQUAL` was listed and probed until the writing-target
+ * rejection made both unreachable; `[$k = ($this->a)]`, the probe it had, is now
+ * a violation and is asserted as one under "flags every writing assignment
+ * target" below.
  */
 it('accepts a grouping parenthesis after every listed preceder', function (string $probe): void {
     $target = str_starts_with($probe, '{') ? "\$this->$probe" : "\$this->items[$probe]";
@@ -352,6 +378,94 @@ it('probes every entry in the grouping-preceder enumeration', function (): void 
     sort($probed);
 
     expect($probed)->toBe($enumerated);
+});
+
+/**
+ * One probe per token the target scan rejects as a write, keyed by the token it
+ * covers, spelled inside a subscript because that is where a write hides from a
+ * scan that only looks for the statement's own top-level operator.
+ *
+ * `T_INC` is probed postfix and `T_DEC` prefix, so the pair covers both
+ * positions. `>>>=` (`T_ZSR_EQUAL`) is absent: PHP has no such operator — it
+ * comes from PHPCS's JavaScript tokeniser — so no PHP source can spell it.
+ *
+ * @var array<string, string>
+ */
+const WRITING_PROBES = [
+    'T_EQUAL' => '$this->a = $this->b',
+    'T_PLUS_EQUAL' => '$this->a += 1',
+    'T_MINUS_EQUAL' => '$this->a -= 1',
+    'T_MUL_EQUAL' => '$this->a *= 2',
+    'T_DIV_EQUAL' => '$this->a /= 2',
+    'T_MOD_EQUAL' => '$this->a %= 2',
+    'T_POW_EQUAL' => '$this->a **= 2',
+    'T_CONCAT_EQUAL' => '$this->prefix .= "x"',
+    'T_AND_EQUAL' => '$this->a &= 1',
+    'T_OR_EQUAL' => '$this->a |= 1',
+    'T_XOR_EQUAL' => '$this->a ^= 1',
+    'T_SL_EQUAL' => '$this->a <<= 1',
+    'T_SR_EQUAL' => '$this->a >>= 1',
+    'T_COALESCE_EQUAL' => '$this->a ??= 1',
+    'T_INC' => '$this->a++',
+    'T_DEC' => '--$this->a',
+];
+
+/**
+ * A write in the target runs on every instantiation, wherever it sits. Each
+ * probe is the compliant `$this->items[…] = $value;` shape with only the
+ * subscript varied, so the assertion turns on the operator alone.
+ */
+it('flags every writing assignment target', function (string $probe): void {
+    $source = "<?php\nclass WritingProbe { private array \$items; private int \$a = 1;\n"
+        . "private int \$b = 2; private string \$prefix = 'p';\n"
+        . "public function __construct(\$value) {\n\$this->items[$probe] = \$value;\n} }\n";
+
+    expect(tuplesFromMessages(analyzeStdinSource([NO_LOGIC], $source)->getErrors()))
+        ->toBe([['line' => 5, 'column' => 1, 'source' => NO_LOGIC_FOUND]]);
+})->with(WRITING_PROBES);
+
+/**
+ * The rejection set and its probes are kept in step here. The sniff reads
+ * PHPCS's assignment family live rather than respelling it, so a token PHP adds
+ * later starts being rejected on its own — this fails the day that happens,
+ * rather than letting it ride untested, which is the failure mode the repo has
+ * paid for before in hand-maintained token lists.
+ */
+it('probes every token the target scan rejects as a write', function (): void {
+    $sniff = new ReflectionClass(NoLogicSniff::class);
+
+    $rejected = array_diff(
+        array_merge(
+            array_values(Tokens::$assignmentTokens),
+            $sniff->getConstant('WRITING_TOKENS')
+        ),
+        $sniff->getConstant('NON_WRITING_ASSIGNMENT_TOKENS'),
+        // PHPCS carries `>>>=` for JavaScript; no PHP source produces it.
+        [T_ZSR_EQUAL]
+    );
+    $probed = array_map(constant(...), array_keys(WRITING_PROBES));
+
+    sort($rejected);
+    sort($probed);
+
+    expect($probed)->toBe(array_values($rejected));
+});
+
+/**
+ * The reading side of the same rule, pinned by line: computing a key reads and
+ * discards, which is not a write, and `=>` separates operands inside an array
+ * literal rather than writing anything. Each line sits one operator away from a
+ * rejected spelling, so a rejection widened from "writes" to "any operator"
+ * reddens here.
+ */
+it('leaves a reading assignment target alone', function (): void {
+    $lines = array_column(violationTuples(analyzeFixture(NO_LOGIC, 'passing.php')), 'line');
+
+    expect($lines)
+        ->not->toContain(330)  // [$this->total + 1], beside += 1
+        ->not->toContain(331)  // [$this->total << 1], beside <<= 1
+        ->not->toContain(332)  // [$this->total ?? 2], beside ??= 2
+        ->not->toContain(333); // [[1 => $this->a][1]], the `=>` exemption
 });
 
 /**
@@ -424,7 +538,7 @@ it('does not report the terminator of an alternative-syntax construct', function
 it('reports the failing fixture as errors, never warnings', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(53)
+    expect($file->getErrorCount())->toBe(59)
         ->and($file->getWarningCount())->toBe(0);
 });
 
@@ -436,7 +550,7 @@ it('reports the failing fixture as errors, never warnings', function (): void {
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(53)
+    expect($file->getErrorCount())->toBe(59)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
 });

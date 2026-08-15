@@ -80,6 +80,20 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
     Only the target is inspected — a call on the *right-hand side*
     (`$this->foo = compute();`, `$this->foo = "{$this->key()}";`) stays outside
     the sniff's scope, as noted above.
+  - **Assignments whose target writes something** — a write in the target runs
+    on every instantiation for the same reason a call there does, so an
+    assignment operator other than the statement's own, or an increment, is
+    flagged wherever it sits in the target: `$this->items[$this->total += 1] =
+    …;`, `$this->items[$this->total++] = …;`, `$this->items[--$this->total] =
+    …;`, `$this->items[$this->a = $this->b] = …;`. Every assignment operator PHP
+    has is covered, read from PHPCS's own family rather than listed here, so a
+    future one is covered on the day PHPCS tokenises it.
+
+    Reading those same properties to compute a key writes nothing and stays
+    compliant (`$this->items[$this->total + 1] = …;`), and `=>` separates
+    operands inside an array literal rather than writing, so a literal
+    dereferenced for its key stays compliant too
+    (`$this->items[[1 => $this->a][1]] = …;`).
 - **Compliant edge cases** — an **empty constructor**, a constructor with only
   **promoted-property parameters** (no body), a constructor **mixing promoted
   parameters with body assignments**, a constructor **calling only

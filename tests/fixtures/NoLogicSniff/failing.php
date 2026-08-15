@@ -277,3 +277,33 @@ final class InvokingWithoutACallName
         return 1;
     }
 }
+
+/**
+ * The writing spellings a target scan has to catch wherever they hide.
+ *
+ * A subscript is part of the target, so an assignment operator or an increment
+ * inside one runs on every instantiation exactly as a call there would. Each is
+ * spelled nested on purpose: the compound assignments and the increment above
+ * (113, 117 to 119) are the statement's own top-level operator and reach the
+ * rejection down a different path, having no `=` at all.
+ */
+final class WritingAssignmentTarget
+{
+    private array $items;
+
+    private int $total;
+
+    private int $a;
+
+    private int $b;
+
+    public function __construct($value)
+    {
+        $this->items[$this->total += 1] = $value;
+        $this->items[$this->total++] = $value;
+        $this->items[--$this->total] = $value;
+        $this->items[$this->a = $this->b] = $value;
+        $this->items[$this->total <<= 1] = $value;
+        $this->items[$this->total ??= 2] = $value;
+    }
+}

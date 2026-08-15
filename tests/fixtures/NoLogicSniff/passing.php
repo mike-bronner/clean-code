@@ -306,3 +306,30 @@ final class InterpolationOnRightHandSide
         return 'k';
     }
 }
+
+/**
+ * The reading counterpart of the writing targets the sniff rejects, one shape
+ * apart from each of them.
+ *
+ * Computing a key reads properties and throws the result away, so `+ 1` beside
+ * `+= 1` and `<< 1` beside `<<= 1` stay compliant. `=>` is the one member of
+ * PHPCS's assignment family that separates operands instead of writing, so an
+ * array literal dereferenced for its value stays compliant too, with no
+ * grouping parenthesis anywhere in it.
+ */
+final class ReadingAssignmentTarget
+{
+    private array $items;
+
+    private int $total;
+
+    private int $a;
+
+    public function __construct($value)
+    {
+        $this->items[$this->total + 1] = $value;
+        $this->items[$this->total << 1] = $value;
+        $this->items[$this->total ?? 2] = $value;
+        $this->items[[1 => $this->a][1]] = $value;
+    }
+}
