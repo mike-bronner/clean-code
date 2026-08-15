@@ -18,5 +18,6 @@ function everyPassiveOperator(int $number, object $model, array $items, string $
     $element = $items[0];
     $chainedElement = $items[0][1];
     $property = $model->name;
+    $chainedProperty = $model->child->name;
     $suppressedNegation = @-$number;
 }

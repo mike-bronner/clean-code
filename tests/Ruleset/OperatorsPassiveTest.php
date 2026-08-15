@@ -52,11 +52,21 @@ it('flags every passive operator through the sniff that owns it', function (): v
     $file = analyzeRulesetFixture(OPERATORS_PASSIVE_SNIFFS, 'OperatorsPassive', 'failing.php');
     $sources = violationSourcesByLine($file->getErrors());
 
-    expect(array_keys($sources))->toBe([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21])
+    expect(array_keys($sources))->toBe([9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22])
         ->and($sources[9])->toBe(['CleanCode.WhiteSpace.PassiveOperatorSpacing.Identity'])
         ->and($sources[11])->toBe(['Generic.WhiteSpace.IncrementDecrementSpacing.SpaceAfterIncrement'])
         ->and($sources[18])->toBe(['Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket'])
+        ->and($sources[19])->toBe([
+            'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
+            'Squiz.Arrays.ArrayBracketSpacing.SpaceBeforeBracket',
+        ])
         ->and($sources[20])->toBe([
+            'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
+            'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
+        ])
+        ->and($sources[21])->toBe([
+            'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
+            'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
             'Squiz.WhiteSpace.ObjectOperatorSpacing.Before',
             'Squiz.WhiteSpace.ObjectOperatorSpacing.After',
         ]);
