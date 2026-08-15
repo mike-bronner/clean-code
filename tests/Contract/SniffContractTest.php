@@ -22,6 +22,7 @@ dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
     'CleanCode.WhiteSpace.BlankLines',
+    'CleanCode.WhiteSpace.MultiLineStatementIndent',
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',
     'Generic.ControlStructures.InlineControlStructure',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
