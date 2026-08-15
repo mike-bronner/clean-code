@@ -82,3 +82,28 @@ it('is idempotent over its own fixed output', function (string $sniffCode): void
 it('leaves the autofixed fixture clean', function (string $sniffCode): void {
     expect(analyzeFixture($sniffCode, 'autofixed.php')->getErrors())->toBeEmpty();
 })->with('sniffs whose fixer resolves every violation');
+
+/**
+ * Every fixer's output has to be source PHP_CodeSniffer can still read.
+ *
+ * `php -l` is not that bar and cannot stand in for it: PHP accepts shapes the
+ * PHPCS tokenizer does not classify, and an unclassified token does not fail
+ * loudly — it silently swallows the source that follows it into one bogus
+ * token, so the *next* pass over the fixed file reads live code as string body.
+ * That is invisible to the byte-comparison above, whose expected fixture can be
+ * committed already corrupted, and to any assertion that only reads the fixed
+ * string's content.
+ *
+ * Swept across every autofixable sniff rather than pinned per-sniff, because
+ * this failure mode has recurred a site at a time — each round fixing the one
+ * place named and leaving the class open. The source fixture is asserted clean
+ * in the same breath, so a fixture that was already unreadable cannot make this
+ * pass vacuously.
+ */
+it('emits source the tokenizer can still read', function (string $sniffCode): void {
+    $fixed = autofixedContents(analyzeFixture($sniffCode, 'failing.php'));
+    $source = (string) file_get_contents(fixturePath(sniffFixtureDirectory($sniffCode), 'failing.php'));
+
+    expect(unclassifiedTokens($source))->toBe([])
+        ->and(unclassifiedTokens($fixed))->toBe([]);
+})->with('autofixable sniffs');
