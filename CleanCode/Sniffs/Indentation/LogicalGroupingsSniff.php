@@ -414,6 +414,8 @@ class LogicalGroupingsSniff implements Sniff
      * line already collected, so it was dropped entirely and the next line
      * took its place as the group's first condition — the real first
      * condition unmeasured, the second reported as though it were the first.
+     * Only a condition is affected: a comment on the opener's line is skipped
+     * below before the cursor is read, so the seed never reaches it.
      *
      * @return array<int, int>
      */

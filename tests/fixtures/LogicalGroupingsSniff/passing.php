@@ -398,6 +398,11 @@ from t"
         // condition is the one below it, correctly indented, so nothing is
         // glued to the parenthesis — a sniff that measured the token directly
         // after `(` rather than the first condition would report this.
+        //
+        // It does not discriminate how the line cursor is seeded. Comments are
+        // skipped before the cursor is read at all, so this case stays silent
+        // whichever line the cursor starts on. What pins the seed is
+        // `gluedFirstConditionOnOpenerLine` in failing.php.
         if (
             $this->isAdmin
             || ( // the licence pair
