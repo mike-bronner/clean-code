@@ -386,6 +386,94 @@ it('classifies each method by its declared return type and its name', function (
 });
 
 /**
+ * The four non-visibility keywords a property declaration can lead with, which
+ * the property walk has to accept alongside the visibility modifiers to tell a
+ * member from a local inside a property hook's body.
+ *
+ * A declaration written `public readonly string $x;` is answered by its
+ * `public` alone, so it says nothing about the other four keywords. Each class
+ * in the fixture leads its out-of-order property with one of them and nothing
+ * else, which is what makes the four independently reachable — and
+ * independently killable: emptying the modifier list drops all four violations,
+ * and removing any single entry from it drops exactly the one class that leads
+ * with that keyword. All five mutations were run against a scratch copy.
+ *
+ * One class per keyword is deliberate. Sharing one would let the first
+ * unrecognised property be skipped and its baseline carry over, so a second
+ * keyword's disorder could go unreported for a reason that is not its own.
+ */
+it('reads a property declared with a non-visibility modifier', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'property-modifiers.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 26, 'column' => 18, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 33, 'column' => 21, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 40, 'column' => 12, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 47, 'column' => 9, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+        ]);
+});
+
+/**
+ * An extends clause written as a qualified name, which is how a model is
+ * declared in a file that imports nothing.
+ *
+ * findExtendedClassName() returns the parent exactly as written, so the gate
+ * reduces it to its short name before comparing — the FQCN is not resolvable at
+ * lint time, and `\Illuminate\Database\Eloquent\Relations\Pivot` and `Pivot`
+ * put the same short name in this file's tokens.
+ *
+ * `QualifiedPivotModel` is the row that settles it: `Pivot` is one of the
+ * configured parent names, and the qualified spelling matches neither that list
+ * nor the "ends in Model" fallback until the qualifiers come off. Mutation:
+ * comparing the written name whole (`$qualifiers = [$parent];`) and this class
+ * goes silent. `QualifiedEloquentModel` is the spelling the sniff's own docblock
+ * names, so it is here for the reader, but it survives that mutation through the
+ * fallback — its violation is the shape, not the evidence.
+ *
+ * `QualifiedController` is the other side of the gate. Its properties are
+ * reversed exactly like the two above and it reports nothing, which is what says
+ * stripping qualifiers is not the same as opening the gate on any parent written
+ * with a separator in it.
+ */
+it('reads the short name of a namespace-qualified parent', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'qualified-parent.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 29, 'column' => 12, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 36, 'column' => 12, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+        ]);
+});
+
+/**
+ * A method fragment the tokenizer could not finish reading, inside a class it
+ * did open — the method-level counterpart of the test below, whose whole class
+ * never opened.
+ *
+ * `public function` with no name leaves the name-token search nothing to find
+ * before the class closer, and the fragment is passed over. The name is read
+ * from that same token, so there is one answer rather than two that can
+ * disagree: getDeclarationName() has no parenthesis to stop at here and would
+ * search on to the end of the file, naming the fragment after whatever came
+ * next.
+ *
+ * The fixture's properties are out of order on purpose. Their single violation
+ * is what says the gate is open and the walks ran on this class, so the
+ * fragment's silence is the guard's and not the fixture's. Mutation: drop the
+ * guard and `zulu()` is compared against the content of the file's first token,
+ * which sorts before it — 2 violations, not 1.
+ */
+it('passes over a method the tokenizer never named', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'truncated-method.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 24, 'column' => 12, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+        ]);
+});
+
+/**
  * A model-shaped class the tokenizer never opened. findExtendedClassName()
  * returns false without a scope_opener, so the gate closes before the walks
  * begin, and process() re-reads both bounds as a second line of defence.

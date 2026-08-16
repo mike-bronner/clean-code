@@ -525,13 +525,26 @@ class MemberOrderingSniff implements Sniff
                 continue;
             }
 
-            $name = $phpcsFile->getDeclarationName($ptr);
             $namePtr = $phpcsFile->findNext(T_STRING, ($ptr + 1), $closer);
 
-            // A method with no name is an abstract-looking fragment the
-            // tokenizer could not finish reading. Nothing about it says where
-            // it belongs, so it is passed over rather than guessed at.
-            if ($name === null || $namePtr === false || str_starts_with($name, '__') === true) {
+            // A `function` with no name before the class closes is a fragment
+            // the tokenizer could not finish reading. Nothing about it says
+            // where it belongs, so it is passed over rather than guessed at.
+            //
+            // The name is read from this token rather than from
+            // getDeclarationName(), which answers the same for every method
+            // that has a name — PHPCS gives a method name T_STRING even when it
+            // is a reserved word, so the first T_STRING after `function` is the
+            // name — and answers from the *next class* for one that has none,
+            // because with no parenthesis to stop at it searches to the end of
+            // the file. One token, read once, cannot disagree with itself.
+            if ($namePtr === false) {
+                continue;
+            }
+
+            $name = $tokens[$namePtr]['content'];
+
+            if (str_starts_with($name, '__') === true) {
                 continue;
             }
 
