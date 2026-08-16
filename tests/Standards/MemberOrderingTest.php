@@ -356,9 +356,10 @@ it('reports all four alphabetical rules on the evaluation fixture', function ():
 });
 
 /**
- * The existing-rule evaluation CONTRIBUTING.md step 3 requires, run against the
- * pinned Slevomat version rather than asserted from its documentation — this is
- * the assertion a Slevomat upgrade would have to change the answer to.
+ * The evaluation of whether a shipped sniff already enforces this standard, run
+ * against the pinned Slevomat version rather than asserted from its
+ * documentation — this is the assertion a Slevomat upgrade would have to change
+ * the answer to.
  *
  * Both halves are asserted, because either alone proves nothing:
  *

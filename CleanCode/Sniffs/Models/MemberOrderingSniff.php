@@ -34,9 +34,9 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   nothing this sniff does.
  * - An auto-fixer. See the class-level note below.
  *
- * Why a custom sniff — the existing-rule evaluation CONTRIBUTING.md step 3
- * calls for, settled against the pinned Slevomat version and pinned by
- * tests/Standards/MemberOrderingTest.php:
+ * Why a custom sniff — a standard is only written as one once no shipped sniff
+ * already enforces it. That evaluation, settled against the pinned Slevomat
+ * version and pinned by tests/Standards/MemberOrderingTest.php:
  *
  * - SlevomatCodingStandard.Classes.ClassStructure orders *groups* of members
  *   (uses, then constants, then properties by visibility, then methods) and has
