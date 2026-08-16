@@ -305,6 +305,45 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
 }
 
 /**
+ * Processes a file through the master ruleset with the named message codes'
+ * `<exclude>`s lifted — the shipped configuration minus only the excludes under
+ * test.
+ *
+ * The control half of CONTRIBUTING.md's "pin both halves" rule for excludes.
+ * PHPCS implements `<exclude name="Foo.Bar.Baz"/>` by setting that code's
+ * severity to 0 (Ruleset::processRule()), so restoring the default severity of
+ * 5 is precisely "the same ruleset without that exclude" — and it keeps the
+ * rule's configured `<properties>` live, which rebuilding the rule from XML
+ * here would not: a transcript of rules.xml's properties drifts the moment
+ * rules.xml changes, and a control run under different properties says nothing
+ * about the exclude.
+ *
+ * A code that rules.xml does not actually exclude fails closed rather than
+ * quietly passing: raising the severity of a code already reporting at 5
+ * changes nothing, so the paired "silent through rules.xml" assertion is what
+ * reddens.
+ *
+ * Always builds a fresh ruleset, so lifted excludes can never leak into a later
+ * test through buildRuleset()'s memoisation.
+ *
+ * @param array<int, string> $sniffCodes    Sniffs to narrow the run to.
+ * @param array<int, string> $excludedCodes Message codes whose exclude is lifted.
+ */
+function analyzeWithoutExcludes(array $sniffCodes, array $excludedCodes, string $path): LocalFile
+{
+    [$config, $ruleset] = buildRuleset($sniffCodes, true);
+
+    foreach ($excludedCodes as $code) {
+        $ruleset->ruleset[$code]['severity'] = 5;
+    }
+
+    $file = new LocalFile($path, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a *consumer* ruleset — one that references
  * rules.xml and then overrides a sniff's properties in XML, exactly as a
  * consuming project's own ruleset does.

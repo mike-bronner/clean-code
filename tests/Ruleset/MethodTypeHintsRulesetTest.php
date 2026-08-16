@@ -29,6 +29,11 @@
  * never, standalone true/false/null, nullable) are what hold the enable* pins
  * in rules.xml: each annotation is promoted to a native hint only while its flag
  * is on, so flipping a pin changes either the line map below or autofixed.php.
+ *
+ * excluded-codes.php holds the other half of the configuration — the five
+ * message codes rules.xml excludes. Both halves are pinned, per CONTRIBUTING.md:
+ * the codes stay silent through rules.xml, and the same fixture proves they
+ * would fire without the excludes, so dropping an <exclude> fails this suite.
  */
 
 declare(strict_types=1);
@@ -45,6 +50,31 @@ const PARAMETER_NATIVE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.Mis
 const RETURN_ANY = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint';
 
 const RETURN_NATIVE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint';
+
+const PARAMETER_TRAVERSABLE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint'
+    . '.MissingTraversableTypeHintSpecification';
+
+const PARAMETER_USELESS = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation';
+
+const RETURN_TRAVERSABLE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint'
+    . '.MissingTraversableTypeHintSpecification';
+
+const RETURN_USELESS = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation';
+
+const RETURN_LESS_SPECIFIC = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint';
+
+/**
+ * The five codes rules.xml excludes from the two sniffs #70 owns. Each acts on
+ * what a docblock says rather than on a missing native hint, so the standard
+ * drops it.
+ */
+const METHOD_TYPE_HINTS_EXCLUDED_CODES = [
+    PARAMETER_TRAVERSABLE,
+    PARAMETER_USELESS,
+    RETURN_TRAVERSABLE,
+    RETURN_USELESS,
+    RETURN_LESS_SPECIFIC,
+];
 
 /**
  * True when a violation source belongs to one of the two sniffs #70 owns.
@@ -198,6 +228,40 @@ it('resolves every inferrable hint when fixed', function (): void {
 
     expect(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('_rulesets/MethodTypeHints', 'autofixed.php')));
+});
+
+it('keeps the excluded codes silent through the master ruleset', function () use (
+    $ownedReport,
+    $ownedWarningCount
+): void {
+    expect($ownedReport('excluded-codes.php'))->toBe([]);
+    expect($ownedWarningCount('excluded-codes.php'))->toBe(0);
+});
+
+/**
+ * Guards the test above from passing vacuously: the same fixture, run through
+ * the same ruleset with only the excludes lifted, must raise every excluded
+ * code — and nowhere else. Without this, a fixture that trips nothing at all
+ * looks exactly like a working exclude list.
+ *
+ * The whole map is asserted rather than membership alone, so a code that moved
+ * to another declaration, or a sixth code appearing beside the five, reddens
+ * here rather than hiding behind a satisfied toContain().
+ */
+it('raises every excluded code without the master rulesets excludes', function (): void {
+    $file = analyzeWithoutExcludes(
+        METHOD_TYPE_HINTS_SNIFFS,
+        METHOD_TYPE_HINTS_EXCLUDED_CODES,
+        fixturePath('_rulesets/MethodTypeHints', 'excluded-codes.php')
+    );
+
+    expect(allViolationSourcesByLine($file))->toBe([
+        12 => [PARAMETER_TRAVERSABLE],
+        18 => [PARAMETER_USELESS],
+        29 => [RETURN_TRAVERSABLE],
+        35 => [RETURN_USELESS],
+        50 => [RETURN_LESS_SPECIFIC],
+    ]);
 });
 
 it('leaves only the uninferrable violations after fixing', function () use ($ownedReport): void {
