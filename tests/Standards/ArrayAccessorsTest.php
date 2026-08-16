@@ -453,14 +453,14 @@ it('grows linearly across each doubling of a staggered staircase', function () u
  * reached at all.
  *
  * Line 88 is the sharpest of them, and the one the other cases do not reach: a
- * `foreach` header holding a second `foreach`, so the `as` that decides the
- * outer header sits *inside* the construct the walk steps out of. Roots on
- * either side of it are then enclosed by the same construct, and the step out
- * of it genuinely cannot be answered once for both -- $rows before it reports,
- * $outer after it does not. Answering that step statically either way drops one
- * of the two. The third read in that method ($trailing, line 100) is the far
- * side of the same `as` reached through the same constructs, and the fixture
- * says why it is silent.
+ * `foreach` header holding a second `foreach`, so a nested `as` sits in the
+ * outer header's span ahead of the outer header's own. The header is decided by
+ * its own -- the `as` at its own parenthesis depth -- which puts every root in
+ * the closure on the subject side of it. $rows (line 88) and $trailing (line
+ * 100) are both that subject and both report; $inner (line 89) is the nested
+ * header's own target and $outer (line 101) the outer header's, so neither
+ * does. Comparing against the nested `as` instead dropped $trailing as a write
+ * target, which is the false negative #314 fixes.
  *
  * Line 118 covers the other question the walk answers per read: an existence
  * check two constructs out rather than one. The exemption is the whole chain of
@@ -468,11 +468,11 @@ it('grows linearly across each doubling of a staggered staircase', function () u
  * once per opener rather than once per read must not narrow it.
  *
  * The count is asserted alongside the columns because half of what is pinned
- * here is silence: three reads in this fixture are deliberately unreported, and
+ * here is silence: two reads in this fixture are deliberately unreported, and
  * only the count fails when one of them starts reporting.
  *
  * Every expected line and column here was taken from the hop-by-hop walk before
- * it was touched, not from the amortised one's own output.
+ * it was touched, except line 100 -- the one verdict #314 deliberately reverses.
  */
 it('decides a staggered staircase exactly as the hop-by-hop walk did', function (): void {
     $errors = analyzeFixture(ARRAY_ACCESSORS, 'staggered-nesting.php')->getErrors();
@@ -482,6 +482,7 @@ it('decides a staggered staircase exactly as the hop-by-hop walk did', function 
         58 => [31, 60],
         70 => [44, 85],
         88 => [26],
+        100 => [24],
         124 => [25, 52],
     ];
 
@@ -489,7 +490,7 @@ it('decides a staggered staircase exactly as the hop-by-hop walk did', function 
         expect(array_keys($errors[$line]))->toBe($columns, "line {$line} columns");
     }
 
-    expect(array_sum(array_map('count', $errors)))->toBe(13, 'no read gained or lost');
+    expect(array_sum(array_map('count', $errors)))->toBe(14, 'no read gained or lost');
 });
 
 /**
