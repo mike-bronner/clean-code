@@ -63,10 +63,10 @@ it('is registered in the master ruleset', function (): void {
  *   tests/Unit/business-domain-namespace.php, below.
  * - line 32, `Tests\UnitOfWork\LedgerTest` — a segment that merely starts with a
  *   suite name. Segments are compared whole, so this is left alone.
- * - line 39, `Tests\BootstrapTest` — a class directly on the test root. Nothing
+ * - line 40, `Tests\BootstrapTest` — a class directly on the test root. Nothing
  *   follows the root, so no suite is named, which is a different answer from
  *   "not a test at all" and still has to be silent.
- * - line 47, `Tests\Unit\SupportHelper` — a suite namespace, but not a test
+ * - line 49, `Tests\Unit\SupportHelper` — a suite namespace, but not a test
  *   class: no `Test` suffix and no configured base class.
  */
 it('produces no violations on the compliant fixture', function (): void {
