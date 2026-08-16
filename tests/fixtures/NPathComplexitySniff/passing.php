@@ -600,3 +600,104 @@ function alternativeSyntaxSwitchWithAMatchSubject(int $a, bool $b, bool $c): int
 
     return 0;
 }
+
+/**
+ * 4. A braceless body is one PHPCS builds no scope for, and the seven callables
+ * below are the whole of that shape: every construct that can own one, each
+ * wrapping a body that carries its own NPath.
+ *
+ * This one is the `do` of `do <statement> while (…);`, wrapping a loop. Read
+ * off the scope pointers the body looks like nothing at all, and a body worth
+ * nothing scores the 1 an empty sequence scores — which left the loop's own 3
+ * to be found again as a statement of the enclosing block and multiplied in
+ * rather than added, measuring 6.
+ */
+function bracelessDoWrappingALoop(int $a, bool $b, bool $c): void
+{
+    do
+        while ($b && $c) {
+            $a--;
+        }
+    while ($a > 0);
+}
+
+/**
+ * 3, the same shape under an `if`. Measured 4 before the braceless body was
+ * dispatched as a statement.
+ */
+function bracelessIfWrappingALoop(bool $x, int $a): void
+{
+    if ($x) while ($a > 0) { $a--; }
+}
+
+/**
+ * 3, the same shape under a `while`.
+ */
+function bracelessWhileWrappingAnIf(int $a, bool $b): void
+{
+    while ($a > 0) if ($b) { $a--; }
+}
+
+/**
+ * 3, the same shape under a `for`. `for` and `foreach` reach the braceless body
+ * through the same code path as `while`, so both are held here rather than
+ * assumed from it.
+ */
+function bracelessForWrappingAnIf(bool $b): void
+{
+    for ($i = 0; $i < 10; $i++) if ($b) { echo $i; }
+}
+
+/**
+ * 3, the same shape under a `foreach`.
+ */
+function bracelessForeachWrappingAnIf(array $items, bool $b): void
+{
+    foreach ($items as $item) if ($b) { echo $item; }
+}
+
+/**
+ * 3, the same shape under an `else`, which reaches its body from the keyword
+ * rather than from a closing parenthesis it does not have.
+ */
+function bracelessElseWrappingALoop(bool $x, int $a): void
+{
+    if ($x) {
+        echo 1;
+    } else while ($a > 0) { $a--; }
+}
+
+/**
+ * 3, a braceless body that is itself braceless, so the dispatch recurses.
+ */
+function bracelessIfWrappingABracelessIf(bool $x, bool $y): void
+{
+    if ($x) if ($y) echo 1;
+}
+
+/**
+ * 3. A `switch` nested in another `switch`'s case body, carrying the `match`
+ * subject that leaves the inner one with no scope of its own.
+ *
+ * The inner labels belong to the inner construct, so reading them as ranges of
+ * the outer one would measure the outer high. Nothing else in this file nests
+ * the two, and the scope-less subject is the harder half: the label walk cannot
+ * lean on the inner construct's own scope to know where it ends.
+ */
+function nestedSwitchInACaseBody(int $a, int $b, bool $c): int
+{
+    switch ($a) {
+        case 1:
+            switch (match ($b) {
+                1 => $c,
+                default => false,
+            }) {
+                case true:
+                    return 1;
+                default:
+                    return 2;
+            }
+        default:
+            return 3;
+    }
+}

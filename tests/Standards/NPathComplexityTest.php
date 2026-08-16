@@ -174,7 +174,71 @@ it('measures each counting rule exactly as PHPMD does', function (): void {
         'switchWithAMatchSubject' => 3,
         'switchWithAMatchSubjectAndNoBoolean' => 2,
         'alternativeSyntaxSwitchWithAMatchSubject' => 3,
+        'bracelessDoWrappingALoop' => 4,
+        'bracelessIfWrappingALoop' => 3,
+        'bracelessWhileWrappingAnIf' => 3,
+        'bracelessForWrappingAnIf' => 3,
+        'bracelessForeachWrappingAnIf' => 3,
+        'bracelessElseWrappingALoop' => 3,
+        'bracelessIfWrappingABracelessIf' => 3,
+        'nestedSwitchInACaseBody' => 3,
     ]);
+});
+
+/**
+ * A braceless single-statement body carries its own NPath when the statement is
+ * itself a compound construct.
+ *
+ * The measurement test above already holds every value; this one states the
+ * rule the seven callables share, and pins it per construct so a fix that
+ * closed only the construct a bug was first reported against cannot pass. Each
+ * of `do`, `if`, `while`, `for`, `foreach` and `else` can own a braceless body,
+ * and each reaches it through the same dispatch — so each is asserted, rather
+ * than one being taken as evidence for the rest. The last is a braceless body
+ * that is itself braceless, which is the recursive case.
+ *
+ * Every value is what a live PHPMD 2.15.0 run reports for the same callable.
+ */
+it('measures a braceless body of every construct that can own one', function (): void {
+    $file = analyzeFixture(NPATH_COMPLEXITY, 'passing.php', function ($sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    $measured = measuredNPathComplexities($file);
+
+    expect($measured)
+        ->toHaveKeys([
+            'bracelessDoWrappingALoop',
+            'bracelessIfWrappingALoop',
+            'bracelessWhileWrappingAnIf',
+            'bracelessForWrappingAnIf',
+            'bracelessForeachWrappingAnIf',
+            'bracelessElseWrappingALoop',
+            'bracelessIfWrappingABracelessIf',
+        ])
+        ->and($measured['bracelessDoWrappingALoop'])->toBe(4)
+        ->and($measured['bracelessIfWrappingALoop'])->toBe(3)
+        ->and($measured['bracelessWhileWrappingAnIf'])->toBe(3)
+        ->and($measured['bracelessForWrappingAnIf'])->toBe(3)
+        ->and($measured['bracelessForeachWrappingAnIf'])->toBe(3)
+        ->and($measured['bracelessElseWrappingALoop'])->toBe(3)
+        ->and($measured['bracelessIfWrappingABracelessIf'])->toBe(3);
+});
+
+/**
+ * A scope-less `switch` inside another `switch`'s case body — the nesting no
+ * other callable in the fixture carries. The inner labels belong to the inner
+ * construct, so reading them as ranges of the outer one would measure high.
+ *
+ * A live PHPMD 2.15.0 run reports 3.
+ */
+it('keeps a nested switch\'s labels out of the enclosing switch', function (): void {
+    $file = analyzeFixture(NPATH_COMPLEXITY, 'passing.php', function ($sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    expect(measuredNPathComplexities($file))->toHaveKey('nestedSwitchInACaseBody')
+        ->and(measuredNPathComplexities($file)['nestedSwitchInACaseBody'])->toBe(3);
 });
 
 /**

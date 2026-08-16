@@ -1264,9 +1264,14 @@ class NPathComplexitySniff implements Sniff
      * The NPath of the body owned by the construct at $ptr, with $ptr advanced
      * past that body.
      *
-     * A construct PHPCS built no scope for — an inline body it could not
-     * delimit — has nothing to walk, so it scores the 1 an empty statement
-     * sequence scores and the cursor moves on by one token.
+     * A construct PHPCS built no scope for is a braceless single-statement body
+     * — `if ($x) doThing();`, and equally `do <statement> while (…);`. PHPCS
+     * gives those no scope_opener/scope_closer at all, but the body is still a
+     * statement, and to PDepend a statement is scored the same whether or not
+     * braces surround it. So the braceless body is measured by the same
+     * statement dispatch a braced one goes through, which is what makes a
+     * *compound* braceless body — a nested `if`, loop, `switch` or `try` — score
+     * as itself rather than as the 1 an empty sequence scores.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
@@ -1276,9 +1281,7 @@ class NPathComplexitySniff implements Sniff
         $closer = $tokens[$ptr]['scope_closer'] ?? null;
 
         if ($opener === null || $closer === null) {
-            $ptr++;
-
-            return 1;
+            return $this->bracelessBodyComplexity($phpcsFile, $tokens, $ptr, $end);
         }
 
         $bodyPtr = ($opener + 1);
@@ -1287,5 +1290,38 @@ class NPathComplexitySniff implements Sniff
         $ptr = $closer;
 
         return $npath;
+    }
+
+    /**
+     * The NPath of the single statement a scope-less construct owns, with $ptr
+     * advanced into it.
+     *
+     * The statement starts after the construct's own parentheses where it has
+     * them (`if`, `while`, `for`, `foreach`) and directly after the keyword
+     * where it does not (`do`, `else`). Measuring it through
+     * statementComplexity() is the whole point: a braceless body that is itself
+     * a compound construct carries its own NPath, and anything simpler falls
+     * through to the same 1 it scores anywhere else.
+     *
+     * A body that cannot be located — nothing before $end — scores the 1 an
+     * empty statement sequence scores, and the cursor still advances so the
+     * caller's walk cannot spin.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function bracelessBodyComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
+    {
+        $closer = $tokens[$ptr]['parenthesis_closer'] ?? $ptr;
+        $body = $phpcsFile->findNext(Tokens::$emptyTokens, ($closer + 1), $end, true);
+
+        if ($body === false) {
+            $ptr++;
+
+            return 1;
+        }
+
+        $ptr = $body;
+
+        return $this->statementComplexity($phpcsFile, $tokens, $ptr, $end);
     }
 }
