@@ -446,18 +446,24 @@ class ComponentMarkupSniff implements Sniff
      * cannot pair splits every way between the two and exhausts
      * pcre.backtrack_limit. Measured on PHP 8.4's default million steps: from
      * 816 such characters with the PCRE JIT off, 1,412 with it on.
-     * preg_match_all() then returns false, and answering "no directive" off
-     * the empty $matches it leaves behind would say the view is not a
-     * component's own when the truth is that nothing was read at all. Both
-     * answers are false either way, so the view is left unjudged; the failure
-     * gets its own exit so that reading the method tells the two apart.
+     *
+     * preg_match_all() then returns false and leaves $matches holding whatever
+     * it managed to match before it gave out — the tags above the run, not
+     * nothing. Answering off that is worse than answering off nothing: the
+     * loop below reads a fraction of the view and calls it the whole, so
+     * whether the view is judged a component's own turns on where the engine
+     * happened to stop rather than on what the view says. A view left unjudged
+     * is the honest answer where nothing was read, so the failure gets its own
+     * exit and the partial matches are dropped unread.
      */
     private function isComponentView(string $markup): bool
     {
         $matched = preg_match_all(self::ELEMENT_TAG, $markup, $matches, PREG_SET_ORDER);
 
         // preg_last_error() === PREG_BACKTRACK_LIMIT_ERROR: the tag read gave
-        // out, so nothing was seen. Not the same silence as the return below.
+        // out partway, so $matches is a fragment of the view rather than the
+        // view. Not the same silence as the return below, which is the answer
+        // to a read that finished.
         if ($matched === false) {
             return false;
         }

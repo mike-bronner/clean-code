@@ -683,7 +683,7 @@ it('says nothing about a view whose first element tag does not parse', function 
  * ELEMENT_TAG's tag-name group and its unquoted attribute run share a
  * character set, so a `<` followed by a long unbroken run of those characters
  * and then a quote the pattern cannot pair splits every way between the two
- * groups, and preg_match_all() returns false with an empty $matches.
+ * groups, and preg_match_all() returns false.
  *
  * The fixture's run is 8,008 characters, which is deliberately far past the
  * point it has to clear rather than just past it. Measured against PHP 8.4's
@@ -693,21 +693,29 @@ it('says nothing about a view whose first element tag does not parse', function 
  * setting or on one PCRE build counting steps slightly differently. The cost
  * is bounded by the limit itself either way: ~12ms unJITted, ~3ms JITted.
  *
- * Iterating that empty array reads as "no component-bound directive in this
- * view", which is the same answer isComponentView() gives a view that really
- * carries none. The fixture does carry one (`wire:click`, line 11), so the
- * gate is answering off a read that never happened.
+ * A failed call does not leave $matches empty. It keeps whatever the engine
+ * matched before it gave out — here the `<div wire:model="query" …>` the
+ * fixture opens with, matched long before the run that ends the read. So the
+ * old code had something to iterate, and iterating it answers "a component's
+ * own view" off a read that stopped partway through the file. Which answer a
+ * partial read produces is an accident of where the engine happened to stop,
+ * which is the whole reason the failure needs an exit of its own.
  *
- * Both answers are false, deliberately: the fix gives the failure its own exit
- * rather than changing what the sniff reports. So the sniff's own output
- * cannot tell the fixed code from the broken code, and this case is in two
- * layers instead. The precondition below is what pins the branch — it proves,
- * without the sniff, that this fixture really does drive ELEMENT_TAG to a
- * backtrack-limit failure, so the fixture cannot rot into one that exercises
- * nothing. The sniff-level assertions are the other half: the failure stays
- * silent, and stays silent without raising anything of its own — a PHP warning
- * or error escaping the run reddens this case through phpunit.xml.dist's
- * failOnWarning, and an exception through the run itself.
+ * That accident is what this case is built to expose. The fixture's root
+ * carries wire:model, so the two paths diverge in what the sniff reports:
+ * answering off the partial read says "component view", and the root-element
+ * check then reports RootElementAttributes on that root; refusing to answer
+ * reports nothing. Restore the pre-fix `foreach` over an unchecked call and
+ * this case goes red on a RootElementAttributes error it did not expect.
+ *
+ * The precondition below is the other layer, and it pins the fixture rather
+ * than the branch: it proves, without the sniff, that this markup really does
+ * drive ELEMENT_TAG to a backtrack-limit failure while still yielding the root
+ * tag — so the fixture cannot rot into one that exercises nothing, and a green
+ * run cannot come from the read quietly starting to succeed. Alongside the
+ * errors, the sniff-level check reads warnings too: a PHP warning or error
+ * escaping the run reddens this case through phpunit.xml.dist's failOnWarning,
+ * and an exception through the run itself.
  *
  * The pattern is read off the sniff rather than transcribed, following
  * passiveNonOperandTokens() in tests/Helpers.php: a transcription would keep
@@ -726,7 +734,10 @@ it('says nothing about a view whose element tags cannot be read at all', functio
     $error = preg_last_error();
 
     expect($matched)->toBeFalse()
-        ->and($error)->toBe(PREG_BACKTRACK_LIMIT_ERROR);
+        ->and($error)->toBe(PREG_BACKTRACK_LIMIT_ERROR)
+        ->and($matches)->not->toBe([])
+        ->and($matches[0][1])->toBe('div')
+        ->and($matches[0][2])->toContain('wire:model');
 
     $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-element-tags.php');
 
