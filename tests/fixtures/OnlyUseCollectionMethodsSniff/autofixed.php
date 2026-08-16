@@ -37,8 +37,8 @@ function genericFunctionsOnConstructedCollections(array $rows): array
 function genericFunctionsOnChainedCollections(Collection $collection, array $rows): array
 {
     return [
-        count($collection->filter(static fn (string $row): bool => $row !== '')),
-        count(collect($rows)->map(static fn (string $row): string => $row)),
+        $collection->filter(static fn (string $row): bool => $row !== '')->count(),
+        collect($rows)->map(static fn (string $row): string => $row)->count(),
         array_merge($collection->values(), $rows),
     ];
 }
@@ -94,14 +94,14 @@ function arrowFunctionParametersBindInsideTheArrowFunction(Collection $outer): a
     ];
 }
 
-// A chain is typed through TERMINAL_METHODS, which is a curated mirror of a
-// framework API — good enough to report on, never good enough to rewrite. These
-// stay reported and unfixable however the list drifts.
-function chainedReceiversAreReportedButNeverFixable(Collection $collection, array $rows): array
+// A chain whose every link is on CHAINABLE_METHODS is a Collection for certain,
+// so the fixer rewrites it: filter() and map() both state a Collection return on
+// Illuminate's Enumerable, and the origins they hang off are proven outright.
+function provableChainedReceiversAreFixable(Collection $collection, array $rows): array
 {
     return [
-        count($collection->filter(static fn (string $row): bool => $row !== '')),
-        count(collect($rows)->map(static fn (string $row): string => $row)),
+        $collection->filter(static fn (string $row): bool => $row !== '')->count(),
+        collect($rows)->map(static fn (string $row): string => $row)->count(),
     ];
 }
 
@@ -178,3 +178,29 @@ function declaresAParameterSharingAFileScopeName($tally): void
 
 $tally = collect([1, 2]);
 $fileScopeTotal = $tally->count();
+
+// The fixer re-derives a chained receiver's type from CHAINABLE_METHODS, which
+// fails closed: a link it does not recognise ends provability. Both calls below
+// are still reported — TERMINAL_METHODS has never heard of either method, so to
+// the report the chain is a Collection still — and neither may be rewritten.
+// chunk() hands back a Collection of Collections, and a method no list knows
+// could hand back anything at all.
+function unrecognisedChainLinksAreReportedButNeverFixable(Collection $collection): int
+{
+    return count($collection->chunk(2))
+        + count($collection->someMethodNotOnTheList());
+}
+
+// Provability runs the whole length of the chain, not just its last link: every
+// method here is on the list, so the receiver stays proven across all three.
+function everyLinkOfALongChainIsChecked(Collection $collection): int
+{
+    return $collection->filter(static fn (string $row): bool => $row !== '')->values()->unique()->count();
+}
+
+// A nullsafe link can yield null, so no method after it is reached on a
+// Collection for certain. Reported, never rewritten.
+function nullsafeChainsAreReportedButNeverFixable(?Collection $collection): int
+{
+    return count($collection?->filter(static fn (string $row): bool => $row !== ''));
+}

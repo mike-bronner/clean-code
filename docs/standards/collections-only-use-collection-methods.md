@@ -131,18 +131,32 @@ behaviour.
 
 The receiver has to be a Collection the tokens prove outright, too — a tracked
 variable, a `collect()` call, a `Collection::make()`/`::wrap()` factory call or
-a `new Collection()`. A **chained** receiver is reported but never rewritten:
+a `new Collection()`. A **chained** receiver is rewritten only when every link
+in the chain is a method whose Collection return is contractual:
 
 ```php
-count($c->filter($fn));   // reported, not auto-fixed
+count($c->filter($fn));        // auto-fixed to $c->filter($fn)->count()
+count($c->chunk(2));           // reported, not auto-fixed
+count($c?->filter($fn));       // reported, not auto-fixed
 ```
 
-A chain's type comes from the terminal-method list, and anything missing from
-that list is assumed to return a Collection. That assumption is acceptable in a
-warning and unacceptable in a rewrite — `count($c->random())` turned into
-`$c->random()->count()` is a runtime fatal, not a style nit. Keeping the fixer
-on provable receivers means a list that has drifted behind the framework can
-only ever produce noise.
+The two lists behind that answer opposite questions and fail in opposite
+directions, which is why the sniff keeps both. The **report** asks "did this
+chain stop being a Collection?" and consults the terminal-method list, which
+fails open: a method it has never heard of is assumed to keep the chain alive,
+so an omission costs a spurious report and never a missed one. The **fixer**
+asks the stronger question "is this chain still a Collection *for certain*?" and
+consults a separate chainable-method list, which fails closed: a method it has
+never heard of ends provability, so an omission costs a declined fix and never a
+rewrite.
+
+That is what keeps the terminal-method list out of the fixer's path. Anything
+missing from it is assumed to return a Collection, which is acceptable in a
+report and unacceptable in a rewrite — `count($c->random())` turned into
+`$c->random()->count()` is a runtime fatal, not a style nit. Because the fixer
+re-derives the type instead, a list that has drifted behind the framework can
+only ever produce noise, and a chain the fixer does not recognise is declined
+rather than guessed at.
 
 Everything else is reported but left alone, because the swap needs judgement a
 fixer cannot make:
@@ -202,7 +216,7 @@ where the sniff reports, and the entries marked **fixable** are cases where
 
 | Case | Reported | Fixable | Consequence |
 |---|---|---|---|
-| A chain whose last method is missing from `TERMINAL_METHODS` | yes | **no** | A spurious report on `count($c->newMethod())`. The list is a hand-curated mirror of a framework API, so it drifts; the fixer does not consult it. |
+| A chain whose last method is missing from `TERMINAL_METHODS` | yes | **no** | A spurious report on `count($c->newMethod())`. The list is a hand-curated mirror of a framework API, so it drifts; the fixer does not consult it, and declines the call because the method is absent from the chainable list too. |
 | A receiver handed bare to another call that may take it by reference (`preg_match('/x/', $s, $c)`, a userland `&$target`) | yes | **no** | A spurious report after the callee has replaced the value. Neither a userland signature nor PHP's by-reference builtins are knowable from the tokens. |
 | A Collection stored in a property or returned from a method | no | — | Silent; see above. |
 

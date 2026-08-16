@@ -101,6 +101,10 @@ it('flags every violation at its own line with the expected code', function (): 
         157 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         166 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         180 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        190 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        191 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        198 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        205 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -159,6 +163,10 @@ it('names the Collection method that replaces each generic function', function (
         157 => 'count() => count()',
         166 => 'count() => count()',
         180 => 'count() => count()',
+        190 => 'count() => count()',
+        191 => 'count() => count()',
+        198 => 'count() => count()',
+        205 => 'count() => count()',
     ]);
 });
 
@@ -169,11 +177,22 @@ it('names the Collection method that replaces each generic function', function (
  * Collection the tokens prove outright.
  *
  * That second condition is what keeps TERMINAL_METHODS out of the fixer's path.
- * Lines 103-104 chain off a Collection, so the sniff types them by asking
- * whether the chain's last method is on that hand-curated list — fine for a
- * report, not something to rewrite source on. They must report and stay
- * unfixable; if they ever appear below, an incomplete list can fatal a codebase
- * again.
+ * A chained receiver is typed for the *fix* from CHAINABLE_METHODS, which fails
+ * closed, and never from TERMINAL_METHODS, which fails open. The two directions
+ * are pinned against each other here, because a regression that let the fixer
+ * fall back on TERMINAL_METHODS would still leave the total unmoved:
+ *
+ * - Lines 40-41, 103-104 and 198 chain only through methods whose Collection
+ *   return is contractual, so they are proven and fixable. 198 runs three links
+ *   deep, so a check that only read the chain's last link cannot pass it.
+ * - Lines 190-191 chain through a method neither list knows (`chunk()`, which
+ *   returns a Collection of Collections, and a fabricated one). They stay
+ *   reported, because TERMINAL_METHODS assumes a Collection — and unfixable,
+ *   because CHAINABLE_METHODS does not. That is the whole safety argument, and
+ *   it is the assertion that fails if the polarity is ever collapsed to one
+ *   list.
+ * - Line 205 chains through `?->`, which can yield null however sound the
+ *   method after it is.
  *
  * Lines 121-122 are the same collapse applied to by-reference mutation: the
  * receiver was handed bare to a call that may carry a `&$parameter`, so it is
@@ -182,9 +201,9 @@ it('names the Collection method that replaces each generic function', function (
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(34)
+    expect($file->getErrorCount())->toBe(38)
         ->and(violationFixableLines($file->getErrors()))
-        ->toBe([18, 31, 49, 81, 82, 92, 93, 146, 157, 166, 180]);
+        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198]);
 });
 
 /**

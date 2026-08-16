@@ -87,6 +87,60 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     ];
 
     /**
+     * Collection methods that provably hand back another Collection, used to
+     * type a *chained* receiver for the fixer and nothing else.
+     *
+     * This list and TERMINAL_METHODS answer opposite questions and fail in
+     * opposite directions, which is the whole point of keeping both. Reporting
+     * asks "did this chain stop being a Collection?" and consults
+     * TERMINAL_METHODS, which fails open: a method it has never heard of is
+     * assumed to keep the chain alive, so an omission costs a spurious error
+     * and never a missed one. Fixing asks the stronger question "is this chain
+     * still a Collection *for certain*?" and consults this list, which fails
+     * closed: a method it has never heard of ends provability, so an omission
+     * costs a declined fix and never a rewrite.
+     *
+     * Round 2 weighed inverting TERMINAL_METHODS to an allowlist and rejected
+     * it, correctly — for the *report*, where fail-closed would silently stop
+     * detecting as Laravel adds methods. That argument does not reach the
+     * fixer, whose failure mode is a runtime fatal rather than a missed
+     * warning, so the polarity that is wrong for one path is right for the
+     * other.
+     *
+     * Entries are confined to methods whose Collection return is part of the
+     * documented contract and stated as `static`/`self` on Illuminate's own
+     * Enumerable — never one that returns an item, a scalar, or a plain array.
+     * A method carrying arity overloads that can change its return type
+     * (`implode()`, `get()`, `random()`, `search()`) is deliberately absent.
+     */
+    private const CHAINABLE_METHODS = [
+        'diff' => true,
+        'except' => true,
+        'filter' => true,
+        'flatten' => true,
+        'flip' => true,
+        'intersect' => true,
+        'keys' => true,
+        'map' => true,
+        'merge' => true,
+        'only' => true,
+        'pluck' => true,
+        'reject' => true,
+        'reverse' => true,
+        'slice' => true,
+        'sort' => true,
+        'sortby' => true,
+        'sortbydesc' => true,
+        'sortdesc' => true,
+        'take' => true,
+        'unique' => true,
+        'values' => true,
+        'where' => true,
+        'wherein' => true,
+        'wherenotin' => true,
+    ];
+
+    /**
      * Static factory methods that produce a Collection from a class whose name
      * ends in "Collection".
      */
@@ -965,10 +1019,16 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * path. isCollectionExpression() types a chained receiver by asking whether
      * the chain's last method is on that list, and assumes a Collection when it
      * is not — so every method missing from the list makes a chain look like a
-     * Collection. As a *report* that costs a spurious warning. As a *fix* it
-     * rewrites `count($c->random())` into `$c->random()->count()`, which fatals.
-     * Requiring an unchained origin severs the two, so a list that has drifted
-     * behind the framework can only ever produce noise.
+     * Collection. As a *report* that costs a spurious error. As a *fix* it
+     * would rewrite `count($c->random())` into `$c->random()->count()`, which
+     * fatals.
+     *
+     * isProvableCollection() severs the two by re-deriving the receiver's type
+     * from CHAINABLE_METHODS, which fails closed. A chain is rewritten only
+     * when every link is a method whose Collection return is contractual, so a
+     * list that has drifted behind the framework can only ever decline a fix —
+     * `count($c->random())` is declined because `random` is not on it, not
+     * because chains are declined wholesale.
      *
      * @param array<int, array{0: int, 1: int}> $arguments
      * @param array{0: int, 1: int}             $collectionArgument
@@ -983,7 +1043,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     ): bool {
         return in_array($function, self::FIXABLE_FUNCTIONS, true) === true
             && count($arguments) === 1
-            && $this->isUnchainedCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables)
+            && $this->isProvableCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables)
             && $this->isUnescapedReceiver($phpcsFile, $collectionArgument[0], $collectionArgument[1]);
     }
 
@@ -1007,28 +1067,71 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * Whether the expression spanning [$start, $end] is a Collection origin
-     * with nothing chained onto it — a tracked variable, a `collect()` call, a
-     * `Collection::make()`/`::wrap()` factory call, or a `new Collection()`.
+     * Whether the expression spanning [$start, $end] is a Collection the tokens
+     * prove outright: an origin — a tracked variable, a `collect()` call, a
+     * `Collection::make()`/`::wrap()` factory call, or a `new Collection()` —
+     * followed by nothing, or by method calls that are every one of them on
+     * CHAINABLE_METHODS.
+     *
+     * The walk mirrors isCollectionExpression()'s, and deliberately does not
+     * share code with it: the two ask opposite questions of the same shape, and
+     * the whole safety argument for the fixer is that an unrecognised method
+     * ends provability here while it sustains suspicion there. Folding them
+     * together behind a flag is how one path's fail-open default would reach
+     * the other.
      *
      * @param array<int, array<string, bool>> $variables
      */
-    private function isUnchainedCollection(File $phpcsFile, int $start, int $end, array $variables): bool
+    private function isProvableCollection(File $phpcsFile, int $start, int $end, array $variables): bool
     {
         if ($start > $end) {
             return false;
         }
 
+        $tokens = $phpcsFile->getTokens();
         $first = $phpcsFile->findNext(Tokens::$emptyTokens, $start, ($end + 1), true);
 
         if ($first === false) {
             return false;
         }
 
-        $originEnd = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables);
+        $ptr = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables);
 
-        return $originEnd !== null
-            && $phpcsFile->findNext(Tokens::$emptyTokens, ($originEnd + 1), ($end + 1), true) === false;
+        if ($ptr === null) {
+            return false;
+        }
+
+        while (true) {
+            $operator = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), ($end + 1), true);
+
+            if ($operator === false) {
+                return true;
+            }
+
+            // A nullsafe link can yield null, so the chain is no longer
+            // provably a Collection whatever the method after it returns.
+            if ($tokens[$operator]['code'] !== T_OBJECT_OPERATOR) {
+                return false;
+            }
+
+            $name = $phpcsFile->findNext(Tokens::$emptyTokens, ($operator + 1), ($end + 1), true);
+
+            if ($name === false || $tokens[$name]['code'] !== T_STRING) {
+                return false;
+            }
+
+            $parenthesis = $phpcsFile->findNext(Tokens::$emptyTokens, ($name + 1), ($end + 1), true);
+
+            if ($parenthesis === false || $tokens[$parenthesis]['code'] !== T_OPEN_PARENTHESIS) {
+                return false;
+            }
+
+            if (isset(self::CHAINABLE_METHODS[strtolower($tokens[$name]['content'])]) === false) {
+                return false;
+            }
+
+            $ptr = $tokens[$parenthesis]['parenthesis_closer'];
+        }
     }
 
     /**
