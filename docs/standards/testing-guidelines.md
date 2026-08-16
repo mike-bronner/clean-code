@@ -145,6 +145,11 @@ lands on the same answer:
 partial-mock the class a test file is about, so leaving it unresolved would
 miss the commonest first-party partial mock there is.
 
+A `use function` or `use const` import brings no class into scope and so never
+enters that map — written on the statement, where it binds every clause, or on
+one clause of a group (`use App\{Order, function build};`), where it binds that
+clause alone.
+
 A reference the file's own tokens cannot resolve — a variable, a call, a
 concatenation, a constant that is not `::class` — is left alone rather than
 guessed at.

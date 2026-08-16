@@ -8,7 +8,8 @@
  * the property-configurability triple in configured.php, the per-line
  * suppression in suppressed.php, the header-walk boundary in class-body-use.php,
  * the string-literal escaping in escaped-literals.php, the group-import
- * emptiness guard in group-import-trailing-comma.php, the scope keywords in
+ * emptiness guard in group-import-trailing-comma.php, the mixed function and
+ * const clauses in group-import-mixed-keywords.php, the scope keywords in
  * scope-keywords.php and the three end-of-file truncations in
  * unterminated-*.php. The rule is detection-only, so there is no autofixed
  * fixture.
@@ -295,6 +296,48 @@ it('ignores the empty clause a trailing comma leaves in a group import', functio
 
     expect($vendor->getErrors())->toBe([])
         ->and(array_keys($vendor->getWarnings()))->toBe([15, 16]);
+});
+
+/**
+ * A `function` or `const` keyword in a `use` statement is read where PHP reads
+ * it — on the statement, binding every clause, and on a group's own clause,
+ * binding that clause alone — and in both places before the group's namespace
+ * prefix is applied. Prefixed first, the keyword lands mid-string, an anchored
+ * test can no longer see it, and the clause is imported as a class under
+ * whatever alias it carries.
+ *
+ * Both roots are asserted, because the misparse hides in a different direction
+ * under each and the sniff must be wrong in neither:
+ *
+ * - under the shipped `App` root, lines 24-25 and 29-32 name things no `use`
+ *   statement imported as a class, so all six resolve inside the declared
+ *   namespace and report. Read as class imports they bind to `Vendor\Sdk\…`
+ *   and fall silent — a first-party mock the sniff simply misses.
+ * - under a `Vendor` root it is the inverse, and the false *positive* the AC
+ *   forbids outright: `Vendor\Sdk\function build` is not a class any more than
+ *   `Baz` is first-party, yet the misparse makes both look that way. Only line
+ *   19's `Helper`, the group's real class clause, may report there.
+ *
+ * Line 19 carries the other half in both runs: dropping a whole group because
+ * one of its clauses names a function would take the classes beside it down
+ * too, and that shows up as silence here under `Vendor`.
+ */
+it('reads a function or const keyword before it prefixes a group clause', function (): void {
+    $shipped = analyzeFixture(FIRST_PARTY_MOCKS, 'group-import-mixed-keywords.php');
+
+    expect($shipped->getErrors())->toBe([])
+        ->and(array_keys($shipped->getWarnings()))->toBe([24, 25, 29, 30, 31, 32]);
+
+    $vendor = analyzeFixture(
+        FIRST_PARTY_MOCKS,
+        'group-import-mixed-keywords.php',
+        static function (object $sniff): void {
+            $sniff->firstPartyNamespaces = ['Vendor'];
+        }
+    );
+
+    expect($vendor->getErrors())->toBe([])
+        ->and(array_keys($vendor->getWarnings()))->toBe([19]);
 });
 
 /**

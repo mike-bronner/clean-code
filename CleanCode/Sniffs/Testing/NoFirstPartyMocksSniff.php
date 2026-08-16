@@ -698,13 +698,20 @@ class NoFirstPartyMocksSniff implements Sniff
      *
      * Both spellings are handled from the statement's own text: the plain list
      * (`use A\B, C\D as E;`) and the group (`use A\{B, C as D};`), the latter
-     * prefixing each clause with the text before the brace. The function and
-     * const keywords are rejected per *clause* rather than per statement,
-     * because a group import may mix them in beside classes — and a whole-file
-     * `use function` reaches the same check as its own single clause.
+     * prefixing each clause with the text before the brace.
      *
-     * An empty clause is dropped before the group prefix is applied, not after:
-     * a trailing comma inside a group (`use A\{B, C,};`, legal since PHP 8.0)
+     * The function and const keywords are read in both the places PHP allows
+     * them, and in each case *before* the group prefix is applied. On the
+     * statement (`use function A\b, C\d;`, `use const A\{B, C};`) the keyword
+     * binds every clause, so the whole statement imports no class. Inside a
+     * group (`use A\{B, function c, const D};`) it binds its own clause only,
+     * so that clause is dropped and the classes beside it still import.
+     * Prefixed first, the keyword sits mid-string where the anchored test
+     * cannot see it, and the clause is imported as a class under whatever
+     * alias it was given.
+     *
+     * An empty clause is dropped before the group prefix is applied too: a
+     * trailing comma inside a group (`use A\{B, C,};`, legal since PHP 8.0)
      * leaves one, and prefixing it first would turn it into the non-empty
      * `A\` and import a phantom `a => A` alias that no `use` statement wrote.
      *
@@ -715,6 +722,11 @@ class NoFirstPartyMocksSniff implements Sniff
     private function importedAliases(array $tokens, int $pointer, ?int $end): array
     {
         $written = $this->statementText($tokens, $pointer, $end);
+
+        if ($this->importsNoClass($written) === true) {
+            return [];
+        }
+
         $prefix = '';
 
         if (str_contains($written, '{') === true) {
@@ -728,32 +740,39 @@ class NoFirstPartyMocksSniff implements Sniff
         foreach (explode(',', $written) as $clause) {
             $clause = trim($clause);
 
-            if ($clause === '') {
+            if ($clause === '' || $this->importsNoClass($clause) === true) {
                 continue;
             }
 
-            $import = $this->importedAlias($prefix . $clause);
-
-            $imports = ($import === null ? $imports : array_merge($imports, $import));
+            $imports = array_merge($imports, $this->importedAlias($prefix . $clause));
         }
 
         return $imports;
     }
 
     /**
-     * One import clause as an alias => fully-qualified name pair, or null when
-     * the clause names a function or a constant, which a group import may mix
-     * in beside classes. The clause is never empty: the caller drops an empty
-     * one before it prefixes the group.
+     * Whether $text opens with the `function` or `const` keyword, which makes
+     * what follows an import of something that is not a class.
      *
-     * @return array<string, string>|null
+     * Anchored at the start, so it only ever reads a keyword PHP itself would:
+     * one written on the statement, binding every clause, or one written on a
+     * group's own clause, binding that clause. Both callers pass the text
+     * unprefixed, which is the only form this can see the keyword in.
      */
-    private function importedAlias(string $clause): ?array
+    private function importsNoClass(string $text): bool
     {
-        if (preg_match('/^(function|const)\s/i', $clause) === 1) {
-            return null;
-        }
+        return preg_match('/^(function|const)\s/i', $text) === 1;
+    }
 
+    /**
+     * One import clause as an alias => fully-qualified name pair. The clause is
+     * never empty and never names a function or a constant: the caller drops
+     * both before it prefixes the group.
+     *
+     * @return array<string, string>
+     */
+    private function importedAlias(string $clause): array
+    {
         $parts = preg_split('/\s+as\s+/i', $clause, 2);
         $qualified = trim((string) $parts[0], '\\');
         $segments = explode('\\', $qualified);
