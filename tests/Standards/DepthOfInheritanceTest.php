@@ -171,7 +171,13 @@ it('resolves a parent chain across the files being analysed', function (): void 
     $directory = fixturePath(sniffFixtureDirectory(DEPTH_OF_INHERITANCE), 'project');
     $files = analyzeFileset([DEPTH_OF_INHERITANCE], $directory);
 
-    expect(array_keys($files))->toBe(['base.php', 'braced.php', 'leaf.php', 'mid.php']);
+    expect(array_keys($files))->toBe([
+        'base.php',
+        'braced.php',
+        'interpolated.php',
+        'leaf.php',
+        'mid.php',
+    ]);
     expect(violationTuples($files['base.php']))->toBe([]);
     expect(violationTuples($files['mid.php']))->toBe([]);
     expect(violationTuples($files['leaf.php']))->toBe([
@@ -179,6 +185,45 @@ it('resolves a parent chain across the files being analysed', function (): void 
     ]);
     expect(violationTuples($files['braced.php']))->toBe([
         ['line' => 14, 'column' => 5, 'source' => DEPTH_OF_INHERITANCE_ERROR],
+    ]);
+});
+
+/**
+ * `${expr}`, the other spelling PHP opens with a token and closes with a bare
+ * brace, across a namespace boundary.
+ *
+ * `interpolated.php` interpolates in its first braced namespace and imports in
+ * its second. Stop counting T_DOLLAR_OPEN_CURLY_BRACES and the first namespace
+ * closes early, the import is read as a trait `use` and dropped, and `Deepest`
+ * falls to the 2 an unseen parent weighs — silent, where eight parents belong.
+ *
+ * The count is asserted, not just the line: a broken link that still cleared
+ * the threshold would pass on the line alone.
+ */
+it('counts a ${expr} interpolation opened across a namespace boundary', function (): void {
+    $directory = fixturePath(sniffFixtureDirectory(DEPTH_OF_INHERITANCE), 'project');
+    $files = analyzeFileset([DEPTH_OF_INHERITANCE], $directory);
+
+    expect(violationTuples($files['interpolated.php']))->toBe([
+        ['line' => 34, 'column' => 5, 'source' => DEPTH_OF_INHERITANCE_ERROR],
+    ]);
+    expect($files['interpolated.php']->getErrors()[34][5][0]['message'])->toBe(
+        'The class Deepest has 8 parents. Current threshold is 6.'
+            . ' Reduce the depth of this class hierarchy.'
+    );
+});
+
+/**
+ * `{$expr}` in the ordinary shape: one file, one unbraced namespace.
+ *
+ * The brace this opens is a token; the one that closes it is bare. Miscount it
+ * and `Consumer`'s trait `use` reads as an import of the short name `Base5`,
+ * which sends `Deep extends Base5` to the trait in `Support` instead of to the
+ * six-deep class beside it — and a real violation goes unreported.
+ */
+it('counts a {$expr} interpolation inside a class body', function (): void {
+    expect(violationTuples(analyzeFixture(DEPTH_OF_INHERITANCE, 'interpolation.php')))->toBe([
+        ['line' => 66, 'column' => 1, 'source' => DEPTH_OF_INHERITANCE_ERROR],
     ]);
 });
 

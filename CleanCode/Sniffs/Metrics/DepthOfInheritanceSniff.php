@@ -79,10 +79,11 @@ use PHP_CodeSniffer\Util\Tokens;
  *   accumulated as files are processed, so a child analysed before its parent
  *   measures the same as the reverse. Under `--parallel` each fork builds the
  *   same index from the same list, so the worker count cannot change a result.
- * - **The file under analysis is always in the index**, whether or not the
- *   file list holds it. A single file passed on stdin therefore behaves like
- *   `phpmd` given that one file: same-file ancestors resolve, everything above
- *   them is unseen.
+ * - **The file under analysis is always resolvable against itself**, whether or
+ *   not the file list holds it: its own declarations are consulted before the
+ *   fileset index. A single file passed on stdin therefore behaves like `phpmd`
+ *   given that one file: same-file ancestors resolve, everything above them is
+ *   unseen.
  * - **The index is built at most once per run, and only when it is needed.** A
  *   class with no `extends` clause has depth 0 and returns before the index is
  *   ever touched, so a project without inheritance pays nothing.
@@ -125,6 +126,26 @@ class DepthOfInheritanceSniff implements Sniff
     ];
 
     /**
+     * The two braces PHP's lexer hands over as a token rather than as a bare
+     * `{`, both of them openers whose matching `}` arrives bare.
+     *
+     * `"{$expr}"` opens on T_CURLY_OPEN and `"${expr}"` on
+     * T_DOLLAR_OPEN_CURLY_BRACES — in a double-quoted string and in a heredoc
+     * alike. Counting only the bare braces would therefore drop a level on
+     * every interpolation and close the enclosing namespace early. These two
+     * are the whole of the asymmetry: every other brace-bearing construct —
+     * `$o->{$n}`, `${$n}`, `match`, an enum, a property hook, an attribute, a
+     * closure — is bare on both sides, and a literal brace *inside* a string
+     * never reaches this counter at all, because the lexer keeps it in the
+     * surrounding T_ENCAPSED_AND_WHITESPACE or T_CONSTANT_ENCAPSED_STRING.
+     * Verified by dumping every brace-carrying token across all of them.
+     */
+    private const INTERPOLATION_OPENERS = [
+        T_CURLY_OPEN,
+        T_DOLLAR_OPEN_CURLY_BRACES,
+    ];
+
+    /**
      * The index of the analysed set, against the run it was built for: one
      * entry, replaced whenever a different Config arrives.
      *
@@ -146,7 +167,8 @@ class DepthOfInheritanceSniff implements Sniff
      * keeps a previous file's tokens alive.
      *
      * @var array{file: \WeakReference<File>, declarations: array<int,
-     *     array{name: string, line: int, fqcn: string, parent: string|null}>}|null
+     *     array{name: string, line: int, fqcn: string, parent: string|null}>,
+     *     index: array<string, string|null>}|null
      */
     private static ?array $currentFile = null;
 
@@ -181,7 +203,11 @@ class DepthOfInheritanceSniff implements Sniff
             return;
         }
 
-        $depth = $this->depthOf($declaration, $this->index($phpcsFile));
+        $depth = $this->depthOf(
+            $declaration,
+            $this->currentFile($phpcsFile)['index'],
+            $this->filesetIndex($phpcsFile)
+        );
 
         if ($depth === null || $depth < $this->minimum) {
             return;
@@ -212,17 +238,28 @@ class DepthOfInheritanceSniff implements Sniff
      * is this: null abandons the measurement rather than counting round the
      * loop.
      *
+     * The file being processed is consulted before the fileset index, which is
+     * what makes it visible to itself: a file supplied on stdin, or one the run
+     * narrowed past, still resolves its own ancestors. Two maps rather than one
+     * merged map is not a detail — merging them would copy the whole index once
+     * per class, which is a project's class count squared over a whole run.
+     *
      * @param array{fqcn: string, parent: string|null} $declaration
-     * @param array<string, string|null>               $index
+     * @param array<string, string|null>               $file
+     * @param array<string, string|null>               $fileset
      */
-    private function depthOf(array $declaration, array $index): ?int
+    private function depthOf(array $declaration, array $file, array $fileset): ?int
     {
         $depth = 0;
         $parent = $declaration['parent'];
         $seen = [$declaration['fqcn'] => true];
 
         while ($parent !== null) {
-            if (array_key_exists($parent, $index) === false) {
+            if (array_key_exists($parent, $file) === true) {
+                $next = $file[$parent];
+            } elseif (array_key_exists($parent, $fileset) === true) {
+                $next = $fileset[$parent];
+            } else {
                 return $depth + $this->unseenParentWeight();
             }
 
@@ -232,7 +269,7 @@ class DepthOfInheritanceSniff implements Sniff
 
             $seen[$parent] = true;
             ++$depth;
-            $parent = $index[$parent];
+            $parent = $next;
         }
 
         return $depth;
@@ -271,7 +308,7 @@ class DepthOfInheritanceSniff implements Sniff
         $line = $tokens[$stackPtr]['line'];
         $name = strtolower($name);
 
-        foreach ($this->declarationsOfCurrentFile($phpcsFile) as $declaration) {
+        foreach ($this->currentFile($phpcsFile)['declarations'] as $declaration) {
             if ($declaration['line'] === $line && $declaration['name'] === $name) {
                 return $declaration;
             }
@@ -281,16 +318,24 @@ class DepthOfInheritanceSniff implements Sniff
     }
 
     /**
-     * The declarations in the file being processed, read from the source
-     * PHP_CodeSniffer tokenised rather than from disk, so a file supplied on
-     * stdin reads the same as one with a path.
+     * The file being processed, read from the source PHP_CodeSniffer tokenised
+     * rather than from disk, so a file supplied on stdin reads the same as one
+     * with a path.
      *
-     * @return array<int, array{name: string, line: int, fqcn: string, parent: string|null}>
+     * Both readings are built together and cached together: `declarations` in
+     * source order, for pairing a T_CLASS token with its entry, and `index`
+     * keyed by name, for resolving a parent. Building the second here rather
+     * than per class is what keeps the cost of a file proportional to the
+     * classes in it.
+     *
+     * @return array{file: \WeakReference<File>, declarations: array<int,
+     *     array{name: string, line: int, fqcn: string, parent: string|null}>,
+     *     index: array<string, string|null>}
      */
-    private function declarationsOfCurrentFile(File $phpcsFile): array
+    private function currentFile(File $phpcsFile): array
     {
         if (self::$currentFile !== null && self::$currentFile['file']->get() === $phpcsFile) {
-            return self::$currentFile['declarations'];
+            return self::$currentFile;
         }
 
         $source = '';
@@ -300,34 +345,19 @@ class DepthOfInheritanceSniff implements Sniff
         }
 
         $declarations = $this->declarationsIn($source);
-        self::$currentFile = [
-            'file' => \WeakReference::create($phpcsFile),
-            'declarations' => $declarations,
-        ];
+        $index = [];
 
-        return $declarations;
-    }
-
-    /**
-     * The `class => parent` map to resolve a chain against: every class in the
-     * analysed set, plus every class in the file being processed.
-     *
-     * The union is what makes the file under analysis always visible to
-     * itself. In an ordinary `phpcs <path>` run it changes nothing, because the
-     * file is already in the list; it is what a stdin run and a narrowed test
-     * harness rely on.
-     *
-     * @return array<string, string|null>
-     */
-    private function index(File $phpcsFile): array
-    {
-        $index = $this->filesetIndex($phpcsFile);
-
-        foreach ($this->declarationsOfCurrentFile($phpcsFile) as $declaration) {
+        foreach ($declarations as $declaration) {
             $index[$declaration['fqcn']] = $declaration['parent'];
         }
 
-        return $index;
+        self::$currentFile = [
+            'file' => \WeakReference::create($phpcsFile),
+            'declarations' => $declarations,
+            'index' => $index,
+        ];
+
+        return self::$currentFile;
     }
 
     /**
@@ -452,6 +482,12 @@ class DepthOfInheritanceSniff implements Sniff
                 if ($token === '}') {
                     --$depth;
                 }
+
+                continue;
+            }
+
+            if (in_array($token[0], self::INTERPOLATION_OPENERS, true) === true) {
+                ++$depth;
 
                 continue;
             }
