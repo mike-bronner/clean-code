@@ -385,7 +385,12 @@ class ManualModelResolutionSniff implements Sniff
 
     private function conditionPointer(File $phpcsFile, int $stackPtr, int|string $type): ?int
     {
-        return match ($pointer = $phpcsFile->getCondition($stackPtr, $type, false)) {
+        // The assignment is hoisted out of the match subject rather than
+        // written inline: rules.xml now reports an assignment in a condition
+        // (#79), and a match subject is one of the conditions it reads.
+        $pointer = $phpcsFile->getCondition($stackPtr, $type, false);
+
+        return match ($pointer) {
             false => null,
             default => $pointer,
         };
