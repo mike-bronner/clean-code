@@ -58,9 +58,22 @@ Three public properties configure it from a consuming ruleset:
 ```xml
 <rule ref="CleanCode.Testing.NoReflectionAccess">
     <properties>
-        <property name="testFilePatterns" type="array" value="*/tests/*,*/Tests/*,*Test.php"/>
-        <property name="reflectionClasses" type="array" value="ReflectionMethod,ReflectionProperty"/>
-        <property name="reflectionMembers" type="array" value="getMethod,getProperty,invoke,invokeArgs,setAccessible"/>
+        <property name="testFilePatterns" type="array">
+            <element value="*/tests/*"/>
+            <element value="*/Tests/*"/>
+            <element value="*Test.php"/>
+        </property>
+        <property name="reflectionClasses" type="array">
+            <element value="ReflectionMethod"/>
+            <element value="ReflectionProperty"/>
+        </property>
+        <property name="reflectionMembers" type="array">
+            <element value="getMethod"/>
+            <element value="getProperty"/>
+            <element value="invoke"/>
+            <element value="invokeArgs"/>
+            <element value="setAccessible"/>
+        </property>
     </properties>
 </rule>
 ```
@@ -144,8 +157,19 @@ Three public properties configure it from a consuming ruleset:
         <property name="firstPartyNamespaces" type="array">
             <element value="App"/>
         </property>
-        <property name="testFilePatterns" type="array" value="*/tests/*,*/Tests/*,*Test.php"/>
-        <property name="mockCreators" type="array" value="createMock,createPartialMock,getMockBuilder,mock,partialMock,spy"/>
+        <property name="testFilePatterns" type="array">
+            <element value="*/tests/*"/>
+            <element value="*/Tests/*"/>
+            <element value="*Test.php"/>
+        </property>
+        <property name="mockCreators" type="array">
+            <element value="createMock"/>
+            <element value="createPartialMock"/>
+            <element value="getMockBuilder"/>
+            <element value="mock"/>
+            <element value="partialMock"/>
+            <element value="spy"/>
+        </property>
     </properties>
 </rule>
 ```
