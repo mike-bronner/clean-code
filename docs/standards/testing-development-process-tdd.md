@@ -20,13 +20,15 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (the process), Tier 2 (one slice)
+## Enforceability — Tier 3 (the process), Tier 2 (two slices)
 
 This is a development-*process* standard, and the process itself is enforced by
-**code review and developer discipline**. One bullet is an exception: "only
-implement classes, never procedural code" describes the code's end state rather
-than the process that produced it, and is enforced by the custom sniff
-`CleanCode.Files.NoProceduralCode` (see below).
+**code review and developer discipline**. Two things are exceptions, and both
+describe the code's end state rather than the process that produced it: "only
+implement classes, never procedural code" is enforced by the custom sniff
+`CleanCode.Files.NoProceduralCode`, and a class existing with no test at all is
+enforced by the custom sniff `CleanCode.Testing.RequireTestFile`. Both are
+described below.
 
 Everything else stays with the reviewer. A token-based PHPCS sniff inspects one
 file's tokens in isolation at lint time. Whether a test was written *before* its
@@ -37,14 +39,15 @@ No static analysis can recover them.
 
 ## Partial enforcement assessment
 
-Two narrow slices **are** catchable by a sniff, and each has a focused issue
+Two narrow slices **are** catchable by a sniff, and each got a focused issue
 rather than a sniff built under this documentation-only standard:
 
 - **Class with no corresponding test file** —
-  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128). A sniff on
+  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128), **now
+  enforced** by the custom sniff `CleanCode.Testing.RequireTestFile`. A sniff on
   class declarations under the source directory can check that a companion
   `*Test.php` exists. This catches test *absence* (a visible end-state
-  violation), though never test-first *order*. Still queued.
+  violation), though never test-first *order*. It is described below.
 - **Procedural code in source files** —
   [#129](https://github.com/mike-bronner/phpcs-rules/issues/129), **now
   enforced** by the custom sniff `CleanCode.Files.NoProceduralCode`. The
@@ -82,14 +85,56 @@ rather than a sniff built under this documentation-only standard:
   `PSR12.Files.ClosingTag`, which owns it; only the markup after one is
   reported.
 
+### `CleanCode.Testing.RequireTestFile`
+
+- **Detection** — a concrete class declared under a configured source directory
+  is reported when no file matches the companion path its own location implies.
+  The shipped mapping is the PSR-4 mirror: `src/Foo/Bar.php` looks for
+  `tests/Foo/BarTest.php`, with `app/` as a second source root. The companion is
+  named for the *file*, not for the class the file declares, which is what a
+  PSR-4 autoloader keys on; the two disagreeing is a PSR-1/PSR-4 violation owned
+  by the sniffs that carry that rule.
+- **Four properties carry the whole mapping**, so a project retunes it rather
+  than overriding the ruleset: `sourceDirectories` (the directory names that
+  mark a source root, and the sniff's own scope), `testDirectory` (the test
+  root, relative to the project root), `testPathTemplate` (`{path}` for the
+  source-relative directory, `{name}` for the file's base name), and
+  `excludePatterns` (fnmatch globs for framework scaffolding — migrations,
+  service providers, config classes). `excludePatterns` ships empty: which
+  scaffolding is exempt is a property of the application, not of the standard.
+- **The expected path is a glob pattern, not a literal**, which is what keeps a
+  non-mirrored layout down to a single lookup. A suite split into `Unit/` and
+  `Feature/` sets `testDirectory` to `tests/*`. Exactly one `glob()` call is
+  made per class declaration, and `*` never crosses a separator, so the cost is
+  fixed by the configured pattern rather than by the size of the suite — there
+  is no directory walk and no recursive search. The wildcards belong to the
+  configured properties alone: the parts read off the filesystem — the
+  directories above the source root, `{path}` and `{name}` — are quoted before
+  they are substituted in, so a project checked out under a directory called
+  `build[1]` resolves its companions from `build[1]/tests/` rather than from
+  whatever `build1` might be.
+- **Never flagged** — interfaces, traits and enums (the tokenizer spells them
+  `T_INTERFACE`, `T_TRAIT` and `T_ENUM`, none of which the sniff registers),
+  anonymous classes (`T_ANON_CLASS`, and no name for a test to be named after),
+  abstract classes (exercised through their concrete subclasses; the one
+  exemption read off the declaration rather than off the token), anything
+  matching `excludePatterns`, any file with no source root on its path, and
+  piped input, which has no location to resolve a companion against.
+- **Warning severity, report-only.** The rule reads a project's layout off a
+  configurable convention and cannot prove it guessed right, so a misread must
+  not fail a build. The fix is writing the missing test, and no fixer can write
+  it.
+- **Existence only.** It says a file exists at the expected path. It does not
+  say the test was written first, and it does not say the test asserts anything.
+
 ## What remains code review
 
 Everything except those two slices. The TDD cycle itself, the two-perspective
 discipline, complexity-guided test counts, and deferred DRYing leave no trace a
-tokenizer can read, so a reviewer is the only enforcement there is. Even once
-[#128](https://github.com/mike-bronner/phpcs-rules/issues/128) lands, a sniff
-can say only that *a* test file exists — not that it was written first, nor
-that it asserts anything meaningful.
+tokenizer can read, so a reviewer is the only enforcement there is. The
+test-existence slice is narrow in exactly that way: a sniff can say only that
+*a* test file exists — not that it was written first, nor that it asserts
+anything meaningful.
 
 The enforced slice is narrow in the same way: it says a source file's top level
 holds one declaration and nothing else. Whether that declaration is a class

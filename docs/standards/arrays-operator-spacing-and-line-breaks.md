@@ -30,7 +30,7 @@ two custom CleanCode sniffs, wired into the master `rules.xml`
 ### Binary-operator spacing — `Squiz.WhiteSpace.OperatorSpacing`
 
 Enforces **exactly** one space on each side of binary operators (assignment,
-comparison, arithmetic, logical). PSR-12 (already in the ruleset) requires *at
+comparison, arithmetic, bitwise). PSR-12 (already in the ruleset) requires *at
 least* one space; this sniff tightens that to exactly one, so over-padding used
 for alignment (`$a  -  $b`) is also flagged. Configured with:
 
@@ -39,6 +39,13 @@ for alignment (`$a  -  $b`) is also flagged. Configured with:
 - `ignoreNewlines="true"` — spacing is only policed within a line, so an
   operator that leads a wrapped continuation line is left to the line-break
   sniff below. Auto-fixable.
+
+The **boolean** connectives (`&&`, `||`, `and`, `or`, `xor`) are *not* among
+this sniff's targets — its `register()` covers comparison, arithmetic/bitwise
+and assignment tokens, and leaves `Tokens::$booleanOperators` out. Their
+spacing is owned by `CleanCode.Operators.BooleanOperatorSpacing`, added for
+[Operators: Active](operators-active.md)
+([#62](https://github.com/mike-bronner/phpcs-rules/issues/62)).
 
 ### Concatenation spacing — `Squiz.Strings.ConcatenationSpacing`
 
