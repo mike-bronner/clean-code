@@ -10,6 +10,14 @@
  * marker committed in a comment. The severity and detection-only tests below
  * pin both ends of that report, because a regression to warnings or to a
  * fixable report would leave every line assertion here passing.
+ *
+ * Nothing in this file's prose spells a marker out, for the reason the sniff's
+ * own docblock gives: this sniff reads comments, and the package ships this
+ * file, so a marker written into a comment here makes the package report
+ * violations against itself the moment a consuming project scans it. The
+ * markers appear only in code — the fixtures, and the strings asserted against
+ * them. `stays silent on this package's own source` at the end of this file
+ * holds the whole package to that.
  */
 
 declare(strict_types=1);
@@ -266,4 +274,55 @@ it('ignores a configured directive that is empty once trimmed', function (): voi
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * This sniff is the one in the standard whose subject is prose, so the package's
+ * own comments are inside its reach. Every PHP file here ships — there is no
+ * .gitattributes export-ignore — and rules.xml deliberately keeps this sniff
+ * over tests/ rather than excluding it the way two sibling rules do, so a marker
+ * written into any docblock in the package makes a consuming project's scan
+ * report the package's own files.
+ *
+ * The scan is why the reach is worth stating: `composer lint` runs PSR-12, and
+ * CI's rules.xml step reads one file, so neither loads this sniff over this tree
+ * and neither could report a CleanCode.CodeStyle finding here at all. The same
+ * gap let a sniff flag its own source unnoticed once before, on #279.
+ *
+ * Modeled on `stays silent on this package's own source` in
+ * tests/Standards/MultiLineStatementIndentTest.php. Fixtures are excluded
+ * because they carry markers on purpose. The file list is asserted non-empty
+ * first: a scan that collected nothing would go green for the one reason it must
+ * never go green for.
+ */
+it('stays silent on this package\'s own source', function (): void {
+    $root = cleanCodeRoot();
+    $files = [];
+
+    foreach ([$root . '/CleanCode', $root . '/tests'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory));
+
+        foreach ($iterator as $file) {
+            $path = $file->getPathname();
+            $isFixture = str_contains($path, '/fixtures/');
+
+            if ($file->isFile() === true && $file->getExtension() === 'php' && $isFixture === false) {
+                $files[] = $path;
+            }
+        }
+    }
+
+    expect($files)->not->toBeEmpty();
+
+    $offenders = [];
+
+    foreach ($files as $path) {
+        $errors = analyzeWithSniffs([NO_FORMATTER_DIRECTIVES], $path)->getErrors();
+
+        foreach (array_keys($errors) as $line) {
+            $offenders[] = substr($path, strlen($root) + 1) . ':' . $line;
+        }
+    }
+
+    expect($offenders)->toBe([]);
 });
