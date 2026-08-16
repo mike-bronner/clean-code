@@ -22,6 +22,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Sniffs\Livewire\ComponentMarkupSniff;
+
 const COMPONENT_MARKUP = 'CleanCode.Livewire.ComponentMarkup';
 
 const ROOT_ELEMENT_ATTRIBUTES = COMPONENT_MARKUP . '.RootElementAttributes';
@@ -673,4 +675,61 @@ it('says nothing about a view whose first element tag does not parse', function 
     );
 
     expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
+});
+
+/**
+ * The tag read can fail outright, and the component-view gate has to say so.
+ *
+ * ELEMENT_TAG's tag-name group and its unquoted attribute run share a
+ * character set, so a `<` followed by a long unbroken run of those characters
+ * and then a quote the pattern cannot pair splits every way between the two
+ * groups, and preg_match_all() returns false with an empty $matches.
+ *
+ * The fixture's run is 8,008 characters, which is deliberately far past the
+ * point it has to clear rather than just past it. Measured against PHP 8.4's
+ * default million-step pcre.backtrack_limit, the failure starts at 816
+ * characters with the PCRE JIT off and 1,412 with it on — so the fixture sits
+ * ~9.8x and ~5.7x above the two, and the case does not turn on a runner's JIT
+ * setting or on one PCRE build counting steps slightly differently. The cost
+ * is bounded by the limit itself either way: ~12ms unJITted, ~3ms JITted.
+ *
+ * Iterating that empty array reads as "no component-bound directive in this
+ * view", which is the same answer isComponentView() gives a view that really
+ * carries none. The fixture does carry one (`wire:click`, line 11), so the
+ * gate is answering off a read that never happened.
+ *
+ * Both answers are false, deliberately: the fix gives the failure its own exit
+ * rather than changing what the sniff reports. So the sniff's own output
+ * cannot tell the fixed code from the broken code, and this case is in two
+ * layers instead. The precondition below is what pins the branch — it proves,
+ * without the sniff, that this fixture really does drive ELEMENT_TAG to a
+ * backtrack-limit failure, so the fixture cannot rot into one that exercises
+ * nothing. The sniff-level assertions are the other half: the failure stays
+ * silent, and stays silent without raising anything of its own — a PHP warning
+ * or error escaping the run reddens this case through phpunit.xml.dist's
+ * failOnWarning, and an exception through the run itself.
+ *
+ * The pattern is read off the sniff rather than transcribed, following
+ * passiveNonOperandTokens() in tests/Helpers.php: a transcription would keep
+ * passing after ELEMENT_TAG was rewritten into a pattern the fixture no longer
+ * breaks.
+ */
+it('says nothing about a view whose element tags cannot be read at all', function (): void {
+    $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'ELEMENT_TAG'))->getValue();
+    $markup = file_get_contents(
+        fixturePath('ComponentMarkupSniff', 'unreadable-element-tags.php')
+    );
+
+    // Read immediately: preg_last_error() is process-global and any later
+    // preg_* call — including one inside expect() — would overwrite it.
+    $matched = preg_match_all($pattern, $markup, $matches, PREG_SET_ORDER);
+    $error = preg_last_error();
+
+    expect($matched)->toBeFalse()
+        ->and($error)->toBe(PREG_BACKTRACK_LIMIT_ERROR);
+
+    $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-element-tags.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
 });
