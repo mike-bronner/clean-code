@@ -87,6 +87,12 @@ A missing file can only lower a count, and a count that is too low stays
 silent, where one that is too high accuses a class of a hierarchy it does not
 have.
 
+The scan reads files PHP has not agreed to compile, because `token_get_all()`
+lexes rather than parses: `use A\{A\{A\{…` arrives intact however deep it goes
+and however few of its braces close. Imports are therefore read with a loop and
+not with recursion, so one crafted file cannot end the run for every file beside
+it.
+
 ### Running phpcs on one file reports nothing, and that is parity
 
 Point `phpcs` at a single file and the run contains one file, so only the
@@ -154,6 +160,12 @@ not read off phpmd.org, and each is pinned by a fixture:
   opens a brace without the plain `{` token every other opening brace carries,
   so both shapes are counted; `tests/fixtures/NumberOfChildrenSniff/interpolation/`
   pins each of them.
+- **A short name is not unique within a file.** Braced `namespace` blocks let one
+  file declare two different classes called `Foo`, even on one line, so a
+  declaration is identified by the line it sits on and by the order it is written
+  in — never by its name alone. `tests/fixtures/NumberOfChildrenSniff/namespaces/`
+  pins both halves, each block's class carrying a different number of children so
+  the report says which one it is about.
 
 Piped input (`STDIN`) has no path and therefore no codebase to resolve children
 against, so the sniff says nothing about it.

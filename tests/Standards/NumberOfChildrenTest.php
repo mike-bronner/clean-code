@@ -37,6 +37,8 @@ const NUMBER_OF_CHILDREN_BASE = NUMBER_OF_CHILDREN_PROJECT . '/Base.php';
 
 const NUMBER_OF_CHILDREN_INTERPOLATION = __DIR__ . '/../fixtures/NumberOfChildrenSniff/interpolation';
 
+const NUMBER_OF_CHILDREN_NAMESPACES = __DIR__ . '/../fixtures/NumberOfChildrenSniff/namespaces';
+
 it('resolves through the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -233,6 +235,173 @@ it('keeps a trait use written after an interpolated string out of the import map
 
     expect(violationSourcesByLine($bare->getErrors()))->toBe([]);
     expect(violationSourcesByLine($anchor->getErrors()))->toBe([90 => [NUMBER_OF_CHILDREN_ERROR]]);
+});
+
+/**
+ * Braced namespace blocks let one file declare two different classes under the
+ * same short name, and Collide.php does: Fixture\Namespaces\First\Same has three
+ * children, Fixture\Namespaces\Second\Same has two.
+ *
+ * Which is why a file's declarations cannot be keyed by short name. Keyed that
+ * way the second Same overwrote the first, both declarations read Second\Same's
+ * count back, and First\Same's three children were unreachable — silent at a
+ * threshold of three, and at two both lines claimed the same count of two.
+ *
+ * The counts differ, so each assertion is about a specific class rather than
+ * about a report existing. Three is the pair's boundary — the first Same is over
+ * it and the second is not — and two puts both over with a different number
+ * each.
+ */
+it('tells two same-named classes in different namespace blocks apart', function (): void {
+    $path = NUMBER_OF_CHILDREN_NAMESPACES . '/Collide.php';
+    $overThree = analyzeProjectFixture(NUMBER_OF_CHILDREN, $path, $path, static function (object $sniff): void {
+        $sniff->minimum = 3;
+    });
+    $overTwo = analyzeProjectFixture(NUMBER_OF_CHILDREN, $path, $path, static function (object $sniff): void {
+        $sniff->minimum = 2;
+    });
+
+    expect(violationSourcesByLine($overThree->getErrors()))->toBe([17 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationMessagesByLine($overThree->getErrors())[17][0])->toContain('has 3 children');
+    expect(violationSourcesByLine($overTwo->getErrors()))->toBe([
+        17 => [NUMBER_OF_CHILDREN_ERROR],
+        35 => [NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect(violationMessagesByLine($overTwo->getErrors())[17][0])->toContain('has 3 children');
+    expect(violationMessagesByLine($overTwo->getErrors())[35][0])->toContain('has 2 children');
+});
+
+/**
+ * The same two blocks written on one line, which is the half of that shape the
+ * declaration's line does not separate: both classes called Twin are declared on
+ * line 13 of SameLine.php. Source order is what tells them apart, and it is read
+ * off the same file twice — by PHP's tokenizer for the counts and by
+ * PHP_CodeSniffer for the declaration being reported on.
+ *
+ * Three children for the first Twin and two for the second, so the pair of
+ * reports on that one line is read by count and not by position alone. Ordering
+ * the candidates the other way round swaps both numbers; dropping the ordinal
+ * gives both reports the first Twin's three.
+ */
+it('tells two same-named classes on one line apart', function (): void {
+    $path = NUMBER_OF_CHILDREN_NAMESPACES . '/SameLine.php';
+    $overThree = analyzeProjectFixture(NUMBER_OF_CHILDREN, $path, $path, static function (object $sniff): void {
+        $sniff->minimum = 3;
+    });
+    $overTwo = analyzeProjectFixture(NUMBER_OF_CHILDREN, $path, $path, static function (object $sniff): void {
+        $sniff->minimum = 2;
+    });
+
+    expect(violationSourcesByLine($overThree->getErrors()))->toBe([13 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationMessagesByLine($overThree->getErrors())[13][0])->toContain('has 3 children');
+    expect(violationSourcesByLine($overTwo->getErrors()))->toBe([
+        13 => [NUMBER_OF_CHILDREN_ERROR, NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect(violationMessagesByLine($overTwo->getErrors())[13][0])->toContain('has 3 children');
+    expect(violationMessagesByLine($overTwo->getErrors())[13][1])->toContain('has 2 children');
+});
+
+/**
+ * A file the sniff reads is not a file PHP has agreed to compile. token_get_all()
+ * lexes rather than parses, so it hands over `use A\{A\{A\{…` without ever
+ * requiring the braces to close or the result to be valid PHP — and a group-import
+ * reader that recursed on each `{` recursed once per brace. Twenty thousand of
+ * them is a 60KB file, and it ended the whole phpcs run with a memory exhaustion
+ * fatal in well under a second: every other file in the run went unlinted because
+ * one file beside them was shaped like this.
+ *
+ * The run is the shipped binary in a process of its own, at an explicit
+ * memory_limit, because that is the failure as a consumer meets it and because
+ * the suite's own process has no limit to exhaust — in-process, the recursion
+ * merely takes seconds and then answers correctly. The limit is stated rather
+ * than inherited so the case measures the sniff and not the runner's php.ini.
+ *
+ * Base's fifteen children are read back out of the report, so this is a completed
+ * analysis of the whole directory at the shipped default and not a run that
+ * exited early. The fixture is generated rather than committed: its size is the
+ * whole point of it, and 60KB of `A\{` documents nothing sitting in the tree.
+ */
+it('reads a group import without recursing once per brace', function (): void {
+    $children = implode("\n\n", array_map(
+        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+        range(1, 15)
+    ));
+    $project = stageProjectOutsideTests([
+        'Base.php' => "<?php\n\nnamespace Fixture\\Groups;\n\nclass Base\n{\n}\n\n" . $children . "\n",
+        'Nested.php' => "<?php\n\nuse " . str_repeat('A\\{', 20000) . ";\n",
+    ]);
+    [$stdout, $stderr, $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', [
+        PHP_BINARY,
+        '-d',
+        'memory_limit=128M',
+        cleanCodeRoot() . '/vendor/bin/phpcs',
+        '--standard=' . cleanCodeRoot() . '/rules.xml',
+        '--sniffs=' . NUMBER_OF_CHILDREN,
+        '--report=json',
+        '--no-cache',
+        dirname($project),
+    ])));
+    $report = json_decode($stdout, true);
+    $reported = [];
+
+    foreach (($report['files'] ?? []) as $path => $file) {
+        foreach ($file['messages'] as $message) {
+            $reported[] = basename((string) $path) . ':' . $message['line'] . ' ' . $message['message'];
+        }
+    }
+
+    expect($stderr)->not->toContain('Allowed memory size');
+    expect($status)->toBe(1);
+    expect($reported)->toBe([
+        'Base.php:5 The class Base has 15 children.'
+            . ' Consider to rebalance this class hierarchy to keep number of children under 15.',
+    ]);
+});
+
+/**
+ * runFiles() walks the run's file list by key(), never by value, and this is the
+ * PHP_CodeSniffer behaviour that choice rests on.
+ *
+ * FileList::current() builds a LocalFile for the path it is on, and LocalFile's
+ * constructor reads that whole file from disk. foreach asks an iterator for its
+ * current value on every step whether the loop body uses it or not, so walking
+ * the list with foreach read every file in the run and discarded the result — a
+ * second read of every file, on top of the one scanFile() does for itself. The
+ * list caches what it builds, so what each walk built is readable back off it.
+ *
+ * This characterises PHP_CodeSniffer rather than the sniff, and it is worth
+ * saying which way that cuts. It fails if an upgrade moves the construction into
+ * valid() or key(), which is exactly what would put the second read back without
+ * a line of this package changing. It cannot fail for runFiles() going back to
+ * foreach: nothing observable outside that method separates the two walks, which
+ * is why the fix carries this and not a test of its own output.
+ */
+it('leaves a run\'s file list unbuilt when it is walked by key', function (): void {
+    $project = stageProjectOutsideTests(['Base.php' => "<?php\n\nclass Base\n{\n}\n"]);
+    [$config, $ruleset] = buildRuleset([NUMBER_OF_CHILDREN], true);
+    $config->files = [dirname($project)];
+
+    $built = static function (PHP_CodeSniffer\Files\FileList $list): array {
+        $property = new ReflectionProperty(PHP_CodeSniffer\Files\FileList::class, 'files');
+        $property->setAccessible(true);
+
+        return $property->getValue($list);
+    };
+
+    $byKey = new PHP_CodeSniffer\Files\FileList($config, $ruleset);
+
+    for ($byKey->rewind(); $byKey->valid() === true; $byKey->next()) {
+        expect($byKey->key())->toBe($project);
+    }
+
+    $byValue = new PHP_CodeSniffer\Files\FileList($config, $ruleset);
+
+    foreach ($byValue as $listed) {
+        expect($listed)->toBeInstanceOf(PHP_CodeSniffer\Files\LocalFile::class);
+    }
+
+    expect($built($byKey))->toBe([$project => null]);
+    expect($built($byValue)[$project])->toBeInstanceOf(PHP_CodeSniffer\Files\LocalFile::class);
 });
 
 /**

@@ -98,6 +98,11 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * misses and a sniff that quietly reports nothing at all. Deriving both from
  * one pass makes that class of failure unrepresentable.
  *
+ * What the two readers of a file do still have to agree on is which declaration
+ * is which, and that is deliberately the smallest thing it could be: the line
+ * the `class` keyword sits on, and the declaration's position among the
+ * same-named ones on that line. See $declarations and declarationOrdinal().
+ *
  * The price of that choice is that the raw tokenizer's own quirks are this
  * sniff's to handle rather than PHP_CodeSniffer's. The one that reaches the
  * brace tracking is string interpolation: `{$expr}` and `${expr}` open with an
@@ -211,12 +216,29 @@ class NumberOfChildrenSniff implements Sniff
     private array $childCounts = [];
 
     /**
-     * The classes each scanned file declares, as lower-cased short name to
-     * lower-cased fully qualified name, keyed by file path. A file cannot
-     * declare two classes of the same name, so the short name is unambiguous
-     * within its file.
+     * The classes each scanned file declares, keyed by file path, then by the
+     * line the `class` keyword sits on, then by lower-cased short name, to the
+     * lower-cased fully qualified names declared there.
      *
-     * @var array<string, array<string, string>>
+     * The line is part of the key because a short name is *not* unique within a
+     * file. Braced namespace blocks are legal PHP, and
+     * `namespace A { class Foo {} } namespace B { class Foo {} }` declares two
+     * different classes both called `Foo`. Keyed on the short name alone the
+     * second overwrote the first, and process() then read back the wrong fully
+     * qualified name — so a genuine violation in the first block went
+     * unreported.
+     *
+     * The line and the short name are also all PHP_CodeSniffer gives process()
+     * to identify the class it was handed, which is why the map is keyed by
+     * exactly those two and not by the fully qualified name it is looking up.
+     *
+     * The value is a list, in source order, rather than one name: the line does
+     * not separate two same-named declarations whose `class` keywords share a
+     * physical line, which the same two namespace blocks written on one line
+     * produce. Nothing in PHP forbids that either, so it is not assumed away —
+     * declarationOrdinal() picks the entry out by source order.
+     *
+     * @var array<string, array<int, array<string, array<int, string>>>>
      */
     private array $declarations = [];
 
@@ -260,7 +282,9 @@ class NumberOfChildrenSniff implements Sniff
 
         $this->scanRun($phpcsFile, $path);
 
-        $fullyQualified = $this->declarations[$this->realPath($path)][strtolower($name)] ?? null;
+        $line = $phpcsFile->getTokens()[$stackPtr]['line'];
+        $candidates = $this->declarations[$this->realPath($path)][$line][strtolower($name)] ?? [];
+        $fullyQualified = $candidates[$this->declarationOrdinal($phpcsFile, $stackPtr, $name)] ?? null;
 
         if ($fullyQualified === null) {
             return;
@@ -280,6 +304,42 @@ class NumberOfChildrenSniff implements Sniff
             'Found',
             [$name, $children, $minimum]
         );
+    }
+
+    /**
+     * Which of the same-named declarations recorded for this line this one is:
+     * the number of classes of the same name PHP_CodeSniffer has already passed
+     * on it.
+     *
+     * A line holds one class and this is zero, until it does not.
+     * `namespace A { class Foo {} } namespace B { class Foo {} }` is legal PHP,
+     * and written on one line it puts two different classes called Foo on the
+     * same line of the same file. Source order is the one thing the two readers
+     * of that file can both see, so it is what tells the pair apart.
+     *
+     * They agree on what to count because they enumerate the same declarations.
+     * PHP_CodeSniffer hands this sniff T_CLASS, which it gives to a named class
+     * declaration and to nothing else — an anonymous class is T_ANON_CLASS and
+     * the `class` of `Type::class` is a T_STRING — and the scan records that
+     * same set, excluding both shapes explicitly.
+     */
+    private function declarationOrdinal(File $phpcsFile, int $stackPtr, string $name): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $line = $tokens[$stackPtr]['line'];
+        $ordinal = 0;
+
+        for ($cursor = ($stackPtr - 1); $cursor >= 0 && $tokens[$cursor]['line'] === $line; $cursor--) {
+            if ($tokens[$cursor]['code'] !== T_CLASS) {
+                continue;
+            }
+
+            if (strcasecmp((string) $phpcsFile->getDeclarationName($cursor), $name) === 0) {
+                $ordinal++;
+            }
+        }
+
+        return $ordinal;
     }
 
     /**
@@ -342,6 +402,15 @@ class NumberOfChildrenSniff implements Sniff
      * Paths are de-duplicated by their resolved form, so appearing in both is
      * not counted twice.
      *
+     * The list is walked by key() rather than with foreach, because only the
+     * paths are wanted. foreach asks an iterator for its current *value* on
+     * every step whether or not the loop body uses it, and FileList::current()
+     * builds a LocalFile for the path — which reads the whole file from disk in
+     * its constructor. Every one of those objects would be discarded here, after
+     * a read this class then repeats for itself in scanFile(): two reads of
+     * every file in the run where one is wanted. valid() and key() consult the
+     * underlying array directly and construct nothing.
+     *
      * @param array<int, string> $roots
      *
      * @return array<int, string>
@@ -350,10 +419,14 @@ class NumberOfChildrenSniff implements Sniff
     {
         $files = [$path];
 
-        if ($roots !== []) {
-            foreach (new FileList($phpcsFile->config, $phpcsFile->ruleset) as $listed => $ignored) {
-                $files[] = $listed;
-            }
+        if ($roots === []) {
+            return $files;
+        }
+
+        $listed = new FileList($phpcsFile->config, $phpcsFile->ruleset);
+
+        for ($listed->rewind(); $listed->valid() === true; $listed->next()) {
+            $files[] = (string) $listed->key();
         }
 
         return $files;
@@ -546,7 +619,7 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $qualified = $namespace === '' ? $name : $namespace . '\\' . $name;
-        $this->declarations[$path][strtolower($name)] = strtolower($qualified);
+        $this->declarations[$path][$tokens[$index][2]][strtolower($name)][] = strtolower($qualified);
 
         $next = $this->significantAfter($tokens, $cursor);
 
@@ -594,8 +667,8 @@ class NumberOfChildrenSniff implements Sniff
      * which is not an import at all. A trait's `use` never reaches here,
      * because the caller only asks outside a class-like body.
      *
-     * $index is left on the last token read, so the caller's walk resumes after
-     * the statement rather than re-entering it — a group's braces would
+     * $index is left on the semicolon that ends the statement, so the caller's
+     * walk resumes after it rather than re-entering it — a group's braces would
      * otherwise be counted as nesting by the brace tracker.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
@@ -610,7 +683,9 @@ class NumberOfChildrenSniff implements Sniff
             return [];
         }
 
-        // A closure's `use (…)` binds variables and imports nothing.
+        // A closure's `use (…)` binds variables and imports nothing. Its
+        // statement is not skipped either, because the body that follows it can
+        // declare a class of its own.
         if (is_array($next) === false) {
             return [];
         }
@@ -619,25 +694,40 @@ class NumberOfChildrenSniff implements Sniff
             return [];
         }
 
-        return $this->readImportList($tokens, $index, '');
+        $imports = $this->readImportList($tokens, $index);
+        $this->skipStatement($tokens, $index);
+
+        return $imports;
     }
 
     /**
-     * The imports of the statement starting at $index, each prefixed with
-     * $prefix.
+     * The imports of the statement starting at $index.
      *
      * One loop reads both a comma-separated list of imports and the inside of a
-     * group's braces, because the two are the same grammar: the group is
-     * re-entered with its prefix, and the brace that closes it ends the inner
-     * read.
+     * group's braces, because the two are the same grammar with a prefix in
+     * front of it. The prefix is taken once, and a `{` met while a group is
+     * already open is read as an ordinary name rather than opening a second:
+     * PHP's grammar allows exactly one level of group braces, so anything deeper
+     * is source PHP itself would refuse to compile.
+     *
+     * That single level is what keeps this a loop rather than a recursion.
+     * token_get_all() *lexes* `use A\{A\{A\{…` happily — it never requires the
+     * braces to close or to form valid grammar — so a reader that recursed on
+     * every `{` was a memory exhaustion away from any file that opened enough of
+     * them, and a 60KB one was enough to end the whole phpcs run. PHP_CodeSniffer
+     * caps its own scope recursion for the same reason
+     * (Tokenizer::recurseScopeMap, depth > 50), and the sibling
+     * CouplingBetweenObjectsSniff::readImportGroup reads this same grammar
+     * without recursing.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      *
      * @return array<string, string>
      */
-    private function readImportList(array $tokens, int &$index, string $prefix): array
+    private function readImportList(array $tokens, int &$index): array
     {
         $imports = [];
+        $prefix = '';
 
         while ($index < count($tokens)) {
             $name = $this->readName($tokens, $index);
@@ -646,26 +736,16 @@ class NumberOfChildrenSniff implements Sniff
                 return $imports;
             }
 
-            $next = $this->significantAfter($tokens, $index);
-
-            if ($next === '{') {
+            if ($prefix === '' && $this->significantAfter($tokens, $index) === '{') {
                 $this->significantIndexAfter($tokens, $index);
-                $imports += $this->readImportList($tokens, $index, $prefix . $name);
-
-                // Step over the brace that closed the group, so the caller's
-                // brace tracker never sees an opening it did not see a match
-                // for and drives its depth negative.
-                if ($this->significantAfter($tokens, $index) === '}') {
-                    $this->significantIndexAfter($tokens, $index);
-                }
+                $prefix = $name;
 
                 continue;
             }
 
             $imports += $this->readImport($tokens, $index, $prefix . $name);
-            $next = $this->significantAfter($tokens, $index);
 
-            if ($next !== ',') {
+            if ($this->significantAfter($tokens, $index) !== ',') {
                 return $imports;
             }
 
@@ -673,6 +753,30 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         return $imports;
+    }
+
+    /**
+     * Leaves $index on the semicolon that ends the `use` statement it is inside.
+     *
+     * The statement is stepped over whole rather than walked out of, so none of
+     * its tokens reach the brace tracker: a group import's braces belong to the
+     * import and not to a class body, and a malformed one whose brace never
+     * closes would otherwise raise the depth for the rest of the file. A `use`
+     * import holds no semicolon of its own, so the next one is always its
+     * terminator; a source that is truncated before it leaves $index where it
+     * already is rather than running off the end of the file.
+     *
+     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
+     */
+    private function skipStatement(array $tokens, int &$index): void
+    {
+        for ($cursor = $index; $cursor < count($tokens); $cursor++) {
+            if ($tokens[$cursor] === ';') {
+                $index = $cursor;
+
+                return;
+            }
+        }
     }
 
     /**
