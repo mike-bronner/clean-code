@@ -431,8 +431,9 @@ class DepthOfInheritanceSniff implements Sniff
         for ($list->rewind(); $list->valid() === true; $list->next()) {
             $path = $list->key();
 
-            // STDIN has no readable path, and the file under analysis is
-            // merged into the index by index() regardless.
+            // STDIN has no readable path, and nothing is lost by dropping it:
+            // the file under analysis is read by currentFile() into a map of
+            // its own, which depthOf() consults before this index.
             if ($path === null || $path === 'STDIN') {
                 continue;
             }
@@ -726,11 +727,16 @@ class DepthOfInheritanceSniff implements Sniff
     /**
      * One class declaration — its short name, the line its `class` keyword
      * sits on, its fully qualified name and its resolved parent — and the
-     * index of the last token read.
+     * index the caller resumes from.
      *
      * Reading stops at the body's opening brace, so an `implements` clause is
      * passed over and a parent is taken only from `extends`. An interface
      * contributes nothing to PDepend's `dit`, which is measured, not assumed.
+     *
+     * The index handed back is the `class` keyword's own, not the last token
+     * this reader looked at: the caller has to walk the header and the body
+     * itself, or the braces in them never reach its depth counter and every
+     * later `use` in the file is read at the wrong level.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      * @param array<string, string>                               $imports
