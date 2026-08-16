@@ -552,6 +552,9 @@ it('indexes same-file ancestors once per file, not once per method', function ()
  * the same reasons: a report count per size, so an index that had stopped
  * resolving cannot run fast by answering wrongly, and a cost measured against
  * PHP_CodeSniffer's own parse of the same file, which is the scale-free bound.
+ * Every timing is the median of three readings, for the reason given at the
+ * measurement itself: one contended moment on a shared runner moves a reading
+ * of this size far enough to decide the cross-size ratio on its own.
  *
  * The report counts are what make the two shapes discriminating rather than
  * merely slow: the overriding shape must report *nothing* — every parameter is
@@ -584,6 +587,21 @@ it('indexes an ancestor once per file, not once per descendant method', function
         'extending' => ['name' => 'ownThing', 'reports' => true],
     ];
 
+    // Each size is measured three times and read at its median rather than
+    // from one sample. At these sizes a single reading is 6-15ms, small enough
+    // that one contended moment on a shared runner moves it by ~40% in either
+    // direction — enough on its own to carry the closing cross-size ratio past
+    // its budget while the cost being measured has not changed. A median of
+    // three discards that one sample. It does not move the budget, so a walk
+    // that went back to indexing once per descendant method still reddens these
+    // assertions: dropping either cache the walk relies on was re-checked here
+    // and reddens exactly as the table above records.
+    $median = static function (array $samples): float {
+        sort($samples);
+
+        return $samples[(int) (count($samples) / 2)];
+    };
+
     foreach ($shapes as $shape => $spec) {
         $sizes = [250, 500, 1000];
         $sniffedBySize = [];
@@ -602,24 +620,33 @@ it('indexes an ancestor once per file, not once per descendant method', function
             $source = "<?php\n\nclass Base\n{\n" . $base . "}\n\n"
                 . "class Derived extends Base\n{\n" . $derived . "}\n";
 
-            [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
-            $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-ancestor-', true) . '.php';
-            file_put_contents($path, $source);
+            $parsedRuns = [];
+            $sniffedRuns = [];
+            $reported = null;
 
-            try {
-                $file = new LocalFile($path, $ruleset, $config);
+            for ($run = 0; $run < 3; $run++) {
+                [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
+                $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-ancestor-', true) . '.php';
+                file_put_contents($path, $source);
 
-                $parseAt = hrtime(true);
-                $file->parse();
-                $parsed = (hrtime(true) - $parseAt) / 1e9;
+                try {
+                    $file = new LocalFile($path, $ruleset, $config);
 
-                $sniffAt = hrtime(true);
-                $file->process();
-                $sniffed = (hrtime(true) - $sniffAt) / 1e9;
-                $reported = $file->getErrorCount();
-            } finally {
-                unlink($path);
+                    $parseAt = hrtime(true);
+                    $file->parse();
+                    $parsedRuns[] = (hrtime(true) - $parseAt) / 1e9;
+
+                    $sniffAt = hrtime(true);
+                    $file->process();
+                    $sniffedRuns[] = (hrtime(true) - $sniffAt) / 1e9;
+                    $reported = $file->getErrorCount();
+                } finally {
+                    unlink($path);
+                }
             }
+
+            $parsed = $median($parsedRuns);
+            $sniffed = $median($sniffedRuns);
 
             $sniffedBySize[$size] = $sniffed;
 
