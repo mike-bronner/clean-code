@@ -51,7 +51,7 @@ Where a rule covers only part of a standard, that standard's document records
 what stays with code review.
 
 - [Code Style: Linters (config & no auto-formatter)](docs/standards/code-style-linters-config--no-auto-formatter.md) — Tier 3, not statically enforceable
-- [Debt: Technical Debt](docs/standards/debt-technical-debt.md) — Tier 3, not statically enforceable
+- [Debt: Technical Debt](docs/standards/debt-technical-debt.md) — Tier 3, core not statically enforceable, with one narrow slice enforced: self-declared debt markers warn, via `Generic.Commenting.Todo` and `Generic.Commenting.Fixme` (the latter lowered to a warning) plus custom sniff `CleanCode.Commenting.DebtMarkers` for the `HACK` and `XXX` keywords core ships nothing for, detection-only; recognizing *undeclared* debt, judging whether a construct makes future change costlier, and paying debt down promptly all stay with code review ([#24](https://github.com/mike-bronner/phpcs-rules/issues/24) + [#138](https://github.com/mike-bronner/phpcs-rules/issues/138))
 - [Boy Scout Rule](docs/standards/boy-scout-rule.md) — Tier 3, not statically enforceable
 - [Don't Optimize Early](docs/standards/dont-optimize-early.md) — Tier 3, not statically enforceable
 - [Arrays: Array Accessors (`data_get`)](docs/standards/arrays-array-accessors.md) — Tier 2, custom sniff `CleanCode.Arrays.ArrayAccessors`: flags direct element (`$array['key']`) and property (`$object->property`) reads once per accessor chain, leaving write-side access, existence checks, array literals, `$this`-rooted access, and method calls alone, detection-only ([#33](https://github.com/mike-bronner/phpcs-rules/issues/33))

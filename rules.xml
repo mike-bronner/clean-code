@@ -2339,4 +2339,41 @@
         Functions.NamedArgumentSpacing only governs spacing around an argument
         that is already named.
     -->
+
+    <!--
+        Debt: Technical Debt (#24), partial enforcement (#138) —
+        docs/standards/debt-technical-debt.md. The standard itself is Tier 3;
+        the one token-visible slice is a self-declared debt marker, so the four
+        keywords TODO, FIXME, HACK and XXX are reported and the rest of the
+        standard stays with code review.
+
+        PHPCS core covers half of that slice already, so it is wired in rather
+        than reimplemented. Both Generic sniffs register every comment token
+        except the phpcs: annotations, which is what gets the keyword found in
+        a line comment, a block comment and a docblock alike, and both report
+        two codes: TaskFound when the keyword carries a description,
+        CommentFound when it stands alone. Neither is auto-fixable, and neither
+        should be — a fixer here could only delete the comment, which loses the
+        recognition of the debt without paying any of it.
+
+        Generic.Commenting.Todo warns out of the box and is taken as it comes.
+        Generic.Commenting.Fixme reports errors, so <type>warning</type> lowers
+        it to match: a marker is honest documentation of known debt and belongs
+        in the report, not on the failing side of a build. The two sit at the
+        same severity so that which keyword a developer reached for does not
+        decide whether the build goes red.
+
+        The remaining two keywords are the custom
+        CleanCode.Commenting.DebtMarkers sniff, picked up automatically via the
+        ./CleanCode/ruleset.xml ref above — core ships no equivalent of either
+        (Generic.Commenting carries only the Todo and Fixme sniffs, plus the
+        DocComment layout sniff), and neither Squiz, PSR12 nor Slevomat has one
+        either. It mirrors the Generic pair's tokens, pattern and message shape
+        and reports at the same warning severity, so the four markers behave as
+        one rule despite being carried by three sniffs.
+    -->
+    <rule ref="Generic.Commenting.Todo"/>
+    <rule ref="Generic.Commenting.Fixme">
+        <type>warning</type>
+    </rule>
 </ruleset>

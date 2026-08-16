@@ -92,6 +92,7 @@ const SWEPT_SNIFFS = [
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
+    'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Constructors.PrimaryConstructorDelegation',
@@ -103,6 +104,8 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
     'CleanCode.Testing.NoReflectionAccess',
+    'Generic.Commenting.Fixme',
+    'Generic.Commenting.Todo',
 ];
 
 /**
