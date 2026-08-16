@@ -152,8 +152,8 @@ one clause of a group (`use App\{Order, function build};`), where it binds that
 clause alone.
 
 A reference the file's own tokens cannot resolve — a variable, a call, a
-concatenation, a constant that is not `::class` — is left alone rather than
-guessed at.
+concatenation, a constant that is not `::class`, a spread, or the label of a
+named argument — is left alone rather than guessed at.
 
 Three public properties configure it from a consuming ruleset:
 
@@ -208,8 +208,14 @@ errors:
   stays silent. `static` resolves to the class the call is written in; a
   subclass binding it to something else at run time is beyond a single-file
   scan.
+- A file declaring **more than one `namespace` block** is read as if it declared
+  only the first. The import walk stops at the first statement, so a call in a
+  later block resolves against the first block's namespace and imports, and a
+  vendor class mocked there can report. PSR-1 forbids the shape and these
+  standards enforce one class per file, so the walk stays cheap rather than
+  indexing every block of a file no project should have.
 
-The first two take the ordinary per-line suppression:
+The first two and the last take the ordinary per-line suppression:
 
 ```php
 // phpcs:ignore CleanCode.Testing.NoFirstPartyMocks.Found

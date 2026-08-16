@@ -57,11 +57,13 @@ use PHP_CodeSniffer\Util\Tokens;
  *   that class's `extends` clause, resolved like any other written name.
  *
  * Anything else is left alone: a variable (`Mockery::mock($class)`), a
- * concatenation, a constant (`$this->mock(Config::DRIVER)`), a call, or an
- * empty argument list. A name the file's own tokens cannot resolve is not
- * guessed at.
+ * concatenation, a constant (`$this->mock(Config::DRIVER)`), a call, an empty
+ * argument list, a spread (`$this->mock(...$args)`), or a named argument
+ * (`$this->createMock(originalClassName: User::class)`) — the label is not a
+ * class reference, and the `:` after it is not what ends an argument. A name
+ * the file's own tokens cannot resolve is not guessed at.
  *
- * Known limits, three by design and all named in #146:
+ * Known limits, four by design:
  *
  * - $mockCreators matches on member *name*, not on receiver type, which a
  *   single-file token scan cannot resolve. `$this->spy(User::class)` and
@@ -77,6 +79,14 @@ use PHP_CodeSniffer\Util\Tokens;
  *   those stays silent rather than being guessed at. `static` resolves to the
  *   class the call is written in, which is what the file can see; a subclass
  *   binding it to something else at run time is beyond a single-file scan.
+ * - A file declaring more than one `namespace` block is read as if it declared
+ *   only the first: the header walk stops at the first statement, so a call in
+ *   a later block resolves against the first block's namespace and imports, and
+ *   a vendor class mocked there can report. PSR-1 forbids the shape and this
+ *   package's own standards enforce one class per file, so the walk stays cheap
+ *   and bounded rather than growing a per-block index for a file no consuming
+ *   project should have. The gray area takes the same per-line suppression as
+ *   the two above.
  *
  * Warnings, not errors, matching CleanCode.Testing.NoReflectionAccess and the
  * rest of Testing: Guidelines: the standard is advisory and the two limits
@@ -613,6 +623,10 @@ class NoFirstPartyMocksSniff implements Sniff
      * mock calls follow — `use` imports may only appear before the first
      * statement, and a trait's `use` or a closure's `use` is past that point
      * by construction.
+     *
+     * That stop is also why only the *first* `namespace` block of a file is
+     * ever read; the class docblock's fourth limit says what that costs and why
+     * the shape is not worth indexing for.
      *
      * @return array{0: string, 1: array<string, string>}
      */
