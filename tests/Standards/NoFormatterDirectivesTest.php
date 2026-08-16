@@ -47,9 +47,10 @@ const NO_FORMATTER_DIRECTIVES_TUPLES = [
  * a sniff that flagged the right comments while naming the wrong marker would
  * pass the tuple test above.
  *
- * Line 39's shouted `@FORMATTER:OFF` is reported as the configured spelling,
- * which is what makes the match case-insensitive rather than a second entry in
- * the list. Line 41 names the first configured marker of the two it carries.
+ * Line 39 shouts its marker in capitals and is reported as the configured,
+ * lower-case spelling, which is what makes the match case-insensitive rather
+ * than a second entry in the list. Line 41 names the first configured marker of
+ * the two it carries.
  */
 const NO_FORMATTER_DIRECTIVES_MESSAGES = [
     'Auto-formatter directive @formatter:off must not be committed; correct style by hand instead',
@@ -225,8 +226,8 @@ it('takes both element-node property spellings from a real ruleset file', functi
 });
 
 /**
- * A configured directive is trimmed before it is matched, so the entry below
- * still flags each of failing.php's six `@formatter:off` comments — the two
+ * A configured directive is trimmed before it is matched, so the padded entry
+ * below still flags each of failing.php's six off-marker comments — the two
  * line spellings among them, so the assertion cannot be satisfied by one
  * comment shape alone. Untrimmed, the padded needle matches nothing at all.
  */
