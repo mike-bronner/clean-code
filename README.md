@@ -50,7 +50,7 @@ section, and summarizes how the standard is enforced.
 Where a rule covers only part of a standard, that standard's document records
 what stays with code review.
 
-- [Code Style: Linters (config & no auto-formatter)](docs/standards/code-style-linters-config--no-auto-formatter.md) — Tier 3, not statically enforceable
+- [Code Style: Linters (config & no auto-formatter)](docs/standards/code-style-linters-config--no-auto-formatter.md) — Tier 3, custom sniff `CleanCode.CodeStyle.NoFormatterDirectives` over one narrow slice: flags every comment carrying an auto-formatter directive (`@formatter:off`, `@formatter:on`, `prettier-ignore` by default, replaceable through a `directives` property), detection-only; editor configuration, formatter config files, and a formatter run that left no directive behind stay with code review ([#51](https://github.com/mike-bronner/phpcs-rules/issues/51) + [#143](https://github.com/mike-bronner/phpcs-rules/issues/143))
 - [Debt: Technical Debt](docs/standards/debt-technical-debt.md) — Tier 3, not statically enforceable
 - [Boy Scout Rule](docs/standards/boy-scout-rule.md) — Tier 3, not statically enforceable
 - [Don't Optimize Early](docs/standards/dont-optimize-early.md) — Tier 3, not statically enforceable
