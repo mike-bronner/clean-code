@@ -701,3 +701,340 @@ function nestedSwitchInACaseBody(int $a, int $b, bool $c): int
             return 3;
     }
 }
+
+/**
+ * 5. A braceless body whose complexity-contributing token is not its leading
+ * token. Group 4 above varies the *construct* that owns the body; this group
+ * varies the *position* of the token inside it, which is the other half of the
+ * same shape and the one a per-construct fix leaves open.
+ *
+ * A ternary buried in a call argument or an assignment right-hand side is not
+ * the statement's first token, so dispatching once on that first token measured
+ * one token and stopped. The rest of the statement was then walked by the
+ * enclosing block and multiplied into the wrong scope instead of added into the
+ * body's own NPath.
+ *
+ * Each braceless callable is paired with a braced one holding the identical
+ * code, so the pair fails if the two ever diverge — which is the invariant, not
+ * merely the value. This one is the `if`: 3 either way, measured 4 braceless.
+ */
+function bracelessIfWithABuriedTernary(bool $x, bool $a): void
+{
+    if ($x) sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 3, the same code braced. The pair's whole point is that these two agree.
+ */
+function bracedIfWithABuriedTernary(bool $x, bool $a): void
+{
+    if ($x) {
+        sprintf('%d', $a ? 1 : 2);
+    }
+}
+
+/**
+ * 3. The buried token on an assignment's right-hand side rather than inside a
+ * call, so the leading token is a variable rather than a function name.
+ */
+function bracelessIfWithATernaryAssigned(bool $x, bool $a): int
+{
+    $y = 0;
+
+    if ($x) $y = $a ? 1 : 2;
+
+    return $y;
+}
+
+/**
+ * 3, the assigned form braced.
+ */
+function bracedIfWithATernaryAssigned(bool $x, bool $a): int
+{
+    $y = 0;
+
+    if ($x) {
+        $y = $a ? 1 : 2;
+    }
+
+    return $y;
+}
+
+/**
+ * 3, the buried token under a `while`.
+ */
+function bracelessWhileWithABuriedTernary(bool $x, bool $a): void
+{
+    while ($x) sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedWhileWithABuriedTernary(bool $x, bool $a): void
+{
+    while ($x) {
+        sprintf('%d', $a ? 1 : 2);
+    }
+}
+
+/**
+ * 3, the buried token under a `for`.
+ */
+function bracelessForWithABuriedTernary(bool $a): void
+{
+    for ($i = 0; $i < 10; $i++) sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedForWithABuriedTernary(bool $a): void
+{
+    for ($i = 0; $i < 10; $i++) {
+        sprintf('%d', $a ? 1 : 2);
+    }
+}
+
+/**
+ * 3, the buried token under a `foreach`.
+ */
+function bracelessForeachWithABuriedTernary(array $items, bool $a): void
+{
+    foreach ($items as $item) sprintf('%d%s', $a ? 1 : 2, $item);
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedForeachWithABuriedTernary(array $items, bool $a): void
+{
+    foreach ($items as $item) {
+        sprintf('%d%s', $a ? 1 : 2, $item);
+    }
+}
+
+/**
+ * 3, the buried token under a `do`, which reaches its body from the keyword and
+ * must still leave the cursor where the trailing `while (…)` is found.
+ */
+function bracelessDoWithABuriedTernary(bool $x, bool $a): void
+{
+    do sprintf('%d', $a ? 1 : 2);
+    while ($x);
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedDoWithABuriedTernary(bool $x, bool $a): void
+{
+    do {
+        sprintf('%d', $a ? 1 : 2);
+    } while ($x);
+}
+
+/**
+ * 3, the buried token under an `else`.
+ */
+function bracelessElseWithABuriedTernary(bool $x, bool $a): void
+{
+    if ($x) {
+        echo 1;
+    } else sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedElseWithABuriedTernary(bool $x, bool $a): void
+{
+    if ($x) {
+        echo 1;
+    } else {
+        sprintf('%d', $a ? 1 : 2);
+    }
+}
+
+/**
+ * 4, the buried token under an `elseif`, which is scored as a chained `if` and
+ * so reaches its body by a different route than `else` does.
+ */
+function bracelessElseIfWithABuriedTernary(bool $x, bool $z, bool $a): void
+{
+    if ($x) {
+        echo 1;
+    } elseif ($z) sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 4, the same code braced.
+ */
+function bracedElseIfWithABuriedTernary(bool $x, bool $z, bool $a): void
+{
+    if ($x) {
+        echo 1;
+    } elseif ($z) {
+        sprintf('%d', $a ? 1 : 2);
+    }
+}
+
+/**
+ * 5. Two buried tokens in one braceless statement, so the walk must continue
+ * past the first rather than stopping on it. Measured 8 before, the product of
+ * the two ternaries against the enclosing block instead of within the body.
+ */
+function bracelessIfWithTwoBuriedTernaries(bool $x, bool $a, bool $b): void
+{
+    if ($x) sprintf('%d%d', $a ? 1 : 2, $b ? 3 : 4);
+}
+
+/**
+ * 5, the same code braced.
+ */
+function bracedIfWithTwoBuriedTernaries(bool $x, bool $a, bool $b): void
+{
+    if ($x) {
+        sprintf('%d%d', $a ? 1 : 2, $b ? 3 : 4);
+    }
+}
+
+/**
+ * 4. A buried ternary whose own condition is a parenthesised boolean, so the
+ * body's value is more than the 2 a bare ternary contributes and a walk that
+ * merely counted ternaries would still read 3.
+ */
+function bracelessIfWithABuriedBooleanTernary(bool $x, bool $a, bool $b): void
+{
+    if ($x) sprintf('%d', ($a && $b) ? 1 : 2);
+}
+
+/**
+ * 4, the same code braced.
+ */
+function bracedIfWithABuriedBooleanTernary(bool $x, bool $a, bool $b): void
+{
+    if ($x) {
+        sprintf('%d', ($a && $b) ? 1 : 2);
+    }
+}
+
+/**
+ * 4. Both branches of one chain braceless with a buried token, which is where
+ * the `else` is only found at all because the body walk now ends on the
+ * statement's own `;` rather than somewhere inside it.
+ */
+function bracelessIfElseBothWithBuriedTernaries(bool $x, bool $a, bool $b): void
+{
+    if ($x) sprintf('%d', $a ? 1 : 2);
+    else sprintf('%d', $b ? 3 : 4);
+}
+
+/**
+ * 4, the same code braced.
+ */
+function bracedIfElseBothWithBuriedTernaries(bool $x, bool $a, bool $b): void
+{
+    if ($x) {
+        sprintf('%d', $a ? 1 : 2);
+    } else {
+        sprintf('%d', $b ? 3 : 4);
+    }
+}
+
+/**
+ * 4. The recursive case carrying a buried token: a braceless body that is
+ * itself a braceless construct whose own body buries the ternary.
+ */
+function bracelessIfWrappingABracelessIfWithABuriedTernary(bool $x, bool $y, bool $a): void
+{
+    if ($x) if ($y) sprintf('%d', $a ? 1 : 2);
+}
+
+/**
+ * 4, the same code braced throughout.
+ */
+function bracedIfWrappingABracedIfWithABuriedTernary(bool $x, bool $y, bool $a): void
+{
+    if ($x) {
+        if ($y) {
+            sprintf('%d', $a ? 1 : 2);
+        }
+    }
+}
+
+/**
+ * 3. A braceless body led by a keyword the dispatch does not handle, so it
+ * still falls to the default branch — `echo` rather than a call or an
+ * assignment — with the ternary buried behind it.
+ */
+function bracelessIfWithABuriedTernaryEchoed(bool $x, bool $a): void
+{
+    if ($x) echo $a ? 1 : 2;
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedIfWithABuriedTernaryEchoed(bool $x, bool $a): void
+{
+    if ($x) {
+        echo $a ? 1 : 2;
+    }
+}
+
+/**
+ * 6, and the guard against the opposite failure. Walking the braceless body to
+ * the statement's `;` only measures the body if that `;` is the body's own: run
+ * past it and the next statement of the *enclosing* block is absorbed into the
+ * branch, which reads 5 rather than 6 here because the second call is added
+ * into the `if` instead of multiplied after it.
+ */
+function bracelessBodyFollowedByAnotherStatement(bool $x, bool $a, bool $b): void
+{
+    if ($x) sprintf('%d', $a ? 1 : 2);
+
+    sprintf('%d', $b ? 3 : 4);
+}
+
+/**
+ * 6, the same code braced.
+ */
+function bracedBodyFollowedByAnotherStatement(bool $x, bool $a, bool $b): void
+{
+    if ($x) {
+        sprintf('%d', $a ? 1 : 2);
+    }
+
+    sprintf('%d', $b ? 3 : 4);
+}
+
+/**
+ * 3. A braceless body holding a closure, whose own `;`-terminated statements sit
+ * inside the one statement the body is. The body's end is the closure's
+ * terminating `;`, not the first `;` written inside it, so the search has to
+ * jump the closure whole — the same skip statementEnd() already performs for a
+ * `return new class { … };`.
+ */
+function bracelessBodyHoldingAClosure(bool $x, bool $a): void
+{
+    if ($x) $f = function () use ($a): int {
+        $b = 1;
+
+        return $a ? 1 : 2;
+    };
+}
+
+/**
+ * 3, the same code braced.
+ */
+function bracedBodyHoldingAClosure(bool $x, bool $a): void
+{
+    if ($x) {
+        $f = function () use ($a): int {
+            $b = 1;
+
+            return $a ? 1 : 2;
+        };
+    }
+}

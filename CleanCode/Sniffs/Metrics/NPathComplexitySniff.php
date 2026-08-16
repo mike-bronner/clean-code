@@ -1268,10 +1268,13 @@ class NPathComplexitySniff implements Sniff
      * — `if ($x) doThing();`, and equally `do <statement> while (…);`. PHPCS
      * gives those no scope_opener/scope_closer at all, but the body is still a
      * statement, and to PDepend a statement is scored the same whether or not
-     * braces surround it. So the braceless body is measured by the same
-     * statement dispatch a braced one goes through, which is what makes a
-     * *compound* braceless body — a nested `if`, loop, `switch` or `try` — score
-     * as itself rather than as the 1 an empty sequence scores.
+     * braces surround it. So the braceless body is measured by the same walk a
+     * braced one gets, over the one statement it holds — which is what makes a
+     * *compound* braceless body (a nested `if`, loop, `switch` or `try`) score
+     * as itself rather than as the 1 an empty sequence scores, and equally what
+     * makes a token buried later in a plain statement count inside the body
+     * rather than in the enclosing block. bracelessBodyComplexity() carries how
+     * the statement's extent is found for each of those two kinds.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
@@ -1294,14 +1297,36 @@ class NPathComplexitySniff implements Sniff
 
     /**
      * The NPath of the single statement a scope-less construct owns, with $ptr
-     * advanced into it.
+     * left on that statement's last token.
      *
      * The statement starts after the construct's own parentheses where it has
      * them (`if`, `while`, `for`, `foreach`) and directly after the keyword
-     * where it does not (`do`, `else`). Measuring it through
-     * statementComplexity() is the whole point: a braceless body that is itself
-     * a compound construct carries its own NPath, and anything simpler falls
-     * through to the same 1 it scores anywhere else.
+     * where it does not (`do`, `else`). It is then measured by the same
+     * blockComplexity() walk a braced body gets, which is what makes the
+     * docblock's invariant above hold for the *whole* statement rather than
+     * only for its first token.
+     *
+     * Two kinds of statement need that walk to be bounded differently, and
+     * statementComplexity() itself reports which kind this is by how far it
+     * moves the cursor:
+     *
+     * - A construct — `if`, a loop, `switch`, `try`, `return`, or a nested
+     *   braceless construct — measures itself in full and leaves the cursor
+     *   past everything it owns. It moves by more than one token, and the
+     *   statement is already fully measured.
+     * - Anything else is scored one token deep by the default branch, which
+     *   moves the cursor by exactly one. The rest of the statement is still
+     *   unmeasured, and it belongs here: a ternary buried in a call argument
+     *   or an assignment right-hand side must be multiplied into this body's
+     *   own NPath. Left to the enclosing sequence, it would be multiplied into
+     *   the wrong scope instead — `if ($x) foo($a ? 1 : 2);` scoring 4 where
+     *   the identical braced code scores 3.
+     *
+     * So the remainder is walked to the statement's own `;`, bounded from the
+     * statement's first token so a `;` belonging to the enclosing block can
+     * never be mistaken for this one's. `passing.php` pins a braceless buried
+     * token against its braced counterpart for every construct that can own a
+     * braceless body.
      *
      * A body that cannot be located — nothing before $end — scores the 1 an
      * empty statement sequence scores, and the cursor still advances so the
@@ -1320,8 +1345,22 @@ class NPathComplexitySniff implements Sniff
             return 1;
         }
 
-        $ptr = $body;
+        $bodyPtr = $body;
+        $npath = $this->statementComplexity($phpcsFile, $tokens, $bodyPtr, $end);
 
-        return $this->statementComplexity($phpcsFile, $tokens, $ptr, $end);
+        if ($bodyPtr > ($body + 1)) {
+            $ptr = $bodyPtr;
+
+            return $npath;
+        }
+
+        $stop = $this->statementEnd($tokens, $body, $end);
+        $npath = $this->multiply(
+            $npath,
+            $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $stop)
+        );
+        $ptr = $stop;
+
+        return $npath;
     }
 }

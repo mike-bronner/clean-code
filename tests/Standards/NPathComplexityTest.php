@@ -182,6 +182,36 @@ it('measures each counting rule exactly as PHPMD does', function (): void {
         'bracelessElseWrappingALoop' => 3,
         'bracelessIfWrappingABracelessIf' => 3,
         'nestedSwitchInACaseBody' => 3,
+        'bracelessIfWithABuriedTernary' => 3,
+        'bracedIfWithABuriedTernary' => 3,
+        'bracelessIfWithATernaryAssigned' => 3,
+        'bracedIfWithATernaryAssigned' => 3,
+        'bracelessWhileWithABuriedTernary' => 3,
+        'bracedWhileWithABuriedTernary' => 3,
+        'bracelessForWithABuriedTernary' => 3,
+        'bracedForWithABuriedTernary' => 3,
+        'bracelessForeachWithABuriedTernary' => 3,
+        'bracedForeachWithABuriedTernary' => 3,
+        'bracelessDoWithABuriedTernary' => 3,
+        'bracedDoWithABuriedTernary' => 3,
+        'bracelessElseWithABuriedTernary' => 3,
+        'bracedElseWithABuriedTernary' => 3,
+        'bracelessElseIfWithABuriedTernary' => 4,
+        'bracedElseIfWithABuriedTernary' => 4,
+        'bracelessIfWithTwoBuriedTernaries' => 5,
+        'bracedIfWithTwoBuriedTernaries' => 5,
+        'bracelessIfWithABuriedBooleanTernary' => 4,
+        'bracedIfWithABuriedBooleanTernary' => 4,
+        'bracelessIfElseBothWithBuriedTernaries' => 4,
+        'bracedIfElseBothWithBuriedTernaries' => 4,
+        'bracelessIfWrappingABracelessIfWithABuriedTernary' => 4,
+        'bracedIfWrappingABracedIfWithABuriedTernary' => 4,
+        'bracelessIfWithABuriedTernaryEchoed' => 3,
+        'bracedIfWithABuriedTernaryEchoed' => 3,
+        'bracelessBodyFollowedByAnotherStatement' => 6,
+        'bracedBodyFollowedByAnotherStatement' => 6,
+        'bracelessBodyHoldingAClosure' => 3,
+        'bracedBodyHoldingAClosure' => 3,
     ]);
 });
 
@@ -223,6 +253,83 @@ it('measures a braceless body of every construct that can own one', function ():
         ->and($measured['bracelessForeachWrappingAnIf'])->toBe(3)
         ->and($measured['bracelessElseWrappingALoop'])->toBe(3)
         ->and($measured['bracelessIfWrappingABracelessIf'])->toBe(3);
+});
+
+/**
+ * Braces change nothing about what a body is worth, wherever the body's
+ * complexity-contributing token happens to sit inside it.
+ *
+ * The test above varies the *construct* owning a braceless body. This one
+ * varies the *position* of the token within it — a ternary buried in a call
+ * argument, on an assignment's right-hand side, or behind an `echo`, none of
+ * them the statement's leading token. Measuring the body by its leading token
+ * alone left the rest of the statement to the enclosing block, which multiplied
+ * it into the wrong scope: `if ($x) sprintf('%d', $a ? 1 : 2);` measured 4
+ * where the identical braced code measured 3.
+ *
+ * Each case is a pair holding the *identical* code, braceless against braced,
+ * and the pair is asserted equal as well as exact. That is the invariant the
+ * sniff's own docblock states, so a future fix that moves both halves together
+ * still passes while one that closes a single shape does not. Every construct
+ * that can own a braceless body is listed rather than one standing in for the
+ * rest, because each reaches its body by a different route.
+ *
+ * Every value is what a live PHPMD 2.15.0 run reports for the same callable.
+ */
+it('measures a braceless body the same as a braced one when its token is buried', function (): void {
+    $file = analyzeFixture(NPATH_COMPLEXITY, 'passing.php', function ($sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    $measured = measuredNPathComplexities($file);
+
+    $pairs = [
+        'IfWithABuriedTernary' => 3,
+        'IfWithATernaryAssigned' => 3,
+        'WhileWithABuriedTernary' => 3,
+        'ForWithABuriedTernary' => 3,
+        'ForeachWithABuriedTernary' => 3,
+        'DoWithABuriedTernary' => 3,
+        'ElseWithABuriedTernary' => 3,
+        'ElseIfWithABuriedTernary' => 4,
+        'IfWithTwoBuriedTernaries' => 5,
+        'IfWithABuriedBooleanTernary' => 4,
+        'IfElseBothWithBuriedTernaries' => 4,
+        'IfWithABuriedTernaryEchoed' => 3,
+    ];
+
+    foreach ($pairs as $shape => $expected) {
+        $braceless = 'braceless' . $shape;
+        $braced = 'braced' . $shape;
+
+        expect($measured)->toHaveKeys([$braceless, $braced])
+            ->and($measured[$braceless])->toBe($expected)
+            ->and($measured[$braced])->toBe($expected);
+    }
+
+    // The recursive case: a braceless body that is itself braceless, burying
+    // the token one level further down.
+    expect($measured)->toHaveKeys([
+        'bracelessIfWrappingABracelessIfWithABuriedTernary',
+        'bracedIfWrappingABracedIfWithABuriedTernary',
+    ])
+        ->and($measured['bracelessIfWrappingABracelessIfWithABuriedTernary'])->toBe(4)
+        ->and($measured['bracedIfWrappingABracedIfWithABuriedTernary'])->toBe(4);
+
+    // Where the body stops matters in both directions. Stopping short is the
+    // bug above; running long absorbs the enclosing block's next statement into
+    // the branch, which would read 5 here. And the `;` the body stops on must be
+    // the statement's own, not the first one written inside a closure it holds.
+    expect($measured)->toHaveKeys([
+        'bracelessBodyFollowedByAnotherStatement',
+        'bracedBodyFollowedByAnotherStatement',
+        'bracelessBodyHoldingAClosure',
+        'bracedBodyHoldingAClosure',
+    ])
+        ->and($measured['bracelessBodyFollowedByAnotherStatement'])->toBe(6)
+        ->and($measured['bracedBodyFollowedByAnotherStatement'])->toBe(6)
+        ->and($measured['bracelessBodyHoldingAClosure'])->toBe(3)
+        ->and($measured['bracedBodyHoldingAClosure'])->toBe(3);
 });
 
 /**
