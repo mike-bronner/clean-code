@@ -55,6 +55,18 @@ $handlers = function () use ($value) {
 
 probeInsideCapture($value);
 
+// Positive: the same shape with a *qualified* name in the nested closure, which
+// is what makes the capture list's leading `(` load-bearing. Read as an import
+// list, this statement's second entry leads with `function` and names a symbol
+// outside the global namespace, so nothing downstream discards it — the entry
+// binds `probeCaptureLeak` and silences the bare call below. Only the leading
+// keyword the statement lacks keeps its span from ever being read that way.
+$leaking = function () use ($value) {
+    return [1, function () { return \Acme\Support\probeCaptureLeak($value); }];
+};
+
+probeCaptureLeak($value);
+
 // Positive: a trait `use` inside a class body imports no function either.
 class Consumer
 {

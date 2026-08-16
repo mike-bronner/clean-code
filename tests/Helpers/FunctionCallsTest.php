@@ -19,6 +19,8 @@
 
 declare(strict_types=1);
 
+use PHP_CodeSniffer\Util\Tokens;
+
 it('rejects every shape that is not a call to a global function', function (): void {
     $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'passing.php'), 'probe');
 
@@ -94,9 +96,75 @@ it('accepts a call that reaches PHP own global function', function (): void {
         // statement's commas.
         'probeInsideClosure' => [true],
         'probeInsideCapture' => [true, true],
+        // The same shape carrying a qualified name, which is the case that
+        // fails the moment the leading-`function` gate stops turning a capture
+        // list away: its second entry then binds this name as an import, and
+        // the bare call below reads as redirected rather than global.
+        'probeCaptureLeak' => [false, true],
         // A class body's `use` pulls in a trait, not a function.
         'probeInsideMethod' => [true],
     ]);
+});
+
+/**
+ * The closure capture list is the one shape whose safety does not come from the
+ * code that measures it. `use ($value)` sits at namespace level exactly as an
+ * import does, so the import scan measures it the same way — by the next
+ * semicolon — and for a closure that semicolon is one inside its own body,
+ * never the enclosing statement's terminator. No name is read out of that wrong
+ * span only because the statement is turned away first, on two grammar
+ * invariants: a capture list opens with `(` rather than the `function` keyword
+ * an import leads with, and a closure body's `{` follows `)`, which PHPCS
+ * tokenises as T_OPEN_CURLY_BRACKET — only a brace directly after `\` becomes
+ * the T_OPEN_USE_GROUP that opens the group-import path.
+ *
+ * The verdict tests above cannot see any of this: they read `true` whether the
+ * gates hold or the span is right. These assertions pin the two premises
+ * directly, so weakening either gate — or measuring the span as if it were
+ * trustworthy — fails here, beside the comment that states the reason, instead
+ * of surviving on an outcome that happens to stay the same.
+ */
+it('rests a closure capture list on syntax rather than on its measured span', function (): void {
+    $file = parseFixture('FunctionCalls', 'failing.php');
+    $tokens = $file->getTokens();
+    $captures = [];
+
+    // A capture list is the `use` between a closure's parameter list and its
+    // body, which is how it is found here — reading the token after it would
+    // assume the very premise under test.
+    foreach ($tokens as $pointer => $token) {
+        if ($token['code'] !== T_CLOSURE) {
+            continue;
+        }
+
+        $usePtr = $file->findNext(T_USE, ($pointer + 1), $token['scope_opener']);
+
+        if ($usePtr !== false) {
+            $captures[$usePtr] = $token['scope_closer'];
+        }
+    }
+
+    // The fixture carries three capture lists. Pinning the count keeps this
+    // test from passing on an empty loop if a closure is edited away.
+    expect($captures)->toHaveCount(3);
+
+    foreach ($captures as $usePtr => $scopeCloser) {
+        $end = $file->findNext(T_SEMICOLON, ($usePtr + 1));
+        $first = $file->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
+
+        // Gate one: the statement cannot lead with the `function` keyword, so
+        // the no-group import path can never claim it.
+        expect($tokens[$first]['code'])->toBe(T_OPEN_PARENTHESIS);
+
+        // Gate two: nothing in the span the scan would read opens a use group,
+        // so the group import path can never claim it either.
+        expect($file->findNext(T_OPEN_USE_GROUP, ($usePtr + 1), $end))->toBeFalse();
+
+        // …and the span itself is the untrustworthy part: it stops inside the
+        // closure body rather than at the statement's own terminator, which is
+        // why both gates above have to carry the safety on their own.
+        expect($end)->toBeLessThan($scopeCloser);
+    }
 });
 
 /**
