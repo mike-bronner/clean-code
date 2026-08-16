@@ -17,6 +17,7 @@ declare(strict_types=1);
 use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
+use PHP_CodeSniffer\Files\FileList;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
@@ -1190,4 +1191,61 @@ function tokenNamesInConstant(string $path, string $constant, array $sniffCodes)
     }
 
     return $names;
+}
+
+/**
+ * Processes every file in a directory through a ruleset narrowed to the given
+ * sniff codes, as one PHPCS run over that directory.
+ *
+ * Every other helper here drives a single LocalFile, which is the whole of what
+ * a per-file sniff can see. CleanCode.Metrics.DepthOfInheritance is the one
+ * sniff whose answer depends on the *set* of files being analysed — it resolves
+ * a class's parents against PHPCS's own FileList — so a fixture directory, not
+ * a fixture file, is the unit its behaviour has to be asserted against.
+ *
+ * The config is built with the directory as its path argument, exactly as
+ * `phpcs <directory>` does, because $config->files is what FileList expands and
+ * what the sniff reads. Never memoised: the path argument is part of what makes
+ * a run, so two directories must not share a config.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<string, LocalFile> The processed files, keyed by basename.
+ */
+function analyzeFileset(array $sniffCodes, string $directory): array
+{
+    // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
+    // installed paths have to be restored before the rules.xml parse.
+    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml', $directory]);
+    $config->cache = false;
+
+    restoreInstalledPaths();
+
+    $ruleset = new Ruleset($config);
+
+    if ($sniffCodes !== []) {
+        $isolated = [];
+
+        foreach ($sniffCodes as $code) {
+            $class = $ruleset->sniffCodes[$code];
+            $isolated[$class] = $ruleset->sniffs[$class];
+        }
+
+        $ruleset->sniffs = $isolated;
+        $ruleset->populateTokenListeners();
+    }
+
+    $list = new FileList($config, $ruleset);
+    $files = [];
+
+    for ($list->rewind(); $list->valid() === true; $list->next()) {
+        $path = $list->key();
+        $file = new LocalFile($path, $ruleset, $config);
+        $file->process();
+        $files[basename($path)] = $file;
+    }
+
+    ksort($files);
+
+    return $files;
 }

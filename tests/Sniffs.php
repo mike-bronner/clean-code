@@ -48,6 +48,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Methods.NoNullArguments',
     'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.CyclomaticComplexity',
+    'CleanCode.Metrics.DepthOfInheritance',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.MethodNestingLevel',
