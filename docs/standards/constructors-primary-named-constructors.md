@@ -119,6 +119,13 @@ value is not a signal, whether the value is derived by a call
 (`is_string(trim($value))`), a property read (`is_string($holder->prop)`), or a
 subscript (`is_string($items[$key])`).
 
+A redundant grouping parenthesis hides nothing, in either spelling of the type
+test: `is_string(($value))` and `($value) instanceof Mailer` report exactly as
+the unwrapped spellings do, however many pairs are wrapped around the
+parameter. A call's argument list is not such a grouping, so
+`resolve($value) instanceof Mailer` tests what the call returns and stays
+silent, like every other derived value above.
+
 **Warning severity, not error.** Branching in a constructor is a design smell,
 not always a defect; the sniff points at split-into-named-constructors
 candidates. It is detection-only: splitting a constructor rewrites the class's

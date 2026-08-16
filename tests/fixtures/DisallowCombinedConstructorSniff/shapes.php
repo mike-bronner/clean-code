@@ -452,3 +452,27 @@ final class GroupedPredicateSubject
         }
     }
 }
+
+/**
+ * An `instanceof` whose subject is wrapped in redundant grouping parentheses,
+ * once and then twice over. Each pair groups the parameter and nothing else, so
+ * the type test reads the parameter itself, exactly as the unwrapped spelling
+ * does — the same widening the predicate calls above get.
+ *
+ * The second grouping is introduced by a comment, which is not content the
+ * parentheses hold: the pair in front of it is still a grouping rather than a
+ * call's argument list.
+ */
+final class GroupedInstanceofSubject
+{
+    public function __construct(mixed $source, mixed $extra)
+    {
+        if (($source) instanceof Mailer) {
+            $this->transport = new Mailer();
+        } elseif (/* still the subject */ (($extra)) instanceof NullLogger) {
+            $this->transport = new NullLogger();
+        } else {
+            $this->transport = new Mailer();
+        }
+    }
+}

@@ -20,7 +20,7 @@
  * below was produced by disabling that guard and re-running the fixtures, not
  * derived, and the whole table was re-derived after the last fixture was added
  * rather than adjusted. Counts are warnings per fixture, against the baseline
- * passing 0 / failing 4 / shapes 48; a fixture whose count the mutation leaves
+ * passing 0 / failing 4 / shapes 50; a fixture whose count the mutation leaves
  * unchanged is omitted from its line.
  *
  * Scope of the walk:
@@ -46,18 +46,21 @@
  * What counts as a signal:
  *
  *   - drop the "flag or type test" requirement, reporting any parameter in a
- *     condition — passing 31, shapes 55
- *   - drop the `bool`-type leg of the flag test — failing 3, shapes 24
- *   - drop the `true`/`false`-default leg of the flag test — shapes 46 (both
+ *     condition — passing 32, shapes 57
+ *   - drop the `bool`-type leg of the flag test — failing 3, shapes 26
+ *   - drop the `true`/`false`-default leg of the flag test — shapes 48 (both
  *     DefaultedModeFlags parameters stop reporting)
- *   - drop the leading-`?` strip in type normalization — shapes 47 (`?bool`
+ *   - drop the leading-`?` strip in type normalization — shapes 49 (`?bool`
  *     stops being a flag)
  *   - drop the explicit `null` union member from type normalization —
- *     shapes 47 (`bool|null` stops being a flag)
+ *     shapes 49 (`bool|null` stops being a flag)
  *   - accept any union *containing* `bool` rather than exactly `bool` —
  *     passing 1 (`bool|string` starts reporting)
  *   - drop the variadic exclusion — passing 1 (`bool ...$flags`)
- *   - drop `instanceof` detection — shapes 45
+ *   - drop `instanceof` detection — shapes 45; and one width of the subject at
+ *     a time, since the widened subject reaches its own `instanceof`: the
+ *     unwrapped subject's test — shapes 47; the widened subject's — shapes 48
+ *     (both grouped `instanceof` subjects stop being recognised)
  *   - drop the member/static/`new` qualifier check on a name — passing 6; and
  *     one entry at a time, so no entry rides on a sibling: `T_OBJECT_OPERATOR`
  *     alone — passing 3; `T_DOUBLE_COLON` alone — passing 1; `T_NEW` alone —
@@ -65,37 +68,47 @@
  *   - stop reading a namespace separator — passing 2 (`App\Utils\func_get_args()`
  *     and `App\Validation\is_string()` are taken for the global functions)
  *   - treat every separator as qualifying, rather than only one with a name
- *     segment in front of it — shapes 46 (`\is_string()` and `\func_num_args()`
+ *     segment in front of it — shapes 48 (`\is_string()` and `\func_num_args()`
  *     stop being the global functions they are)
  *   - read the enclosing parentheses outermost-first rather than inside-out —
  *     failing 3, shapes 42 (every predicate applied directly to a parameter
  *     stops being recognised)
  *   - stop widening the subject through a grouping parenthesis — shapes 47 (the
- *     grouped predicate subject stops being recognised)
+ *     grouped predicate subject and both grouped `instanceof` subjects stop
+ *     being recognised)
  *   - widen the subject through *any* enclosing pair rather than only one
  *     holding nothing else — passing 2 (both operands of the grouped
  *     concatenation are read as the subject of the predicate around them)
  *   - drop only the widening test's "the pair opens on the subject" clause —
  *     passing 1; only its "the pair closes on the subject" clause — passing 1
+ *   - stop requiring the widened pair to be a *grouping* parenthesis, so a
+ *     call's argument list widens the subject too — passing 1 (the call
+ *     result's `instanceof` is read as a test of the parameter handed to it).
+ *     The same guard is why dropping the bare-first-argument check below now
+ *     costs one false positive fewer than it did before the guard landed: a
+ *     predicate applied to a nested call's result no longer reaches the
+ *     predicate at all
  *
  * Argument totality — that the parameter is the *whole* first argument, each
  * half of the test pinned on its own:
  *
- *   - drop the bare-first-argument check entirely — passing 6, shapes 50
- *   - drop only its "the opening parenthesis precedes it" clause — passing 3,
- *     shapes 50 (the two named arguments start reporting)
+ *   - drop the bare-first-argument check entirely — passing 5, shapes 52
+ *   - drop only its "the opening parenthesis precedes it" clause — passing 2,
+ *     shapes 52 (the two named arguments start reporting)
  *   - drop only its "a separator or the closer follows it" clause — passing 2
  *     (the property read and the subscripted array start reporting)
  *
  * Comment tolerance — every adjacency test skips `Tokens::$emptyTokens` rather
- * than `T_WHITESPACE` alone. Thirteen of the fifteen flip a verdict when
+ * than `T_WHITESPACE` alone. Fourteen of the sixteen flip a verdict when
  * reverted to `T_WHITESPACE`, and each is pinned separately:
  *
- *   - the `instanceof` lookahead — shapes 47 (false negative)
- *   - the predicate-callee lookback — shapes 47 (false negative)
- *   - the bare-first-argument lookback and lookahead — shapes 47 each (false
+ *   - the `instanceof` lookahead — shapes 49 (false negative)
+ *   - the predicate-callee lookback — shapes 49 (false negative)
+ *   - the grouping-preceder lookback — shapes 49 (false negative: the comment
+ *     in front of the twice-grouped `instanceof` subject ends the widening)
+ *   - the bare-first-argument lookback and lookahead — shapes 49 each (false
  *     negatives: the comment-wrapped subject stops being the first argument)
- *   - the argument-reader lookahead — shapes 47 (false negative)
+ *   - the argument-reader lookahead — shapes 49 (false negative)
  *   - the name-qualifier lookback — passing 2 (false positives: the member
  *     calls named `is_a` and `func_num_args` are read as the global functions)
  *   - the elvis lookahead — passing 1 (false positive: the elvis default is
@@ -125,19 +138,19 @@
  *
  * Guard clauses:
  *
- *   - drop the exemption for mode flags and type tests — passing 31, shapes 49
+ *   - drop the exemption for mode flags and type tests — passing 31, shapes 51
  *   - drop the exemption for the argument readers — passing 3 (the braced,
  *     brace-less and ternary guards of GuardedArgumentCount)
- *   - drop the "at least one branch throws" leg — shapes 41 (the empty
+ *   - drop the "at least one branch throws" leg — shapes 43 (the empty
  *     `switch` and the two surviving-path constructs start being read as
  *     guards)
- *   - drop the "own branch throws, or one path survives" leg — shapes 45
+ *   - drop the "own branch throws, or one path survives" leg — shapes 47
  *   - keep only the own-branch leg, dropping the mirror — passing 17 (every
  *     guard whose `throw` is on the other side starts reporting)
- *   - keep only the mirror leg, dropping the own-branch one — shapes 49 (the
+ *   - keep only the mirror leg, dropping the own-branch one — shapes 51 (the
  *     rejecting `match` arm beside two survivors stops being a guard)
  *   - stop enumerating a `switch`'s cases — passing 5; a `match`'s arms —
- *     passing 5, shapes 49; a ternary's two sides — passing 6
+ *     passing 5, shapes 51; a ternary's two sides — passing 6
  *   - count a nested construct's `case` labels — passing 1 — or its `match`
  *     arms — passing 1 — as the outer construct's own branches
  *   - read a `case` label as a branch of the outermost `switch` holding it
@@ -147,7 +160,7 @@
  *     passing 3 (both brace-less guards and the brace-less argument-reader
  *     guard start reporting); drop the brace-less branch's *end* instead —
  *     passing 1 (the `else` behind it is never found)
- *   - stop walking back to the head of an `if` chain — passing 2, shapes 47;
+ *   - stop walking back to the head of an `if` chain — passing 2, shapes 49;
  *     follow a spaced `else if` to its `else` rather than to the `if` that
  *     owns the condition — passing 1
  *   - ignore ternary nesting when reading a ternary's two sides — passing 1
@@ -158,8 +171,8 @@
  *
  *   - report `?:` as a branch — passing 2 (the elvis default over a mode flag,
  *     and its comment-separated spelling)
- *   - drop `case`-label detection — shapes 47 (`case is_iterable($extra):`)
- *   - drop the match-arm selector — shapes 43
+ *   - drop `case`-label detection — shapes 49 (`case is_iterable($extra):`)
+ *   - drop the match-arm selector — shapes 45
  *   - drop the parenthesised-condition scan — passing 2, failing 2, shapes 28
  *   - drop the `;` terminator — passing 5; the array `=>` terminator —
  *     passing 1; the `{` terminator — passing 1. One boundary per statement of
@@ -168,27 +181,27 @@
  * Which tokens the scan reads as its own — a group in the way is jumped whole,
  * and what a comma means is settled by the group holding it:
  *
- *   - drop the group jump entirely — passing 2, shapes 46; and one closer kind
- *     at a time: the `scope_closer` jump — passing 1, shapes 47 (the
+ *   - drop the group jump entirely — passing 2, shapes 48; and one closer kind
+ *     at a time: the `scope_closer` jump — passing 1, shapes 49 (the
  *     alternative-syntax `foreach` starts reporting; the bare `match` operand
- *     stops); the `parenthesis_closer` jump — shapes 47; the `bracket_closer`
+ *     stops); the `parenthesis_closer` jump — shapes 49; the `bracket_closer`
  *     jump — passing 1
- *   - treat a comma as an unconditional terminator — shapes 41
+ *   - treat a comma as an unconditional terminator — shapes 43
  *   - resume at the comma itself rather than at its group's closer —
  *     passing 1 (a ternary in the *sibling* argument on line 240 is read as
  *     the flag's own branch)
  *   - resume at a `match` arm's condition-list comma from the arm list's
- *     closing brace instead of carrying on — shapes 46 (both multi-condition
+ *     closing brace instead of carrying on — shapes 48 (both multi-condition
  *     arms stop reporting)
  *   - stop ending an arm at the comma behind its body — passing 1
  *   - map the commas of a block as though it were an expression group —
  *     passing 1 (the statement-level comma in NestedGroupEnds runs on to the
  *     ternary in the statement after it)
- *   - stop recognising a `match` arm list among braced groups — shapes 46
+ *   - stop recognising a `match` arm list among braced groups — shapes 48
  *   - drop one group opener at a time from the comma map: the brace —
- *     shapes 46; the parenthesis — shapes 45; the short array — shapes 46
- *   - read a group's end from its `parenthesis_closer` alone — shapes 44 — or
- *     from its `bracket_closer` alone — shapes 45
+ *     shapes 48; the parenthesis — shapes 47; the short array — shapes 48
+ *   - read a group's end from its `parenthesis_closer` alone — shapes 46 — or
+ *     from its `bracket_closer` alone — shapes 47
  *
  * Two guards report no count of their own, and both are stated as observed
  * rather than assumed:
@@ -225,7 +238,9 @@ it('is registered in the master ruleset', function (): void {
  * coalesce defaults over a mode flag,
  * a non-boolean parameter in a condition, a predicate applied to a derived
  * value — through a property read, a subscript, and a named argument as well as
- * a nested call and a grouping parenthesis holding more than the parameter — a
+ * a nested call and a grouping parenthesis holding more than the parameter — an
+ * `instanceof` applied to a call's result, where a grouping parenthesis would
+ * carry the parameter itself, a
  * `bool|string` union that is not a flag, all three signals in
  * a named constructor, an ordinary method, a nested named function, a closure,
  * an arrow function and an anonymous class, member calls named like a predicate
@@ -353,6 +368,10 @@ it('marks no violation fixable', function (): void {
  *                being constructor code
  *  448         — a predicate whose subject is wrapped in a redundant grouping
  *                parenthesis, which groups the parameter and nothing else
+ *  470, 472    — an `instanceof` whose subject wears the same redundant
+ *                grouping, once and then twice over, the second introduced by
+ *                a comment. The widening the predicate calls get is the
+ *                `instanceof`'s as well, at every width the subject reaches
  */
 it('warns on every branching, declaration, and argument-reader shape', function (): void {
     $file = analyzeFixture(COMBINED_CONSTRUCTOR, 'shapes.php');
@@ -406,6 +425,8 @@ it('warns on every branching, declaration, and argument-reader shape', function 
         ['line' => 416, 'column' => 51, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
         ['line' => 431, 'column' => 37, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 448, 'column' => 24, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+        ['line' => 470, 'column' => 14, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+        ['line' => 472, 'column' => 45, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
     ]);
 });
 

@@ -853,3 +853,21 @@ final class GroupedExpressionSubject
         }
     }
 }
+
+/**
+ * A call standing where a grouping parenthesis would. The `instanceof` tests
+ * what the call returns rather than the parameter handed to it, so a subject
+ * widened through an argument list would report a derived value as a type
+ * switch.
+ */
+final class CallResultInstanceofSubject
+{
+    public function __construct(mixed $source)
+    {
+        if ($this->resolve($source) instanceof Mailer) {
+            $this->transport = new Mailer();
+        } else {
+            $this->transport = new NullLogger();
+        }
+    }
+}

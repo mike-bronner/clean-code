@@ -256,6 +256,44 @@ class DisallowCombinedConstructorSniff implements Sniff
     ];
 
     /**
+     * The non-operator tokens after which a parenthesis groups an expression
+     * rather than holding a call's arguments — read by
+     * {@see self::opensGrouping()} on top of PHP_CodeSniffer's own operator,
+     * boolean-operator, comparison, assignment and cast collections.
+     *
+     * Each entry is a position where an expression may start: an opening group
+     * or a block's brace, the end of the statement or block before it, an
+     * element or argument separator, a `case` label, a branch selector, or a
+     * negation. A construct's own keyword is deliberately absent — `if (…)`,
+     * `match (…)`, `isset(…)` and a declaration's parameter list all read their
+     * parentheses rather than group an expression in them, so none of them
+     * widens a subject.
+     *
+     * A ternary's `?` and `:` are `T_INLINE_THEN`/`T_INLINE_ELSE`, a `match`
+     * arm's and an arrow function's selectors are `T_MATCH_ARROW`/`T_FN_ARROW`,
+     * and an array `=>` is a `T_DOUBLE_ARROW` the assignment collection already
+     * carries.
+     *
+     * @var array<int, int|string>
+     */
+    private const GROUPING_PRECEDERS = [
+        T_BOOLEAN_NOT,
+        T_CASE,
+        T_CLOSE_CURLY_BRACKET,
+        T_COLON,
+        T_COMMA,
+        T_FN_ARROW,
+        T_INLINE_ELSE,
+        T_INLINE_THEN,
+        T_MATCH_ARROW,
+        T_OPEN_CURLY_BRACKET,
+        T_OPEN_PARENTHESIS,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_SQUARE_BRACKET,
+        T_SEMICOLON,
+    ];
+
+    /**
      * Where the forward scan resumes at each comma of the constructor being
      * walked, keyed by the comma's own pointer. Built once per constructor by
      * {@see self::buildCommaMap()}; a comma absent from the map ends the
@@ -531,24 +569,30 @@ class DisallowCombinedConstructorSniff implements Sniff
      * whose own type is being switched on.
      *
      * A redundant grouping parenthesis is not a decoration: `is_string(($value))`
-     * tests the same parameter the unparenthesised spelling does. So the
-     * enclosing parentheses are read from the inside out, and a pair holding
-     * nothing but the subject widens the subject to itself rather than ending
-     * the read. A pair holding anything else — a call's name in front of it, an
-     * operand beside it — ends it, which is what keeps `is_string(trim($value))`
-     * and `is_string($value . $suffix)` silent.
+     * and `($value) instanceof Mailer` test the same parameter the unwrapped
+     * spellings do. So the enclosing parentheses are read from the inside out,
+     * and a pair grouping nothing but the subject widens the subject to itself
+     * rather than ending the read. Both spellings of a type test are asked of
+     * every width the subject reaches, because a grouping parenthesis stands in
+     * front of either one: the `instanceof` behind the widened subject, and the
+     * predicate call around it.
+     *
+     * A pair holding anything besides the subject — an operand beside it — ends
+     * the read, and so does a pair that is not a grouping at all
+     * ({@see self::opensGrouping()}). Between them they keep
+     * `is_string(trim($value))`, `is_string($value . $suffix)` and
+     * `$this->resolve($value) instanceof Mailer` silent: each tests a derived
+     * value rather than the parameter.
      */
     private function isTypeTested(File $phpcsFile, int $pointer): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
-
-        if ($next !== false && $tokens[$next]['code'] === T_INSTANCEOF) {
-            return true;
-        }
-
         $start = $pointer;
         $end = $pointer;
+
+        if ($this->isInstanceofSubject($phpcsFile, $end)) {
+            return true;
+        }
 
         foreach (array_reverse($tokens[$pointer]['nested_parenthesis'] ?? [], true) as $opener => $closer) {
             if (
@@ -558,15 +602,76 @@ class DisallowCombinedConstructorSniff implements Sniff
                 return true;
             }
 
-            if (!$this->wrapsNothingElse($phpcsFile, (int) $opener, (int) $closer, $start, $end)) {
+            if (
+                !$this->opensGrouping($phpcsFile, (int) $opener)
+                || !$this->wrapsNothingElse($phpcsFile, (int) $opener, (int) $closer, $start, $end)
+            ) {
                 return false;
             }
 
             $start = (int) $opener;
             $end = (int) $closer;
+
+            if ($this->isInstanceofSubject($phpcsFile, $end)) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /**
+     * Whether the span ending at $end is the left operand of an `instanceof`.
+     */
+    private function isInstanceofSubject(File $phpcsFile, int $end): bool
+    {
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $end + 1, null, true);
+
+        return $next !== false && $phpcsFile->getTokens()[$next]['code'] === T_INSTANCEOF;
+    }
+
+    /**
+     * Whether the parenthesis at $opener groups an expression, rather than
+     * being the argument list of a call or the parentheses of a construct.
+     *
+     * The distinction is not decoration: `($value)` evaluates to the parameter,
+     * while `resolve($value)` evaluates to whatever the call returns, and the
+     * two are told apart by the token in front of the parenthesis alone — PHP
+     * spells them identically otherwise. So a parenthesis widens the subject
+     * only where an expression may *start*: after an operator, an assignment, a
+     * cast, an opening group, a statement or element separator, a branch
+     * selector, or a negation.
+     *
+     * The test is deliberately positive, and every operator family is taken
+     * whole from PHP_CodeSniffer's own maintained collections rather than
+     * re-listed here. A spelling missing from it therefore ends the read and
+     * costs a missed warning, never a wrong one — the same trade this sniff
+     * already makes on a named-argument predicate call.
+     */
+    private function opensGrouping(File $phpcsFile, int $opener): bool
+    {
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
+
+        return $before !== false
+            && isset($this->groupingPreceders()[$phpcsFile->getTokens()[$before]['code']]);
+    }
+
+    /**
+     * The tokens after which a parenthesis groups an expression, keyed by token
+     * code. Held across calls because the union is the same for every file.
+     *
+     * @return array<int|string, int|string>
+     */
+    private function groupingPreceders(): array
+    {
+        static $preceders = null;
+
+        return $preceders ??= Tokens::$operators
+            + Tokens::$booleanOperators
+            + Tokens::$comparisonTokens
+            + Tokens::$assignmentTokens
+            + Tokens::$castTokens
+            + array_combine(self::GROUPING_PRECEDERS, self::GROUPING_PRECEDERS);
     }
 
     /**
