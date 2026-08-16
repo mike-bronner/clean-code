@@ -224,3 +224,50 @@ it('reports detection-only warnings', function () use ($stagedRun): void {
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
+
+/**
+ * The same verdict through the shipped, installed package.
+ *
+ * Every test above drives PHPCS in process through ConfigDouble, which supplies
+ * the registration Composer would have supplied — so a package that never
+ * registered itself with the installed standards passes all of them. This one
+ * executes the real vendor/bin/phpcs as a separate process from outside the
+ * package, against rules.xml, the file a consumer points --standard at. The
+ * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
+ * sniff: it drives each fixture where it lives, under tests/, and this sniff's
+ * <exclude-pattern> makes that path report nothing whatever the sniff does.
+ *
+ * Staged exactly as $stagedRun stages it, and asserted in the same paired shape
+ * as the scoped-out-of-test-paths test above rather than only on the positive
+ * half:
+ *
+ * - the staged copy reports all 12, every message under this sniff's own code,
+ *   at status 1 — violations, none of them fixable, which is what this
+ *   detection-only rule owes. Status 2 would mean phpcbf had been offered a
+ *   fix, and 3 is what a broken install exits with.
+ * - the in-repo copy of the same bytes reports nothing and exits 0, so the
+ *   reporting half cannot be coming from a run that ignores rules.xml's
+ *   exclusion.
+ * - passing.php staged the same way reports nothing and exits 0 — the negative
+ *   control, without which a shell-out that always reported would satisfy the
+ *   first.
+ */
+it('reports the violation end to end through the installed package', function (): void {
+    $failing = fixturePath('DisallowExternalPersistenceCallsSniff', 'failing.php');
+
+    $staged = installedSniffRun(PERSISTENCE, stageFixtureOutsideTests($failing));
+    $inRepo = installedSniffRun(PERSISTENCE, $failing);
+    $passing = installedSniffRun(
+        PERSISTENCE,
+        stageFixtureOutsideTests(fixturePath('DisallowExternalPersistenceCallsSniff', 'passing.php'))
+    );
+
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(12)
+        ->each->toBe(PERSISTENCE_WARNING)
+        ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
+        ->and($staged['status'])->toBe(1)
+        ->and($inRepo['messages'])->toBe([])
+        ->and($inRepo['status'])->toBe(0)
+        ->and($passing['messages'])->toBe([])
+        ->and($passing['status'])->toBe(0);
+});

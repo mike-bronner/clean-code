@@ -204,7 +204,9 @@ Adjacent slices already tracked elsewhere:
 - **Source class with no corresponding test file** — covered by
   [#128](https://github.com/mike-bronner/phpcs-rules/issues/128) (opened from
   *Testing: Development Process (TDD)*), which catches test *absence* for the
-  "always write unit and integration tests" bullet.
+  "always write unit and integration tests" bullet. Now implemented as
+  `CleanCode.Testing.RequireTestFile`; see
+  [testing-development-process-tdd.md](testing-development-process-tdd.md).
 - **Careful test naming** — method naming belongs to the naming standards:
   casing is already enforced as *Naming: Casing Conventions*
   ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)) and the wider

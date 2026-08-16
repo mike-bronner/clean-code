@@ -1,134 +1,11 @@
 <?php
 
 /**
- * The three-fixture contract every per-sniff fixture directory follows:
- *
- *   passing.php    code the sniff must leave alone
- *   failing.php    code the sniff must flag
- *   autofixed.php  phpcbf's output for failing.php (fixable sniffs only)
- *
- * This is the generic sweep. It proves each sniff is wired into rules.xml and
- * broadly does the right thing on each fixture; the exact line, column, and
- * violation-source assertions live in the per-sniff files under
- * tests/Standards, tests/Rules, and tests/Ruleset.
- *
- * passing.php and failing.php are the floor: every sniff in this sweep carries
- * both. The only axis on which coverage varies is the fixer —
- *
- *   - Autofixable sniffs carry all three fixtures.
- *   - Detection-only sniffs (ApiControllerNamespace, ArrayAccessors,
- *     DisallowElse, DuplicatedArrayKey, OperatorLineBreak,
- *     DisallowStaticMembers, DisallowCountInLoopExpression,
- *     DisallowExitExpression, DisallowBooleanArgumentFlag,
- *     TooManyPublicMethods, ExcessiveClassLength, ExcessiveMethodLength,
- *     ExcessiveParameterList, ExcessiveClassComplexity, ExcessivePublicCount,
- *     TooManyFields, BooleanGetMethodName, LongClassName, ShortClassName,
- *     LineLength, ConstructorName, DiscourageGoto, Eval, NoSilencedErrors,
- *     VariableAnalysis, ShortMethodName) carry passing.php and failing.php
- *     but no autofixed.php, because there is no safe mechanical rewrite.
- *
- * — which is why the contract is expressed as separate datasets rather than one
- * list. An autofixed.php is never a substitute for a passing.php: it is the
- * fixer's own output, so asserting a sniff is silent on it tests the fixer
- * twice and the compliant form never. CleanCode.Conditionals.OneConditionPerLine
- * makes that concrete — its autofixed.php deliberately retains a non-fixable
- * violation, so it could not stand in for a passing fixture even in principle.
- *
- * The other axis the datasets split on is *severity*. A detection-only sniff
- * whose violations are warnings rather than errors still carries both floor
- * fixtures, but "flags the failing fixture" has to look at the warning list —
- * asserting on errors would pass against a sniff that says nothing at all. The
- * two severities therefore have their own failing-fixture assertions, fed from
- * SWEPT_SNIFFS and SWEPT_WARNING_SNIFFS. The merged 'every swept sniff' dataset
- * feeds every severity-neutral assertion — registration and both halves of the
- * passing fixture — so neither list can be added to and forgotten there.
- *
- * Three sniffs are deliberately absent from every dataset. A path-scoped sniff
- * cannot be swept: the sweep processes each fixture where it lives, under
- * tests/, and PHPCS decides path scoping from the file's path alone — so the
- * failing fixture reports nothing whatever the sniff does, and the passing
- * assertion would hold against a sniff that had fallen silent altogether.
- * Both such sniffs stage their fixtures outside the repository instead, and
- * pin the scoping itself in their own file.
- *
- *   - CleanCode.Models.DisallowExternalPersistenceCalls — rules.xml scopes it
- *     out of test paths. It is covered in
- *     tests/Standards/DisallowExternalPersistenceCallsTest.php.
- *   - CleanCode.Files.NoProceduralCode — rules.xml scopes it *into* source
- *     paths (src/, app/) with <include-pattern>. It is covered in
- *     tests/Standards/NoProceduralCodeTest.php.
- *   - The naming casing conventions — a composite standard carried by three
- *     sniffs at once, so it has no per-sniff fixture directory to sweep. It is
- *     covered in tests/Ruleset/CasingConventionsRulesetTest.php.
+ * The floor every sniff wired into rules.xml has to clear, swept across the
+ * enumerations in tests/Sniffs.php rather than restated here.
  */
 
 declare(strict_types=1);
-
-/**
- * Every error-reporting sniff the sweep covers. passing.php and failing.php
- * are the contract's floor, and both are asserted from this one list rather
- * than a list written out twice: a sniff cannot be added to one and forgotten
- * in the other.
- */
-const SWEPT_SNIFFS = [
-    'CleanCode.Arrays.ArrayAccessors',
-    'CleanCode.Arrays.DuplicatedArrayKey',
-    'CleanCode.Classes.DisallowStaticMembers',
-    'CleanCode.Classes.ExcessiveClassLength',
-    'CleanCode.Classes.TooManyPublicMethods',
-    'CleanCode.ClearCode.OneThoughtPerLine',
-    'CleanCode.CodeSize.TooManyMethods',
-    'CleanCode.Conditionals.DisallowElse',
-    'CleanCode.Conditionals.OneConditionPerLine',
-    'CleanCode.ControlStructures.DisallowCountInLoopExpression',
-    'CleanCode.ControlStructures.DisallowExitExpression',
-    'CleanCode.Debug.DisallowDebugFunctions',
-    'CleanCode.Functions.DisallowBooleanArgumentFlag',
-    'CleanCode.Functions.ExcessiveMethodLength',
-    'CleanCode.Functions.ExcessiveParameterList',
-    'CleanCode.Metrics.ExcessiveClassComplexity',
-    'CleanCode.Metrics.ExcessivePublicCount',
-    'CleanCode.Metrics.TooManyFields',
-    'CleanCode.Naming.BooleanGetMethodName',
-    'CleanCode.Naming.LongClassName',
-    'CleanCode.Naming.ShortClassName',
-    'CleanCode.Naming.ShortMethodName',
-    'CleanCode.Operators.NotOperatorSpacing',
-    'CleanCode.Operators.OperatorLineBreak',
-    'CleanCode.Routes.ApiControllerNamespace',
-    'CleanCode.Strings.MultilineStrings',
-    'CleanCode.WhiteSpace.BlankLines',
-    'Generic.ControlStructures.InlineControlStructure',
-    'Generic.Files.LineLength',
-    'Generic.NamingConventions.ConstructorName',
-    'Generic.PHP.DiscourageGoto',
-    'Generic.PHP.NoSilencedErrors',
-    'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
-    'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
-    'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
-    'SlevomatCodingStandard.Namespaces.UnusedUses',
-    'Squiz.PHP.Eval',
-    'VariableAnalysis.CodeAnalysis.VariableAnalysis',
-];
-
-/**
- * The same floor, for sniffs that report warnings instead of errors. Kept as
- * its own list purely so the failing-fixture assertion can read the right
- * violation list; every other assertion treats the two alike.
- */
-const SWEPT_WARNING_SNIFFS = [
-    'CleanCode.Arrays.ConvertToCollection',
-    'CleanCode.Classes.DisallowConstructorInstantiation',
-    'CleanCode.Conditionals.AvoidConditionals',
-    'CleanCode.Conditionals.MappingArrayCandidate',
-    'CleanCode.Controllers.NoCustomActions',
-    'CleanCode.Models.DisallowAlwaysOnEagerLoading',
-    'CleanCode.Models.RequireLazyLoadingPrevention',
-    'CleanCode.Naming.DisallowMagicNumbers',
-    'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
-    'CleanCode.Testing.NoFirstPartyMocks',
-    'CleanCode.Testing.NoReflectionAccess',
-];
 
 dataset('every swept sniff', array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS));
 
@@ -136,32 +13,18 @@ dataset('error-reporting sniffs', SWEPT_SNIFFS);
 
 dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 
-dataset('autofixable sniffs', [
-    'CleanCode.ClearCode.OneThoughtPerLine',
-    'CleanCode.Conditionals.OneConditionPerLine',
-    'CleanCode.Operators.NotOperatorSpacing',
-    'CleanCode.Strings.MultilineStrings',
-    'CleanCode.WhiteSpace.BlankLines',
-    'Generic.ControlStructures.InlineControlStructure',
-    'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
-    'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
-    'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
-    'SlevomatCodingStandard.Namespaces.UnusedUses',
-]);
+dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
-/**
- * Every autofixable sniff except CleanCode.Conditionals.OneConditionPerLine,
- * whose failing.php deliberately includes a split single condition wrapping a
- * comment: that violation is reported but withheld from the fixer, because
- * rejoining the condition would have to decide where the comment goes. Its
- * autofixed.php therefore legitimately retains one non-fixable error, pinned
- * exactly in tests/Standards/OneConditionPerLineTest.php.
- */
 dataset('sniffs whose fixer resolves every violation', [
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.Indentation.LogicalGroupings',
+    'CleanCode.Operators.BinaryOperatorSpacing',
+    'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
     'CleanCode.WhiteSpace.BlankLines',
+    'CleanCode.WhiteSpace.MultiLineStatementIndent',
+    'CleanCode.WhiteSpace.PassiveOperatorSpacing',
     'Generic.ControlStructures.InlineControlStructure',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
@@ -221,3 +84,28 @@ it('is idempotent over its own fixed output', function (string $sniffCode): void
 it('leaves the autofixed fixture clean', function (string $sniffCode): void {
     expect(analyzeFixture($sniffCode, 'autofixed.php')->getErrors())->toBeEmpty();
 })->with('sniffs whose fixer resolves every violation');
+
+/**
+ * Every fixer's output has to be source PHP_CodeSniffer can still read.
+ *
+ * `php -l` is not that bar and cannot stand in for it: PHP accepts shapes the
+ * PHPCS tokenizer does not classify, and an unclassified token does not fail
+ * loudly — it silently swallows the source that follows it into one bogus
+ * token, so the *next* pass over the fixed file reads live code as string body.
+ * That is invisible to the byte-comparison above, whose expected fixture can be
+ * committed already corrupted, and to any assertion that only reads the fixed
+ * string's content.
+ *
+ * Swept across every autofixable sniff rather than pinned per-sniff, because
+ * this failure mode has recurred a site at a time — each round fixing the one
+ * place named and leaving the class open. The source fixture is asserted clean
+ * in the same breath, so a fixture that was already unreadable cannot make this
+ * pass vacuously.
+ */
+it('emits source the tokenizer can still read', function (string $sniffCode): void {
+    $fixed = autofixedContents(analyzeFixture($sniffCode, 'failing.php'));
+    $source = (string) file_get_contents(fixturePath(sniffFixtureDirectory($sniffCode), 'failing.php'));
+
+    expect(unclassifiedTokens($source))->toBe([])
+        ->and(unclassifiedTokens($fixed))->toBe([]);
+})->with('autofixable sniffs');

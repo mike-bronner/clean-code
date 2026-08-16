@@ -121,10 +121,12 @@ Tests covering compliant `data_get()` usage, the out-of-scope boundary
 constructs, reads that sit beside a write or an existence check without becoming
 one, reads computed inside a write target's offset, per-line violation
 reporting, one-diagnostic-per-chain, input PHP itself rejects (chains left
-mid-edit on an unclosed bracket, brace, or bare `->`, files ending on a bare
-variable, and malformed statements), the tokenizer defect above, and the
-detection-only guarantee live at `tests/Standards/ArrayAccessorsTest.php`, with
-fixtures under `tests/fixtures/ArrayAccessorsSniff/`.
+mid-edit on an unclosed bracket, brace, or bare `->`, a closer whose opener was
+never typed, files ending on a bare variable, and malformed statements), the
+tokenizer defect above, the detection-only guarantee, and the linear-time
+guarantee on files with thousands of reads live at
+`tests/Standards/ArrayAccessorsTest.php`, with fixtures under
+`tests/fixtures/ArrayAccessorsSniff/`.
 
 ## What remains code review
 
