@@ -13,9 +13,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * This is the example sniff wired end-to-end through the package scaffold:
  * registered via the CleanCode standard (CleanCode/ruleset.xml, referenced by
- * the master rules.xml) and covered by the PHPCS unit-test harness in
- * CleanCode/Tests/Debug/. Use it as the template for new sniffs — see
- * CONTRIBUTING.md.
+ * the master rules.xml), fixtured in tests/fixtures/DisallowDebugFunctionsSniff/
+ * and covered by tests/Standards/DisallowDebugFunctionsTest.php. Use it as the
+ * template for new sniffs — see CONTRIBUTING.md.
  */
 class DisallowDebugFunctionsSniff implements Sniff
 {
@@ -24,7 +24,10 @@ class DisallowDebugFunctionsSniff implements Sniff
      */
     private const DEBUG_FUNCTIONS = [
         'dd',
+        'debug_print_backtrace',
+        'debug_zval_dump',
         'dump',
+        'print_r',
         'ray',
         'var_dump',
     ];

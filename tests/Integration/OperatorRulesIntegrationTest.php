@@ -8,7 +8,7 @@
  * violation is reported exactly once.
  *
  * That whole-ruleset view is where operator diagnostics can duplicate:
- *   - the stricter Squiz.WhiteSpace.OperatorSpacing stacking on the "at least
+ *   - the stricter CleanCode.Operators.BinaryOperatorSpacing stacking on the "at least
  *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
@@ -18,100 +18,96 @@
 
 declare(strict_types=1);
 
-namespace MikeBronner\CleanCode\Tests\Integration;
+/**
+ * The fixture holds one instance of each operator concern; every line below
+ * carries exactly one diagnostic from exactly one sniff — except line 28,
+ * which pins a deliberate overlap: the newline after a dangling "===" breaks
+ * two distinct standards at once (#35 operator line breaks, #56 newlines
+ * around evaluative operators), so both sniffs speak there. Regressions this
+ * pins by adding an unplanned second (or dropping a pinned) source:
+ *   - re-stacking PSR12 on Squiz spacing (line 9/10),
+ *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (17),
+ *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
+ *     double-reports "if ( ! " (line 23), and
+ *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
+ *     operator inside a multi-condition slips through unreported (line 28).
+ *
+ * The fixture opens with a four-line preamble assigning every name it goes on
+ * to use, so the master ruleset's undefined-variable rule (#85) stays quiet
+ * here: this map pins operator diagnostics, and a second sniff reporting into
+ * it would mask exactly the double-reporting the test exists to catch. That
+ * preamble is why the pinned lines sit four below the fixture's own numbering
+ * before it.
+ */
+it('reports every operator violation exactly once', function (): void {
+    $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
-use PHP_CodeSniffer\Config;
-use PHP_CodeSniffer\Files\LocalFile;
-use PHP_CodeSniffer\Ruleset;
-use PHP_CodeSniffer\Tests\ConfigDouble;
-use PHPUnit\Framework\TestCase;
-
-class OperatorRulesIntegrationTest extends TestCase
-{
-    private static Ruleset $ruleset;
-
-    private static Config $config;
-
-    public static function setUpBeforeClass(): void
-    {
-        self::$config = new ConfigDouble(['--standard=' . dirname(__DIR__, 2) . '/rules.xml']);
-
-        // The master ruleset references Slevomat; restore its installed path
-        // after ConfigDouble blanks the static config data.
-        Config::setConfigData(
-            'installed_paths',
-            dirname(__DIR__, 2) . '/vendor/slevomat/coding-standard',
-            true
-        );
-
-        self::$ruleset = new Ruleset(self::$config);
-    }
-
-    /**
-     * The fixture holds one instance of each operator concern; every line below
-     * carries exactly one diagnostic from exactly one sniff. Regressions this
-     * pins by adding a second (or dropping the only) source:
-     *   - re-stacking PSR12 on Squiz spacing (line 5/6),
-     *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (13),
-     *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
-     *     double-reports "if ( ! " (line 19), and
-     *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
-     *     operator inside a multi-condition slips through unreported (line 24).
-     */
-    public function testEveryOperatorViolationIsReportedExactlyOnce(): void
-    {
-        $file = new LocalFile(__DIR__ . '/fixtures/operator-rules.inc', self::$ruleset, self::$config);
-        $file->process();
-
-        $this->assertSame(
-            [
-                // exactly-1-space spacing — Squiz supersedes PSR12, no stacking
-                5 => [
-                    'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
-                    'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
-                ],
-                // concatenation spacing — ConcatenationSpacing only, no PSR12
-                6 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
-                // padding before "=" — the ignoreSpacingBeforeAssignments knob
-                7 => ['Squiz.WhiteSpace.OperatorSpacing.SpacingBefore'],
-                // dangling "." outside a condition — OperatorLineBreak's to own
-                9 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
-                // dangling "||" inside the if — OneConditionPerLine only
-                13 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
-                // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
-                19 => ['PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace'],
-                // dangling "===" inside a multi-condition — OperatorLineBreak
-                // owns it (OneConditionPerLine polices only the boolean "||")
-                24 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
-            ],
-            $this->violationSourceMap($file)
-        );
-    }
-
-    /**
-     * Flatten errors and warnings to line => sorted violation source codes.
-     *
-     * @return array<int, array<int, string>>
-     */
-    private function violationSourceMap(LocalFile $file): array
-    {
-        $map = [];
-
-        foreach ([$file->getErrors(), $file->getWarnings()] as $violations) {
-            foreach ($violations as $line => $columns) {
-                foreach ($columns as $errors) {
-                    foreach ($errors as $error) {
-                        $map[$line][] = $error['source'];
-                    }
-                }
-            }
-        }
-
-        ksort($map);
-        array_walk($map, static function (array &$sources): void {
-            sort($sources);
-        });
-
-        return $map;
-    }
-}
+    expect(allViolationSourcesByLine($file))->toBe([
+        // The preamble's own two one-letter names, reported by the master
+        // ruleset's short-variable rule (#106). Listed for the same reason as
+        // the DisallowMagicNumbers entries below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
+        7 => [
+            'CleanCode.Naming.ShortVariable.TooShort',
+            'CleanCode.Naming.ShortVariable.TooShort',
+        ],
+        // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
+        // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands
+        // this line uses to carry a spacing defect are numeric literals, and
+        // #136 speaks about the one not on its ignore list. Listed for the
+        // same reason as AvoidConditionals below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
+        9 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceAfter',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceBefore',
+        ],
+        // concatenation spacing — ConcatenationSpacing only, no PSR12
+        // `$joined = $a.'b';` — the concatenation-spacing rule this fixture
+        // exists for, plus the Strings standard's own interpolation rule (#25),
+        // which reads the same line as a literal-and-variable concatenation
+        // that should be written "{$a}b". Two standards, two different
+        // complaints about one expression, so both belong here.
+        10 => [
+            'CleanCode.Strings.RequireStringInterpolation.Concatenation',
+            'Squiz.Strings.ConcatenationSpacing.PaddingFound',
+        ],
+        // padding before "=" — the ignoreSpacingBeforeAssignments knob, plus
+        // #136 on the "3" that line assigns
+        11 => [
+            'CleanCode.Naming.DisallowMagicNumbers.Found',
+            'CleanCode.Operators.BinaryOperatorSpacing.SpacingBefore',
+        ],
+        // dangling "." outside a condition — OperatorLineBreak's to own
+        13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        // the three "if" keywords the operator fixtures wrap their conditions
+        // in. AvoidConditionals (#12) warns once per branch across the whole
+        // ruleset, so it speaks about every conditional this fixture uses to
+        // set up an operator case. Listed rather than filtered out: the map is
+        // exhaustive on purpose, and that is what makes a *second* operator
+        // source appearing on any of these lines a failure.
+        16 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
+        // dangling "||" inside the if — OneConditionPerLine only
+        17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
+        // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
+        // `$ok`, the body of the multi-line condition on 20, is two
+        // characters — the short-variable rule (#106) again, and structural
+        // fixture noise for the same reason as line 7 above.
+        20 => ['CleanCode.Naming.ShortVariable.TooShort'],
+        23 => [
+            'CleanCode.Conditionals.AvoidConditionals.IfStatement',
+            'PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace',
+        ],
+        27 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
+        // dangling "===" inside a multi-condition — a deliberate overlap.
+        // OperatorLineBreak (#35) reports the dangling operator
+        // (OneConditionPerLine polices only the boolean "||"), and
+        // DisallowNewlineAroundEvaluativeOperators (#56) reports the newline
+        // after an evaluative operator. Its auto-fix — joining both operands
+        // onto one line — satisfies both standards at once.
+        28 => [
+            'CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators.FoundAfter',
+            'CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd',
+        ],
+    ]);
+});
