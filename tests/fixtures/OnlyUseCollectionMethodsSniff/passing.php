@@ -410,3 +410,40 @@ function copiesDoNotInheritARetiredBinding(array $groups, array $rows): int
 
     return count($copy) + count($ignored);
 }
+
+// A `static` inside a method is a function-local declaration and rebinds the
+// name exactly as one at file scope does. What exempts an untyped static
+// property is the class body it sits in directly — never the class enclosing a
+// method, which encloses the method's locals too.
+class MethodLocalStaticsStillRebindTheName
+{
+    public function countsAfterAStaticDeclaration(array $rows): int
+    {
+        $data = collect($rows);
+        static $data;
+
+        return count($data);
+    }
+}
+
+// A declaration is not a call, however it is spelled. Both names below are
+// mapped generic functions, and the second puts a reference marker between the
+// keyword and the name — which is what hid the keyword from the preceder check
+// and let phpcbf rewrite the declaration itself into `function &$items->count()`,
+// which is not parseable PHP.
+function declarationsNamedAfterAMappedFunctionAreNotCalls(array $rows): int
+{
+    $items = collect($rows);
+
+    function count($items)
+    {
+        return $items;
+    }
+
+    function &implode($items)
+    {
+        return $items;
+    }
+
+    return $items->count();
+}

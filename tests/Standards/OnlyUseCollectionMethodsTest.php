@@ -36,6 +36,22 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(ONLY_USE_COLLECTION_METHODS);
 });
 
+/**
+ * The compliant fixture is where every shape the sniff must stay silent on is
+ * pinned, so several of its cases are only meaningful as near misses:
+ *
+ * - A method-local `static $data;` still rebinds the name. The exemption that
+ *   keeps an untyped static *property* from retiring a same-named Collection is
+ *   for a declaration sitting directly in a class body — never one inside a
+ *   method, whose enclosing class encloses its locals too. A guard written as
+ *   "any class among the conditions" satisfies failing.php's lines 222-223 and
+ *   breaks here instead.
+ * - A declaration named after a mapped function (`function count($items)`, and
+ *   `function &implode($items)` behind a reference marker) is not a call. Both
+ *   sit in a scope holding a tracked Collection of the parameter's name, so a
+ *   preceder check that missed either spelling reports the declaration — and
+ *   phpcbf rewrites it into `function &$items->count()`, which will not parse.
+ */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'passing.php');
 
@@ -144,6 +160,10 @@ it('flags every violation at its own line with the expected code', function (): 
         191 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         198 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         205 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        222 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        223 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        231 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        236 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -206,6 +226,10 @@ it('names the Collection method that replaces each generic function', function (
         191 => 'count() => count()',
         198 => 'count() => count()',
         205 => 'count() => count()',
+        222 => 'count() => count()',
+        223 => 'count() => count()',
+        231 => 'count() => count()',
+        236 => 'count() => count()',
     ]);
 });
 
@@ -240,9 +264,45 @@ it('names the Collection method that replaces each generic function', function (
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(38)
+    expect($file->getErrorCount())->toBe(42)
         ->and(violationFixableLines($file->getErrors()))
-        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198]);
+        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 231, 236]);
+});
+
+/**
+ * CHAINABLE_METHODS is the list the *fixer* types a chained receiver from, so it
+ * fails closed: a method missing from it costs a declined fix rather than a
+ * rewrite. That is the safe direction, but only four of its entries
+ * (`filter`, `map`, `unique`, `values`) are ever exercised by a fixture, so the
+ * other twenty could be deleted or mistyped with the suite still green.
+ *
+ * Sibling TERMINAL_METHODS is pinned the same way below, and for the same
+ * reason: an unpinned hand-curated constant is how random() slipped in
+ * unnoticed. Pinning the key set makes every edit a deliberate, reviewed one.
+ */
+it('pins the chainable-method list', function (): void {
+    $chainable = (new ReflectionClass(OnlyUseCollectionMethodsSniff::class))->getConstant('CHAINABLE_METHODS');
+
+    expect(array_keys($chainable))->toBe([
+        'diff', 'except', 'filter', 'flatten', 'flip', 'intersect', 'keys', 'map', 'merge', 'only', 'pluck',
+        'reject', 'reverse', 'slice', 'sort', 'sortby', 'sortbydesc', 'sortdesc', 'take', 'unique', 'values',
+        'where', 'wherein', 'wherenotin',
+    ]);
+});
+
+/**
+ * The same lower-cased-and-sorted invariant TERMINAL_METHODS carries, for the
+ * same reason: lookups lower-case the method name first, so an entry holding a
+ * capital can never match, and sorted order is what makes a missing entry
+ * visible to whoever audits the list against the framework next.
+ */
+it('keeps the chainable-method list lower-cased and sorted', function (): void {
+    $keys = array_keys((new ReflectionClass(OnlyUseCollectionMethodsSniff::class))->getConstant('CHAINABLE_METHODS'));
+    $sorted = $keys;
+    sort($sorted);
+
+    expect($keys)->toBe($sorted)
+        ->and($keys)->toBe(array_map('strtolower', $keys));
 });
 
 /**

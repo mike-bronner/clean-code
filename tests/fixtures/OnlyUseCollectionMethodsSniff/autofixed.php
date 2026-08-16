@@ -204,3 +204,45 @@ function nullsafeChainsAreReportedButNeverFixable(?Collection $collection): int
 {
     return count($collection?->filter(static fn (string $row): bool => $row !== ''));
 }
+
+// An untyped static property is spelled exactly like a function-local
+// `static $ledger;`, and scopeOf() resolves a class body to the file scope — the
+// same bucket a file-scope Collection sits in. Reading the declaration as a
+// rebinding retires that Collection and takes a real violation down with it,
+// which is the worst direction available to a linter: the file looks clean.
+class UntypedStaticPropertiesDeclareNoLocal
+{
+    public static $ledger = [];
+
+    private static $register;
+}
+
+$ledger = collect([1, 2]);
+$register = collect([3, 4]);
+$ledgerTotal = $ledger->count();
+$registerTotal = $register->count();
+
+// A union or intersection hint naming a Collection makes the parameter one: the
+// hint is split on both separators before each part is tested. A check that read
+// the compound string whole would stop tracking both parameters below, and
+// neither call would be reported at all.
+function unionHintedParametersAreCollections(Collection|ArrayObject $union): int
+{
+    return $union->count();
+}
+
+function intersectionHintedParametersAreCollections(Collection&Countable $intersection): int
+{
+    return $intersection->count();
+}
+
+// The parameter-list exemption above, behind a reference marker. Returning by
+// reference puts an `&` between the keyword and the name, hiding the keyword
+// from the check that tells a declaration's parameter list from a call's
+// arguments — so this parameter registered as escaped by reference, in the same
+// file-scope bucket as the Collection of that name, and quietly cost line 222
+// its autofix. Nothing here is reported; the pin is that line 222 stays [x].
+function &declaresAByReferenceParameterSharingAFileScopeName($ledger)
+{
+    return $ledger;
+}

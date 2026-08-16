@@ -708,6 +708,15 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * `static function`, `static::`, `static fn` and a static closure all reuse
      * the keyword and bind nothing.
      *
+     * A variable following it is still not enough. An *untyped* static property
+     * (`private static $items;`, `public static $items = [];`) is spelled the
+     * same way as a function-local `static $items;`, and scopeOf() resolves a
+     * class body to scope 0 — the same bucket a file-scope Collection occupies.
+     * Left unguarded, declaring a property silently retires the unrelated local
+     * that shares its name, anywhere in the file. A property declares no local
+     * binding at all, so position decides: inside a function body this rebinds a
+     * local, inside a class body it does not.
+     *
      * @param array<int, array<string, bool>> $variables
      * @param array<int, array<string, bool>> $retired
      */
@@ -716,7 +725,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
 
-        if ($next === false || $tokens[$next]['code'] !== T_VARIABLE) {
+        if (
+            $next === false
+            || $tokens[$next]['code'] !== T_VARIABLE
+            || $this->isInClassBody($phpcsFile, $ptr) === true
+        ) {
             return;
         }
 
@@ -725,6 +738,27 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         if ($end !== null) {
             $this->retireRange($phpcsFile, $next, $end, $variables, $retired);
         }
+    }
+
+    /**
+     * Whether $ptr sits directly in a class, interface, trait or enum body
+     * rather than inside a function or closure within one. Whichever of the two
+     * encloses $ptr more tightly decides: a method's body is a function body,
+     * even though a class encloses it too.
+     */
+    private function isInClassBody(File $phpcsFile, int $ptr): bool
+    {
+        foreach (array_reverse($phpcsFile->getTokens()[$ptr]['conditions'] ?? [], true) as $code) {
+            if (in_array($code, [T_CLOSURE, T_FUNCTION], true) === true) {
+                return false;
+            }
+
+            if (isset(Tokens::$ooScopeTokens[$code]) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -904,7 +938,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         // A declaration's parameter list, not a call: its variables are the
         // callee's own, and addTypeHintedParameters() has already judged them.
-        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true);
+        $before = $this->pastReferenceMarker(
+            $phpcsFile,
+            $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true)
+        );
 
         if ($before !== false && in_array($tokens[$before]['code'], [T_FN, T_FUNCTION], true) === true) {
             return true;
@@ -1665,24 +1702,50 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        if ($prev === false) {
-            return $this->isUnshadowedName($phpcsFile, $stackPtr);
+        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
+            // A leading "\" still resolves to the global function; a preceding
+            // name segment (App\count, namespace\count) does not. A qualified
+            // name can never be a declaration, so the reference marker below
+            // does not apply to it.
+            $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
+
+            return $beforeSeparator === false
+                || in_array($tokens[$beforeSeparator]['code'], [T_NAMESPACE, T_STRING], true) === false;
         }
 
-        if (in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true) {
+        $prev = $this->pastReferenceMarker($phpcsFile, $prev);
+
+        if ($prev !== false && in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true) {
             return false;
         }
 
-        if ($tokens[$prev]['code'] !== T_NS_SEPARATOR) {
-            return $this->isUnshadowedName($phpcsFile, $stackPtr);
+        return $this->isUnshadowedName($phpcsFile, $stackPtr);
+    }
+
+    /**
+     * The token governing a name, given the one directly before it: the token
+     * whose type says whether the name is a call, a declaration, an
+     * instantiation or a method.
+     *
+     * Returning by reference puts an `&` between the keyword and the name, so
+     * `function &count()` is a declaration all the same and the keyword sits one
+     * token further back than it looks. Stepping over a bitwise `&` instead
+     * (`$mask & count()`) is harmless: what precedes an operator there is an
+     * operand, never one of the keywords the callers test for.
+     *
+     * Both callers need this, and both were missing it — isGlobalFunctionCall()
+     * read `function &count($items)` as a call and let `phpcbf` rewrite the
+     * declaration into `function &$items->count()`, which does not parse, and
+     * isByValueCallOpener() read a by-reference declaration's parameter list as
+     * call arguments and marked the parameters escaped.
+     */
+    private function pastReferenceMarker(File $phpcsFile, int|false $previous): int|false
+    {
+        if ($previous === false || $phpcsFile->getTokens()[$previous]['code'] !== T_BITWISE_AND) {
+            return $previous;
         }
 
-        // A leading "\" still resolves to the global function; a preceding name
-        // segment (App\count, namespace\count) does not.
-        $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
-
-        return $beforeSeparator === false
-            || in_array($tokens[$beforeSeparator]['code'], [T_NAMESPACE, T_STRING], true) === false;
+        return $phpcsFile->findPrevious(Tokens::$emptyTokens, ($previous - 1), null, true);
     }
 
     /**

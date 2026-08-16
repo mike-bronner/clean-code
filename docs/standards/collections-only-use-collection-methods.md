@@ -38,13 +38,15 @@ is one of:
 - a `Collection::make(...)` / `Collection::wrap(...)` factory call, or
   `new Collection(...)`, on any class whose name ends in `Collection`
   (`Collection`, `EloquentCollection`, `OrderCollection`, …);
-- a parameter type-hinted as such a class;
+- a parameter type-hinted as such a class — a union or intersection hint is
+  split apart first, so `Collection|ArrayObject` and `Collection&Countable` both
+  count;
 - a variable *unconditionally* assigned any of the above — tracked per function
   scope, and only when **every** binding of that name in the scope proved a
   Collection. Any other binding of it — a reassignment, `foreach`, `catch`,
-  destructuring, `global`/`static`, a `use (&$name)` capture, a compound
-  assignment or an index write — retires the name for the whole scope, not just
-  from that line on.
+  destructuring, `global`/`static` (the local declaration, never a static
+  property), a `use (&$name)` capture, a compound assignment or an index write —
+  retires the name for the whole scope, not just from that line on.
 
 The name is also left alone where the call itself is not what it appears to be:
 a `use function … as count;` import rebinds the name for the whole file, so an
@@ -123,6 +125,13 @@ Rather than let the textually last assignment win — which would report, and
 offer to auto-fix, code that is correct at runtime — the sniff retires the
 variable. A property write (`self::$items = collect($rows)`) never registers
 the local or parameter that shares its name, for the same reason.
+
+A property *declaration* is held apart from a local for the same reason, in the
+other direction. An untyped `private static $items;` is spelled exactly like a
+function-local `static $items;`, which does rebind the name — so what separates
+them is where the declaration sits. Directly in a class body it declares no
+local and retires nothing; inside a method it is a local declaration and retires
+as always.
 
 ### Flagged functions
 
