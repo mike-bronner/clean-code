@@ -352,11 +352,20 @@ final class FunctionCalls
      * the trait use, silencing calls that block never imported anything for.
      *
      * A class-like or function condition is what marks that trait use, since
-     * an import is legal only where nothing encloses it but a namespace. The
-     * closure capture list that also sits at namespace level needs no such
-     * care: it ends at its own statement's semicolon like any expression, and
-     * the parenthesis it opens with is not the `function` keyword an import
-     * has to lead with.
+     * an import is legal only where nothing encloses it but a namespace.
+     *
+     * A closure's capture list passes this check as well — nothing but a
+     * namespace encloses `use ($value)` either — and it is measured just as
+     * wrongly: the next semicolon after it is one inside the closure's own
+     * body, not the enclosing statement's terminator. What keeps that harmless
+     * is not the span but the two shapes importedFunctionNames() demands before
+     * it reads any name out of one: a capture list opens with `(`, so it never
+     * carries the leading `function` keyword an import has to lead with, and a
+     * closure body's `{` follows `)`, which PHP_CodeSniffer never tokenises as
+     * T_OPEN_USE_GROUP — only a brace directly after `\` becomes one. Both are
+     * grammar invariants, and both are pinned directly by this helper's tests:
+     * relaxing either gate hands the decision back to the mismeasured span, so
+     * neither may be dropped as redundant.
      */
     private static function isNamespaceLevel(File $phpcsFile, int $usePtr): bool
     {
