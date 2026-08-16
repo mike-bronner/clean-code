@@ -295,6 +295,47 @@ in and what applies the `<properties>` configured there.
    `CleanCode/Sniffs/Debug/DisallowDebugFunctionsSniff.php` as the template.
    Sniffs in the standard's `Sniffs/` directory are included automatically —
    no per-sniff registration in `CleanCode/ruleset.xml` is needed.
+
+   **Give every token-kind classification array a named family.** A
+   `private const` enumerating PHPCS token constants — the `EXPRESSION_SCOPES`,
+   `CHAIN_OPERATORS`, `NON_FUNCTION_CALL_PRECEDERS` shape — must carry a doc
+   comment naming the **canonical, independent source** of the family it
+   classifies, and accounting for every member of that source: included, or
+   excluded with a one-line reason, inline in that same comment. A canonical
+   source is a `PHP_CodeSniffer\Util\Tokens::$…` grouping array, or a closed
+   list stated with its provenance ("every `T_*_ARROW` constant `token_name()`
+   reports"). A family read off the array's own current contents does not
+   count — it is complete by construction and asks nothing of the author.
+   Where the source and the family differ, say so and prove it, rather than
+   quietly widening either: `T_FN` is in `EXPRESSION_SCOPES`'s family but not
+   in `Tokens::$scopeOpeners`, and the test below asserts both halves of that
+   against a tokenized arrow function.
+
+   `MultiLineStatementIndentSniff::EXPRESSION_SCOPES` is the worked example,
+   and `accounts for every scope opener PHPCS defines` in
+   `tests/Standards/MultiLineStatementIndentTest.php` is the test shape that
+   holds it: the family read out of PHPCS at run time, the accounting parsed
+   out of the docblock, neither restated in the test. A PHPCS release that
+   adds a scope opener reddens the suite instead of slipping past it.
+
+   This is a checklist step rather than a check that runs over every such array
+   in the tree, because **nothing declares which family a given array answers
+   to.** Finding the declarations is easy — tokenize the tree, take every
+   `private const` of `T_*` constants — but the family each one is measured
+   against is a judgement (`CHAIN_OPERATORS` against dereference operators,
+   `RAW_CONTENT` against raw-content tokens), and no registry maps an array to
+   its family, so an automated checker has nothing to compare against. The
+   lighter, purely structural alternative — assert every such constant has an
+   adjacent family doc comment — was considered and **rejected**: it says
+   nothing about whether the named family is canonical or the accounting
+   complete, which is the whole loophole this convention closes, and switching
+   it on would fail against every already-shipped classification array (some
+   ninety of them, across forty-odd sniffs), a retrofit issue #316 scopes out.
+
+   When a sniff does ship a classification array missing a member of its
+   family, open the issue **against this checklist step**, not against the
+   individual sniff. The step is what failed; fixing the one array again
+   leaves the step exactly as unable to catch the next one.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** — one entry in `SWEPT_SNIFFS` if it reports
