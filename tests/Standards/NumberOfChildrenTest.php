@@ -359,6 +359,72 @@ it('reads a group import without recursing once per brace', function (): void {
 });
 
 /**
+ * The ordinal that tells two same-named declarations on one line apart is read
+ * out of an index built once per token stream, and this is what that buys.
+ *
+ * It used to be counted on demand, by walking back from each declaration over
+ * every token sharing its physical line. Names are compared only after a
+ * T_CLASS is found, so the walk is paid whether or not a line holds two
+ * declarations of one name — and PHP puts no limit on how many declarations a
+ * line may hold. The i-th costs O(i) and K of them cost O(K²) together: over
+ * the 100KB fixture below, the shipped binary took 34.3s, against 0.52s once
+ * the ordinals are indexed. That curve reaches a practical hang a few times
+ * this size, on input a CI job, a pre-commit hook, or a lint service is handed
+ * by whoever opened the pull request.
+ *
+ * Ten seconds separates the two by a wide margin rather than a fine one —
+ * twenty times the fixed cost, under a third of the unfixed one — so the
+ * assertion is about the shape of the curve and not about the speed of the
+ * machine it runs on.
+ *
+ * Base's fifteen children are read back out of the report, so this is a
+ * completed analysis of the whole directory at the shipped default and not a
+ * run that exited early or skipped the packed file. The fixture is generated
+ * rather than committed for the same reason the group-import one above is: its
+ * size is the whole point of it.
+ */
+it('indexes a packed line of declarations once, not once per declaration', function (): void {
+    $children = implode("\n\n", array_map(
+        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+        range(1, 15)
+    ));
+    $packed = implode('', array_map(
+        static fn (int $index): string => "class Packed{$index}{}",
+        range(1, 8000)
+    ));
+    $project = stageProjectOutsideTests([
+        'Base.php' => "<?php\n\nnamespace Fixture\\Packed;\n\nclass Base\n{\n}\n\n" . $children . "\n",
+        'Packed.php' => '<?php ' . $packed . "\n",
+    ]);
+    $started = microtime(true);
+    [$stdout, , $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', [
+        PHP_BINARY,
+        cleanCodeRoot() . '/vendor/bin/phpcs',
+        '--standard=' . cleanCodeRoot() . '/rules.xml',
+        '--sniffs=' . NUMBER_OF_CHILDREN,
+        '--report=json',
+        '--no-cache',
+        dirname($project),
+    ])));
+    $elapsed = (microtime(true) - $started);
+    $report = json_decode($stdout, true);
+    $reported = [];
+
+    foreach (($report['files'] ?? []) as $path => $file) {
+        foreach ($file['messages'] as $message) {
+            $reported[] = basename((string) $path) . ':' . $message['line'] . ' ' . $message['message'];
+        }
+    }
+
+    expect($status)->toBe(1);
+    expect($reported)->toBe([
+        'Base.php:5 The class Base has 15 children.'
+            . ' Consider to rebalance this class hierarchy to keep number of children under 15.',
+    ]);
+    expect($elapsed)->toBeLessThan(10.0);
+});
+
+/**
  * runFiles() walks the run's file list by key(), never by value, and this is the
  * PHP_CodeSniffer behaviour that choice rests on.
  *

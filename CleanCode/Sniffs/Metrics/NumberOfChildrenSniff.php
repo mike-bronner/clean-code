@@ -250,6 +250,34 @@ class NumberOfChildrenSniff implements Sniff
     private ?string $scannedRun = null;
 
     /**
+     * The token stream $ordinals was built from, so that it is discarded when
+     * the stream changes and its pointers could mean something else.
+     *
+     * The same key CleanCode.DeadCode.UnusedFormalParameter and
+     * CleanCode.Arrays.ArrayAccessors build for their own per-stream maps: the
+     * file, its token count, and the fixer's loop counter. phpcbf re-tokenises
+     * and re-runs every sniff against the *same* File object once another
+     * sniff has fixed something, so neither the object nor the path identifies
+     * a stream on its own. The token count moves whenever a fix moves a
+     * pointer, and the loop counter states the pass outright rather than
+     * inferring it from that count.
+     *
+     * @var string|null
+     */
+    private ?string $ordinalsKey = null;
+
+    /**
+     * Which of the same-named declarations on its line each class declaration
+     * of the current token stream is, keyed by its PHP_CodeSniffer pointer.
+     *
+     * Built in one forward pass over the stream rather than re-derived per
+     * declaration; see declarationOrdinal().
+     *
+     * @var array<int, int>
+     */
+    private array $ordinals = [];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -284,7 +312,7 @@ class NumberOfChildrenSniff implements Sniff
 
         $line = $phpcsFile->getTokens()[$stackPtr]['line'];
         $candidates = $this->declarations[$this->realPath($path)][$line][strtolower($name)] ?? [];
-        $fullyQualified = $candidates[$this->declarationOrdinal($phpcsFile, $stackPtr, $name)] ?? null;
+        $fullyQualified = $candidates[$this->declarationOrdinal($phpcsFile, $stackPtr)] ?? null;
 
         if ($fullyQualified === null) {
             return;
@@ -322,24 +350,76 @@ class NumberOfChildrenSniff implements Sniff
      * declaration and to nothing else — an anonymous class is T_ANON_CLASS and
      * the `class` of `Type::class` is a T_STRING — and the scan records that
      * same set, excluding both shapes explicitly.
+     *
+     * The answer is read out of an index built once per token stream, not
+     * counted here. It used to be counted here, by walking back from $stackPtr
+     * over every token sharing the class's physical line — which the i-th
+     * declaration on a line pays O(i) for, and K of them pay O(K²) for
+     * together. The names are compared only once a T_CLASS is found, so the
+     * walk was paid whether or not a line held two declarations of one name,
+     * and nothing bounds K: `class C0{}class C1{}…` on one line is ordinary
+     * PHP, and 8,000 of them are 100KB that took the shipped binary 34.3s
+     * against 0.52s indexed. Anything running this ruleset over source it did
+     * not write — a CI job on a pull request, a pre-commit hook, a lint service
+     * — is handed that file by whoever wrote it.
+     *
+     * A pointer absent from the index reads as the first declaration on its
+     * line, which is what the walk returned when it found no same-named
+     * predecessor. Nothing reaches it: the index holds every pointer
+     * PHP_CodeSniffer hands process(), because both take the name from
+     * getDeclarationName() over the same stream and process() has already
+     * dropped the ones that have none.
+     *
+     * @see buildOrdinals() for the single pass that replaced the walk.
      */
-    private function declarationOrdinal(File $phpcsFile, int $stackPtr, string $name): int
+    private function declarationOrdinal(File $phpcsFile, int $stackPtr): int
+    {
+        $this->buildOrdinals($phpcsFile);
+
+        return $this->ordinals[$stackPtr] ?? 0;
+    }
+
+    /**
+     * Indexes the ordinal of every class declaration in the file, once per
+     * token stream.
+     *
+     * The walk reaches the declarations in the one order PHP_CodeSniffer hands
+     * them to process(), so a running count per line and short name gives each
+     * one the same ordinal a backward scan from it would have — for the cost of
+     * a single forward pass over the stream rather than one pass per
+     * declaration.
+     *
+     * A declaration with no name takes no ordinal, because process() drops one
+     * before it asks and the scan records none for it either.
+     */
+    private function buildOrdinals(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $line = $tokens[$stackPtr]['line'];
-        $ordinal = 0;
+        $key = $phpcsFile->getFilename()
+            . '|' . count($tokens)
+            . '|' . ($phpcsFile->fixer->loops ?? 0);
 
-        for ($cursor = ($stackPtr - 1); $cursor >= 0 && $tokens[$cursor]['line'] === $line; $cursor--) {
-            if ($tokens[$cursor]['code'] !== T_CLASS) {
-                continue;
-            }
-
-            if (strcasecmp((string) $phpcsFile->getDeclarationName($cursor), $name) === 0) {
-                $ordinal++;
-            }
+        if ($this->ordinalsKey === $key) {
+            return;
         }
 
-        return $ordinal;
+        $this->ordinalsKey = $key;
+        $this->ordinals = [];
+        $counts = [];
+        $pointer = $phpcsFile->findNext(T_CLASS, 0);
+
+        while ($pointer !== false) {
+            $name = $phpcsFile->getDeclarationName($pointer);
+
+            if ($name !== null) {
+                $slot = $tokens[$pointer]['line'] . '|' . strtolower($name);
+                $ordinal = ($counts[$slot] ?? 0);
+                $this->ordinals[$pointer] = $ordinal;
+                $counts[$slot] = ($ordinal + 1);
+            }
+
+            $pointer = $phpcsFile->findNext(T_CLASS, ($pointer + 1));
+        }
     }
 
     /**
@@ -669,7 +749,12 @@ class NumberOfChildrenSniff implements Sniff
      *
      * $index is left on the semicolon that ends the statement, so the caller's
      * walk resumes after it rather than re-entering it — a group's braces would
-     * otherwise be counted as nesting by the brace tracker.
+     * otherwise be counted as nesting by the brace tracker. A statement with no
+     * terminating semicolon has no such token to stop on: skipStatement() then
+     * leaves $index exactly where it was, and the walk resumes inside the
+     * statement rather than after it. Only a truncated or otherwise
+     * non-compiling source reaches that, since every `use` import PHP accepts
+     * ends in a semicolon.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      *
