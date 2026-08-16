@@ -9,7 +9,8 @@
  * suppression in suppressed.php, the header-walk boundary in class-body-use.php,
  * the string-literal escaping in escaped-literals.php, the group-import
  * emptiness guard in group-import-trailing-comma.php, the mixed function and
- * const clauses in group-import-mixed-keywords.php, the scope keywords in
+ * const clauses in group-import-mixed-keywords.php, the multi-segment and
+ * leading-separator imports in import-resolution.php, the scope keywords in
  * scope-keywords.php and the three end-of-file truncations in
  * unterminated-*.php. The rule is detection-only, so there is no autofixed
  * fixture.
@@ -338,6 +339,59 @@ it('reads a function or const keyword before it prefixes a group clause', functi
 
     expect($vendor->getErrors())->toBe([])
         ->and(array_keys($vendor->getWarnings()))->toBe([19]);
+});
+
+/**
+ * An import binds its alias to a whole namespace, so a reference written as
+ * `Models\Comment` keeps every segment past the alias: `App\Models\Comment`,
+ * not `App\Models`. Every other import-resolved reference in these fixtures is
+ * a bare one-segment name, which a resolution that kept only the alias would
+ * satisfy just as well.
+ *
+ * The truncated name sits under the same `App` root as the full one, so the
+ * shipped configuration cannot tell them apart on the line alone. Three runs
+ * pin it, each catching what the others cannot:
+ *
+ * - under `App`, the *message* is the discriminator — `App\Models\Comment` and
+ *   `App\Models\Comment\Draft` against the `App\Models` a truncation yields,
+ *   same lines either way. Line 19 comes with them: `use \App\Enums\Status`
+ *   imports `App\Enums\Status`, and keeping the leading separator binds the
+ *   alias to `\App\Enums\Status`, which no root can match.
+ * - under `App\Models\Comment`, the line is the discriminator: the full names
+ *   match that root and `App\Models` does not, so a truncation empties the
+ *   report. Line 19 must fall out here, which is what proves the narrower root
+ *   is genuinely in force rather than the shipped one.
+ * - under `Vendor\Sdk\Client`, the same for a vendor import, in the direction
+ *   the App runs cannot reach: line 24 resolves to `Vendor\Sdk\Client` and
+ *   reports, and to the silent `Vendor\Sdk` if the trailing segment is dropped.
+ */
+it('keeps every segment written past an import alias', function (): void {
+    $shipped = analyzeFixture(FIRST_PARTY_MOCKS, 'import-resolution.php');
+    $messages = violationMessagesByLine($shipped->getWarnings());
+
+    expect($shipped->getErrors())->toBe([])
+        ->and(array_keys($shipped->getWarnings()))->toBe([17, 18, 19])
+        ->and($messages[17][0])->toContain('Mocking App\Models\Comment,')
+        ->and($messages[18][0])->toContain('Mocking App\Models\Comment\Draft,')
+        ->and($messages[19][0])->toContain('Mocking App\Enums\Status,');
+
+    $narrowed = analyzeWithConfiguredRuleset(
+        FIRST_PARTY_MOCKS,
+        'import-resolution.php',
+        ['firstPartyNamespaces' => ['App\Models\Comment']]
+    );
+
+    expect($narrowed->getErrors())->toBe([])
+        ->and(array_keys($narrowed->getWarnings()))->toBe([17, 18]);
+
+    $vendor = analyzeWithConfiguredRuleset(
+        FIRST_PARTY_MOCKS,
+        'import-resolution.php',
+        ['firstPartyNamespaces' => ['Vendor\Sdk\Client']]
+    );
+
+    expect($vendor->getErrors())->toBe([])
+        ->and(array_keys($vendor->getWarnings()))->toBe([24]);
 });
 
 /**

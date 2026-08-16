@@ -132,6 +132,7 @@ lands on the same answer:
 | Written | Resolved (in `namespace App\Tests\Unit`, with `use App\Models\User`) |
 |---|---|
 | `User::class` | `App\Models\User` — through the import |
+| `Models\Comment::class` | `App\Models\Comment` — every segment past the alias, given `use App\Models` |
 | `\App\Models\User::class` | `App\Models\User` — already qualified |
 | `namespace\Support\Clock::class` | `App\Tests\Unit\Support\Clock` — relative |
 | `Support\Clock::class` | `App\Tests\Unit\Support\Clock` — current namespace |
