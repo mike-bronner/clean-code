@@ -6,6 +6,7 @@ namespace MikeBronner\CleanCode\Sniffs\Models;
 
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
+use PHP_CodeSniffer\Util\Tokens;
 
 /**
  * Enforces the member ordering the "Models: Organization" standard prescribes
@@ -78,10 +79,17 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  *   break. The risk of a fixer that quietly moves a comment onto the wrong
  *   member, or breaks working code, outweighs the convenience of not
  *   reordering by hand, so the sniff reports and leaves the edit to the author.
+ * - An anonymous class extending a model-shaped parent is checked, against
+ *   itself. See register() for why registering T_CLASS alone was not enough and
+ *   why the enumeration stops at the two class-like tokens it holds.
  * - Promoted constructor properties are not checked. They are declared in the
  *   constructor's parameter list, so their order is the constructor's
  *   signature — a different thing from the class body's member list that rule 2
  *   orders, and one a caller using named arguments can depend on.
+ * - The body of a PHP 8.4 property hook is not checked. The hooked property is
+ *   ordered like any other; the `$this`, parameters, and locals inside its
+ *   `get` or `set` body are not properties. See checkProperties() for why the
+ *   tokenizer makes that a test the sniff has to make rather than a given.
  * - Magic methods are not checked. Their names are PHP's, their placement is
  *   conventional (a constructor leads a class; it does not sort under "c"), and
  *   rule 5 addresses the methods an author names.
@@ -152,11 +160,46 @@ class MemberOrderingSniff implements Sniff
     ];
 
     /**
+     * The non-visibility keywords a property declaration can start with. A
+     * declaration leads with one of these or with a visibility modifier, and
+     * `var $legacy;` still parses, so T_VAR belongs here too.
+     *
+     * Matches the list the sibling LongVariableSniff keeps for the same test.
+     *
+     * @var array<int|string>
+     */
+    private const PROPERTY_MODIFIERS = [
+        T_FINAL,
+        T_READONLY,
+        T_STATIC,
+        T_VAR,
+    ];
+
+    /**
+     * Both of the class-like tokens that can name a model-shaped parent.
+     *
+     * PHPCS retokenizes `new class … {` to T_ANON_CLASS rather than T_CLASS, so
+     * a standard registering T_CLASS alone never sees an anonymous class at all
+     * — `new class extends Model { … }` went entirely unchecked. The rest of
+     * this class needs nothing else for it: process() and every walk below key
+     * off $stackPtr and its scope bounds generically, and the conditions test
+     * each walk applies already scopes a member to the class that declares it,
+     * which is what keeps a nested anonymous class's members off the enclosing
+     * class's list and, now, on their own.
+     *
+     * The enumeration is closed rather than short by one. The class-like tokens
+     * PHPCS produces are T_CLASS, T_ANON_CLASS, T_INTERFACE, T_TRAIT and
+     * T_ENUM; of those only a class can extend a model, since PHP lets an
+     * interface extend only interfaces and gives a trait and an enum no extends
+     * clause at all. An interface reaches findExtendedClassName() but declares
+     * no traits and no properties and is not a model, so it stays out
+     * deliberately.
+     *
      * @return array<int|string>
      */
     public function register(): array
     {
-        return [T_CLASS];
+        return [T_ANON_CLASS, T_CLASS];
     }
 
     /**
@@ -318,15 +361,28 @@ class MemberOrderingSniff implements Sniff
      * Rule 2 — properties grouped public → protected → private, alphabetical
      * inside each group.
      *
-     * A class-body T_VARIABLE that sits in no parentheses is PHPCS's own
-     * definition of a member property (Files/File::getMemberProperties()), so
-     * the two tests here are what make the getMemberProperties() call below
-     * provably safe — it answers by throwing on anything else. The parenthesis
-     * test is what excludes a method's parameters and a promoted constructor
-     * property; the conditions test is what excludes a method body's local
-     * variables and a nested anonymous class's own properties. A property
-     * default cannot contain a variable, so nothing else in a class body can
-     * reach here.
+     * Three tests decide what is a member property, and each excludes a
+     * different thing. The conditions test excludes a method body's local
+     * variables and a nested anonymous class's own properties — that class is
+     * registered in its own right and orders its own members. The parenthesis
+     * test excludes a method's parameters and a promoted constructor property.
+     * The declaration test excludes the inside of a PHP 8.4 property hook.
+     *
+     * The third is not redundant. PHP_CodeSniffer opens no scope for a hook, so
+     * every `$this`, hook parameter, and hook local written inside one arrives
+     * with the class as its innermost condition and, for the locals, no
+     * parentheses either — indistinguishable from a member property by the
+     * first two tests alone. Left unfiltered they were reported as properties
+     * in their own right (`Property $this is out of alphabetical order`) and,
+     * worse, took the baseline the real properties around them are compared
+     * against, so a genuinely misordered property after a hooked one went
+     * unreported. The sibling TooManyFieldsSniff and LongVariableSniff carry
+     * the same test against the same tokenizer behaviour.
+     *
+     * Together the three are what make the getMemberProperties() call below
+     * provably safe — it answers by throwing on anything that is not a member
+     * var. A property default cannot contain a variable, so nothing else in a
+     * class body can reach here.
      *
      * `public $first, $second;` declares two properties from one statement, and
      * both arrive here with the same visibility — the standard orders
@@ -345,6 +401,10 @@ class MemberOrderingSniff implements Sniff
             }
 
             if (empty($tokens[$ptr]['nested_parenthesis']) === false) {
+                continue;
+            }
+
+            if ($this->isPropertyDeclaration($phpcsFile, $ptr) === false) {
                 continue;
             }
 
@@ -381,6 +441,64 @@ class MemberOrderingSniff implements Sniff
             $previousName = $name;
             $previousRank = $rank;
         }
+    }
+
+    /**
+     * Whether the variable at $variablePtr opens a property declaration — that
+     * is, whether the statement holding it starts with a visibility or property
+     * modifier.
+     *
+     * The statement starts after the nearest preceding `;`, `{`, or `}`, and
+     * any attributes between there and the variable are stepped over — as many
+     * as are written, since `#[Encrypted] #[Cast(…)] public string $alpha` is
+     * one declaration with two of them. A comma is deliberately not a boundary:
+     * `public $delta, $bravo;` declares two properties from one statement, and
+     * the second has to find the same `public` the first does.
+     *
+     * What this rejects is every statement inside a property hook's body, which
+     * starts with the hook's own name, an expression, or a keyword — never a
+     * modifier — and a hook parameter, whose statement starts at the hook name.
+     *
+     * Matches the sibling LongVariableSniff's test of the same name.
+     */
+    private function isPropertyDeclaration(File $phpcsFile, int $variablePtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $boundary = $phpcsFile->findPrevious(
+            [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
+            ($variablePtr - 1)
+        );
+
+        // Not reachable from checkProperties(), which only calls this for a
+        // variable inside a class body — and a class body opens with the `{`
+        // this search cannot miss. It is here because the alternative is worse
+        // than dead: `false + 1` is 1 in PHP, so without the guard a boundary
+        // that was never found would silently start the scan at the file's
+        // second token and answer from whatever is there.
+        if ($boundary === false) {
+            return false;
+        }
+
+        $start = ($boundary + 1);
+
+        while (
+            ($start = $phpcsFile->findNext(Tokens::$emptyTokens, $start, $variablePtr, true)) !== false
+            && $tokens[$start]['code'] === T_ATTRIBUTE
+        ) {
+            $start = ($tokens[$start]['attribute_closer'] + 1);
+        }
+
+        // Reached whenever the variable is itself the first thing in its
+        // statement — `$local = $value;` in a hook body, which is exactly what
+        // this method exists to reject. Answering false here is the same answer
+        // the comparison below would reach, and it reaches it without indexing
+        // $tokens with a bool.
+        if ($start === false) {
+            return false;
+        }
+
+        return in_array($tokens[$start]['code'], Tokens::$scopeModifiers, true)
+            || in_array($tokens[$start]['code'], self::PROPERTY_MODIFIERS, true);
     }
 
     /**

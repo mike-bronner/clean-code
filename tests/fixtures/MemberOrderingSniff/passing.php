@@ -179,9 +179,19 @@ class InterleavedModel extends BaseModel
 /**
  * Magic methods, whose placement is PHP's convention rather than the standard's
  * alphabet, and a nested anonymous class whose own members answer to it.
+ *
+ * The anonymous class is compliant read on its own and would report under every
+ * rule if its members were pooled with the enclosing class's: each of its three
+ * kinds of member sorts before the one the outer class declares last. That is
+ * what makes this class evidence for the conditions test at all three walks,
+ * now that the anonymous class is checked in its own right rather than skipped.
  */
 class MagicAndNestedModel extends Model
 {
+    use Zulu;
+
+    public string $zulu = '';
+
     public function __construct()
     {
     }
@@ -193,12 +203,20 @@ class MagicAndNestedModel extends Model
     public function zulu(): object
     {
         return new class extends Model {
-            use Zebra;
             use Alpha;
-
-            private string $zulu = '';
+            use Beta;
 
             public string $alpha = '';
+
+            public string $beta = '';
+
+            public function beta(): void
+            {
+            }
+
+            public function charlie(): void
+            {
+            }
         };
     }
 

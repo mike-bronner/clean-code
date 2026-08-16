@@ -15,6 +15,12 @@
  *                  method categories interleaved, magic methods, and a nested
  *                  anonymous class whose members answer to it and not to the
  *                  class around it.
+ * - anonymous-class.php
+ *                  the same five rules broken inside a *top-level* anonymous
+ *                  class, plus the three boundaries of the gate around it.
+ * - property-hooks.php
+ *                  PHP 8.4 hooks, whose bodies the property walk has to leave
+ *                  alone without leaving the hooked property itself alone.
  * - the rest       one shape each, named for what it exercises.
  *
  * Every "no violations" assertion here says which behaviour it withdraws.
@@ -157,21 +163,104 @@ it('names both members in every ordering message', function (): void {
  *   because a promoted parameter is not a member var.
  * - `MagicAndNestedModel` puts `__toString()` after `zulu()`. Magic-method
  *   skip removed: 1 violation, since `_` sorts ahead of every letter.
- * - The anonymous class inside it declares its traits and properties in
- *   reverse order. The conditions check appears at three call sites and they
- *   do not answer alike, so each site is named with what it actually does:
- *   removed from the trait walk, 1 violation; removed from the property walk,
- *   PHPCS aborts the file with "$stackPtr is not a class member var" — the
- *   walk reaches `$this` in an earlier method body long before it reaches this
- *   class, and no variable in a method body is a member var; removed from the
- *   method walk, nothing at all, because this anonymous class declares no
- *   methods to reach.
+ * - The anonymous class inside it is compliant read on its own, and every one
+ *   of its members sorts before the last member of its kind the outer class
+ *   declares — `use Alpha` before `use Zulu`, `$alpha` before `$zulu`, `beta()`
+ *   before `zulu()`. That is what makes it evidence for the conditions check,
+ *   which appears at three call sites; each was removed on its own and each
+ *   reports exactly the member it wrongly pooled: the trait walk on `Alpha`,
+ *   the property walk on `$alpha`, the method walk on `beta()`. One violation
+ *   apiece.
+ *
+ *   The anonymous class is checked in its own right now rather than skipped, so
+ *   the conditions check no longer decides *whether* its members are ordered,
+ *   only *against what*. Its compliant form is what this fixture asserts;
+ *   anonymous-class.php asserts the reports.
  */
 it('is silent on compliant models and on every near-miss shape', function (): void {
     $file = analyzeFixture(MEMBER_ORDERING, 'passing.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * An anonymous class is a class, and the standard's five rules reach it.
+ *
+ * PHP_CodeSniffer retokenizes `new class … {` from T_CLASS to T_ANON_CLASS, so
+ * a sniff registering T_CLASS alone never runs on one at all — every rule went
+ * unchecked inside `new class extends Model { … }`, at the top level and
+ * nested. Registering both is the whole fix: process() and the three walks key
+ * off $stackPtr and its scope bounds, not off which token opened the class.
+ *
+ * The assertion is the same seven-row shape failing.php asserts for a named
+ * class, on the same five rules in the same order, which is what pins the two
+ * to the same behaviour rather than merely to non-silence. Mutation: register()
+ * back to `[T_CLASS]` and this fixture reports nothing at all — 8 violations to
+ * 0.
+ *
+ * The three classes after it are the gate's boundaries, and their silence is
+ * the rest of the assertion:
+ *
+ * - `new class('anonymous', 1) extends Model` — an argument list sits between
+ *   `class` and `extends`. It reports its reversed traits (line 64), which is
+ *   what says the extends clause is still found past the arguments.
+ * - `new class { … }` — no extends clause. findExtendedClassName() returns
+ *   false and the gate closes.
+ * - `new class extends Controller` — a parent that is not model-shaped. Both
+ *   declare the same reversed traits as the class above, so their silence is
+ *   the gate's and not the fixture's.
+ */
+it('checks an anonymous class against all five rules', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'anonymous-class.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 21, 'column' => 9, 'source' => MEMBER_ORDERING_TRAIT_ORDER],
+            ['line' => 22, 'column' => 5, 'source' => MEMBER_ORDERING_MULTIPLE_TRAITS],
+            ['line' => 26, 'column' => 19, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 30, 'column' => 22, 'source' => MEMBER_ORDERING_PROPERTY_GROUP],
+            ['line' => 37, 'column' => 21, 'source' => MEMBER_ORDERING_RELATIONSHIP],
+            ['line' => 46, 'column' => 21, 'source' => MEMBER_ORDERING_ACCESSOR],
+            ['line' => 55, 'column' => 21, 'source' => MEMBER_ORDERING_METHOD],
+            ['line' => 64, 'column' => 9, 'source' => MEMBER_ORDERING_TRAIT_ORDER],
+        ]);
+});
+
+/**
+ * A PHP 8.4 property hook's body is not a list of properties, and the property
+ * it hangs off still is one.
+ *
+ * PHP_CodeSniffer opens no scope for a hook, so every `$this`, hook parameter,
+ * and hook local inside one reaches the property walk with the class as its
+ * innermost condition — and the locals with no enclosing parentheses either, so
+ * neither of the walk's other two tests excludes them. The declaration test
+ * does. The sibling TooManyFieldsSniff and LongVariableSniff carry the same
+ * test against the same tokenizer behaviour.
+ *
+ * Both readings are pinned by a mutation, because either half alone would pass
+ * against a sniff that got the other half wrong:
+ *
+ * - `HookedModel` is compliant and its hook bodies name `$zulu`, `$aardvark`,
+ *   and `$this` — each placed so that reading it as a property reports. The
+ *   declaration test removed: 5 violations here, up from 2.
+ * - `MisorderedHookedModel` and the anonymous class after it put a hooked
+ *   `$zulu` before a plain `$alpha`, which is the report asserted below. A
+ *   sniff filtering hooked properties out along with their bodies is silent on
+ *   both: confirmed by mutation, 2 violations to 0.
+ *
+ * The anonymous class is the intersection of the two fixes this fixture and
+ * anonymous-class.php each cover on their own — it is reached only through
+ * T_ANON_CLASS, and its hook body stays out only through the declaration test.
+ */
+it('reads a hooked property without reading its hook body', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'property-hooks.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 39, 'column' => 19, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 50, 'column' => 19, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+        ]);
 });
 
 /**
@@ -205,17 +294,32 @@ it('reads trait names past separators, qualifiers, and a conflict block', functi
 });
 
 /**
- * `public $delta, $bravo;` declares two properties from one statement. The
- * standard orders properties rather than statements, so both are checked and
- * the report lands on the second name's column — the only thing that
- * distinguishes checking both from checking the statement's first name alone.
+ * Two shapes of the same question — where a property declaration starts — which
+ * the property walk has to answer to tell a member from the locals inside a
+ * property hook's body:
+ *
+ * - `public $delta, $bravo;` declares two properties from one statement. The
+ *   standard orders properties rather than statements, so both are checked and
+ *   the report lands on the second name's column — the only thing that
+ *   distinguishes checking both from checking the statement's first name alone.
+ *   A comma is not a statement boundary, which is what lets `$bravo` find the
+ *   same `public` `$delta` does.
+ * - `AttributedPropertyModel` writes attributes in front of both its
+ *   properties, one before the first and two before the second, and the second
+ *   is out of order. The attributes are stepped over to reach the modifier
+ *   behind them; step over only the whitespace and the declaration is read as
+ *   starting at `#[`, which is no modifier, so the property is passed over
+ *   entirely and its disorder goes unreported. Confirmed by mutation: replacing
+ *   the stepping loop with a single findNext() drops this fixture from 2
+ *   violations to 1.
  */
-it('checks every property of a multi-property declaration', function (): void {
+it('checks every property of a multi-property or attributed declaration', function (): void {
     $file = analyzeFixture(MEMBER_ORDERING, 'multi-property.php');
 
     expect($file->getWarnings())->toBe([])
         ->and(violationTuples($file))->toBe([
-            ['line' => 15, 'column' => 20, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 20, 'column' => 20, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
+            ['line' => 30, 'column' => 19, 'source' => MEMBER_ORDERING_PROPERTY_ORDER],
         ]);
 });
 

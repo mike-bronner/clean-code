@@ -788,8 +788,9 @@
         The custom CleanCode.Models.MemberOrdering sniff is picked up
         automatically via the ./CleanCode/ruleset.xml ref above; this comment
         records that no scoping is wanted. Like the two Models sniffs above it,
-        it only speaks about a class extending a model-shaped parent, and a
-        model declared under tests/ reads the same way as one under app/.
+        it only speaks about a class extending a model-shaped parent — named or
+        anonymous — and a model declared under tests/ reads the same way as one
+        under app/.
 
         Nothing shipped covers this. SlevomatCodingStandard.Classes.ClassStructure
         orders groups of members and has no notion of alphabetical order;

@@ -54,9 +54,19 @@ Name comparison is case-insensitive throughout, so `$Total` sorts against
   `Model`, `Authenticatable`, `Pivot`, or anything whose short name ends in
   `Model`. This is a models standard; an ordering rule on every class in a
   codebase would be a much larger rule than the one written above.
+- **An anonymous class extending a model-shaped parent is ordered too**, and it
+  is ordered against itself. `new class extends Model { … }` answers to all five
+  rules exactly as a named class does, whether it stands at the top level or
+  inside a method of another class; its members are never compared against the
+  enclosing class's, and the enclosing class's are never compared against its.
+  An interface, a trait, and an enum are not classes this standard addresses and
+  are left alone — none of them can extend a model in the first place.
 - **Promoted constructor properties are not ordered.** They are the
   constructor's signature, which a caller using named arguments depends on, not
   the class body's member list.
+- **A property hook's body is not a list of properties.** A PHP 8.4 hooked
+  property is ordered like any other, but the `$this`, parameters, and locals
+  written inside its `get` or `set` body are not properties and are not ordered.
 - **Magic methods are not ordered.** A constructor leads a class; it does not
   sort under "c".
 - **The sequence between member kinds is not enforced** — neither traits before
