@@ -17,8 +17,9 @@ is via code review and developer discipline.
 ## Partial enforcement
 
 A narrow token heuristic **can** catch the most common textual footprint of
-an unextracted concept. Focused sniff issue:
-[#159](https://github.com/mike-bronner/phpcs-rules/issues/159).
+an unextracted concept. It is **implemented** as the custom sniff
+`CleanCode.ClearCode.SectionComment`, described below
+([#159](https://github.com/mike-bronner/phpcs-rules/issues/159)).
 
 - **Section-labelling comments** — a standalone `//` comment inside a method
   body that labels the block of statements after it (`// validate the
@@ -40,6 +41,73 @@ an unextracted concept. Focused sniff issue:
   ([#89](https://github.com/mike-bronner/phpcs-rules/issues/89)), and nesting
   depth ([#36](https://github.com/mike-bronner/phpcs-rules/issues/36)). This
   standard adds no duplicates.
+
+## The rule: `CleanCode.ClearCode.SectionComment`
+
+A comment is reported when **all** of the following hold:
+
+- It is a **self-contained single-line** comment — `//`, `#`, or a one-line
+  `/* … */`. A `/* … */` spanning several lines is not, because PHP_CodeSniffer
+  splits it into one comment token per physical line and a continuation line
+  reads, on its own, exactly like a label.
+- It has **its line to itself** — no code before or after it there.
+- It is the **first line of its comment run**. Adjacent comment lines are one
+  label for one block; a blank line ends the run.
+- It stands at a **statement boundary** — the token before it is `;`, `{` or
+  `}`. This is what separates a label from a comment inside an array literal or
+  an argument list.
+- Its **innermost enclosing scope is a function body** — a method, a function
+  or a closure, reached through any number of nested control structures. The
+  innermost scope is what decides it, so a comment inside an anonymous class or
+  above a `match` arm nested in a method is not a label.
+- At least **one further statement follows in that same scope**, blank lines
+  and further comments ignored. A comment with only the closing brace after it
+  introduces no block.
+
+Docblocks (`T_DOC_COMMENT_*`) and `phpcs:` annotations never reach the rule:
+the tokenizer gives both their own token types.
+
+Two comment shapes are excluded because a sibling standard owns them:
+
+| Shape | Owned by | Matching |
+|---|---|---|
+| `TODO`, `FIXME`, `HACK`, `XXX` | Debt: Technical Debt ([#138](https://github.com/mike-bronner/phpcs-rules/issues/138)) | case-insensitive, on word boundaries |
+| `@formatter:off`, `@formatter:on`, `prettier-ignore` | Code Style: Linters & Config ([#143](https://github.com/mike-bronner/phpcs-rules/issues/143)) | case-insensitive substring |
+
+Both lists are public properties, so a consuming ruleset can extend either:
+
+```xml
+<rule ref="CleanCode.ClearCode.SectionComment">
+    <properties>
+        <property name="debtMarkers" type="array" value="TODO,FIXME,HACK,XXX,NOTE"/>
+        <property name="formatterDirectives" type="array" value="@formatter:off,@formatter:on,prettier-ignore,@fmt:off"/>
+    </properties>
+</rule>
+```
+
+A comment that genuinely explains *why* takes the ordinary per-line
+suppression:
+
+```php
+// phpcs:ignore CleanCode.ClearCode.SectionComment.Found
+// The upstream feed mixes casing, so the comparison below must not be
+// case-sensitive.
+$payload = array_change_key_case($payload);
+```
+
+### Known limits
+
+All three are deliberate silence rather than a guess:
+
+- A comment inside a **PHP 8.4 property hook** is not reported. The tokenizer
+  opens no scope for a hook body, so its comments carry the class as their
+  innermost scope and read as class-level.
+- A comment introducing a **`case` body or an alternative-syntax block** is not
+  reported: the token before it is `:`, which also ends a ternary arm and a
+  return type, so admitting it would trade a rare miss for a plausible false
+  positive.
+- An **unrecognized enclosing scope** resolves to "not a function body", so a
+  construct the rule has never seen stays silent.
 
 ## What remains code review
 

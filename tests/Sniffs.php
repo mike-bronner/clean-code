@@ -92,6 +92,7 @@ const SWEPT_SNIFFS = [
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
+    'CleanCode.ClearCode.SectionComment',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Constructors.PrimaryConstructorDelegation',
