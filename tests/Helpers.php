@@ -247,22 +247,27 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
  * in files of their own, and a run that does not contain them has none to
  * count.
  *
- * Setting $directory on the config is what a consumer's `phpcs src/` does, and
- * it is the only difference from analyzeWithSniffs(). The ruleset is always
- * built fresh: the config carries the run's paths now, so a memoised one would
- * hand a later test the earlier test's codebase.
+ * Setting $paths on the config is what a consumer's `phpcs src/` does, and it is
+ * the only difference from analyzeWithSniffs(). The ruleset is always built
+ * fresh: the config carries the run's paths now, so a memoised one would hand a
+ * later test the earlier test's codebase.
  *
+ * $paths is a directory, or a list of paths for a run narrowed to particular
+ * files — the latter is how a cross-file count is attributed to one file at a
+ * time, by running the same subject against one contributor at a time.
+ *
+ * @param array<int, string>|string   $paths
  * @param callable(object): void|null $configure
  */
 function analyzeProjectFixture(
     string $sniffCode,
-    string $directory,
+    array|string $paths,
     string $file,
     ?callable $configure = null
 ): LocalFile {
     [$config, $ruleset] = buildRuleset([$sniffCode], true);
 
-    $config->files = [$directory];
+    $config->files = (array) $paths;
 
     if ($configure !== null) {
         $configure($ruleset->sniffs[$ruleset->sniffCodes[$sniffCode]]);

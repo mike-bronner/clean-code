@@ -144,10 +144,16 @@ not read off phpmd.org, and each is pinned by a fixture:
 - **Abstract classes are subjects.** An abstract parent is the normal shape for
   this smell, and PHPMD reports it.
 - **Parents resolve fully qualified.** A child in another namespace reaching its
-  parent through `use App\Base;`, through an alias, or by fully qualified name
-  counts toward `App\Base` — never toward a second class called `Base` in
-  another namespace. Names are compared lower-cased, because PHP class names are
-  case-insensitive.
+  parent through `use App\Base;`, through an alias, through a group import's
+  `use App\{Base as Root};`, or by fully qualified name counts toward `App\Base`
+  — never toward a second class called `Base` in another namespace. Names are
+  compared lower-cased, because PHP class names are case-insensitive.
+- **A trait `use` is never an import.** Only a `use` outside every class-like
+  body binds a name, which the sniff tracks by brace depth. String
+  interpolation — `{$expr}` and `${expr}` — is the one place PHP's tokenizer
+  opens a brace without the plain `{` token every other opening brace carries,
+  so both shapes are counted; `tests/fixtures/NumberOfChildrenSniff/interpolation/`
+  pins each of them.
 
 Piped input (`STDIN`) has no path and therefore no codebase to resolve children
 against, so the sniff says nothing about it.

@@ -33,6 +33,10 @@ const NUMBER_OF_CHILDREN_ERROR = 'CleanCode.Metrics.NumberOfChildren.Found';
 
 const NUMBER_OF_CHILDREN_PROJECT = __DIR__ . '/../fixtures/NumberOfChildrenSniff/project';
 
+const NUMBER_OF_CHILDREN_BASE = NUMBER_OF_CHILDREN_PROJECT . '/Base.php';
+
+const NUMBER_OF_CHILDREN_INTERPOLATION = __DIR__ . '/../fixtures/NumberOfChildrenSniff/interpolation';
+
 it('resolves through the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -116,7 +120,7 @@ it('counts children declared in other files of the run', function (): void {
     $file = analyzeProjectFixture(
         NUMBER_OF_CHILDREN,
         NUMBER_OF_CHILDREN_PROJECT,
-        NUMBER_OF_CHILDREN_PROJECT . '/Base.php'
+        NUMBER_OF_CHILDREN_BASE
     );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([12 => [NUMBER_OF_CHILDREN_ERROR]]);
@@ -124,15 +128,119 @@ it('counts children declared in other files of the run', function (): void {
 });
 
 /**
- * Each spelling of the parent's name carries its own share of that fifteen, so
- * dropping any one resolution path drops the count below the threshold and the
- * test above goes silent. This pins which paths those are, by lowering the
- * threshold to each spelling's own contribution and reading the count back.
+ * Which spelling contributes what. The run is narrowed to Base.php plus one
+ * contributing file at a time, so the count read back off Base is its own five
+ * plus exactly that file's share: four through a plain import, three through an
+ * aliased one, three by fully qualified name. Narrowed to Base.php alone it is
+ * the five and nothing else.
  *
+ * Each case asserts the pair either side of its total. A spelling that stopped
+ * resolving would drop the count and flip the first assertion; one that
+ * over-counted — by folding in another file's children, or by counting a child
+ * twice — would flip the second. Neither can be satisfied by a sniff that never
+ * fires or always does.
+ */
+it('counts each spelling of the parent name, and only its own share', function (array $paths, int $total): void {
+    $reported = analyzeProjectFixture(
+        NUMBER_OF_CHILDREN,
+        $paths,
+        NUMBER_OF_CHILDREN_BASE,
+        static function (object $sniff) use ($total): void {
+            $sniff->minimum = $total;
+        }
+    );
+    $silent = analyzeProjectFixture(
+        NUMBER_OF_CHILDREN,
+        $paths,
+        NUMBER_OF_CHILDREN_BASE,
+        static function (object $sniff) use ($total): void {
+            $sniff->minimum = ($total + 1);
+        }
+    );
+
+    expect(violationMessagesByLine($reported->getErrors())[12][0])->toContain("has {$total} children");
+    expect($silent->getErrors())->toBe([]);
+})->with([
+    'own file only' => [[NUMBER_OF_CHILDREN_BASE], 5],
+    'plain import' => [[NUMBER_OF_CHILDREN_BASE, NUMBER_OF_CHILDREN_PROJECT . '/nested/Imported.php'], 9],
+    'aliased import' => [[NUMBER_OF_CHILDREN_BASE, NUMBER_OF_CHILDREN_PROJECT . '/nested/Aliased.php'], 8],
+    'fully qualified' => [[NUMBER_OF_CHILDREN_BASE, NUMBER_OF_CHILDREN_PROJECT . '/nested/Qualified.php'], 8],
+]);
+
+/**
+ * The group-brace shape `use Fixture\Project\{Same1 as Ignored};` is a
+ * resolution path of its own, and Aliased.php's GroupAliased is its one
+ * consumer. The child lands on Fixture\Project\Same1 — declared on line 16 of
+ * Base.php, which is where it is read back.
+ *
+ * Landing anywhere else leaves line 16 silent: on the alias as written, on a
+ * Fixture\Project\Nested\Ignored if the group's prefix were dropped, or on
+ * Fixture\Project\Base if the group were folded into the plain
+ * `use … as Root` above it. Base's own fifteen is asserted alongside, so the
+ * lowered threshold cannot pass by reporting everything.
+ */
+it('resolves a group import\'s alias to its own fully qualified target', function (): void {
+    $file = analyzeProjectFixture(
+        NUMBER_OF_CHILDREN,
+        NUMBER_OF_CHILDREN_PROJECT,
+        NUMBER_OF_CHILDREN_BASE,
+        static function (object $sniff): void {
+            $sniff->minimum = 1;
+        }
+    );
+    $messages = violationMessagesByLine($file->getErrors());
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        12 => [NUMBER_OF_CHILDREN_ERROR],
+        16 => [NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect($messages[12][0])->toContain('The class Base has 15 children');
+    expect($messages[16][0])->toContain('The class Same1 has 1 children');
+});
+
+/**
+ * PHP's tokenizer hands the opening brace of `{$expr}` and `${expr}` over as an
+ * array token while their closing `}` stays a bare one, so a parse that tracks
+ * only the bare braces loses a level per interpolation, closes the enclosing
+ * class body early, and reads a trait `use` written after that point as a
+ * namespace import. The leaked alias binds the trait's short name to a global
+ * one, and a following `extends` of that name is counted against whatever class
+ * happens to carry it — here the three in Bare.php, which have no children at
+ * all.
+ *
+ * Interpolated.php carries the shape three times, once per spelling — brace,
+ * dollar, and an interpolation inside a heredoc — so a regression in any one of
+ * them puts a report on its own line of Bare.php. Anchor, an ordinary parent and
+ * child in the same run, is reported at the same lowered threshold: the silence
+ * below is about resolution, not about an inert run.
+ */
+it('keeps a trait use written after an interpolated string out of the import map', function (): void {
+    $lowered = static function (object $sniff): void {
+        $sniff->minimum = 1;
+    };
+    $bare = analyzeProjectFixture(
+        NUMBER_OF_CHILDREN,
+        NUMBER_OF_CHILDREN_INTERPOLATION,
+        NUMBER_OF_CHILDREN_INTERPOLATION . '/Bare.php',
+        $lowered
+    );
+    $anchor = analyzeProjectFixture(
+        NUMBER_OF_CHILDREN,
+        NUMBER_OF_CHILDREN_INTERPOLATION,
+        NUMBER_OF_CHILDREN_INTERPOLATION . '/Interpolated.php',
+        $lowered
+    );
+
+    expect(violationSourcesByLine($bare->getErrors()))->toBe([]);
+    expect(violationSourcesByLine($anchor->getErrors()))->toBe([90 => [NUMBER_OF_CHILDREN_ERROR]]);
+});
+
+/**
  * A same-short-name class in another namespace (Fixture\Decoy\Base, three
- * children of its own) is in the same run throughout. It never adds to
- * Fixture\Project\Base's count — which comparing short names rather than fully
- * qualified ones would do, and which would put the count at eighteen.
+ * children of its own) is in the same run as Fixture\Project\Base throughout.
+ * Neither adds to the other — which comparing short names rather than fully
+ * qualified ones would do, folding the two into one bucket of eighteen and
+ * reporting that count for both.
  */
 it('resolves parents fully qualified, keeping a same-named class separate', function (): void {
     $file = analyzeProjectFixture(
@@ -158,7 +266,7 @@ it('resolves parents fully qualified, keeping a same-named class separate', func
  * this an assertion about the count rather than about the file being skipped.
  */
 it('sees only the file in hand when the run has no project paths', function (): void {
-    $path = NUMBER_OF_CHILDREN_PROJECT . '/Base.php';
+    $path = NUMBER_OF_CHILDREN_BASE;
     $default = analyzeWithSniffs([NUMBER_OF_CHILDREN], $path);
     $lowered = analyzeWithSniffs([NUMBER_OF_CHILDREN], $path, static function (object $sniff): void {
         $sniff->minimum = 5;

@@ -98,6 +98,13 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * misses and a sniff that quietly reports nothing at all. Deriving both from
  * one pass makes that class of failure unrepresentable.
  *
+ * The price of that choice is that the raw tokenizer's own quirks are this
+ * sniff's to handle rather than PHP_CodeSniffer's. The one that reaches the
+ * brace tracking is string interpolation: `{$expr}` and `${expr}` open with an
+ * array token and close with a bare `}`, so only counting the bare braces would
+ * unbalance the depth. Both openers are counted — see
+ * INTERPOLATION_OPEN_TOKENS — and interpolation/ fixtures pin each shape.
+ *
  * A file the sniff cannot read contributes nothing rather than aborting the
  * run. That direction is deliberate: a missing file can only lower a count, and
  * a count that is too low stays silent, where one that is too high accuses a
@@ -158,6 +165,28 @@ class NumberOfChildrenSniff implements Sniff
         T_INTERFACE => true,
         T_TRAIT => true,
         T_ENUM => true,
+    ];
+
+    /**
+     * The two shapes PHP's tokenizer gives the *opening* brace of a string
+     * interpolation: T_CURLY_OPEN for `{$expr}` and T_DOLLAR_OPEN_CURLY_BRACES
+     * for `${expr}`. Both are the only braces the tokenizer hands over as array
+     * tokens rather than as the bare `{` every other opening brace arrives as,
+     * and both are closed by a bare `}` like any other.
+     *
+     * They are tracked for exactly that asymmetry. Skipping them while their
+     * closer is counted drives the brace depth one below the truth, which pops a
+     * class-like body early and leaves a later trait `use` in that same body
+     * reading as a namespace import — an alias that then misdirects an `extends`
+     * onto a class in another namespace entirely. A literal brace *inside* a
+     * string never reaches here in either shape: the tokenizer keeps it in the
+     * T_ENCAPSED_AND_WHITESPACE or T_CONSTANT_ENCAPSED_STRING token around it.
+     *
+     * @var array<int|string, true>
+     */
+    private const INTERPOLATION_OPEN_TOKENS = [
+        T_CURLY_OPEN => true,
+        T_DOLLAR_OPEN_CURLY_BRACES => true,
     ];
 
     /**
@@ -373,6 +402,15 @@ class NumberOfChildrenSniff implements Sniff
 
             if (is_array($token) === false) {
                 $depth = $this->trackBrace($token, $depth, $bodies);
+
+                continue;
+            }
+
+            // The opening brace of a string interpolation, which is the one
+            // opening brace the tokenizer does not hand over as a bare `{`. Its
+            // closer is bare, so it is counted here to keep the pair balanced.
+            if (isset(self::INTERPOLATION_OPEN_TOKENS[$token[0]]) === true) {
+                $depth++;
 
                 continue;
             }
