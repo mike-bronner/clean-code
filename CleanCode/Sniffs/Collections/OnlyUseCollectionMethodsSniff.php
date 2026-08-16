@@ -1404,12 +1404,27 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * stepping over nested parentheses, brackets, and closure bodies so only
      * top-level commas separate arguments.
      *
+     * An unterminated argument list has no ranges rather than guessed-at ones,
+     * matching statementEnd()'s contract below: the tokenizer leaves
+     * parenthesis_closer unset on a parenthesis it never sees closed, which is
+     * every call still being typed in a half-written file. Reading it anyway
+     * aborts the whole file with an Internal.Exception, so a truncated tail
+     * would take every violation above it down with it. Failing closed here
+     * costs the ranges of one unfinished call and nothing else — no argument
+     * ranges means no collection argument, so the call is neither reported nor
+     * rewritten.
+     *
      * @return array<int, array{0: int, 1: int}>
      */
     private function argumentRanges(File $phpcsFile, int $opener): array
     {
         $tokens = $phpcsFile->getTokens();
-        $closer = $tokens[$opener]['parenthesis_closer'];
+        $closer = $tokens[$opener]['parenthesis_closer'] ?? null;
+
+        if ($closer === null) {
+            return [];
+        }
+
         $ranges = [];
         $start = ($opener + 1);
 

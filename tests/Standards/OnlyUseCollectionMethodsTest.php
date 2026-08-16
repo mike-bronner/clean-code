@@ -246,3 +246,44 @@ it('keeps the terminal-method list lower-cased and sorted', function (): void {
     expect($keys)->toBe($sorted)
         ->and($keys)->toBe(array_map('strtolower', $keys));
 });
+
+/**
+ * A half-written call is the normal state of a file being edited, and the
+ * tokenizer leaves `parenthesis_closer` unset on a parenthesis it never sees
+ * closed. Reading it anyway raises an "Undefined array key" diagnostic, which
+ * the `phpcs` binary turns into `Internal.Exception` and *aborts the whole
+ * file* on — so one unfinished line at the bottom silently took every finding
+ * above it down with it, which is the worst failure direction available to a
+ * linter: it looks like a clean file.
+ *
+ * The error handler is what makes this assertable in-process. `LocalFile` does
+ * not install the binary's handler, so the diagnostic stays a plain PHP warning
+ * here and the violations survive it — collecting it is the only way this suite
+ * can see the defect the binary aborts on. `TooManyMethodsTest`'s
+ * "emits no PHP warning" test uses the same technique for the same reason.
+ *
+ * The fixture pins both halves against each other. Line 6 is a complete,
+ * fixable violation and must survive; line 8 is the unterminated call and must
+ * stay silent. Asserting the silence alone would pass just as well if the file
+ * stopped being processed altogether.
+ */
+it('says nothing about an unterminated call, and still reports the line above it', function (): void {
+    $diagnostics = [];
+
+    set_error_handler(static function (int $errno, string $message) use (&$diagnostics): bool {
+        $diagnostics[] = $message;
+
+        return true;
+    });
+
+    try {
+        $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'unterminated-call.php');
+    } finally {
+        restore_error_handler();
+    }
+
+    expect($diagnostics)->toBe([])
+        ->and(allViolationSourcesByLine($file))
+        ->toBe([6 => [ONLY_USE_COLLECTION_METHODS . '.Found']])
+        ->and(violationFixableLines($file->getErrors()))->toBe([6]);
+});
