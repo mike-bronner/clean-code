@@ -143,7 +143,7 @@ it('measures each counting rule exactly as PHPMD does', function (): void {
         $sniff->minimum = 1;
     });
 
-    expect(measuredComplexities($file))->toBe([
+    expect(measuredNPathComplexities($file))->toBe([
         'atOneBelowTheMinimum' => 199,
         'uncountedConstructs' => 2,
         'abstractMethod' => 1,
@@ -193,7 +193,7 @@ it('never reports a method declared in an interface', function (): void {
         $sniff->minimum = 1;
     });
 
-    expect(measuredComplexities($file))->not->toHaveKey('interfaceMethod');
+    expect(measuredNPathComplexities($file))->not->toHaveKey('interfaceMethod');
 });
 
 /**
@@ -212,8 +212,8 @@ it('scores a switch with no labels as zero, matching PDepend', function (): void
         $sniff->minimum = 0;
     });
 
-    expect(measuredComplexities($file))->toHaveKey('labellessSwitch')
-        ->and(measuredComplexities($file)['labellessSwitch'])->toBe(0);
+    expect(measuredNPathComplexities($file))->toHaveKey('labellessSwitch')
+        ->and(measuredNPathComplexities($file)['labellessSwitch'])->toBe(0);
 });
 
 /**
@@ -238,15 +238,15 @@ it('finds the labels of a switch the tokenizer built no scope for', function ():
         $sniff->minimum = 1;
     });
 
-    expect(measuredComplexities($file))
+    expect(measuredNPathComplexities($file))
         ->toHaveKeys([
             'switchWithAMatchSubject',
             'switchWithAMatchSubjectAndNoBoolean',
             'alternativeSyntaxSwitchWithAMatchSubject',
         ])
-        ->and(measuredComplexities($file)['switchWithAMatchSubject'])->toBe(3)
-        ->and(measuredComplexities($file)['switchWithAMatchSubjectAndNoBoolean'])->toBe(2)
-        ->and(measuredComplexities($file)['alternativeSyntaxSwitchWithAMatchSubject'])->toBe(3);
+        ->and(measuredNPathComplexities($file)['switchWithAMatchSubject'])->toBe(3)
+        ->and(measuredNPathComplexities($file)['switchWithAMatchSubjectAndNoBoolean'])->toBe(2)
+        ->and(measuredNPathComplexities($file)['alternativeSyntaxSwitchWithAMatchSubject'])->toBe(3);
 });
 
 /**
@@ -285,7 +285,7 @@ it('flags every over-complex callable in the failing fixture', function (): void
 it('reports the same values PHPMD reports on the failing fixture', function (): void {
     $file = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');
 
-    expect(measuredComplexities($file))->toBe([
+    expect(measuredNPathComplexities($file))->toBe([
         'multipliesSequentialBranches' => 256,
         'switchLabelsMultiply' => 200,
         'keywordXorAndReturnChain' => 204,
@@ -309,9 +309,9 @@ it('reports at the minimum and stays silent one below it', function (): void {
     $failing = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');
     $passing = analyzeFixture(NPATH_COMPLEXITY, 'passing.php');
 
-    expect(measuredComplexities($failing))->toHaveKey('switchLabelsMultiply')
-        ->and(measuredComplexities($failing)['switchLabelsMultiply'])->toBe(200)
-        ->and(measuredComplexities($passing))->toBe([]);
+    expect(measuredNPathComplexities($failing))->toHaveKey('switchLabelsMultiply')
+        ->and(measuredNPathComplexities($failing)['switchLabelsMultiply'])->toBe(200)
+        ->and(measuredNPathComplexities($passing))->toBe([]);
 });
 
 /**
@@ -330,8 +330,8 @@ it('treats the minimum as inclusive at any configured value', function (): void 
         $sniff->minimum = 200;
     });
 
-    expect(measuredComplexities($atValue))->toBe(['atOneBelowTheMinimum' => 199])
-        ->and(measuredComplexities($aboveValue))->toBe([]);
+    expect(measuredNPathComplexities($atValue))->toBe(['atOneBelowTheMinimum' => 199])
+        ->and(measuredNPathComplexities($aboveValue))->toBe([]);
 });
 
 /**
@@ -348,7 +348,7 @@ it('accepts the minimum from a ruleset property', function (): void {
         ['minimum' => '199']
     );
 
-    expect(measuredComplexities($file))->toBe(['atOneBelowTheMinimum' => 199]);
+    expect(measuredNPathComplexities($file))->toBe(['atOneBelowTheMinimum' => 199]);
 });
 
 /**
@@ -365,7 +365,7 @@ it('reports without offering a fix', function (): void {
 
 /**
  * The message calls a class member a "method" and a free function a "function",
- * the way PHPMD's own message does. measuredComplexities() reads the two through
+ * the way PHPMD's own message does. measuredNPathComplexities() reads the two through
  * a non-capturing alternation and so cannot tell them apart, which is why the
  * whole message is asserted here instead — the sibling
  * ExcessiveMethodLengthTest does the same for the same reason.
@@ -456,6 +456,6 @@ it('stays linear on a long chain of ternaries', function (): void {
     $file = analyzeWithSniffs([NPATH_COMPLEXITY], $fixture);
     $elapsed = ((hrtime(true) - $started) / 1e9);
 
-    expect(measuredComplexities($file))->toBe(['chainedTernaries' => 9600])
+    expect(measuredNPathComplexities($file))->toBe(['chainedTernaries' => 9600])
         ->and($elapsed)->toBeLessThan(2.0);
 });

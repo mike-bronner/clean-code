@@ -32,6 +32,16 @@ to tune on either side of the mapping.
 | --- | --- |
 | `CleanCode/ElseExpression` | `CleanCode.Conditionals.DisallowElse` (message code `.Found`) |
 
+The sniff is **stricter than the PHPMD rule**, not equal to it. It also carries
+the clean-code standard
+[#14](https://github.com/mike-bronner/phpcs-rules/issues/14) —
+docs/standards/conditionals-no-else-or-elseif.md — which bans `elseif` as well
+and asks for an auto-fixer. So `elseif` is reported under a second message code
+`.ElseIfFound`, and the mechanically safe subset of both keywords is fixable.
+PHPMD reports neither. Running `phpcs` still covers everything `phpmd` would
+report for this rule, which is what the mapping has to guarantee; it simply
+reports more besides.
+
 Enforced by the custom `CleanCode.Conditionals.DisallowElse` sniff, which the
 master ruleset (`rules.xml`) picks up through its `./CleanCode/ruleset.xml`
 reference ([#77](https://github.com/mike-bronner/phpcs-rules/issues/77)).
@@ -47,10 +57,12 @@ not have to run separately for it.
   a run on an ElseExpression violation, and a warning would leave `phpcs`
   exiting `0` on an else branch, so the mapping would not actually replace
   `phpmd`.
-- **Not auto-fixable** — matching PHPMD. Turning an else into an early exit
-  means moving statements between branches and inverting a condition. That is
-  safe only in the narrow shapes where one branch already ends in a jump
-  statement; see "Why not Slevomat EarlyExit" below.
+- **Auto-fixable in a narrow subset** — PHPMD fixes nothing, so this is one of
+  the places the sniff goes beyond it. `phpcbf` rewrites an occurrence only
+  when every branch before the keyword ends in a jump statement and the layout
+  is the canonical `} else {` / `} elseif (…) {` one; everything else is
+  reported and left alone. docs/standards/conditionals-no-else-or-elseif.md
+  lists the gates.
 
 ### Why not `SlevomatCodingStandard.ControlStructures.EarlyExit`
 
@@ -62,8 +74,8 @@ no jump. No property on the sniff widens that; `ignoreStandaloneIfInScope`,
 `ignoreOneLineTrailingIf`, and `ignoreTrailingIfWithOneInstruction` only narrow
 it further.
 
-Measured over `tests/fixtures/DisallowElseSniff/failing.php`, which carries ten
-else branches:
+Measured over `tests/fixtures/DisallowElseSniff/failing.php` as it stood at
+#77, carrying ten else branches and no `elseif` shapes of its own:
 
 | Tool | Reports |
 | --- | --- |
@@ -71,11 +83,16 @@ else branches:
 | PHPMD 2.15.0 `CleanCode/ElseExpression` | 8 |
 | `SlevomatCodingStandard.ControlStructures.EarlyExit` | 2 |
 
+#14 has since grown that fixture past those ten, so the numbers above are the
+measurement that settled the choice rather than a count of the fixture as it
+stands now. The comparison itself is unchanged: `EarlyExit` still reports only
+where it can rewrite, and this sniff still reports every occurrence.
+
 `EarlyExit` is deliberately **not** wired into `rules.xml` alongside the custom
-sniff: it would add no detection and would double-report those two lines.
-[#14](https://github.com/mike-bronner/phpcs-rules/issues/14) ("Conditionals: No
-else or elseif") owns the question of whether the fixable subset is worth
-carrying separately.
+sniff: it would add no detection and would double-report those two lines. #14
+answered the remaining question — whether the fixable subset was worth carrying
+— by adding a fixer to this sniff rather than by wiring `EarlyExit` in beside
+it, so there is still nothing for that sniff to contribute.
 
 ### Where this ruleset is stricter than PHPMD
 
@@ -94,23 +111,21 @@ The braceless case never reaches a consumer as a lone diagnostic, incidentally:
 [#9](https://github.com/mike-bronner/phpcs-rules/issues/9)) requires the braces
 anyway.
 
-### Where both tools stay silent
+### Where PHPMD stays silent and this sniff does not
 
-`elseif` is **not** a violation of this rule, in either tool. PHPMD's rule
-fires on the else scope — the third child of an `if`/`elseif` node — so an
-`if`/`elseif` chain with no closing `else` produces nothing at all. The sniff
-matches that by not registering `T_ELSEIF`.
+`elseif` is **not** a violation of the PHPMD rule. Its rule fires on the else
+scope — the third child of an `if`/`elseif` node — so an `if`/`elseif` chain
+with no closing `else` produces nothing there. The two-word `else if` form goes
+the same way, because PHP parses it as an `elseif`.
 
-The two-word `else if` form is treated the same way, for the same reason: PHP
-parses it as an `elseif`, PHPMD stays silent on it, and reporting it would
-discriminate on spelling alone. A closing `else` *after* such a chain is a real
-else scope and is reported. Both shapes sit in
-`tests/fixtures/DisallowElseSniff/passing.php` and, in their reported-else
-form, in `failing.php`.
-
-Banning `elseif` outright is a separate, stricter clean-code standard —
-[#14](https://github.com/mike-bronner/phpcs-rules/issues/14) — not part of this
-PHPMD mapping.
+This sniff reports both, under `.ElseIfFound`. That is #14's standard rather
+than PHPMD's rule, and it is the one place the two genuinely diverge in
+detection: a project that wants PHPMD's boundaries exactly can
+`<exclude name="CleanCode.Conditionals.DisallowElse.ElseIfFound"/>` and keep
+`.Found`, which is why the `else` code was left spelled `.Found` when #14
+widened the sniff. Both shapes sit in
+`tests/fixtures/DisallowElseSniff/failing.php` and are pinned line by line in
+`tests/Standards/DisallowElseTest.php`.
 
 ### One reporting difference that is not a divergence
 

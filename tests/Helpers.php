@@ -14,11 +14,12 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
-use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
+use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
 use PHP_CodeSniffer\Tests\ConfigDouble;
 
 /**
@@ -373,6 +374,185 @@ function analyzeWithConfiguredRuleset(
 }
 
 /**
+ * Runs the *installed* phpcs binary out of process and returns the violations
+ * it reports for one sniff, as a list of `['line' => int, 'message' => string]`
+ * in report order.
+ *
+ * Every other helper above drives PHPCS in process through ConfigDouble, which
+ * blanks the CodeSniffer.conf Composer wrote at install time and has
+ * restoreInstalledPaths() put the standards back by hand. That is the right
+ * harness for asserting what a sniff measures, but it cannot answer whether the
+ * *shipped* package works: the scaffolding supplies the registration a consumer
+ * gets from Composer, so a package that never registered itself would pass all
+ * the same. This helper uses none of it — it executes vendor/bin/phpcs the way
+ * a consumer does, reading the real CodeSniffer.conf.
+ *
+ * $standard is passed to `--standard` verbatim, so it takes either a ruleset
+ * file's path (rules.xml, the file a consumer points at) or an installed
+ * standard's name (CleanCode). The run happens from a working directory
+ * *outside* the package, which is what keeps those two distinct: PHPCS resolves
+ * `--standard=CleanCode` against the working directory first, so run from the
+ * package root the name would find ./CleanCode/ruleset.xml as a plain relative
+ * path and prove nothing about the package being installed at all. Measured,
+ * not assumed — from the package root the name still resolves with the
+ * package's installed_paths entry deleted; from outside it does not.
+ *
+ * Nothing narrows the run to one sniff, because narrowing is what a consumer
+ * does not do; $sniffCode filters the report afterwards instead.
+ *
+ * Every way this can fail to measure anything throws rather than returning an
+ * empty list: a missing binary, a process that will not start, output that is
+ * not the expected JSON report, or a report naming other than exactly the one
+ * file asked about. An assertion of "no violations" must never be satisfiable
+ * by a run that never happened.
+ *
+ * @return array<int, array{line: int, message: string}>
+ */
+function installedPhpcsViolations(string $standard, string $path, string $sniffCode): array
+{
+    $report = installedPhpcsReport($standard, $path);
+    $violations = [];
+
+    foreach ($report as $message) {
+        if ($message['source'] === $sniffCode) {
+            $violations[] = ['line' => (int) $message['line'], 'message' => (string) $message['message']];
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * The messages the installed phpcs reports for $path, unfiltered.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function installedPhpcsReport(string $standard, string $path): array
+{
+    return installedPhpcsRun($standard, $path)['messages'];
+}
+
+/**
+ * The same run as installedPhpcsReport(), with the process exit status kept
+ * alongside the messages, and with room for extra phpcs flags.
+ *
+ * The status is what separates "phpcs looked and found nothing" from "phpcs
+ * never got as far as looking". PHP_CodeSniffer 3.13.6's Runner::runPHPCS()
+ * returns 0 when nothing was reported, 1 when something was and none of it is
+ * fixable, and 2 when something was and some of it is fixable; a
+ * DeepExitException — an uninstalled standard, a bad flag — returns 3 instead.
+ * Severity plays no part: an error-only run and a warning-only run both exit 1
+ * when nothing in them is fixable. So a caller asserting an *exact* status
+ * cannot be satisfied by the 3 a broken install exits with, which a "non-zero"
+ * check would swallow.
+ *
+ * Exit 3 also produces no JSON, so the report guards below fire first and the
+ * status never has to carry that case alone.
+ *
+ * @param array<int, string> $extraArguments Flags inserted before --report=json.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedPhpcsRun(string $standard, string $path, array $extraArguments = []): array
+{
+    $binary = cleanCodeRoot() . '/vendor/bin/phpcs';
+
+    if (is_file($binary) === false) {
+        throw new RuntimeException("the installed phpcs binary is missing at {$binary}; run composer install");
+    }
+
+    $arguments = array_merge(
+        [PHP_BINARY, $binary, '--standard=' . $standard],
+        $extraArguments,
+        ['--report=json', '--no-cache', $path]
+    );
+    [$stdout, $stderr, $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
+
+    $decoded = json_decode($stdout, true);
+    $files = is_array($decoded) === true ? $decoded['files'] ?? null : null;
+
+    if (is_array($files) === false) {
+        throw new RuntimeException("phpcs produced no JSON report for {$path}; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    if (count($files) !== 1) {
+        throw new RuntimeException('phpcs reported on ' . count($files) . " files, expected only {$path}");
+    }
+
+    return ['status' => $status, 'messages' => reset($files)['messages'] ?? []];
+}
+
+/**
+ * One sniff's end-to-end verdict from the installed package: the messages the
+ * shipped binary reported for it, and the status the process exited with.
+ *
+ * --standard points at rules.xml, the file the README tells a consumer to
+ * point at, so the run carries that ruleset's <properties> and its
+ * <include-pattern>/<exclude-pattern> path scoping — measured, not assumed: a
+ * fixture staged inside src/ reports 14 CleanCode.Files.NoProceduralCode errors
+ * through this route and the same fixture read at its in-repo path reports
+ * none.
+ *
+ * --sniffs narrows the run to $sniffCode, which installedPhpcsReport()'s own
+ * callers deliberately do not do. The difference is what each is asserting.
+ * Those tests ask what a consumer's whole run says, so narrowing would change
+ * the question. This one has to attribute a *status* to one sniff, and a status
+ * is a property of the run: with every sibling standard active, a passing
+ * fixture that trips any other rule exits non-zero, and a warning-only sniff's
+ * failing fixture exits 2 rather than 1 as soon as some other sniff finds
+ * something fixable in it. Narrowing is what makes the pass/fail land on the
+ * sniff named. It costs nothing in reach — the standard is still resolved from
+ * the installed package, and rules.xml is still parsed in full.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedSniffRun(string $sniffCode, string $path): array
+{
+    return installedPhpcsRun(cleanCodeRoot() . '/rules.xml', $path, ['--sniffs=' . $sniffCode]);
+}
+
+/**
+ * installedSniffRun() against one of the sniff's own fixtures, resolving the
+ * fixture directory the way the in-process harness does — through
+ * sniffFixtureDirectory(), so the shipped-binary test can never point at a
+ * different fixture than its in-process sibling.
+ *
+ * @return array{status: int, messages: array<int, array<string, mixed>>}
+ */
+function installedSniffFixtureRun(string $sniffCode, string $fixture): array
+{
+    return installedSniffRun($sniffCode, fixturePath(sniffFixtureDirectory($sniffCode), $fixture));
+}
+
+/**
+ * Runs $command from a working directory outside the package and returns its
+ * stdout, stderr, and exit status.
+ *
+ * The status is last because it was added after the two callers that take only
+ * the first two; see installedPhpcsRun() for what it is worth reading.
+ *
+ * @return array{0: string, 1: string, 2: int}
+ */
+function runOutsidePackage(string $command): array
+{
+    $pipes = [];
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open($command, $descriptors, $pipes, sys_get_temp_dir());
+
+    if (is_resource($process) === false) {
+        throw new RuntimeException("could not start: {$command}");
+    }
+
+    $stdout = (string) stream_get_contents($pipes[1]);
+    $stderr = (string) stream_get_contents($pipes[2]);
+
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    return [$stdout, $stderr, proc_close($process)];
+}
+
+/**
  * Runs the fixer over an already-processed file and returns the result.
  */
 function autofixedContents(LocalFile $file): string
@@ -380,6 +560,42 @@ function autofixedContents(LocalFile $file): string
     $file->fixer->fixFile();
 
     return $file->fixer->getContents();
+}
+
+/**
+ * Every token PHP_CodeSniffer's tokenizer failed to classify in $source, as
+ * `line:content` strings — the signature of source that PHP itself accepts but
+ * PHPCS cannot read.
+ *
+ * The two are not the same language. A binary-string prefix on an interpolating
+ * double-quoted string (`B"Hi {$name}"`) is the known case: `php -l` passes, and
+ * PHPCS types the `B"` opener T_NONE and then folds the rest of the statement —
+ * and the source after it — into one bogus string token, so every sniff
+ * downstream reads live code as string body. A fixer that emits such a shape
+ * corrupts the file for the next pass while looking correct to every
+ * content-comparing assertion.
+ *
+ * Whitespace-only T_NONE tokens are excluded: PHPCS uses that code for ordinary
+ * inter-token filler, and only a non-empty one marks unclassified source.
+ *
+ * @return array<int, string>
+ */
+function unclassifiedTokens(string $source): array
+{
+    [$config, $ruleset] = buildRuleset();
+
+    $file = new DummyFile($source, $ruleset, $config);
+    $file->parse();
+
+    $faults = [];
+
+    foreach ($file->getTokens() as $token) {
+        if ($token['type'] === 'T_NONE' && trim($token['content']) !== '') {
+            $faults[] = $token['line'] . ':' . trim($token['content']);
+        }
+    }
+
+    return $faults;
 }
 
 /**
@@ -582,6 +798,27 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * Writes source to a file outside the repository and returns its path, for a
+ * case that varies one detail of a view or too large a body to keep on disk.
+ * Staged paths are purged after each test by tests/Pest.php.
+ */
+function stageSource(string $source, string $filename = 'view.blade.php'): string
+{
+    // Its own directory, because purgeStagedFixtures() removes the parent.
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-source-', true);
+
+    if (mkdir($directory, 0700) === false) {
+        throw new RuntimeException("could not stage a source file in {$directory}");
+    }
+
+    $path = $directory . '/' . $filename;
+    stagedFixtures($path);
+    file_put_contents($path, $source);
+
+    return $path;
+}
+
+/**
  * Copies a fixture to a directory outside the repository and returns the new
  * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
  * scoping from the file's path alone — so this is what lets either of them see
@@ -636,6 +873,41 @@ function stagingDirectory(string $subdirectory = ''): string
     stagedFixtures($root);
 
     return $directory;
+}
+
+/**
+ * Builds a small project outside the repository from a map of
+ * `<path relative to the project root> => <file contents>`, and returns the
+ * absolute path of the first entry.
+ *
+ * For the sniffs that read the *filesystem* rather than one file's tokens, and
+ * whose subject is the directory name itself: a directory called `Od*d` or
+ * `Foo[Bar]` is legal on the platforms this package is tested on but not on
+ * Windows, so committing one under tests/fixtures/ would break a checkout
+ * rather than exercise a rule. Staging it at run time keeps the name where it
+ * has to be — on disk, in a real path handed to PHPCS — without putting it in
+ * the tree.
+ *
+ * @param array<string, string> $files
+ */
+function stageProjectOutsideTests(array $files): string
+{
+    $root = stagingDirectory();
+
+    foreach ($files as $relativePath => $contents) {
+        $path = $root . '/' . $relativePath;
+        $directory = dirname($path);
+
+        if (is_dir($directory) === false && mkdir($directory, 0700, true) === false) {
+            throw new RuntimeException("could not stage a project directory at {$directory}");
+        }
+
+        if (file_put_contents($path, $contents) === false) {
+            throw new RuntimeException("could not stage a project file at {$path}");
+        }
+    }
+
+    return $root . '/' . array_key_first($files);
 }
 
 /**
@@ -714,6 +986,63 @@ function removeStagedDirectory(string $directory): void
     }
 
     rmdir($directory);
+}
+
+/**
+ * Reads the complexity CleanCode.Metrics.CyclomaticComplexity measured back out
+ * of each of its reports, keyed by the declaration the message names
+ * ("method process()", "function nested()"), in report order.
+ *
+ * Reading the number rather than only the presence of a report is what makes a
+ * single counting rule discriminating: a test asserting which declarations were
+ * reported holds just as well against a sniff that measures every one of them
+ * wrongly and still lands above the level. A report whose message does not
+ * carry a measurement is skipped rather than guessed at.
+ *
+ * @return array<string, int>
+ */
+function measuredComplexities(LocalFile $file): array
+{
+    $measured = [];
+
+    foreach (violationMessages($file) as $message) {
+        if (preg_match('/^The (\S+ \S+\(\)) has a cyclomatic complexity of (\d+),/', $message, $matches) === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
+        }
+    }
+
+    return $measured;
+}
+
+/**
+ * Reads the nesting level CleanCode.Metrics.MethodNestingLevel measured back out
+ * of each of its reports, keyed by the line it reported on.
+ *
+ * The counterpart of measuredComplexities() above, and there for the same
+ * reason: a test asserting only *where* the sniff reported holds just as well
+ * against one that measures every level wrongly and still lands over the limit,
+ * and the level is the whole content of the diagnostic. A report whose message
+ * carries no level is skipped rather than guessed at.
+ *
+ * One entry per line, which is safe only next to an assertion that pins the
+ * reports themselves — violationTuples() — since a second report on a line
+ * would overwrite the first here.
+ *
+ * @return array<int, int>
+ */
+function reportedNestingLevels(LocalFile $file): array
+{
+    $levels = [];
+
+    foreach (violationMessagesByLine($file->getErrors()) as $line => $messages) {
+        foreach ($messages as $message) {
+            if (preg_match('/^Method nesting level \((\d+)\) exceeds/', $message, $matches) === 1) {
+                $levels[$line] = (int) $matches[1];
+            }
+        }
+    }
+
+    return $levels;
 }
 
 /**
@@ -833,8 +1162,12 @@ function sequentialBranchFixture(int $branches): string
 }
 
 /**
- * Collapses the sniff's messages into `callable name => measured NPath`, which
- * is what every measurement assertion above reads.
+ * Collapses CleanCode.Metrics.NPathComplexity's messages into `callable name =>
+ * measured NPath`, which is what every measurement assertion above reads.
+ *
+ * The counterpart of measuredComplexities() for the cyclomatic sniff, and named
+ * apart from it because the two parse different messages: this one keys on the
+ * bare callable name, that one on the declaration phrase the message names.
  *
  * The value is parsed back out of the message because the message is the only
  * place the sniff publishes it. Anchoring on the name as well as the number
@@ -843,25 +1176,102 @@ function sequentialBranchFixture(int $branches): string
  *
  * @return array<string, int>
  */
-function measuredComplexities(File $file): array
+function measuredNPathComplexities(LocalFile $file): array
 {
     $measured = [];
 
-    foreach ($file->getErrors() as $columns) {
-        foreach ($columns as $violations) {
-            foreach ($violations as $violation) {
-                $matched = preg_match(
-                    '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
-                    $violation['message'],
-                    $matches
-                );
+    foreach (violationMessages($file) as $message) {
+        $matched = preg_match(
+            '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
+            $message,
+            $matches
+        );
 
-                if ($matched === 1) {
-                    $measured[$matches[1]] = (int) $matches[2];
-                }
-            }
+        if ($matched === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
         }
     }
 
     return $measured;
+}
+
+/**
+ * The set CleanCode.WhiteSpace.PassiveOperatorSpacing uses to decide a `+`/`-`
+ * is a unary sign, read off the real class through reflection so the divergence
+ * tests compare live behaviour rather than a transcription of it.
+ *
+ * @return array<int|string, int|string>
+ */
+function passiveNonOperandTokens(): array
+{
+    $method = new ReflectionMethod(PassiveOperatorSpacingSniff::class, 'nonOperandTokens');
+    $method->setAccessible(true);
+
+    return $method->invoke(new PassiveOperatorSpacingSniff());
+}
+
+/**
+ * The same set as Squiz.WhiteSpace.OperatorSpacing computes it — the baseline
+ * both CleanCode.Operators.BinaryOperatorSpacing and the passive sniff are
+ * measured against. register() is what populates it, so it must run first.
+ *
+ * @return array<int|string, int|string>
+ */
+function squizNonOperandTokens(): array
+{
+    $sniff = new OperatorSpacingSniff();
+    $sniff->register();
+
+    $property = new ReflectionProperty($sniff, 'nonOperandTokens');
+    $property->setAccessible(true);
+
+    return $property->getValue($sniff) ?? [];
+}
+
+/**
+ * The T_* token names listed in a class constant, read out of the source that
+ * declares it.
+ *
+ * Lets a test assert against the enumeration a sniff actually uses rather than
+ * against a copy of it kept alongside, which is the whole point: a copy drifts
+ * silently, and an enumeration a test only restates is an enumeration nothing
+ * checks. Reading it needs no Reflection, which this package's own
+ * CleanCode.Testing.NoReflectionAccess forbids in tests — PHP_CodeSniffer
+ * tokenizes the file and the names are read off the tokens.
+ *
+ * Every T_* name between the constant's own name and the semicolon ending its
+ * declaration. A constant that cannot be found yields an empty list, so a
+ * caller asserting completeness reddens rather than passing on nothing.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<int, string>
+ */
+function tokenNamesInConstant(string $path, string $constant, array $sniffCodes): array
+{
+    $tokens = analyzeWithSniffs($sniffCodes, $path)->getTokens();
+    $names = [];
+    $reading = false;
+
+    foreach ($tokens as $token) {
+        if ($token['code'] === T_STRING && $token['content'] === $constant) {
+            $reading = true;
+
+            continue;
+        }
+
+        if ($reading === false) {
+            continue;
+        }
+
+        if ($token['code'] === T_SEMICOLON) {
+            break;
+        }
+
+        if ($token['code'] === T_STRING && str_starts_with($token['content'], 'T_') === true) {
+            $names[] = $token['content'];
+        }
+    }
+
+    return $names;
 }
