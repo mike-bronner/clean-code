@@ -8,7 +8,7 @@
  * violation is reported exactly once.
  *
  * That whole-ruleset view is where operator diagnostics can duplicate:
- *   - the stricter Squiz.WhiteSpace.OperatorSpacing stacking on the "at least
+ *   - the stricter CleanCode.Operators.BinaryOperatorSpacing stacking on the "at least
  *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
@@ -20,8 +20,11 @@ declare(strict_types=1);
 
 /**
  * The fixture holds one instance of each operator concern; every line below
- * carries exactly one diagnostic from exactly one sniff. Regressions this
- * pins by adding a second (or dropping the only) source:
+ * carries exactly one diagnostic from exactly one sniff — except line 28,
+ * which pins a deliberate overlap: the newline after a dangling "===" breaks
+ * two distinct standards at once (#35 operator line breaks, #56 newlines
+ * around evaluative operators), so both sniffs speak there. Regressions this
+ * pins by adding an unplanned second (or dropping a pinned) source:
  *   - re-stacking PSR12 on Squiz spacing (line 9/10),
  *   - re-doubling OperatorLineBreak on OneConditionPerLine's boolean (17),
  *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
@@ -40,6 +43,14 @@ it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
+        // The preamble's own two one-letter names, reported by the master
+        // ruleset's short-variable rule (#106). Listed for the same reason as
+        // the DisallowMagicNumbers entries below — the map is exhaustive, and
+        // that is what makes a second *operator* source here a failure.
+        7 => [
+            'CleanCode.Naming.ShortVariable.TooShort',
+            'CleanCode.Naming.ShortVariable.TooShort',
+        ],
         // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
         // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands
         // this line uses to carry a spacing defect are numeric literals, and
@@ -48,16 +59,24 @@ it('reports every operator violation exactly once', function (): void {
         // that is what makes a second *operator* source here a failure.
         9 => [
             'CleanCode.Naming.DisallowMagicNumbers.Found',
-            'Squiz.WhiteSpace.OperatorSpacing.NoSpaceAfter',
-            'Squiz.WhiteSpace.OperatorSpacing.NoSpaceBefore',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceAfter',
+            'CleanCode.Operators.BinaryOperatorSpacing.NoSpaceBefore',
         ],
         // concatenation spacing — ConcatenationSpacing only, no PSR12
-        10 => ['Squiz.Strings.ConcatenationSpacing.PaddingFound'],
+        // `$joined = $a.'b';` — the concatenation-spacing rule this fixture
+        // exists for, plus the Strings standard's own interpolation rule (#25),
+        // which reads the same line as a literal-and-variable concatenation
+        // that should be written "{$a}b". Two standards, two different
+        // complaints about one expression, so both belong here.
+        10 => [
+            'CleanCode.Strings.RequireStringInterpolation.Concatenation',
+            'Squiz.Strings.ConcatenationSpacing.PaddingFound',
+        ],
         // padding before "=" — the ignoreSpacingBeforeAssignments knob, plus
         // #136 on the "3" that line assigns
         11 => [
             'CleanCode.Naming.DisallowMagicNumbers.Found',
-            'Squiz.WhiteSpace.OperatorSpacing.SpacingBefore',
+            'CleanCode.Operators.BinaryOperatorSpacing.SpacingBefore',
         ],
         // dangling "." outside a condition — OperatorLineBreak's to own
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
@@ -71,13 +90,24 @@ it('reports every operator violation exactly once', function (): void {
         // dangling "||" inside the if — OneConditionPerLine only
         17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],
         // "if ( ! " paren padding — PSR12 only; NotOperatorSpacing defers
+        // `$ok`, the body of the multi-line condition on 20, is two
+        // characters — the short-variable rule (#106) again, and structural
+        // fixture noise for the same reason as line 7 above.
+        20 => ['CleanCode.Naming.ShortVariable.TooShort'],
         23 => [
             'CleanCode.Conditionals.AvoidConditionals.IfStatement',
             'PSR12.ControlStructures.ControlStructureSpacing.SpacingAfterOpenBrace',
         ],
         27 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
-        // dangling "===" inside a multi-condition — OperatorLineBreak owns it
-        // (OneConditionPerLine polices only the boolean "||")
-        28 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
+        // dangling "===" inside a multi-condition — a deliberate overlap.
+        // OperatorLineBreak (#35) reports the dangling operator
+        // (OneConditionPerLine polices only the boolean "||"), and
+        // DisallowNewlineAroundEvaluativeOperators (#56) reports the newline
+        // after an evaluative operator. Its auto-fix — joining both operands
+        // onto one line — satisfies both standards at once.
+        28 => [
+            'CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators.FoundAfter',
+            'CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd',
+        ],
     ]);
 });
