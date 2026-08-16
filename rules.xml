@@ -1733,6 +1733,64 @@
     -->
 
     <!--
+        Methods: Naming (#61, partial — #172) —
+        docs/standards/methods-naming.md.
+
+        The standard is Tier 3 overall: whether a name is a genuine verb or
+        noun, and whether it describes what the method does, are natural-language
+        judgements no token-based sniff can make, and those stay code review.
+        One slice is token-visible — "methods that perform an action should be a
+        verb and not return anything" — and the custom
+        CleanCode.Naming.ActionMethodReturn sniff carries it, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above.
+
+        No existing PHPCS or Slevomat sniff expresses command-query separation.
+        The four nearest candidates were run, as whole standards, against
+        tests/fixtures/ActionMethodReturnSniff/failing.php, whose eighteen
+        methods all name an action and all hand a value back:
+        PSR1.Methods.CamelCapsMethodName,
+        Squiz.NamingConventions.ValidFunctionName and
+        PEAR.NamingConventions.ValidFunctionName read the name's *shape* and
+        between them report one line, 86, for an underscore;
+        SlevomatCodingStandard.TypeHints.ReturnTypeHint asks only that a type be
+        declared, and how completely, so it reports the four declarations that
+        omit one plus a bare `array` whose item type is unspecified, and stays
+        silent on the other thirteen. None of them pairs a name against what the
+        declaration hands back, which is the whole of this rule: fix all six of
+        their reports and all eighteen still stand. tests/Standards/
+        ActionMethodReturnTest.php pins that measurement, so a vendor upgrade
+        cannot change the answer unnoticed.
+
+        CleanCode.Naming.BooleanGetMethodName above reads the *query* half of
+        the same standard — a getter that answers yes or no — and the two never
+        speak about the same declaration: that one wants `get`-prefixed names,
+        this one wants action verbs.
+
+        No <properties> are configured, so a consuming project gets the sniff's
+        own defaults: #172's suggested verb list, and the fluent-interface
+        exemption switched on. Both are tunable, and the array property takes
+        the type="array" form:
+
+            <rule ref="CleanCode.Naming.ActionMethodReturn">
+                <properties>
+                    <property name="actionPrefixes" type="array"
+                        value="set,save,delete,publish"/>
+                    <property name="allowFluentInterface" value="false"/>
+                </properties>
+            </rule>
+
+        Warning severity, deliberately, and no <type> override raises it.
+        Framework idioms legitimately return a status from an action method —
+        Eloquent's save(): bool is the obvious one — so a report here is a
+        review candidate, not a build failure. Raised to error, adopting this
+        ruleset would fail on the first Eloquent model it read.
+
+        Detection only: dropping a return type changes what every call site can
+        do with the call, and renaming the method rewrites the call sites
+        themselves, so there is no safe mechanical rewrite.
+    -->
+
+    <!--
         PHPMD CleanCode: UndefinedVariable (#85) —
         docs/phpmd/cleancode-undefinedvariable.md.
         PHPMD UnusedCode: UnusedLocalVariable (#118) —
