@@ -150,6 +150,15 @@ That holds for each shape the marker takes: on one item of a mixed group
   `Illuminate\Database\Eloquent\Casts\Attribute`, outside any `Models`
   namespace. Eloquent's own `getAttribute()` is not read as a legacy accessor
   either — there is no attribute name between `get` and `Attribute`.
+- **`LegacyAttributeAccessor` flags every legacy accessor, not only the ones
+  exposing a related model's property.** The standard raises the legacy style
+  while describing how to expose a *related* model's properties, but which
+  model an accessor reads is a runtime question PHPCS cannot answer from one
+  file. The sniff therefore reports the whole legacy form, a strict superset of
+  what the standard names: every accessor the standard asks to be rewritten is
+  reported, plus the ones reading the model's own columns — which the same
+  standard already asks to move to the `Attribute` syntax. Nothing the standard
+  covers is dropped.
 - **The legacy accessor is matched case-insensitively.** Eloquent finds an
   accessor with `method_exists($this, 'get' . Str::studly($key) . 'Attribute')`,
   and `method_exists()` folds case, so `getFooattribute()` is a *live* accessor
