@@ -32,8 +32,9 @@ is unconditional and the finding is an error.
 The sniff only reports what the tokens *prove*. A value is a Collection when it
 is one of:
 
-- a `collect(...)` call (the global helper — a namespaced `App\collect()` is a
-  different function and is left alone);
+- a `collect(...)` call (the global helper — a namespaced `App\collect()`, or a
+  `collect` the file imported with `use function … as collect;`, is a different
+  function and is left alone);
 - a `Collection::make(...)` / `Collection::wrap(...)` factory call, or
   `new Collection(...)`, on any class whose name ends in `Collection`
   (`Collection`, `EloquentCollection`, `OrderCollection`, …);
@@ -49,6 +50,14 @@ The name is also left alone where the call itself is not what it appears to be:
 a `use function … as count;` import rebinds the name for the whole file, so an
 unqualified `count($collection)` is that import rather than the builtin. A
 fully-qualified `\count($collection)` is the builtin again, and is reported.
+
+An imported function of that name is also userland code, free to declare
+`&$items` and hand back a rebound variable — so, exactly like any other call the
+sniff cannot prove takes its argument by value, it costs the variable its proven
+type. A later `array_sum($collection)` in the same scope is still reported, but
+never rewritten. A method merely spelled like one of the mapped functions
+(`$aggregator->count($collection)`) is userland code for the same reason and is
+treated the same way.
 
 A bare class name is resolved through the file's `use` imports first, so the
 alias never decides on its own: `use Illuminate\Support\Collection as Coll`

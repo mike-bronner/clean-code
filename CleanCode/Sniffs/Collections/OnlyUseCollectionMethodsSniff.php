@@ -276,6 +276,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * change the answer. A fully-qualified `\count()` is unaffected — the
      * leading separator pins it to the global function.
      *
+     * The map is read wherever an unqualified name is taken for the global
+     * function of that name: the reported call itself, the `collect()` origin,
+     * and the by-value exemption that decides whether an argument escapes.
+     *
      * @var array<string, string>
      */
     private array $functionImports = [];
@@ -884,9 +888,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     /**
      * Whether the parenthesis at $ptr is one whose arguments provably cannot be
      * rebound: a parameter list rather than a call, or a call to one of the
-     * seventeen functions this sniff reports on — all of which take their
-     * arguments by value, which is what keeps `count($c)` from escaping its own
-     * receiver.
+     * seventeen *global* functions this sniff reports on — all of which take
+     * their arguments by value, which is what keeps `count($c)` from escaping
+     * its own receiver. A shadowed or method call merely spelled like one of
+     * the seventeen is userland code, and escapes like any other call.
      */
     private function isByValueCallOpener(File $phpcsFile, int $ptr): bool
     {
@@ -905,7 +910,12 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return true;
         }
 
-        return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]);
+        // Only the *global* function of that name is one of the seventeen. A
+        // `use function …\countDistinctTags as count;` import, or a `->count()`
+        // method of the same name, is userland code free to declare `&$items`
+        // and rebind the caller's variable — so it escapes like any other call.
+        return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
+            && $this->isGlobalFunctionCall($phpcsFile, $callee) === true;
     }
 
     /**
@@ -1296,10 +1306,16 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         if ($tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
             // The global collect() helper — a namespaced collect() is a
-            // different function entirely.
-            return $name['short'] === 'collect' && $name['qualified'] === false
-                ? $tokens[$next]['parenthesis_closer']
-                : null;
+            // different function entirely, and so is one the file imported
+            // under that name. isGlobalFunctionCall() settles both: a
+            // `use function …\makeArray as collect;` import makes a bare
+            // collect() return whatever that function returns, which is not a
+            // Collection this sniff may report on, let alone rewrite.
+            $isHelper = $name['short'] === 'collect'
+                && $name['qualified'] === false
+                && $this->isGlobalFunctionCall($phpcsFile, $name['end']) === true;
+
+            return $isHelper === true ? $tokens[$next]['parenthesis_closer'] : null;
         }
 
         if (

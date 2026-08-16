@@ -32,3 +32,33 @@ function fullyQualifiedCallsAreStillTheBuiltin(Collection $collection): int
 {
     return \count($collection);
 }
+
+/**
+ * The builtin `count()` takes its argument by value, which is why handing a
+ * Collection to it does not cost the receiver its proven type. The *import*
+ * carries no such promise: countDistinctTags() may declare `&$items` and hand
+ * back a rebound variable, so `$collection` stops being provably a Collection
+ * from here on.
+ *
+ * The `array_sum()` below is therefore still reported — the sniff never stops
+ * suspecting the variable — but no longer rewritten, because the receiver is
+ * only proven at its type hint and not at the call site.
+ */
+function aShadowedCallMayRebindItsArgument(Collection $collection): int
+{
+    count($collection);
+
+    return array_sum($collection);
+}
+
+/**
+ * A method merely spelled like one of the seventeen is userland code too, and
+ * escapes its argument for the same reason. Pinned here rather than in
+ * passing.php because it is the same guard, read at the same call site.
+ */
+function aMethodOfTheSameNameMayRebindItToo(Collection $collection, Aggregator $aggregator): int
+{
+    $aggregator->count($collection);
+
+    return array_sum($collection);
+}

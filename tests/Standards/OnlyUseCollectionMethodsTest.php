@@ -58,6 +58,45 @@ it('produces no violations on the compliant fixture', function (): void {
 it('lets an imported function shadow the builtin but not a qualified call', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-function.php');
 
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        33 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        51 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        63 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+    ]);
+});
+
+/**
+ * The by-value exemption that keeps `count($c)` from escaping its own receiver
+ * is keyed on the *global* function of that name, so it has to consult the same
+ * shadow check the reporting path does. A shadowed `count($collection)` (line
+ * 49) and a `$aggregator->count($collection)` method of the same name (line 61)
+ * are both userland code free to declare `&$items`, so the `array_sum()` after
+ * each one is reported but no longer rewritten.
+ *
+ * Line 33's still-fixable `\count()` is the other half of the pin: a check that
+ * escaped every argument of every call would satisfy the two unfixable lines
+ * and lose that one.
+ */
+it('escapes a variable handed to a shadowed call spelled like a mapped function', function (): void {
+    $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-function.php');
+
+    expect(violationFixableLines($file->getErrors()))->toBe([33]);
+});
+
+/**
+ * `collect()` is the one Collection origin recognised by bare name, so it is
+ * the one a `use function … as collect;` import can take away. A shadowed
+ * `collect($rows)` returns whatever the import returns, so the `count()` around
+ * it (line 23) is neither reported nor fixable — rewriting it would spell
+ * `collect($rows)->count()` against a plain array.
+ *
+ * Line 33's qualified `\collect()` is a Collection origin again, and pins the
+ * other direction: asserting the silence alone would pass just as well if the
+ * sniff stopped recognising `collect()` altogether.
+ */
+it('lets an imported collect() shadow the helper but not a qualified call', function (): void {
+    $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-collect.php');
+
     expect(violationSourcesByLine($file->getErrors()))
         ->toBe([33 => [ONLY_USE_COLLECTION_METHODS . '.Found']])
         ->and(violationFixableLines($file->getErrors()))->toBe([33]);
