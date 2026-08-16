@@ -2339,4 +2339,26 @@
         Functions.NamedArgumentSpacing only governs spacing around an argument
         that is already named.
     -->
+
+    <!--
+        Clear Code: Encapsulate Related Methods in a Class (#15) —
+        docs/standards/clear-code-encapsulate-related-methods-in-a-class.md.
+
+        The standard itself is Tier 3: deciding that scattered logic belongs in
+        a class of its own is a semantic judgement, and stays with code review.
+        The one token-visible slice — an existing Action class exposing a single
+        public entry point (#161) — is carried by the custom
+        CleanCode.ClearCode.ActionSingleEntryPoint sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above. This comment
+        records that no scoping and no configuration are wanted: the sniff reads
+        the class name and the declared namespace, so it already confines itself
+        to the classes the convention names, wherever they live.
+
+        Nothing existing covers it. CleanCode.Classes.TooManyPublicMethods and
+        CleanCode.Metrics.ExcessivePublicCount count public members against a
+        threshold for every class alike, and neither can express "exactly one,
+        but only for an Action class". Slevomat's class sniffs speak about how
+        members are declared, ordered and typed, not about how many entry points
+        a class exposes.
+    -->
 </ruleset>
