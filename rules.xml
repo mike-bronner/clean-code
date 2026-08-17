@@ -1655,6 +1655,50 @@
     -->
 
     <!--
+        PHPMD Design: DepthOfInheritance (#112) —
+        docs/phpmd/design-depthofinheritance.md.
+
+        No PHPCS or Slevomat sniff measures how far above a class its
+        inheritance chain reaches. The nearest candidates count something
+        else entirely: Slevomat's SlevomatCodingStandard.Classes.ClassLength
+        counts lines, Generic.Metrics.* cover cyclomatic complexity and
+        nesting depth, and nothing in either standard follows an `extends`
+        link at all. So this is the custom CleanCode.Metrics.DepthOfInheritance
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and
+        tests/Standards/DepthOfInheritanceTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        minimum=6, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        `minimum` is a floor, not a ceiling. PHPMD compares the metric with
+        `>=` on the `minimum` path, so a class with exactly 6 parents is
+        already reported, and phpmd.org's "maximum number of acceptable parent
+        classes" — echoed by #112's acceptance criteria — reads like a strict
+        `>`. A live PHPMD 2.15.0 run disagrees with them, and the tool is what
+        this package replaces. tests/fixtures/DepthOfInheritanceSniff/
+        boundaries.php pins 5/6/7 against PHPMD's measured output.
+
+        This is the one sniff here whose answer depends on the whole set of
+        files being analysed rather than on one file. It resolves each parent
+        against PHP_CodeSniffer's own FileList over $config->files — the same
+        expansion PHPCS is about to process — so `phpcs src/` sees what
+        `phpmd src/` sees, and a parent outside the run is unseen. PDepend
+        weighs an unseen parent twice, which this reproduces; the whole model
+        and its limits are set out in the sniff's docblock and the doc above.
+
+        As with the sniffs above, no <type> override is needed: the sniff
+        raises errors already, so a violation fails a phpcs run the way it
+        fails a phpmd run.
+
+        Detection only: flattening an inheritance hierarchy means redesigning
+        it, which is a judgement call and not a mechanical rewrite. PHPMD
+        offers no fix either.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessivePublicCount (#96) —
         docs/phpmd/codesize-excessivepubliccount.md.
 
