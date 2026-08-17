@@ -37,5 +37,8 @@
         <testsuite name="Standards">
             <directory>tests/Standards</directory>
         </testsuite>
+        <testsuite name="Support">
+            <directory>tests/Support</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

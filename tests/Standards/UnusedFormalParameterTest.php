@@ -15,10 +15,10 @@
  * On failing.php PHPMD reports lines 23, 30, 35, 42, 48, 59, 65, 71, 77, 83,
  * 91, 112, 122, 128, 136, 144, 154, 164, 175, 184, 192, 198, 211, 222, 243,
  * 252, 260, 270, 278, 287, 294, 307, 317, 325, 333, 344, 349, 354, 362, 369,
- * 378, 400, 411, 423, 439, 446, 453, 463, 476, 492, 504 and 522 — fifty-two
- * findings, naming $unusedA through $unusedAZ (with $unusedJ absent, since
- * that one is read) plus $id. This sniff reproduces all fifty-two, on the same
- * lines, naming the same parameters.
+ * 378, 400, 411, 423, 439, 446, 453, 463, 476, 492, 504, 522, 541 and 554 —
+ * fifty-four findings, naming $unusedA through $unusedBB (with $unusedJ
+ * absent, since that one is read) plus $id. This sniff reproduces all
+ * fifty-four, on the same lines, naming the same parameters.
  *
  * On namespaces.php both are silent, which is the point of that fixture: every
  * method in it overrides one declared in its own namespace, and both tools
@@ -31,11 +31,12 @@
  * #[\Override] at all). Both are rows in the divergence table in
  * docs/phpmd/unusedcode-unusedformalparameter.md.
  *
- * On divergences.php PHPMD reports three of the seven this sniff reports. The
- * four it skips are the three constructs PDepend never surfaces to a
- * MethodAware rule, and a child of a class whose nested anonymous class uses a
+ * On divergences.php PHPMD reports four of the nine this sniff reports. The
+ * five it skips are the three constructs PDepend never surfaces to a
+ * MethodAware rule, a child of a class whose nested anonymous class uses a
  * trait — which PDepend attributes to the enclosing class, so PHPMD reads the
- * child as an override.
+ * child as an override — and a first-class callable, which it reads as the
+ * call that syntax only resembles.
  *
  * That parity is the whole point of #120: the rule exists so that `phpmd` no
  * longer has to run, and a shape this sniff stays silent on where PHPMD speaks
@@ -113,7 +114,13 @@ it('is registered in the master ruleset', function (): void {
  *   proves the sniff discards a shell string's *text* and not the reads inside
  *   it. PHPCS tokenizes the first two as T_VARIABLE and the third as
  *   T_STRING_VARNAME, so between them they pin both branches of the walk;
- * - all seven fixed-signature magic methods.
+ * - all seven fixed-signature magic methods;
+ * - an interface extending two same-file interfaces, and a class implementing
+ *   it that overrides a method from each. The second of the two is the shape
+ *   PHP_CodeSniffer's own findExtendedClassName() cannot see, since its
+ *   collection set ends at the comma — read the ancestry that way again and
+ *   $tenth is reported while $ninth stays silent, which is the asymmetry that
+ *   names the defect.
  *
  * `prefixNearMiss()` is the one shape that is not an exemption: it reads
  * `$lambdaExtra`, which contains `$lambda` as a prefix, and reads `$lambda`
@@ -255,6 +262,7 @@ it('produces no violations on the compliant fixture', function (): void {
  *     | drop the attribute-group guard from the call test       | 463, 476             |
  *     | drop the by-reference `&` hop from the call test        | 492, 504             |
  *     | let a bare function claim the fixed-signature exemption | 522                  |
+ *     | collect every T_STRING of a name instead of its last    | 554                  |
  *
  * The decisions that are a keeping rather than a dropping are checked from the
  * other side, on passing.php, where each mutation reddens the compliant
@@ -263,9 +271,18 @@ it('produces no violations on the compliant fixture', function (): void {
  * removing T_HEREDOC reddens heredocRead() and the other half, dropping the
  * T_STRING_VARNAME read reddens shellStringRead()'s `${name}` spelling,
  * collecting a `compact()` argument only at the call's own depth reddens
- * compactNestedNames(), and dropping T_ANON_CLASS or T_ENUM from CLASS_LIKE
- * reddens $seventh or $eighth respectively — each of those two moving its own
- * parameter and nothing else, here or in any other fixture.
+ * compactNestedNames(), dropping T_ANON_CLASS or T_ENUM from CLASS_LIKE
+ * reddens $seventh or $eighth respectively, and reading the ancestry through
+ * PHP_CodeSniffer's own findExtendedClassName() again reddens $tenth — each of
+ * those moving its own parameter and nothing else, here or in any other
+ * fixture.
+ *
+ * Line 541 has no mutation row of its own on purpose. It is the qualifier
+ * `Fixtures` made to resolve — a class this fixture declares so that the
+ * ancestor lookup has something to find — and both tools report it for the
+ * ordinary reason that its parameter is dead. Line 554 is the one that pins
+ * the decision, and it is the child whose method that qualifier would have
+ * exempted.
  */
 it('flags every unused formal parameter in the failing fixture', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php');
@@ -323,6 +340,8 @@ it('flags every unused formal parameter in the failing fixture', function (): vo
         ['line' => 492, 'column' => 47, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 504, 'column' => 51, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 522, 'column' => 23, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 541, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 554, 'column' => 36, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
@@ -354,7 +373,7 @@ it('resolves a same-file ancestor within its own namespace', function (): void {
 
 /**
  * The divergence fixture, with the same line-and-column precision, because
- * three of these six are the *only* place closures, arrow functions and
+ * three of these are the *only* place closures, arrow functions and
  * anonymous-class methods are reported at all — the parity fixture has none,
  * since PHPMD cannot see them.
  *
@@ -373,9 +392,32 @@ it('resolves a same-file ancestor within its own namespace', function (): void {
  *   Column 12 is what proves the anchor is the parameter and not the
  *   declaration: the `function` keyword is two lines above, at column 1.
  * - line 124, a dynamic read. Neither tool resolves `${'unusedG'}`.
+ * - line 158, `\func_get_args(...)`. PHPMD is silent: it reads PHP 8.1's
+ *   first-class callable syntax as the call it resembles and grants the
+ *   whole-signature exemption. Nothing is called — the syntax builds a Closure
+ *   that throws whenever it is invoked — so this sniff reports. The qualified
+ *   spelling is deliberate: an unqualified call inside a namespace is a
+ *   separate divergence of PHPMD's own, and would decide this line for the
+ *   wrong reason.
+ * - line 168, `\compact(...)`. Both tools report, by different routes: PHPMD
+ *   because the call it thinks it sees names no parameter, this sniff because
+ *   it is not a call at all. It is here as the second door into the same
+ *   misreading, so that closing one cannot leave the other open.
  *
- * `shadowedName()` is the sixth shape and is absent from this list on purpose:
- * both tools stay silent on it, so it asserts by *not* appearing.
+ * `shadowedName()` and `spreadFuncGetArgs()` are absent from this list on
+ * purpose, and assert by *not* appearing: both tools stay silent on the first,
+ * and on the second because `\func_get_args(...[])` is a genuine spread of
+ * zero arguments — the same call `\func_get_args()` is, which still exempts.
+ * It is the control that keeps the first-class-callable check from swallowing
+ * every ellipsis, and it is load-bearing: widen that check to any leading
+ * ellipsis and line 179 is reported, moving nothing else.
+ *
+ * Lines 158 and 168 were mutation-checked the other way. Dropping the
+ * first-class-callable guard drops 158 alone — 168 does not move, because
+ * `\compact(...)` names no parameter whether it is read as a call or not. It
+ * is kept as the pinned second spelling rather than as a discriminator, so
+ * that a later change granting `compact(...)` an exemption has something to
+ * redden.
  */
 it('reports the documented divergences, and only those', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'divergences.php');
@@ -388,6 +430,8 @@ it('reports the documented divergences, and only those', function (): void {
         ['line' => 89, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 114, 'column' => 12, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 124, 'column' => 29, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 158, 'column' => 39, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 168, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 

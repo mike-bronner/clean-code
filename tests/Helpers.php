@@ -16,8 +16,10 @@ declare(strict_types=1);
 
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
+use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
+use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
@@ -1153,6 +1155,62 @@ function nestedChainFixture(int $depth): array
     ]);
 
     return [implode("\n", $lines), $chainLine];
+}
+
+/**
+ * Analyses a class written as a source string — the whole of it, without a PHP
+ * open tag — and hands back the parsed file, for a test that reads tokens
+ * rather than violations. See tests/Support/ParameterDeclarationTest.php.
+ */
+function parameterDeclarationFile(string $source): File
+{
+    return analyzeStdinSource(
+        ['CleanCode.Metrics.TooManyFields'],
+        "<?php\n\ndeclare(strict_types=1);\n\n" . $source . "\n"
+    );
+}
+
+/**
+ * The pointer to the $occurrence'th T_VARIABLE written as $name, counting from
+ * one.
+ *
+ * Throws rather than returning false when there is no such occurrence, so a
+ * source edited out from under an expectation cannot leave it silently
+ * asserting against token 0.
+ */
+function parameterDeclarationPointer(File $file, string $name, int $occurrence = 1): int
+{
+    $seen = 0;
+
+    foreach ($file->getTokens() as $ptr => $token) {
+        if ($token['code'] !== T_VARIABLE || $token['content'] !== $name) {
+            continue;
+        }
+
+        $seen++;
+
+        if ($seen === $occurrence) {
+            return $ptr;
+        }
+    }
+
+    throw new RuntimeException($name . ' is written fewer than ' . $occurrence . ' times in the analysed source');
+}
+
+/**
+ * Both answers for one occurrence of $name, as
+ * [isPlainParameter, isPromotedParameter].
+ *
+ * @return array<int, bool>
+ */
+function parameterDeclarationAnswers(File $file, string $name, int $occurrence = 1): array
+{
+    $ptr = parameterDeclarationPointer($file, $name, $occurrence);
+
+    return [
+        ParameterDeclaration::isPlainParameter($file, $ptr),
+        ParameterDeclaration::isPromotedParameter($file, $ptr),
+    ];
 }
 
 /**
