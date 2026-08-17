@@ -835,6 +835,30 @@
     -->
 
     <!--
+        Models: Structure (Attributes/Queries traits) (#39, sniff #192) —
+        docs/standards/models-structure-attributes-queries-traits.md.
+
+        The standard itself is Tier 3 — paired traits, a shared BaseModel, and
+        a lean model are cross-file judgements a token-based sniff cannot make.
+        One slice is token-visible, and the custom
+        CleanCode.Models.ModelMagicMethodLocation sniff carries it: an
+        accessor, mutator, modern Attribute method, or query scope declared in
+        a class body rather than in the model's Attributes or Queries trait.
+        It is picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; this comment records that no scoping is wanted.
+
+        No path scoping. The sniff already answers only for a class body — a
+        trait holding these methods is the compliant destination and is never
+        visited — and a test-support model carries the same extraction
+        candidate as an application one, so there is no test-path idiom to
+        exempt, unlike the factory chains that keep
+        DisallowExternalPersistenceCalls out of tests above.
+
+        Warning severity comes from the sniff, not from here: one file's tokens
+        cannot confirm the class is an Eloquent model, so the sniff points at
+        candidates for code review rather than failing a consumer's build.
+-->
+  <!--
         Routes: Conventions (Do / Do Not) (#65), the "Do Not: use closures in
         routes" bullet (#174) —
         docs/standards/routes-conventions-do-do-not.md.
