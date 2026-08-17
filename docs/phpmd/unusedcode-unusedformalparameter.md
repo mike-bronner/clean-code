@@ -150,6 +150,10 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Method colliding with a trait used by a *nested anonymous class* | silent | **flags** |
 | `#[\Override]` on a method that overrides nothing | flags | **silent** |
 | Unqualified `func_get_args()` inside a namespace | **flags** | silent |
+| Override inherited through an interface listed after the first in an `extends` clause | silent | silent |
+| Method colliding with the *qualifier* of a trait imported by its full name | flags | flags |
+| `\func_get_args(...)` — the first-class callable, not the call | silent | **flags** |
+| `\func_get_args(...[])` — a genuine spread of zero arguments | silent | silent |
 
 Reading the rows that disagree:
 
@@ -176,6 +180,33 @@ Reading the rows that disagree:
   very next line exempts. The parameters really are read either way, so
   reporting them would be a false positive on correct code. `compact()` is
   unaffected, because PHPMD matches that one by suffix.
+- **`\func_get_args(...)`.** PHP 8.1's first-class callable syntax reaches the
+  opening parenthesis with the same tokens a call does, so PHPMD reads it as
+  the call it resembles and grants the whole-signature exemption. Nothing is
+  called: the syntax builds a `Closure`, and the parameters are unreachable
+  through it however it is later invoked, because `func_get_args()` refuses to
+  run outside the function whose arguments it reads — the `Closure` throws
+  (`func_get_args() cannot be called from the global scope`, measured on PHP
+  8.4). The parameter really is dead, so it is reported here, and the row is
+  written with the leading backslash because the unqualified spelling is
+  already decided by the namespace row above. A genuine spread —
+  `\func_get_args(...[])` — is a real call and still exempts, in both tools.
+
+Two rows agree, and are in the table because reaching that agreement took a
+fix rather than nothing:
+
+- **An override inherited through the second or later interface of an `extends`
+  clause.** An interface is the one class-like whose `extends` takes a list,
+  and PHP_CodeSniffer's `findExtendedClassName()` collects the parent name from
+  separators, strings and whitespace, so the first comma ends it. Every
+  ancestor after the first was dropped, and the methods inherited from them
+  were reported as unused. The header is read here instead, across both
+  clauses, so the whole ancestry resolves the way PDepend resolves it.
+- **A method colliding with the qualifier of a fully-qualified trait import.**
+  `use \App\Vendor;` names one trait, not two. Collecting every name segment
+  read the qualifier as an ancestor as well, and a class genuinely called `App`
+  in the same file then answered for it and exempted methods it never declared.
+  Only the last segment names the type.
 
 Two boundaries worth naming, because both were assumed wrong before being
 measured:
@@ -192,7 +223,7 @@ measured:
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
 `phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
-fifty-two findings, same lines, same parameters. On `passing.php` this
+fifty-four findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).
 On `namespaces.php` both are silent.
