@@ -1159,6 +1159,90 @@ function nestedChainFixture(int $depth): array
 }
 
 /**
+ * Source for one callable holding a left-associative chain of $links short
+ * ternaries — `$a ?: $a ?: $a …` — which needs no parentheses and is ordinary
+ * valid PHP.
+ *
+ * Generated rather than committed for the same reason as nestedChainFixture():
+ * the length is the whole point, and it is what the NPath sniff's linearity test
+ * measures against. Each link is a place the sniff has to find the end of an
+ * else-branch, so a scan that runs to the end of the statement every time makes
+ * the walk quadratic in $links.
+ */
+function ternaryChainFixture(int $links): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function chainedTernaries($a)', '{'];
+    $lines[] = '    $value = $a' . str_repeat(' ?: $a', $links) . ';';
+    $lines[] = '';
+    $lines[] = '    return $value;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Source for one callable holding $branches sequential independent `if`s.
+ *
+ * NPath multiplies statements in sequence and each of these is worth 2, so the
+ * measurement is 2 ** $branches — which passes PHP_INT_MAX at 63 branches from
+ * a few kilobytes of entirely ordinary code. That is what the NPath sniff's
+ * saturation test drives, and generating it keeps the arithmetic legible where
+ * sixty-odd committed fixture blocks would not be.
+ */
+function sequentialBranchFixture(int $branches): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function manyBranches(int $a): int', '{'];
+
+    for ($branch = 0; $branch < $branches; $branch++) {
+        $lines[] = '    if ($a === ' . $branch . ') {';
+        $lines[] = '        $a++;';
+        $lines[] = '    }';
+        $lines[] = '';
+    }
+
+    $lines[] = '    return $a;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Collapses CleanCode.Metrics.NPathComplexity's messages into `callable name =>
+ * measured NPath`, which is what every measurement assertion above reads.
+ *
+ * The counterpart of measuredComplexities() for the cyclomatic sniff, and named
+ * apart from it because the two parse different messages: this one keys on the
+ * bare callable name, that one on the declaration phrase the message names.
+ *
+ * The value is parsed back out of the message because the message is the only
+ * place the sniff publishes it. Anchoring on the name as well as the number
+ * means a measurement landing on the wrong callable cannot satisfy an
+ * expectation meant for another.
+ *
+ * @return array<string, int>
+ */
+function measuredNPathComplexities(LocalFile $file): array
+{
+    $measured = [];
+
+    foreach (violationMessages($file) as $message) {
+        $matched = preg_match(
+            '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
+            $message,
+            $matches
+        );
+
+        if ($matched === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
+        }
+    }
+
+    return $measured;
+}
+
+/**
  * Analyses a class written as a source string — the whole of it, without a PHP
  * open tag — and hands back the parsed file, for a test that reads tokens
  * rather than violations. See tests/Support/ParameterDeclarationTest.php.
