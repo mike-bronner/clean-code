@@ -226,6 +226,19 @@
     -->
 
     <!--
+        Models: Naming Conventions (#44) —
+        docs/standards/models-naming-conventions.md. No bundled or Slevomat
+        sniff reasons about a declaration's *return type* when judging its
+        name (Squiz.NamingConventions.* and PSR1.Methods.CamelCapsMethodName
+        check casing only; Slevomat's Superfluous*Naming sniffs check class
+        name suffixes), so this is the custom sniff
+        CleanCode.Naming.ModelNamingConventions — picked up automatically via
+        the ./CleanCode/ruleset.xml ref above, like every other CleanCode
+        sniff. Reporting-only: renaming an identifier and rewriting a legacy
+        accessor are both semantic changes a fixer must not make.
+    -->
+
+    <!--
         Methods: Type Hints (#70) — every function-like declaration must carry
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;
@@ -822,6 +835,25 @@
     -->
 
     <!--
+        Models: Organization (member ordering) (#75) —
+        docs/standards/models-organization.md.
+
+        The custom CleanCode.Models.MemberOrdering sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted. Like the two Models sniffs above it,
+        it only speaks about a class extending a model-shaped parent — named or
+        anonymous — and a model declared under tests/ reads the same way as one
+        under app/.
+
+        Nothing shipped covers this. SlevomatCodingStandard.Classes.ClassStructure
+        orders groups of members and has no notion of alphabetical order;
+        SlevomatCodingStandard.Classes.TraitUseDeclaration reports only multiple
+        traits per declaration, never their order, and is unscoped where this
+        standard addresses models. Neither is referenced here, and the sniff's
+        docblock records the full evaluation.
+    -->
+
+    <!--
         Routes: Types (API / View) (#66) —
         docs/standards/routes-types-api-view.md.
 
@@ -986,6 +1018,81 @@
     -->
 
     <!--
+        Testing: Test Suites (#60), namespace-vs-directory slice —
+        docs/standards/testing-test-suites.md.
+
+        The custom CleanCode.Testing.TestSuiteNamespace sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the one slice of an
+        otherwise Tier 3 standard that is a *fact* rather than a judgement: a
+        test class names its suite twice — once in the directory it sits in,
+        once in its declared namespace — and the two can contradict each other.
+        Which suite a test *belongs* in is a judgement about its scope and its
+        runtime behaviour, and stays with code review; the three
+        content-vs-directory heuristics are tracked separately (#148, #149,
+        #150), and this sniff deliberately reads no file content, so it does not
+        encroach on them.
+
+        Custom rather than third-party, and this one genuinely overlaps.
+        SlevomatCodingStandard.Files.TypeNameMatchesFileName does compare a
+        declared namespace against the file's own directory, and configured with
+        rootNamespaces tests => Tests it does catch a suite mismatch. It was run
+        against three files — tests/Unit/CalculatorTest.php declaring
+        Tests\Feature (the violation), tests/Unit/LedgerTest.php declaring
+        Tests\Unit (compliant), and tests/Unit/SupportHelper.php declaring
+        Tests\Feature (a shared helper this standard exempts). It reported two of
+        the three: the real mismatch, and the helper. This sniff reported one —
+        the mismatch alone.
+
+        That measurement is the whole argument, in three parts:
+
+        - It ships rootNamespaces empty, so it enforces nothing until a project
+          declares its full directory-to-namespace mapping. This sniff works from
+          the suite names alone.
+        - It enforces the *entire* PSR-4 mirror: every intermediate directory,
+          plus the class name against the file name. The standard is about the
+          suite segment only, and is indifferent to how a suite is organised
+          below it — so the strict mirror reports files this standard has no
+          quarrel with.
+        - It speaks about every named type, so traits, interfaces, abstract test
+          cases and shared helpers under a suite directory are all in scope. Each
+          of those is deliberately exempt here, and the helper above is the
+          measured case.
+
+        It also reports errors where this standard warrants a warning. Where a
+        project does want the full mirror, the two are complementary rather than
+        redundant: that one owns the layout, this one owns the suite.
+
+        No <include-pattern>, deliberately, and for the same reason as the
+        RequireTestFile block above: the sniff resolves its own scope from the
+        path it has to read anyway. Its testRoot property is both the scope and
+        the anchor, which keeps the two from disagreeing. A project whose tests
+        live elsewhere, or which names its suites differently, retunes
+        testRoot/suiteSegments instead of overriding this ruleset:
+
+            <rule ref="CleanCode.Testing.TestSuiteNamespace">
+                <properties>
+                    <property name="suiteSegments" type="array">
+                        <element value="Unit"/>
+                        <element value="Contract"/>
+                    </property>
+                </properties>
+            </rule>
+
+        This follows the CleanCode.Routes.ApiControllerNamespace precedent
+        throughout — root-anchored segment matching, the root closest to the
+        file, and a namespace that names no root vetoing whatever the path says.
+
+        Warnings, not errors, matching RequireTestFile and NoReflectionAccess.
+        The rule reads a project's layout off a configurable convention and
+        cannot prove it guessed right, so a misread must not fail a consumer's
+        build. Detection only: reconciling a mismatch means moving the file or
+        renaming its namespace, and which one is correct depends on the
+        project's layout rather than on anything in the file, so there is no
+        fixer and no autofixed.php fixture.
+    -->
+
+    <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
@@ -1027,6 +1134,71 @@
         mechanical rewrite. Legitimate Reflection in a test takes the ordinary
         per-line phpcs:ignore.
     -->
+
+    <!--
+        Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
+
+        The custom CleanCode.Testing.NoFirstPartyMocks sniff (#146) carries the
+        second token-visible slice of the same Tier 3 standard: "do not mock
+        classes you control" is approximated by flagging a mock-creation call
+        whose class argument resolves into a namespace root the project owns.
+        The sniff itself is picked up automatically via the
+        ./CleanCode/ruleset.xml ref above; the block below exists only to
+        configure it.
+
+        SLEVOMAT/PHPCS EVALUATION. No existing PHPCS, Generic, Squiz or Slevomat
+        sniff covers this, and the two that come closest were run against
+        tests/fixtures/NoFirstPartyMocksSniff/failing.php to confirm it:
+
+        - SlevomatCodingStandard.PHP.ForbiddenClasses, configured with
+          App\Models\User, reported 7 of the 18 lines the custom sniff reports
+          (13, 14, 20, 21, 25, 26, 35) and missed the other 11. It speaks about
+          a class being *used*, not about it being mocked, so it needs every
+          first-party class named one by one — and then forbids each of them in
+          production code too, which this standard does not. It also reads only
+          the `::class` spelling, so the string literals on lines 15 and 24
+          escape it, and it is not test-path aware.
+        - Generic.PHP.ForbiddenFunctions, configured with createMock, mock, spy
+          and getMockBuilder, reported nothing at all on the same fixture: it
+          matches global function calls, not method calls.
+
+        Neither resolves an argument through the file's `use` imports, which is
+        what the rule actually turns on.
+
+        $firstPartyNamespaces ships EMPTY on the sniff class, so an unconfigured
+        consumer gets a no-op rather than guesses. `App` is configured here
+        because that is the root of the Laravel layout these standards are
+        written against; a project with different roots replaces the whole
+        element list in its own ruleset:
+
+            <rule ref="CleanCode.Testing.NoFirstPartyMocks">
+                <properties>
+                    <property name="firstPartyNamespaces" type="array">
+                        <element value="Acme"/>
+                        <element value="Acme\Support"/>
+                    </property>
+                </properties>
+            </rule>
+
+        No <exclude-pattern>, for the same reason as the block above: the sniff
+        is only meaningful inside test paths and decides that itself from its
+        testFilePatterns property, so a consumer whose tests live elsewhere
+        retunes a property rather than overriding this ruleset.
+
+        Warnings, not errors, and detection only. The standard is advisory,
+        $mockCreators matches on member name rather than on receiver type, a
+        first-party facade wrapping a genuinely external service is a known
+        false positive, and replacing a mock of a class you own with the real
+        collaborator is a redesign of the test with no mechanical rewrite. Both
+        gray areas take the ordinary per-line phpcs:ignore.
+    -->
+    <rule ref="CleanCode.Testing.NoFirstPartyMocks">
+        <properties>
+            <property name="firstPartyNamespaces" type="array">
+                <element value="App"/>
+            </property>
+        </properties>
+    </rule>
 
     <!--
         PHPMD Naming: ShortVariable (#106) —
@@ -1465,6 +1637,56 @@
     -->
 
     <!--
+        PHPMD CodeSize: NPathComplexity (#89) —
+        docs/phpmd/codesize-npathcomplexity.md.
+
+        No existing PHPCS or Slevomat sniff expresses this rule. NPath counts
+        the acyclic execution paths through a callable, MULTIPLYING the path
+        counts of statements in sequence, and the nearest candidates each
+        measure a different metric: Generic.Metrics.CyclomaticComplexity adds
+        one per decision point instead (it scores
+        multipliesSequentialBranches() in the failing fixture 9 where NPath
+        scores it 256, verified by running it), Generic.Metrics.NestingLevel
+        measures depth rather than paths, and
+        SlevomatCodingStandard.Complexity.Cognitive is a third metric again,
+        weighting nesting rather than counting paths. None can be configured
+        into NPath's semantics. So this is the custom
+        CleanCode.Metrics.NPathComplexity sniff, picked up automatically via
+        the ./CleanCode/ruleset.xml ref above — no per-sniff registration is
+        needed, and tests/Standards/NPathComplexityTest.php asserts the sniff
+        resolves from this master ruleset.
+
+        One property, `minimum`, spelled as PHPMD spells it and defaulting to
+        the 200 PHPMD's codesize.xml ships, so an existing PHPMD configuration
+        for this rule transfers verbatim. Nothing is configured here, because
+        the default already matches.
+
+        Note that PHPMD reports a callable whose NPath is at or ABOVE the
+        minimum, not strictly above it — its Rule\Design\NpathComplexity
+        returns early only on `$npath < $threshold`. The sniff matches that, so
+        a callable measuring exactly 200 is reported by both tools. Reading
+        "minimum" as a tolerated value would make this ruleset looser than
+        PHPMD at exactly that count, which is the one thing the mapping must
+        not be.
+
+        As with ExcessiveClassComplexity above, no <type> override is needed:
+        the sniff raises errors already, so an over-complex callable fails a
+        phpcs run the way it fails a phpmd run.
+
+        Every counting rule was calibrated against a live PHPMD 2.15.0 /
+        PDepend run rather than against PHPMD's documentation, which states
+        none of them. Three are worth flagging because they are easy to assume
+        the other way round: `xor` IS counted here (it is not counted for
+        cyclomatic complexity, so ExcessiveClassComplexity excludes it), a
+        closure or arrow function is NOT its own artifact while a nested named
+        function is, and a `switch` carrying no labels scores 0 and zeroes the
+        whole callable. The doc tabulates all of them.
+
+        Detection only, matching PHPMD. Breaking a callable apart is a design
+        change with no mechanical rewrite, and PHPMD offers no fix either.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessiveMethodLength (#91) —
         docs/phpmd/codesize-excessivemethodlength.md.
 
@@ -1617,6 +1839,50 @@
         Detection only: cutting a class's dependencies means moving behaviour to
         another object, which is a design decision and not a mechanical rewrite.
         PHPMD offers no fix either.
+    -->
+
+    <!--
+        PHPMD Design: DepthOfInheritance (#112) —
+        docs/phpmd/design-depthofinheritance.md.
+
+        No PHPCS or Slevomat sniff measures how far above a class its
+        inheritance chain reaches. The nearest candidates count something
+        else entirely: Slevomat's SlevomatCodingStandard.Classes.ClassLength
+        counts lines, Generic.Metrics.* cover cyclomatic complexity and
+        nesting depth, and nothing in either standard follows an `extends`
+        link at all. So this is the custom CleanCode.Metrics.DepthOfInheritance
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above — no per-sniff registration is needed, and
+        tests/Standards/DepthOfInheritanceTest.php asserts the sniff resolves
+        from this master ruleset.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        minimum=6, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        `minimum` is a floor, not a ceiling. PHPMD compares the metric with
+        `>=` on the `minimum` path, so a class with exactly 6 parents is
+        already reported, and phpmd.org's "maximum number of acceptable parent
+        classes" — echoed by #112's acceptance criteria — reads like a strict
+        `>`. A live PHPMD 2.15.0 run disagrees with them, and the tool is what
+        this package replaces. tests/fixtures/DepthOfInheritanceSniff/
+        boundaries.php pins 5/6/7 against PHPMD's measured output.
+
+        This is the one sniff here whose answer depends on the whole set of
+        files being analysed rather than on one file. It resolves each parent
+        against PHP_CodeSniffer's own FileList over $config->files — the same
+        expansion PHPCS is about to process — so `phpcs src/` sees what
+        `phpmd src/` sees, and a parent outside the run is unseen. PDepend
+        weighs an unseen parent twice, which this reproduces; the whole model
+        and its limits are set out in the sniff's docblock and the doc above.
+
+        As with the sniffs above, no <type> override is needed: the sniff
+        raises errors already, so a violation fails a phpcs run the way it
+        fails a phpmd run.
+
+        Detection only: flattening an inheritance hierarchy means redesigning
+        it, which is a judgement call and not a mechanical rewrite. PHPMD
+        offers no fix either.
     -->
 
     <!--
@@ -2379,4 +2645,41 @@
         Functions.NamedArgumentSpacing only governs spacing around an argument
         that is already named.
     -->
+
+    <!--
+        Debt: Technical Debt (#24), partial enforcement (#138) —
+        docs/standards/debt-technical-debt.md. The standard itself is Tier 3;
+        the one token-visible slice is a self-declared debt marker, so the four
+        keywords TODO, FIXME, HACK and XXX are reported and the rest of the
+        standard stays with code review.
+
+        PHPCS core covers half of that slice already, so it is wired in rather
+        than reimplemented. Both Generic sniffs register every comment token
+        except the phpcs: annotations, which is what gets the keyword found in
+        a line comment, a block comment and a docblock alike, and both report
+        two codes: TaskFound when the keyword carries a description,
+        CommentFound when it stands alone. Neither is auto-fixable, and neither
+        should be — a fixer here could only delete the comment, which loses the
+        recognition of the debt without paying any of it.
+
+        Generic.Commenting.Todo warns out of the box and is taken as it comes.
+        Generic.Commenting.Fixme reports errors, so <type>warning</type> lowers
+        it to match: a marker is honest documentation of known debt and belongs
+        in the report, not on the failing side of a build. The two sit at the
+        same severity so that which keyword a developer reached for does not
+        decide whether the build goes red.
+
+        The remaining two keywords are the custom
+        CleanCode.Commenting.DebtMarkers sniff, picked up automatically via the
+        ./CleanCode/ruleset.xml ref above — core ships no equivalent of either
+        (Generic.Commenting carries only the Todo and Fixme sniffs, plus the
+        DocComment layout sniff), and neither Squiz, PSR12 nor Slevomat has one
+        either. It mirrors the Generic pair's tokens, pattern and message shape
+        and reports at the same warning severity, so the four markers behave as
+        one rule despite being carried by three sniffs.
+    -->
+    <rule ref="Generic.Commenting.Todo"/>
+    <rule ref="Generic.Commenting.Fixme">
+        <type>warning</type>
+    </rule>
 </ruleset>

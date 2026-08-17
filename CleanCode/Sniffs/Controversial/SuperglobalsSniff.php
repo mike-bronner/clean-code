@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Controversial;
 
+use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -58,8 +59,8 @@ use PHP_CodeSniffer\Util\Tokens;
  *   A *plain* parameter is not exempt, even though PHPCS gives it the same
  *   innermost condition as a member declared in the class body: a parameter
  *   list opens no scope of its own. It declares no property, so it is reported
- *   exactly as the same parameter in a global function is. isPlainParameter()
- *   is what tells the two apart.
+ *   exactly as the same parameter in a global function is.
+ *   ParameterDeclaration::isPlainParameter() is what tells the two apart.
  * - A static property access spelled `self::$_POST` or `Holder::$_POST`. The
  *   `::` fixes the name to a member of that class, so no superglobal is reached.
  *   This is the one shape where the sniff is deliberately *narrower* than
@@ -163,7 +164,7 @@ class SuperglobalsSniff implements Sniff
         if (
             $conditions !== []
             && in_array(end($conditions), Tokens::$ooScopeTokens, true) === true
-            && $this->isPlainParameter($phpcsFile, $stackPtr) === false
+            && ParameterDeclaration::isPlainParameter($phpcsFile, $stackPtr) === false
         ) {
             return;
         }
@@ -179,66 +180,6 @@ class SuperglobalsSniff implements Sniff
         }
 
         $this->report($phpcsFile, $stackPtr, $name);
-    }
-
-    /**
-     * Whether the variable is a plain — that is, non-promoted — parameter of a
-     * method, which the class-scope exemption must not cover.
-     *
-     * The parenthesis test is PHP_CodeSniffer's own, from getMemberProperties()
-     * (Files/File.php): take the innermost pair the token sits in and ask
-     * whether a function owns it. That helper is not called directly here
-     * because it answers by throwing, and its parse-error branch would emit a
-     * warning under this sniff's code.
-     *
-     * Promotion is the whole distinction, and it is why this returns "plain
-     * parameter" rather than "parameter": `__construct(public $HTTP_GET_VARS =
-     * [])` declares the property from the parameter list, so it is the same
-     * declaration as `public $HTTP_GET_VARS = [];` written in the class body
-     * and is exempt with it. A plain parameter declares nothing. Only a
-     * promoted parameter carries property_visibility, so getMethodParameters()
-     * is what separates the two — the same technique the sibling
-     * DisallowAlwaysOnEagerLoading sniff uses against this same PHPCS
-     * ambiguity, which bit that sniff in the opposite direction.
-     *
-     * Which guards here are load-bearing, by mutation:
-     *
-     * - The nested_parenthesis test is load-bearing. A member declared in the
-     *   class body carries no such key at all, so dropping the test hands
-     *   array_keys() a null and raises "Argument #1 ($array) must be of type
-     *   array, null given" on every property fixture.
-     * - The $ownerPtr and T_FUNCTION tests are defensive only, and removing
-     *   them leaves the suite green. A parameter default must be a constant
-     *   expression, so no variable but a parameter's own name token can stand
-     *   inside a parameter list, and a closure or arrow function in a class is
-     *   written inside a method body, whose own scope has opened by then. They
-     *   are kept because they are what makes the getMethodParameters() call
-     *   provably safe: that helper throws on a token that is not a function.
-     *   This is how the sibling DisallowAlwaysOnEagerLoading sniff treats its
-     *   own defensive guard.
-     */
-    private function isPlainParameter(File $phpcsFile, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-
-        if (empty($tokens[$stackPtr]['nested_parenthesis']) === true) {
-            return false;
-        }
-
-        $openers = array_keys($tokens[$stackPtr]['nested_parenthesis']);
-        $ownerPtr = $tokens[array_pop($openers)]['parenthesis_owner'] ?? null;
-
-        if ($ownerPtr === null || $tokens[$ownerPtr]['code'] !== T_FUNCTION) {
-            return false;
-        }
-
-        foreach ($phpcsFile->getMethodParameters($ownerPtr) as $parameter) {
-            if ($parameter['token'] === $stackPtr && isset($parameter['property_visibility']) === true) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**
