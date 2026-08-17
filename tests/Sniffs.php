@@ -88,6 +88,16 @@ const SWEPT_SNIFFS = [
 
 /**
  * Every sniff wired into rules.xml that reports warnings.
+ *
+ * Deliberately absent, alongside CleanCode.Models.DisallowExternalPersistenceCalls
+ * and CleanCode.Models.DisallowChainedPropertyFetch:
+ * CleanCode.Routes.DisallowNonResourceRoutes, whose default routeFilePatterns
+ * gate cannot match the fixture directory the contract fixes for it
+ * (tests/fixtures/DisallowNonResourceRoutesSniff/ holds no `routes` segment), so
+ * the sweep would drive its failing fixture against a path the sniff ignores.
+ * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
+ * instead, fixtures staged under a real `routes` directory, plus the
+ * shipped-binary run in both directions that the sweep gives up on its behalf.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',

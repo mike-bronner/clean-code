@@ -45,22 +45,14 @@ Both sniffs below report **warnings**, not errors: each has a false-positive
 shape the standard itself permits, so they point a reviewer at a line rather
 than failing a build.
 
-- **Do: always use resource routes that point to RESTful controllers.** In a
-  routes file, a verb call (`Route::get`/`post`/`put`/`patch`/`delete`/
-  `options`/`any`/`match`) registers a route outside the resource-route
-  convention; `Route::resource()` and `Route::apiResource()` are the compliant
-  shapes. Focused sniff issue:
-  [#248](https://github.com/mike-bronner/phpcs-rules/issues/248).
-  - **False positive** — the standard permits rare special-action routes, and
-    those are registered with exactly the same verb call. The sniff reports
-    them; a reviewer dismisses them.
-  - **False negative** — "points to a RESTful controller" is a claim about
-    another file. Whether the target controller implements the seven RESTful
-    actions is not visible from the registration call.
-  - **False negative** — the check is gated on the file path (a configurable
-    property), so a route registered from a service provider or a package boot
-    method is not seen. Widening the gate raises the false-positive rate on
-    every non-routes file.
+- **Do: always use resource routes that point to RESTful controllers.**
+  **Shipped** as the custom sniff `CleanCode.Routes.DisallowNonResourceRoutes`
+  ([#248](https://github.com/mike-bronner/phpcs-rules/issues/248)) — see
+  [The resource-route sniff](#the-resource-route-sniff) below for the heuristic
+  it implements and its six boundaries. In a routes file, a verb call
+  (`Route::get`/`post`/`put`/`patch`/`delete`/`options`/`any`/`match`) registers
+  a route outside the resource-route convention; `Route::resource()` and
+  `Route::apiResource()` are the compliant shapes.
 - **Do: for special action routes, use invokable controllers.** The action
   argument carries the answer: a bare `FooController::class` is invokable and
   compliant, while an array action `[FooController::class, 'method']` (or the
@@ -89,6 +81,121 @@ token stream does not carry.
 - **Do Not: create routes that do not relate to models.** Same limitation as
   above, and stated as an absence: proving a route relates to *no* model means
   reading every file it reaches.
+
+## The resource-route sniff
+
+`CleanCode.Routes.DisallowNonResourceRoutes` carries the resource-route bullet
+above. It is wired in through the CleanCode standard — no per-sniff
+registration — and reports **warnings**, detection-only.
+
+### The heuristic
+
+The bullet is two claims. Whether the controller a route names really implements
+the seven RESTful actions is a fact about *another file*, and PHP_CodeSniffer
+sees one file at a time. That a route was registered with an HTTP verb rather
+than as a resource is plain single-file token content, and that is the half
+enforced.
+
+The sniff warns on a static call to `Route::get`, `Route::post`, `Route::put`,
+`Route::patch`, `Route::delete`, `Route::options`, `Route::any` or
+`Route::match`, anchoring the warning at the **verb-method token itself**. The
+compliant shapes — `Route::resource()`, `Route::apiResource()`,
+`Route::resources()`, `Route::apiResources()` — are absent from that list and
+never report. Neither do the modifiers that only wrap or configure other routes
+(`Route::group()`, `Route::middleware()`, `Route::prefix()`, `Route::name()`,
+`Route::domain()`, `Route::controller()`), nor `Route::fallback()`, which
+registers the no-match handler.
+
+Both the verb and the receiver are compared case-insensitively, PHP names being
+case-insensitive, and the receiver is compared on its trailing namespace
+segment — so `Route`, `\Route` and `Illuminate\Support\Facades\Route` all read
+as the facade while `Router` and `ApiRoute` do not.
+
+Warning severity is deliberate: the standard permits special-action routes in
+the same breath as the rule ("this should be very rare"), and those are
+registered with a verb call. A report is a prompt to look, not a proven defect.
+Turning a verb route into a resource route means writing the seven RESTful
+actions, so there is no mechanical rewrite and no auto-fix.
+
+### Scope: route files only
+
+PHP_CodeSniffer has no notion of "a routes file", so the sniff gates itself on
+the linted file's own path through the public `routeFilePatterns` property —
+`fnmatch` globs, shipped as `*/routes/*`. A file matching none of them produces
+no diagnostics whatever its contents.
+
+```xml
+<rule ref="CleanCode.Routes.DisallowNonResourceRoutes">
+    <properties>
+        <property name="routeFilePatterns" type="array">
+            <element value="*/routes/*"/>
+            <element value="*/http/routes/*"/>
+        </property>
+    </properties>
+</rule>
+```
+
+Two consequences of gating on the path are worth knowing. Piped input reports
+its path as `STDIN`, which matches no shipped glob, so the sniff says nothing
+about it. And the glob matches a `routes` segment anywhere in the absolute path
+PHP_CodeSniffer hands over, so a checkout living under a directory called
+`routes` widens the gate to the whole project — a project in that position
+retunes the property.
+
+### Boundaries
+
+Six known limits, each a deliberate design decision rather than a defect. All
+six are also recorded in the sniff's own class docblock.
+
+#### Special-action routes report (false positive)
+
+The standard permits rare special-action routes, and a special-action route is
+registered with a verb call. A sniff cannot tell a legitimate rare exception
+from a controller that should have been RESTful, so every such route reports;
+warning severity is what stops that from blocking a build.
+[#249](https://github.com/mike-bronner/phpcs-rules/issues/249) covers the
+complementary check that the exception at least points at an invokable
+controller.
+
+#### `Route::fallback()` and framework-provided registrations (false positive)
+
+`fallback` is deliberately outside the flagged list for exactly this reason: it
+registers the no-match handler rather than a resource. Other package-provided
+macros that register a route through a verb call are not distinguishable from an
+application's own verb routes at token level, so a package's registrations
+inside a route file would report like any other.
+
+#### Routes registered outside a route file (false negative)
+
+A verb call in a service provider, a package `boot()` method, or any other file
+whose path does not match `routeFilePatterns` is never seen. Widening the gate
+trades this for a much higher false-positive rate, because a verb-named static
+call outside a route file is usually not a route at all.
+
+#### The controller's actual shape (false negative)
+
+"Points to a RESTful controller" is a claim about another file. The sniff reads
+the registration call only. Whether the target controller implements the seven
+RESTful actions — or whether a `Route::resource()` points at one that
+implements none of them — needs project-wide symbol resolution and stays with
+code review.
+
+#### The `Route` facade is assumed, not resolved
+
+Like [#174](https://github.com/mike-bronner/phpcs-rules/issues/174), the sniff
+assumes the Laravel `Route` facade convention. It cannot resolve which `Route`
+symbol an import actually binds from one file's tokens, so an unrelated class
+named `Route` with a `get()` method reports, and a facade pulled in under an
+alias (`use Route as Web;`, then `Web::get(...)`) does not.
+
+#### Fluent-chained verb calls (false negative)
+
+`Route::middleware('auth')->get(...)` and `Route::prefix('admin')->post(...)`
+are not `Route::` static calls: the verb sits after `->`, on the registrar the
+modifier returned. This token-level heuristic does not see them. Catching the
+chained form means following a return value through an arbitrary chain, beyond
+what [#248](https://github.com/mike-bronner/phpcs-rules/issues/248) asks for —
+recorded here as a known false negative rather than pulled into detection scope.
 
 ## What remains code review
 
