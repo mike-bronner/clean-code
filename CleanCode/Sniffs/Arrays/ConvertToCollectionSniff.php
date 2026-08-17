@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Arrays;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -66,18 +67,6 @@ class ConvertToCollectionSniff implements Sniff
     ];
 
     /**
-     * Tokens that, when directly preceding the function name, mean this is
-     * not a global function call (method call, static call, declaration, …).
-     */
-    private const NON_FUNCTION_CALL_PRECEDERS = [
-        T_OBJECT_OPERATOR,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_DOUBLE_COLON,
-        T_FUNCTION,
-        T_NEW,
-    ];
-
-    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -110,32 +99,7 @@ class ConvertToCollectionSniff implements Sniff
             return;
         }
 
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-
-        // A leading \ or namespace\ qualifier belongs to the name rather than
-        // to the decision: the keyword that governs new \array_map() stands in
-        // front of the qualifier, so the preceder test below has to look past
-        // it once the name has been ruled out as a qualified one.
-        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
-            if ($this->isQualifiedName($phpcsFile, $prev) === true) {
-                return;
-            }
-
-            $prev = $this->beforeQualifier($phpcsFile, $prev);
-        }
-
-        // Returning by reference puts an & between the keyword and the name,
-        // so function &array_map() is a declaration all the same. The & of a
-        // bitwise and ($mask & array_map()) is stepped over just as harmlessly:
-        // what precedes it there is an operand rather than a keyword.
-        if ($prev !== false && $tokens[$prev]['code'] === T_BITWISE_AND) {
-            $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
-        }
-
-        if (
-            $prev !== false
-            && in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true
-        ) {
+        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -188,87 +152,5 @@ class ConvertToCollectionSniff implements Sniff
         }
 
         return substr($function, self::ARRAY_PREFIX_LENGTH);
-    }
-
-    /**
-     * Whether the T_NS_SEPARATOR at $separatorPtr belongs to a qualified name
-     * (App\Support\array_map, and namespace\array_map inside a declared
-     * namespace) rather than a fully-qualified global one (\array_map).
-     * Qualified names resolve outside the global namespace, so they are never
-     * the native array functions.
-     */
-    private function isQualifiedName(File $phpcsFile, int $separatorPtr): bool
-    {
-        $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
-
-        if ($beforeSeparator === false) {
-            return false;
-        }
-
-        $tokens = $phpcsFile->getTokens();
-
-        if ($tokens[$beforeSeparator]['code'] === T_STRING) {
-            return true;
-        }
-
-        return $tokens[$beforeSeparator]['code'] === T_NAMESPACE
-            && $this->isInsideNamedNamespace($phpcsFile, $beforeSeparator) === true;
-    }
-
-    /**
-     * The token in front of the qualifier the T_NS_SEPARATOR at $separatorPtr
-     * opens — the separator itself for \array_map, and the namespace keyword
-     * with it for namespace\array_map. That is the token which decides what
-     * the name is doing, so new \array_map() and new namespace\array_map()
-     * read as the instantiations they are rather than as calls.
-     *
-     * Only reached for an unqualified global name: a qualified one
-     * (App\Support\array_map) has already left process().
-     *
-     * @return int|false
-     */
-    private function beforeQualifier(File $phpcsFile, int $separatorPtr)
-    {
-        $tokens = $phpcsFile->getTokens();
-        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
-
-        if ($before !== false && $tokens[$before]['code'] === T_NAMESPACE) {
-            return $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true);
-        }
-
-        return $before;
-    }
-
-    /**
-     * Whether the token at $stackPtr sits inside a *named* namespace.
-     *
-     * namespace\array_map() resolves against the namespace in force where it
-     * is written, so it only names a different symbol once one has been
-     * declared. Where none has, the namespace in force is the global one and
-     * namespace\array_map() is the native function, exactly as \array_map()
-     * is — so the call is flagged rather than excluded.
-     *
-     * Walks back to the nearest declaration, which is the one in force:
-     * namespace Foo; and namespace Foo {} both put a T_STRING after the
-     * keyword, while the bare namespace {} block is the global namespace and
-     * ends the walk. A T_NAMESPACE that opens a namespace\ name is skipped —
-     * it is an operator rather than a declaration.
-     */
-    private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $search = $stackPtr;
-
-        while (($search = $phpcsFile->findPrevious(T_NAMESPACE, ($search - 1))) !== false) {
-            $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($search + 1), null, true);
-
-            if ($next === false || $tokens[$next]['code'] === T_NS_SEPARATOR) {
-                continue;
-            }
-
-            return $tokens[$next]['code'] === T_STRING;
-        }
-
-        return false;
     }
 }

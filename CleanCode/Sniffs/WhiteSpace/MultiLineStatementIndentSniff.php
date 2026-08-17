@@ -117,6 +117,63 @@ class MultiLineStatementIndentSniff implements Sniff
     /**
      * Curly-brace scopes that appear inside expressions; their bodies are
      * governed by scope-indent rules, not by this sniff.
+     *
+     * Family: every member of `PHP_CodeSniffer\Util\Tokens::$scopeOpeners` —
+     * PHPCS's own register of the tokens a `scope_opener`/`scope_closer` pair
+     * hangs off — plus `T_FN`, which the tokenizer gives that same pair in
+     * `PHP::processAdditional()` while leaving it out of that array. That
+     * union is the whole set of tokens findStatementEnd() could be asked to
+     * skip, so it is the set this constant answers to, and every member of it
+     * is listed below. A member excluded here is not thereby unhandled: the
+     * last branch of findStatementEnd() ends the statement at its scope
+     * opener, which is the right answer for a construct that starts a
+     * statement of its own.
+     *
+     * - `T_CLOSURE` — included: a `function () {…}` written as an operand sits
+     *   mid-statement, and its body is a scope block.
+     * - `T_ANON_CLASS` — included: `new class {…}` is an operand whose body is
+     *   a scope block.
+     * - `T_MATCH` — included: a `match` is an operand; its arms are a scope
+     *   block, while its subject stays on the statement and is checked.
+     * - `T_FN` — excluded: an arrow function's body is one expression that
+     *   stays in the statement, so it is walked into and checked as a
+     *   continuation rather than skipped — findStatementEnd() names it.
+     * - `T_FUNCTION` — excluded: a named function or method declaration, never
+     *   an operand; `T_CLOSURE` is the expression form.
+     * - `T_CLASS` — excluded: a class declaration, never an operand;
+     *   `T_ANON_CLASS` is the expression form, and `Foo::class` is a
+     *   `T_STRING`.
+     * - `T_TRAIT` — excluded: a trait declaration, never an operand.
+     * - `T_INTERFACE` — excluded: an interface declaration, never an operand.
+     * - `T_ENUM` — excluded: an enum declaration, never an operand.
+     * - `T_NAMESPACE` — excluded: a braced namespace declaration, always at
+     *   file level; the relative-name form `namespace\Foo` opens no scope.
+     * - `T_USE` — excluded: it opens a scope only as a trait-adaptation block
+     *   in a class body, a statement of its own. A closure's `use (…)` capture
+     *   is parentheses, and a grouped import's braces are BRACKET_OPENERS and
+     *   UNLINKED_PAIRS.
+     * - `T_IF` — excluded: a control-flow keyword; it opens a statement rather
+     *   than continuing one.
+     * - `T_ELSEIF` — excluded: a control-flow keyword, as `T_IF` is.
+     * - `T_ELSE` — excluded: a control-flow keyword, as `T_IF` is.
+     * - `T_DO` — excluded: a loop keyword; it opens a statement.
+     * - `T_WHILE` — excluded: a loop keyword; it opens a statement.
+     * - `T_FOR` — excluded: a loop keyword; it opens a statement.
+     * - `T_FOREACH` — excluded: a loop keyword; it opens a statement.
+     * - `T_SWITCH` — excluded: a control-flow keyword; it opens a statement.
+     * - `T_TRY` — excluded: a control-flow keyword; it opens a statement.
+     * - `T_CATCH` — excluded: a control-flow keyword; it opens a statement.
+     * - `T_FINALLY` — excluded: a control-flow keyword; it opens a statement.
+     * - `T_DECLARE` — excluded: a directive, at file or block level, never an
+     *   operand.
+     * - `T_CASE` — excluded: a `switch` body label; an enum's `case` is
+     *   `T_ENUM_CASE` and opens no scope.
+     * - `T_DEFAULT` — excluded: a `switch` body label; a match arm's `default`
+     *   is `T_MATCH_DEFAULT` and opens no scope.
+     * - `T_OBJECT` — excluded: only the JavaScript tokenizer emits it, so no
+     *   PHP source reaches it.
+     * - `T_PROPERTY` — excluded: only the JavaScript tokenizer emits it, so no
+     *   PHP source reaches it.
      */
     private const EXPRESSION_SCOPES = [
         T_CLOSURE,
