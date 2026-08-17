@@ -226,3 +226,21 @@ $deleteAll = function (): int {
 };
 
 $sendAll = fn (): int => 0;
+
+/**
+ * Grouping parentheses nest, and each pair wraps the one inside it — so the
+ * builder idiom is still the builder idiom however many of them are written
+ * around it. Reading one pair off and comparing what is left would call this a
+ * value-return.
+ */
+class Wrapper
+{
+    private ?string $label = null;
+
+    public function updateLabel(string $label)
+    {
+        $this->label = $label;
+
+        return (($this));
+    }
+}

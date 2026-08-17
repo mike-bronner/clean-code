@@ -89,16 +89,20 @@ too: `null` only adds a third state to the same object. So is a union whose
 since no member of it can be a value.
 
 The body half reads the whole returned expression, so how it is written down
-does not change the answer: `return ($this);` and a `return $this;` with a
-comment before it are the same builder as the plain spelling. Only what comes
-back counts, and parentheses and comments are not part of it.
+does not change the answer: `return ($this);`, `return (($this));` and a
+`return $this;` with a comment before it are the same builder as the plain
+spelling. Only what comes back counts, and *grouping* parentheses and comments
+are not part of it.
 
-Three shapes are **not** exempt. A body that returns `$this` on one path and a
+Four shapes are **not** exempt. A body that returns `$this` on one path and a
 result on another — that mix is the command–query blur the rule is about. A
 union with a member that *is* a value, such as `static|false`, which hands back
-either the object or something to read. And a qualified spelling of the
-enclosing class (`\App\Models\Order`): resolving it needs the file's imports,
-and a wrong answer there would silence a real finding.
+either the object or something to read. A qualified spelling of the enclosing
+class (`\App\Models\Order`): resolving it needs the file's imports, and a wrong
+answer there would silence a real finding. And `return $this();` or
+`return ($this)();`, which invoke `__invoke()` and hand back *its* result: those
+parentheses are a call, not a grouping, so what comes back is a value like any
+other.
 
 Switch the exemption off and those declarations report like any other returning
 method:

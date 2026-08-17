@@ -1746,18 +1746,18 @@
 
         No existing PHPCS or Slevomat sniff expresses command-query separation.
         The four nearest candidates were run, as whole standards, against
-        tests/fixtures/ActionMethodReturnSniff/failing.php, whose eighteen
-        methods all name an action and all hand a value back:
+        tests/fixtures/ActionMethodReturnSniff/failing.php, whose twenty-four
+        action methods all hand a value back:
         PSR1.Methods.CamelCapsMethodName,
         Squiz.NamingConventions.ValidFunctionName and
         PEAR.NamingConventions.ValidFunctionName read the name's *shape* and
         between them report one line, 86, for an underscore;
         SlevomatCodingStandard.TypeHints.ReturnTypeHint asks only that a type be
-        declared, and how completely, so it reports the four declarations that
+        declared, and how completely, so it reports the seven declarations that
         omit one plus a bare `array` whose item type is unspecified, and stays
-        silent on the other thirteen. None of them pairs a name against what the
-        declaration hands back, which is the whole of this rule: fix all six of
-        their reports and all eighteen still stand. tests/Standards/
+        silent on the other sixteen. None of them pairs a name against what the
+        declaration hands back, which is the whole of this rule: fix all nine of
+        their reported lines and all twenty-four still stand. tests/Standards/
         ActionMethodReturnTest.php pins that measurement, so a vendor upgrade
         cannot change the answer unnoticed.
 

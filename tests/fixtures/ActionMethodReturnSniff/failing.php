@@ -202,3 +202,28 @@ class Receipt
         return ($this->number);
     }
 }
+
+/**
+ * `$this()` invokes __invoke() and hands back *its* result, which is a value
+ * like any other — the same characters as the builder idiom, written for the
+ * opposite purpose. A parenthesis around the variable groups; one after it
+ * calls, and taking every parenthesis out of the expression reads both of these
+ * as `$this`.
+ */
+class Dispatcher
+{
+    public function __invoke(): string
+    {
+        return 'dispatched';
+    }
+
+    public function sendDispatch()
+    {
+        return $this();
+    }
+
+    public function postDispatch()
+    {
+        return ($this)();
+    }
+}

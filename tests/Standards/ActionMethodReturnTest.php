@@ -109,6 +109,10 @@ it('passes the standard it belongs to', function (): void {
  * - lines 197, 202, and 206, a plain function, a closure, and an arrow
  *   function. The standard describes an action taken on a class, which none of
  *   them is.
+ * - line 240, `return (($this));`. Grouping parentheses nest, so the builder
+ *   idiom is still the builder idiom however many pairs are written around it.
+ *   Taking one pair off and comparing what is left would call this a
+ *   value-return.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(ACTION_METHOD_RETURN, 'passing.php');
@@ -156,9 +160,17 @@ it('produces no violations on the compliant fixture', function (): void {
  *   the shape of `return $this;` without being it. Matching the fluent body on
  *   adjacency alone would exempt this.
  * - line 200, `return ($this->number);` — parenthesised, and still not `$this`.
- *   Taking the parentheses off is what lets `return ($this);` be read as the
- *   builder idiom, and this is the half that proves taking them off does not
- *   swallow the expression with them.
+ *   Taking the grouping parentheses off is what lets `return ($this);` be read
+ *   as the builder idiom, and this is the half that proves taking them off does
+ *   not swallow the expression with them.
+ * - lines 220 and 225, `return $this();` and `return ($this)();`. Both invoke
+ *   __invoke() and hand back *its* result, which is the value-return this rule
+ *   is about. They are written with the same characters as the builder idiom,
+ *   so a comparison that takes every parenthesis out of the expression reads
+ *   both as `$this` and silently exempts them. A grouping parenthesis is the
+ *   one whose match closes the expression, and neither of these has one:
+ *   `$this()` is followed by the call, and `($this)()` closes its first pair
+ *   before the call rather than at the end.
  *
  * The standalone `null` type, on lines 181, 186 and 191:
  *
@@ -196,6 +208,8 @@ it('flags every action method that returns a value in the failing fixture', func
         ['line' => 186, 'column' => 30, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 191, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 200, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 220, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 225, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
 });
 
@@ -212,19 +226,19 @@ it('flags every action method that returns a value in the failing fixture', func
  *   Between them they report one line, 86 — `store_line()`, for the underscore
  *   — and would keep reporting it after the return type was removed.
  * - SlevomatCodingStandard.TypeHints.ReturnTypeHint asks only that a type be
- *   *declared*, and how completely. It reports the five declarations that omit
- *   one (48, 58, 70, 122, 200) and line 148's bare `array`, for an unspecified
- *   item type — and stays silent on the other sixteen, which declare a returning
- *   type perfectly well. That is the opposite half of this rule: it wants a
- *   type where there is none, this wants none where there is a type.
+ *   *declared*, and how completely. It reports the seven declarations that omit
+ *   one (48, 58, 70, 122, 200, 220, 225) and line 148's bare `array`, for an
+ *   unspecified item type — and stays silent on the other sixteen, which declare
+ *   a returning type perfectly well. That is the opposite half of this rule: it
+ *   wants a type where there is none, this wants none where there is a type.
  *
  *   The three `: null` declarations on lines 181, 186 and 191 are where the two
  *   halves are furthest apart: each declares a type, so ReturnTypeHint is
  *   satisfied and silent, and each declares a *returning* type, which is the
  *   whole of what this sniff is reporting.
  *
- * Their seven lines overlap this sniff's twenty-two by shape, not by coverage:
- * fix every one of those seven and all twenty-two still report here. Pinned
+ * Their nine lines overlap this sniff's twenty-four by shape, not by coverage:
+ * fix every one of those nine and all twenty-four still report here. Pinned
  * rather than asserted once in a comment, because a vendor upgrade can quietly
  * change the answer.
  */
@@ -256,7 +270,7 @@ it('is answered by no nearby vendor standard', function (): void {
     expect($reported)->toBe([
         'PEAR.NamingConventions.ValidFunctionName' => [86],
         'PSR1.Methods.CamelCapsMethodName' => [86],
-        'SlevomatCodingStandard.TypeHints.ReturnTypeHint' => [48, 58, 70, 122, 148, 200],
+        'SlevomatCodingStandard.TypeHints.ReturnTypeHint' => [48, 58, 70, 122, 148, 200, 220, 225],
         'Squiz.NamingConventions.ValidFunctionName' => [86],
     ]);
 });
@@ -284,7 +298,7 @@ it('names the method and the matched verb in the message', function (): void {
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(ACTION_METHOD_RETURN, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(22)
+    expect($file->getWarningCount())->toBe(24)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
@@ -336,18 +350,20 @@ it('flags a fluent interface when allowFluentInterface is off', function (): voi
 
 /**
  * Turning the exemption off widens the rule to fluent declarations and to
- * nothing else. Every other near-miss in `passing.php` stays silent: the six
- * fluent spellings on lines 92, 99, 106, 118, 179 and 191 are the whole
+ * nothing else. Every other near-miss in `passing.php` stays silent: the seven
+ * fluent spellings on lines 92, 99, 106, 118, 179, 191 and 240 are the whole
  * difference.
  *
- * Lines 179 and 191 — `return ($this);` and a `return $this;` with a comment
- * written before it — are the pair that proves each is silent above because the
- * exemption reached it, not because the sniff read one token, found neither
- * `$this` nor anything like it, and gave up. Reading one token answers "not
- * fluent" in *both* states, so the default run alone cannot tell the two apart.
- * Their opposite is `failing.php` line 200, `return ($this->number);`, which
- * reports in both: the parentheses come off, and what is inside them is still
- * not `$this`.
+ * Lines 179, 191 and 240 — `return ($this);`, a `return $this;` with a comment
+ * written before it, and `return (($this));` — are the group that proves each is
+ * silent above because the exemption reached it, not because the sniff read one
+ * token, found neither `$this` nor anything like it, and gave up. Reading one
+ * token answers "not fluent" in *both* states, so the default run alone cannot
+ * tell the two apart. Their opposites are in `failing.php`: line 200,
+ * `return ($this->number);`, where the grouping parentheses come off and what is
+ * inside them is still not `$this`, and lines 220 and 225, `return $this();` and
+ * `return ($this)();`, where the parentheses are a call rather than a grouping
+ * and stay on.
  *
  * The two that matter here declare no return type and hand back nothing — line
  * 35, whose body holds only a bare `return;`, and line 47, whose body holds no
@@ -373,6 +389,7 @@ it('widens to fluent declarations only when allowFluentInterface is off', functi
         ['line' => 118, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 179, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 191, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 240, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
 });
 

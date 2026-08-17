@@ -50,18 +50,18 @@ use PHP_CodeSniffer\Util\Tokens;
  * is why it reads the way it does: match(true) guard chains rather than `if`
  * (CleanCode.Conditionals.AvoidConditionals), counted folds rather than
  * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection), the File
- * API — getCondition(), findNext(), getTokensAsString() — rather than the token
- * array (CleanCode.Arrays.ArrayAccessors), and a NOWDOC message
- * (CleanCode.Strings.MultilineStrings). Each replacement those three Arrays and
- * Strings rules ask for is a Laravel helper this package does not ship, so each
- * has to be written around rather than adopted.
+ * API — getCondition(), findNext(), findPrevious(), getTokensAsString() —
+ * rather than the token array (CleanCode.Arrays.ArrayAccessors), and a NOWDOC
+ * message (CleanCode.Strings.MultilineStrings). Each replacement those three
+ * Arrays and Strings rules ask for is a Laravel helper this package does not
+ * ship, so each has to be written around rather than adopted.
  *
  * scopeBoundary() is the one read the File API cannot express: PHP_CodeSniffer
- * publishes no accessor for a declaration's `scope_opener`/`scope_closer`, so
- * the pointers are read off getTokens()' return value. That spelling is rooted
- * in a call rather than a variable, which is a blind spot
- * CleanCode.Arrays.ArrayAccessors documents about itself — recorded here rather
- * than left to look like an oversight.
+ * publishes no accessor for a declaration's `scope_opener`/`scope_closer`, nor
+ * for a parenthesis's `parenthesis_closer`, so the pointers are read off
+ * getTokens()' return value. That spelling is rooted in a call rather than a
+ * variable, which is a blind spot CleanCode.Arrays.ArrayAccessors documents
+ * about itself — recorded here rather than left to look like an oversight.
  *
  * tests/Standards/ActionMethodReturnTest.php asserts the clean run, so a
  * sibling standard landing later cannot falsify this claim unnoticed.
@@ -534,13 +534,7 @@ class ActionMethodReturnSniff implements Sniff
      * ends the statement, rather than the one token the expression starts with.
      * A parenthesised `return ($this);` starts on the `(`, so a one-token read
      * never sees the variable and calls the plainest spelling of the builder
-     * idiom a value-return. Grouping parentheses are what the comparison then
-     * drops, since they change nothing about what comes back.
-     *
-     * `$this->name`, `$this->save()` and `$this ?: $other` keep every other
-     * character they are written with, so each is a value built from `$this`
-     * rather than `$this` itself. Nothing but parentheses is dropped, so the
-     * only expressions left reading `$this` are the ones that are it.
+     * idiom a value-return.
      *
      * A statement with no semicolon before the body ends cannot be read, and is
      * answered "not fluent" — the exemption is what silences a report, so an
@@ -557,35 +551,81 @@ class ActionMethodReturnSniff implements Sniff
     }
 
     /**
-     * Whether everything written between two pointers is `$this`, once the
-     * grouping parentheses are taken off.
+     * Whether everything written between two pointers is `$this`, wrapped in
+     * nothing but grouping parentheses.
+     *
+     * Read as a structure rather than as text, because a parenthesis means two
+     * different things depending on where it sits: `($this)` groups, `$this()`
+     * calls, and flattening the expression to characters and taking every
+     * parenthesis out of it cannot tell the two apart. `$this()` invokes
+     * __invoke() and hands back *its* result, which is the value-return this
+     * rule exists to report, so reading it as the builder idiom would silence
+     * exactly the finding the exemption is not for.
+     *
+     * A grouping parenthesis is the one whose match closes the expression: the
+     * `(` this starts on ends on the last token before the semicolon, and what
+     * it wraps is asked the same question again. `($this)()` fails that test on
+     * the first parenthesis — its match is followed by the call — and `$this()`
+     * fails it on the variable, which is not the last token it is written with.
+     *
+     * `$this->name`, `$this->save()` and `$this ?: $other` are each a value
+     * built from `$this` rather than `$this` itself, and answer the same way.
+     * Whitespace and comments are not part of what comes back, so neither is
+     * read: a `return` with a comment written before `$this` is the plain
+     * spelling.
      */
     private function isThisExpression(File $phpcsFile, int $start, int $end): bool
     {
-        $written = $this->meaningfulContent($phpcsFile, $start, $end);
+        $first = $this->orNull($phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true));
+        $last = $this->orNull(
+            $phpcsFile->findPrevious(Tokens::$emptyTokens, ($end - 1), $start, true)
+        );
 
-        return str_replace(['(', ')'], '', $written) === '$this';
+        return match (true) {
+            $first === null => false,
+            $this->isThisVariable($phpcsFile, $first) => $first === $last,
+            default => $this->isGroupedThis($phpcsFile, $first, $last),
+        };
     }
 
     /**
-     * The text between two pointers with whitespace and comments left out.
+     * Whether a pair of parentheses at the expression's head groups the whole of
+     * it, and wraps nothing but `$this`.
      *
-     * Built token by token rather than taken as one getTokensAsString() run,
-     * because that run reproduces the source verbatim: a comment written inside
-     * the expression would land in the middle of the text being compared, and a
-     * `return` with one written before `$this` would read as something else.
+     * The pair has to close the expression. That is the whole test, and it is
+     * what a call fails: `$this()`'s parentheses open *after* the variable, and
+     * `($this)()`'s first pair closes before the call rather than at the end.
+     *
+     * No check that the head token is a `(` is written with it. PHP_CodeSniffer
+     * hangs a `parenthesis_closer` on constructs of their own too — `array(…)`,
+     * `isset(…)`, a closure's parameter list — and every one of them opens its
+     * pair on the *next* token, so what this then re-reads is a range whose own
+     * last token is inside the pair rather than the pair's closer, and the
+     * answer comes back false regardless. A token with no pair at all reads
+     * NO_POINTER, which is no pointer this can be handed. The check was written
+     * first and removed once mutation testing showed it could not change an
+     * outcome.
      */
-    private function meaningfulContent(File $phpcsFile, int $start, int $end): string
+    private function isGroupedThis(File $phpcsFile, int $first, ?int $last): bool
     {
-        $written = '';
-        $pointer = $phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true);
+        $closer = $this->scopeBoundary($phpcsFile, $first, 'parenthesis_closer');
 
-        while ($pointer !== false) {
-            $written .= $this->contentOf($phpcsFile, $pointer);
-            $pointer = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), $end, true);
-        }
+        return match ($closer) {
+            $last => $this->isThisExpression($phpcsFile, ($first + 1), $closer),
+            default => false,
+        };
+    }
 
-        return $written;
+    /**
+     * Whether the token at the pointer is written `$this`.
+     *
+     * The content answers the token type: no other token a returned expression
+     * can start with carries a variable's sigil, and the empty tokens a comment
+     * or a string body would arrive as are left out before this is asked.
+     */
+    private function isThisVariable(File $phpcsFile, int $stackPtr): bool
+    {
+        return $this->contentOf($phpcsFile, $stackPtr) === '$this';
     }
 
     /**
@@ -626,11 +666,13 @@ class ActionMethodReturnSniff implements Sniff
     }
 
     /**
-     * One of a declaration's scope pointers, or NO_POINTER when it has none.
+     * One of a token's boundary pointers — a declaration's
+     * `scope_opener`/`scope_closer`, a parenthesis's `parenthesis_closer` — or
+     * NO_POINTER when the token carries none.
      *
-     * PHP_CodeSniffer publishes no accessor for `scope_opener`/`scope_closer`,
-     * so this is the one read in the file taken off the token array rather than
-     * through the File API — see the class docblock.
+     * PHP_CodeSniffer publishes no accessor for any of them, so this is the one
+     * read in the file taken off the token array rather than through the File
+     * API — see the class docblock.
      */
     private function scopeBoundary(File $phpcsFile, int $stackPtr, string $boundary): int
     {
