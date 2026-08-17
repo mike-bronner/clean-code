@@ -319,6 +319,199 @@ it('stays linear as groupings nest', function (): void {
 });
 
 /**
+ * Builds the same-line-stacked shape both tests below drive, and returns the
+ * source alongside the column of every condition the sniff is owed for it.
+ *
+ * One physical line carries the whole condition: $leading plain conditions,
+ * then $stacked group openers written one after another. Every group but the
+ * last has the next group's condition glued to its own opening parenthesis, so
+ * each contributes exactly one violation, and every one of them is owed the
+ * same twelve spaces — the openers all share the `if` line, whose indent is
+ * eight. The columns are recorded while the line is assembled rather than
+ * recomputed from a formula, because the width of a segment changes with the
+ * number of digits in its level.
+ *
+ * $opener is what turns the same file into its own control: `&& (` opens a
+ * grouping at every level, `&& check(` opens a call at every level, and a call
+ * is skipped whole by the walk that collects groupings. The two files are
+ * otherwise identical — same token count, same parenthesis depth — so the
+ * tokenizer's own cost, which is superlinear in that depth, sits on both sides
+ * of the ratio and cancels.
+ *
+ * @return array{0: string, 1: array<int, int>}
+ */
+$stackedGroupings = function (string $opener, int $leading, int $stacked): array {
+    $lines = ['<?php', '', 'final class Stacked', '{', '    public function run(): bool', '    {'];
+    $line = '        if (';
+
+    for ($lead = 1; $lead <= $leading; $lead++) {
+        $line .= '$this->p' . $lead . ' && ';
+    }
+
+    $columns = [];
+
+    for ($level = 1; $level <= $stacked; $level++) {
+        // Every level past the first is the glued first condition of the group
+        // the level before it opened, and is reported where it starts.
+        if ($level > 1) {
+            $columns[] = (strlen($line) + 1);
+        }
+
+        $line .= '$this->a' . $level . ' ' . $opener;
+    }
+
+    $lines[] = $line;
+    $lines[] = str_repeat(' ', 12) . '$this->first';
+    $lines[] = str_repeat(' ', 12) . '&& $this->second';
+    $lines[] = str_repeat(' ', 8) . str_repeat(')', $stacked) . ') {';
+    $lines[] = '            return true;';
+    $lines[] = '        }';
+    $lines[] = '';
+    $lines[] = '        return false;';
+    $lines[] = '    }';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return [implode("\n", $lines), $columns];
+};
+
+/**
+ * Stacking cost has to stay linear in the number of groups sharing a line.
+ *
+ * The test above nests one opener per line, which is a different axis: it
+ * measures the walks *through* a group's contents, and those were made linear
+ * by jumping past each nested region. The two walks along a physical *line* —
+ * the one reading a line's indent and the one rewriting it — were untouched by
+ * that, because neither walks through a group at all. Each stepped back one
+ * token at a time to the start of its line, so a line carrying n stacked
+ * openers paid one walk per group over an ever-growing prefix of that single
+ * line: quadratic, on an axis the test above cannot see.
+ *
+ * The ratio is what is asserted, for the same reason as above — a budget in
+ * seconds is meaningless across machines. The two implementations sit an order
+ * of magnitude either side of the threshold: 5.34x for the per-call backward
+ * walk against 1.02x for the indexed lookup (0.4224s/0.0791s against
+ * 0.0742s/0.0730s, measured in-process here on the same run of this test
+ * against each implementation).
+ *
+ * The 2,000 leading conditions are not decoration. The nesting depth is what
+ * caps this shape — PHP_CodeSniffer records the full parenthesis nesting on
+ * every token inside it, so a stack much past a thousand exhausts PHP's
+ * default memory limit while the file is still being tokenized — and at a
+ * depth of 600 the quadratic walk alone is only about 2.3x the control, too
+ * narrow to separate from noise. Every one of the 600 walks crosses the whole
+ * leading run, which puts the cost back on the axis being measured without
+ * touching the depth. Cheap for the control, which tokenizes that run once.
+ *
+ * The violations and the diagnostic are asserted alongside the timings for two
+ * different reasons. A walk that gave up early would be fast and silent, so the
+ * 599 tuples are what stop the ratio passing vacuously, and the control's empty
+ * set is what proves it does no grouping work at all. The message is the half
+ * that catches the other cheap way to be fast: an implementation that capped
+ * how far back it scanned would still report every one of these lines, at the
+ * right column, and would read the indent off whichever token it stopped on —
+ * so only the expected-indent figure in the rendered message tells a correct
+ * line start from a truncated one.
+ */
+it('stays linear as group openers stack on one line', function () use ($stackedGroupings): void {
+    [$groupedSource, $reported] = $stackedGroupings('&& (', 2000, 600);
+    [$controlSource] = $stackedGroupings('&& check(', 2000, 600);
+
+    buildRuleset([LOGICAL_GROUPINGS]);
+
+    $measure = function (string $name, string $source): array {
+        $fixture = stageGeneratedFixture($name, $source);
+        $started = hrtime(true);
+        $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
+
+        return [
+            ((hrtime(true) - $started) / 1e9),
+            violationTuples($file),
+            violationMessagesByLine($file->getErrors()),
+        ];
+    };
+
+    [$grouped, $groupedViolations, $groupedMessages] = $measure('stacked-groupings.php', $groupedSource);
+    [$skipped, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
+
+    $expected = array_map(
+        static fn (int $column): array => [
+            'line' => 7,
+            'column' => $column,
+            'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
+        ],
+        $reported
+    );
+
+    expect($groupedViolations)->toBe($expected)
+        ->and($skippedViolations)->toBe([])
+        ->and(array_values(array_unique($groupedMessages[7])))->toBe([
+            'The first condition of a parenthesized group must start on its own line,'
+            . ' indented one level deeper than its enclosing condition; expected 12 spaces',
+        ])
+        ->and($grouped)->toBeLessThan(($skipped * 2));
+});
+
+/**
+ * The same shape, fixed, through PHP_CodeSniffer's real multi-pass fixer.
+ *
+ * The test above reads the sniff in one pass. This one drives the indexed line
+ * start through the real fixer instead, because the index describes a token
+ * stream and Fixer::fixFile() replaces that stream up to fifty times per file.
+ * This shape needs one pass per level: breaking the stack apart puts each
+ * group's opener on a line of its own, which is what gives the group inside it
+ * a deeper level to be measured against on the pass after. Six levels, six
+ * passes, six streams — small enough to converge well inside the fifty-pass
+ * ceiling and large enough for the cascade to happen. It is the count the
+ * timing test cannot borrow: 600 levels would want 600 passes and the fixer
+ * would give up.
+ *
+ * Both halves of the round trip are asserted. The output is compared in full,
+ * so a line start read off a scan cut short before it reaches the start of its
+ * line writes a wrong level here; and the fixed source is analyzed again, so
+ * the output has to be genuinely compliant rather than merely different from
+ * the input.
+ *
+ * What it does not pin is which parts of the index's key are load-bearing.
+ * Every stream change this sniff's own fixes produce is already separated by
+ * the token count, so dropping the fixer's loop counter from the key leaves
+ * the whole suite green; the loop counter is there for a stream another
+ * sniff's fix replaces in the same phpcbf pass, and no fixture of this sniff
+ * can reach that.
+ */
+it('reindents a stack of same-line openers through the multi-pass fixer', function () use ($stackedGroupings): void {
+    [$source] = $stackedGroupings('&& (', 0, 6);
+    $file = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('stacked-fixable.php', $source));
+    $fixed = autofixedContents($file);
+    $refixed = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('stacked-fixed.php', $fixed));
+
+    expect($fixed)->toBe(<<<'PHP'
+    <?php
+
+    final class Stacked
+    {
+        public function run(): bool
+        {
+            if ($this->a1 && (
+                $this->a2 && (
+                    $this->a3 && (
+                        $this->a4 && (
+                            $this->a5 && (
+                                $this->a6 && (
+                                    $this->first
+                                    && $this->second
+            ))))))) {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    PHP)->and(violationTuples($refixed))->toBe([]);
+});
+
+/**
  * A nested region whose closer PHP_CodeSniffer never recorded stops every walk
  * in the class, not just the two that already stopped.
  *
