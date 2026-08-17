@@ -690,6 +690,36 @@
         its own ruleset; this block records that the shipped default trio
         (array_map, array_filter, array_reduce) is wanted unchanged.
 
+        That tolerance is claimed for this package's own source, and #286
+        reviewed it site by site rather than assuming it: every
+        CleanCode.Arrays.ConvertToCollection warning the sniff raises across
+        CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
+        sniffs and 46 in the suite — is a native call kept on purpose. The
+        reason is one package-level fact rather than 65 separate judgements:
+        this package is a PHP_CodeSniffer standard, illuminate/collections is
+        absent from its composer.json by design, and adding it to require so a
+        linter could call collect() would put Laravel's collections in every
+        downstream consumer's install. So collect() does not exist here to call,
+        which is exactly the plain-PHP context named above.
+
+        Each site's own value was still read before it was left native, and PR
+        #312 records what consumes it one site at a time. 63 of the 65 are
+        consumed by something a Collection does not satisfy: a strict in_array()
+        haystack, an argument to another native array function, sort() by
+        reference, a declared array return, or a strict comparison against an
+        array literal. The other two are only counted, which a Collection
+        satisfies through Countable, so for those two the package-level fact is
+        the whole reason rather than a reinforcement of the site's own usage.
+
+        The reviewed set is pinned by file, line and column in
+        tests/Standards/ConvertToCollectionTest.php
+        (CONVERT_TO_COLLECTION_REVIEWED_SITES), so a native call added, moved or
+        removed anywhere under CleanCode/ or tests/ fails that test. A count
+        alone would not: one site moving while another disappears leaves it
+        unchanged. Nothing is suppressed to reach that state — no phpcs:ignore,
+        no exclude-pattern, and no registration for this sniff, which is picked
+        up through the ./CleanCode/ruleset.xml ref like every other.
+
         Only that trigger is enforced. Whether a given manipulation reads
         better as a pipeline, and foreach loops that accumulate into arrays,
         stay with code review.

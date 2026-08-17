@@ -70,7 +70,43 @@ rather than about which API does the manipulating.
   without collections excludes the sniff from its ruleset. This package does
   not: it runs the sniff over its own plain-PHP source and tolerates the
   warnings that raises, which is exactly the context the warning severity
-  exists for.
+  exists for. What that tolerance covers is reviewed and pinned rather than
+  assumed — see below.
+
+## The package's own source
+
+[#286](https://github.com/mike-bronner/phpcs-rules/issues/286) reviewed every
+warning this sniff raises against `CleanCode/` and `tests/` one site at a time:
+65 warnings in 37 files, 19 in the shipped sniffs and 46 in the test suite.
+Every one is a native call kept on purpose.
+
+The reason is a single package-level fact rather than 65 separate judgements.
+This package is a PHP_CodeSniffer standard; `illuminate/collections` is absent
+from its `composer.json` by design, and adding it to `require` so a linter could
+call `collect()` would put Laravel's collections in every downstream consumer's
+install. So `collect()` does not exist here to call — the plain-PHP context the
+warning severity exists for.
+
+Each site's own value was still read before it was left native, and
+[PR #312](https://github.com/mike-bronner/phpcs-rules/pull/312) records what
+consumes it one site at a time. 63 of the 65 are consumed by something a
+`Collection` does not satisfy: a strict `in_array()` haystack, an argument to
+another native array function (`implode()`, `array_keys()`, `array_column()`,
+`array_sum()`, `array_diff()`), `sort()` by reference, a declared `array`
+return, or a strict comparison against an array literal. The other two —
+`tests/Standards/AvoidConditionalsTest.php:127` and
+`tests/Standards/LogicalGroupingsTest.php:206` — are only counted, which a
+`Collection` satisfies through `Countable`; for those two the package-level fact
+is the whole reason rather than a reinforcement of the site's own usage.
+
+That reviewed set is pinned by file, line and column in
+`tests/Standards/ConvertToCollectionTest.php`
+(`CONVERT_TO_COLLECTION_REVIEWED_SITES`), so a native call added, moved or
+removed anywhere under `CleanCode/` or `tests/` fails that test. A count alone
+would not: one site moving while another disappears leaves it unchanged.
+Nothing is suppressed to reach that state — no `phpcs:ignore`, no
+`exclude-pattern`, and no ruleset registration for this sniff. `rules.xml`
+carries the same account in its "Arrays: Convert To Collection" comment block.
 
 ## What remains code review
 
