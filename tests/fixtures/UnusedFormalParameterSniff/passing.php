@@ -361,3 +361,39 @@ enum SignalLevel: string implements Signal
         echo 'signalled';
     }
 }
+
+// An interface whose `extends` names more than one ancestor — the one
+// class-like whose extends clause takes a list, and the one PHP_CodeSniffer's
+// own findImplementedInterfaceNames() refuses to answer for. Reading the
+// parent through findExtendedClassName() stops at the first comma, so every
+// ancestor after it is dropped and the methods inherited from them lose the
+// override exemption. Restore that reading and $ninth is silent while $tenth
+// alone is reported — the asymmetry is what names the defect, because the
+// second-listed interface is the only one that goes missing. PHPMD is silent
+// on both, resolving the whole list through PDepend.
+interface FirstSignal
+{
+    public function firstSignal(string $reason): void;
+}
+
+interface SecondSignal
+{
+    public function secondSignal(string $reason): void;
+}
+
+interface EitherSignal extends FirstSignal, SecondSignal
+{
+}
+
+class EitherSignaller implements EitherSignal
+{
+    public function firstSignal(string $ninth): void
+    {
+        echo 'signalled';
+    }
+
+    public function secondSignal(string $tenth): void
+    {
+        echo 'signalled';
+    }
+}

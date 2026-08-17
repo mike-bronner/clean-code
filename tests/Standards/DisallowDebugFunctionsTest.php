@@ -28,9 +28,11 @@ it('is registered in the master ruleset', function (): void {
  * passing.php pairs ordinary debug-free code with every near-miss shape the
  * sniff must stay silent on — the debug names reached through an object
  * operator, a nullsafe operator, a double colon, a declaration, `new`, a
- * string, a property, and a namespace prefix. Each of those is one of the
- * sniff's early returns, so the fixture's silence is a verdict about them
- * rather than merely the absence of a debug call.
+ * string, a property, a namespace prefix, a return-by-reference declaration, an
+ * attribute, an instantiation behind a leading qualifier, and a `use function`
+ * import. Each of those is one of the shared FunctionCalls helper's exclusions,
+ * so the fixture's silence is a verdict about them rather than merely the
+ * absence of a debug call.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'passing.php');
@@ -48,6 +50,10 @@ it('flags every debug call at its own line', function (): void {
         5 => 1,
         6 => 1,
         7 => 1,
+        // `namespace\dump()` where no namespace is declared: the namespace in
+        // force is the global one, so the call reaches PHP's own function
+        // exactly as the leading-separator form on the next line does.
+        22 => 1,
         24 => 1,
         26 => 1,
         27 => 1,
@@ -57,6 +63,38 @@ it('flags every debug call at its own line', function (): void {
         31 => 1,
         32 => 1,
     ])->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * A `use function` import binds only the names it lists. passing.php pins the
+ * quiet side — every listed name goes unreported, the first of a two-name list
+ * as much as the last — and this pins the loud side, which is where an
+ * over-eager import check would show: every other debug call in the same file
+ * stays flagged, and so does the *source* name of an aliased import, because
+ * the alias is what the import actually bound.
+ */
+it('flags every debug call an import did not bind', function (): void {
+    $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'imported-names.php');
+
+    expect(violationCountsByLine($file->getErrors()))->toBe([
+        13 => 1,
+        14 => 1,
+        15 => 1,
+    ])->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The other half of the relative-qualifier rule. failing.php pins that
+ * `namespace\dump()` is PHP's own function where no namespace is declared; this
+ * pins that the same spelling is a different symbol once one is, and that the
+ * declaration is what makes the difference — a leading-separator call in the
+ * same file is still flagged.
+ */
+it('stays silent on a namespace-relative call inside a declared namespace', function (): void {
+    $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'namespace-relative.php');
+
+    expect(violationCountsByLine($file->getErrors()))->toBe([22 => 1])
+        ->and($file->getWarnings())->toBe([]);
 });
 
 it('reports detection-only violations', function (): void {
