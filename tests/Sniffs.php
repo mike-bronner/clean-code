@@ -97,6 +97,7 @@ const SWEPT_SNIFFS = [
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
+    'CleanCode.ClearCode.ActionSingleEntryPoint',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
