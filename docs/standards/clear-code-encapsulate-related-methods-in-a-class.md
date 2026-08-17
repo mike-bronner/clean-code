@@ -74,11 +74,55 @@ Enforcement is via code review and developer discipline.
 ### Partial enforcement — Action class shape
 
 One narrow slice **is** token-visible: once an Action class exists, its shape
-can be checked. A class named `*Action` (or living in an `Actions`
-sub-namespace) should expose a single public entry point — conventionally
-`__invoke()` or `handle()` — and additional public methods indicate unrelated
-entry points that belong in their own Action class. Focused sniff issue:
-[#161](https://github.com/mike-bronner/phpcs-rules/issues/161).
+can be checked. That slice is enforced by the custom sniff
+`CleanCode.ClearCode.ActionSingleEntryPoint`
+([#161](https://github.com/mike-bronner/phpcs-rules/issues/161)), which warns
+on every public method an Action class declares past the first.
+
+**Which classes are examined.** Either half of the convention puts a class in
+scope:
+
+- its own name ends in `Action` — `PublishPostAction`;
+- its declared namespace carries an `Actions` segment — `App\Actions\…`,
+  including any namespace below it.
+
+The two are matched with different case sensitivity, on purpose. The class name
+is a *suffix* match, and `Action` is the suffix of ordinary words a project
+really declares — `Transaction`, `Reaction`, `Interaction`, `Faction` — so it is
+compared case-sensitively and none of those is examined. The namespace half is
+an *exact segment* match, where no such collision exists, so `App\Actions` and
+`app\actions` are both in scope while `App\ActionsArchive` is not.
+
+**What is counted.** Every public method the class declares at its own top
+level, in declaration order, static ones included. The first is the entry point,
+whatever it is called: `__invoke()` and `handle()` are this doc's convention,
+not the sniff's rule. Every method after it is reported at its own declaration.
+
+`__construct` is never counted — an Action is constructed with its collaborators
+and then invoked, so a constructor is not a second way in. Nothing else is
+exempt. A public accessor handing back a result the entry point computed is
+reported like any other extra public method: whether it has earned its place is
+a judgement the sniff cannot make, which is exactly why this is a **warning**
+and not an error. A class with one public method, or none at all, is never
+reported — the rule is about a *second* way in, not a missing first one.
+
+**Boundaries, accepted by design.**
+
+- Convention-dependent in both directions: an Action named and placed outside
+  the convention is never examined, and a class that merely matches it is
+  examined whether or not it is really an Action.
+- Only classes. An interface method is a contract, a trait's methods belong to
+  whichever class mixes them in, an enum is not an Action, and an anonymous
+  class carries no name the convention can read.
+- Traits and parents are invisible: a public method mixed in or inherited is
+  declared in another file, and a sniff reads one file at a time.
+- Protected and private methods are never counted — an entry point is public.
+- A class body PHP_CodeSniffer never saw closed is passed over in silence.
+  With the file's structure unresolved, attributing methods to it would be a
+  guess.
+- Detection only. Splitting an Action in two means creating a class, moving a
+  method, and rewriting every call site that reaches it — an architectural
+  change with no mechanical rewrite — so nothing is offered to the fixer.
 
 ## What remains code review
 
@@ -87,3 +131,8 @@ sprawled across controllers or helpers encodes one concept, choosing to
 extract it, and drawing the boundary of what belongs inside. The shape sniff
 can keep an existing Action class honest, but only review can notice the
 class that should exist and doesn't.
+
+Downstream of it, one judgement stays with review as well: whether a second
+public method the sniff has reported is a genuine second concept or a
+legitimate part of one — a public accessor over a computed result being the
+case the sniff deliberately does not try to settle.

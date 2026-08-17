@@ -30,14 +30,35 @@ single-file sniff does not have.
 - **Do Not: use closures in routes.** A closure (`T_CLOSURE`) or arrow function
   (`T_FN`) passed as the action argument to `Route::get`/`Route::post`/etc. is
   a high-confidence violation: closure actions cannot be serialized, so they
-  break `php artisan route:cache`. Focused sniff issue:
+  break `php artisan route:cache`. Enforced by the custom
+  `CleanCode.Routes.DisallowClosureRoutes` sniff. Focused sniff issue:
   [#174](https://github.com/mike-bronner/phpcs-rules/issues/174).
-  - **Group callbacks excluded** — closures passed to `Route::group()` are
-    not route actions and cache fine, so they are not flagged.
+  - **The nine registration verbs** — `get`, `post`, `put`, `patch`, `delete`,
+    `options`, `any`, `match` and `fallback`. Each takes exactly one callable
+    parameter, its action, so any closure sitting directly in the argument list
+    is that action, wherever it sits: `Route::fallback()` puts it first,
+    `Route::match()` third.
+  - **Group callbacks excluded** — closures passed to `Route::group()`, or to a
+    chained `->group()`, are not route actions and cache fine, so they are not
+    flagged. `group` is simply not one of the nine verbs.
+  - **Direct arguments only** — a closure one level down, inside a nested call
+    or an array literal, is not a route action. Neither is a closure declared
+    inside the action closure's own body: a route action is reported once,
+    however many closures the statement holds.
+  - **Chained builders resolved** — `Route::middleware('auth')->get(…)` reaches
+    the verb through a chain, and the chain is walked back to the facade.
   - **Error severity** — the "Do Not" is unconditional, and the breakage is
     mechanical rather than stylistic.
-  - **Boundary** — the sniff cannot resolve which `Route` symbol is imported;
-    it assumes the Laravel facade convention.
+  - **Detection only** — replacing a closure action means writing a controller
+    and deciding where it lives, which is a design decision rather than a
+    mechanical rewrite.
+  - **Boundary — no symbol resolution.** A sniff sees one file's tokens, so it
+    cannot know which `Route` symbol is imported; it assumes the Laravel facade
+    convention and matches on the class segment before `::` spelling `Route`,
+    bare or fully qualified. Two consequences follow. An unrelated class also
+    named `Route` false-positives — accepted in a Laravel-standards ruleset.
+    And a router held in a variable (`$router->get(…)`) has no `Route::` to
+    resolve to, so it is never seen at all.
 
 ### Partially enforceable — heuristic sniffs with documented boundaries
 
