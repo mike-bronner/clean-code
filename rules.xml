@@ -2741,6 +2741,45 @@
     -->
 
     <!--
+        Clear Code: Encapsulate Related Classes in a Domain (#16) —
+        docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md.
+
+        The custom CleanCode.ClearCode.JunkDrawerNamespace sniff (#190) carries
+        the one token-visible slice of an otherwise Tier 3 standard, and only
+        from the negative side: a class filed under App\Helpers or
+        App\Support\Utils is definitionally not grouped by domain, while whether
+        App\Billing is a *genuine* domain is a judgement about the business that
+        no token stream carries. It is picked up automatically via the
+        ./CleanCode/ruleset.xml ref above; this comment records that no scoping
+        and no property override is wanted here.
+
+        The shipped discouragedSegments list is the sniff's own default —
+        Helpers, Utils, Utilities, Misc, Common, General. It is left
+        unconfigured deliberately: a consuming project tunes the list for its
+        own vocabulary, and pinning a value here would make that an override of
+        an override. Framework layers (Controllers, Models, Providers) are
+        absent from the default, because flagging them would fight the
+        framework rather than enforce the standard.
+
+        No existing PHPCS or Slevomat sniff covers this. The whole
+        SlevomatCodingStandard ruleset was run against
+        tests/fixtures/JunkDrawerNamespaceSniff/failing.php and reported on two
+        things, neither of them the name: Namespaces.NamespaceDeclaration (the
+        braced syntax the fixture needs to carry ten declarations at once) and
+        Namespaces.RequireOneNamespaceInFile (their number). Generic, Squiz,
+        PSR12 and PEAR reported nothing at all on the same file.
+        Namespaces.UseOnlyWhitelistedNamespaces is the nearest neighbour and
+        still answers a different question: it constrains what a file may
+        *import*, not what the file's own namespace is called.
+
+        Warnings, not errors, and detection only. A small library may
+        legitimately keep one Helpers bucket, so the report points at a
+        domain-grouping candidate rather than mandating a move; and renaming a
+        namespace means moving files and rewriting every reference to them,
+        which is no mechanical rewrite. A deliberate bucket takes the ordinary
+        per-line phpcs:ignore.
+    -->
+  <!--
         Clear Code: Encapsulate Related Methods in a Class (#15) —
         docs/standards/clear-code-encapsulate-related-methods-in-a-class.md.
 

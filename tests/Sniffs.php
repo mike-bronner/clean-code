@@ -106,6 +106,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Constructors.PrimaryConstructorDelegation',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Controllers.NoCustomActions',
+    'CleanCode.ClearCode.JunkDrawerNamespace',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.RequireLazyLoadingPrevention',
     'CleanCode.Naming.ActionMethodReturn',
