@@ -96,7 +96,9 @@ const SWEPT_SNIFFS = [
  * its failing fixture would report nothing here and the floor would pass
  * vacuously. tests/Standards/NonInvokableSpecialActionTest.php applies the same
  * floor instead, against copies staged into a routes/ directory outside the
- * repository, and pins the gate itself from four different paths.
+ * repository, and pins the gate itself from four different paths. It also
+ * carries the shipped-install smoke test the sweep's absence would otherwise
+ * cost, the way the other three path-scoped sniffs do.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',

@@ -66,8 +66,9 @@ than failing a build.
   ([#249](https://github.com/mike-bronner/phpcs-rules/issues/249)). The action
   argument carries the answer: a bare `FooController::class` is invokable and
   compliant, while an array action `[FooController::class, 'method']` (or the
-  legacy `'FooController@method'` string) with a method outside the seven
-  RESTful actions is a candidate violation.
+  legacy `'FooController@method'` string, in either quoting style — a
+  double-quoted one with nothing to interpolate is the same constant string)
+  with a method outside the seven RESTful actions is a candidate violation.
 
   The sniff reads the action argument of `Route::get`, `post`, `put`, `patch`,
   `delete`, `options`, `any` and `match` — second for every verb but `match`,

@@ -57,3 +57,14 @@ Route::post('/posts/note', /* the action follows */ [PostController::class, 'not
 
 // `class` is a keyword there, and a keyword carries no casing.
 Route::get('/posts/rewrite', [PostController::CLASS, 'rewrite']);
+
+// A double-quoted string with nothing to interpolate is tokenized as the same
+// constant string the single-quoted spelling produces, so the legacy action is
+// read out of it identically. The interpolated spelling stays in passing.php:
+// that one is a genuinely dynamic action, and this one is not.
+Route::get('/posts/reissue', "PostController@reissue");
+
+// The array action's method element is the same literal either way, and the
+// acceptance criteria name both spellings for it too. The interpolated
+// spelling of *this* element is in passing.php, beside its string-action twin.
+Route::get('/posts/reindex', [PostController::class, "reindex"]);

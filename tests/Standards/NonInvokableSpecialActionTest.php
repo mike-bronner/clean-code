@@ -84,7 +84,12 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
  * off the front of the argument rather than reported as its first token. Line
  * 56 puts a comment where the action starts, and line 59 spells the ::class
  * keyword in upper case: both report, so neither the comment skip nor the
- * keyword's casing can be dropped without this list changing.
+ * keyword's casing can be dropped without this list changing. Line 65 is the
+ * legacy string action written with double quotes and nothing to interpolate —
+ * the other spelling the acceptance criteria name for that shape — so a change
+ * that recognised only the single-quoted one falls out here. Line 70 is that
+ * same spelling in the array action's method element, which the criteria name
+ * both ways as well.
  */
 it('flags every non-invokable action shape at its own line and column', function () use ($routeRun): void {
     expect(warningTuples($routeRun('failing.php')))->toBe([
@@ -111,6 +116,8 @@ it('flags every non-invokable action shape at its own line and column', function
         ['line' => 52, 'column' => 62, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 56, 'column' => 53, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 59, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 65, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 70, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
     ]);
 });
 
@@ -122,7 +129,7 @@ it('flags every non-invokable action shape at its own line and column', function
  */
 it('reports warnings and never errors', function () use ($routeRun): void {
     expect($routeRun('failing.php')->getErrors())->toBe([])
-        ->and($routeRun('failing.php')->getWarningCount())->toBe(23);
+        ->and($routeRun('failing.php')->getWarningCount())->toBe(25);
 });
 
 /**
@@ -190,6 +197,8 @@ it('names the targeted method in the warning', function (string $source, string 
     'array action' => ["Route::get('/a', [PostController::class, 'archive']);", 'archive'],
     'long form array action' => ["Route::get('/a', array(PostController::class, 'archive'));", 'archive'],
     'string action' => ["Route::get('/a', 'PostController@archive');", 'archive'],
+    'double quoted string action' => ['Route::get(\'/a\', "PostController@archive");', 'archive'],
+    'double quoted array method' => ['Route::get(\'/a\', [PostController::class, "archive"]);', 'archive'],
     'namespaced string action' => ["Route::get('/a', 'App\\Http\\PostController@archive');", 'archive'],
     'match action at the third argument' => [
         "Route::match(['get', 'post'], '/a', [PostController::class, 'export']);",
@@ -226,8 +235,8 @@ it('names the targeted method in the warning', function (string $source, string 
 it('inspects a file only under a routes directory', function (string $directory, int $expected) use ($routeRun): void {
     expect($routeRun('failing.php', $directory)->getWarningCount())->toBe($expected);
 })->with([
-    'routes' => ['routes', 23],
-    'nested under routes' => ['routes/admin', 23],
+    'routes' => ['routes', 25],
+    'nested under routes' => ['routes/admin', 25],
     'app' => ['app', 0],
     'app/Providers' => ['app/Providers', 0],
     'tests' => ['tests', 0],
@@ -248,7 +257,7 @@ it('honours a ruleset-configured routeFilePatterns', function (): void {
         }
     );
 
-    expect($configured->getWarningCount())->toBe(23);
+    expect($configured->getWarningCount())->toBe(25);
 });
 
 /**
@@ -264,4 +273,49 @@ it('stays silent on input with no path', function (): void {
 
     expect($file->getWarnings())->toBe([])
         ->and($file->getErrors())->toBe([]);
+});
+
+/**
+ * The same verdict through the shipped, installed package.
+ *
+ * Every test above drives PHPCS in process through ConfigDouble, which supplies
+ * the registration Composer would have supplied — so a package that never
+ * registered itself passes all of them. This one executes the real
+ * vendor/bin/phpcs as a separate process from outside the package, against
+ * rules.xml, the file a consumer points --standard at. The shared sweep in
+ * tests/Contract/ShippedPackageSmokeTest.php cannot reach this sniff: it drives
+ * each fixture where it lives, under tests/, and this sniff's own
+ * routeFilePatterns gate makes that path report nothing whatever the sniff does.
+ *
+ * Staged exactly as $routeRun stages it, and asserted in the same paired shape
+ * as the file-gate test above rather than only on the positive half:
+ *
+ * - the staged copy reports all 25, every message under this sniff's own code,
+ *   at warning severity, at status 1 — violations, none of them fixable, which
+ *   is what this detection-only rule owes. Status 2 would mean phpcbf had been
+ *   offered a fix, and 3 is what a broken install exits with.
+ * - the in-repo copy of the same bytes reports nothing and exits 0, so the
+ *   reporting half cannot be coming from a run that ignores the path gate.
+ * - passing.php staged the same way reports nothing and exits 0 — the negative
+ *   control, without which a shell-out that always reported would satisfy the
+ *   first.
+ */
+it('reports the violation end to end through the installed package', function (): void {
+    $failing = fixturePath('NonInvokableSpecialActionSniff', 'failing.php');
+
+    $staged = installedSniffRun(SPECIAL_ACTION, stageFixtureOutsideTests($failing, 'routes'));
+    $inRepo = installedSniffRun(SPECIAL_ACTION, $failing);
+    $passing = installedSniffRun(
+        SPECIAL_ACTION,
+        stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'passing.php'), 'routes')
+    );
+
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(25)
+        ->each->toBe(SPECIAL_ACTION_FOUND)
+        ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
+        ->and($staged['status'])->toBe(1)
+        ->and($inRepo['messages'])->toBe([])
+        ->and($inRepo['status'])->toBe(0)
+        ->and($passing['messages'])->toBe([])
+        ->and($passing['status'])->toBe(0);
 });
