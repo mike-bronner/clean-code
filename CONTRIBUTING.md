@@ -12,17 +12,19 @@ to `<input>.fixed`. Neither can express the fixture layout below, which gives a
 sniff its own directory and fixed names inside it. Tests here drive the real
 `phpcs`/`phpcbf` through the helpers in `tests/Helpers.php` instead.
 
-Two files still extend that harness and are the only exception:
-`CleanCode/Tests/DeadCode/UnusedPrivateElementsUnitTest.php` and
+One file still extends that harness and is the only exception:
 `CleanCode/Tests/Operators/DisallowNewlineAroundEvaluativeOperatorsUnitTest.php`,
-with their `.inc` fixtures beside them (and, for the operators one, an
-`.inc.fixed`). No `<testsuite>` in `phpunit.xml.dist` covers `CleanCode/Tests/`,
-so `composer test` never collects them — they are dead weight awaiting deletion,
-not a second convention. Both
-sniffs they name still have live assertions under `tests/`
-(`tests/Ruleset/NoDeadCodeRulesetTest.php` and
-`tests/Integration/OperatorRulesIntegrationTest.php`), so deleting the pair
-loses no coverage. Add nothing to `CleanCode/Tests/`.
+with its `.inc` and `.inc.fixed` fixtures beside it. No `<testsuite>` in
+`phpunit.xml.dist` covers `CleanCode/Tests/`, so `composer test` never collects
+it — it is dead weight awaiting deletion, not a second convention. The sniff it
+names still has live assertions under `tests/`
+(`tests/Integration/OperatorRulesIntegrationTest.php`), so deleting it loses no
+coverage. Add nothing to `CleanCode/Tests/`.
+
+The `DeadCode` half of that pair is gone: #206 deleted
+`CleanCode/Tests/DeadCode/UnusedPrivateElementsUnitTest.php` and its `.inc`
+after porting their coverage to `tests/Standards/UnusedPrivateElementsTest.php`
+and `tests/fixtures/UnusedPrivateElementsSniff/`.
 
 ## Layout
 
@@ -32,7 +34,7 @@ CleanCode/
 ├── ruleset.xml                            # the installable CleanCode standard
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
-└── Tests/                                 # legacy AbstractSniffUnitTest pair — uncollected, do not extend
+└── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
 docs/standards/                            # one doc per clean-code standard
 docs/phpmd/                                # one doc per replicated PHPMD rule
 tests/
@@ -127,11 +129,13 @@ Four files sit outside the table and stay where they are.
 `tests/Ruleset/DisallowStaticMembersTest.php`,
 `tests/Ruleset/MultilineStringsTest.php` and
 `tests/Ruleset/NoDeadCodeRulesetTest.php` cover custom ones.
-`NoDeadCodeRulesetTest` is the only test of any kind for
-`CleanCode.DeadCode.UnusedPrivateElements`: it drives that sniff alongside the
-three third-party sniffs the No Dead Code standard also needs, which is why it
-sits in `tests/Ruleset/` and not beside the other custom-sniff tests. Follow the
-table rather than these four.
+`NoDeadCodeRulesetTest` drives `CleanCode.DeadCode.UnusedPrivateElements`
+alongside the three third-party sniffs the No Dead Code standard also needs,
+which is why it sits in `tests/Ruleset/` and not beside the other custom-sniff
+tests. Since #206 it is no longer that sniff's only test: the sniff's own
+behaviour moved to `tests/Standards/UnusedPrivateElementsTest.php`, where the
+table puts it, and this file kept the wiring half. Follow the table rather than
+these four.
 
 #### Layouts this table supersedes
 

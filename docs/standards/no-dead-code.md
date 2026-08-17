@@ -17,8 +17,10 @@ Most of this standard is covered by existing sniffs wired into the master
 [#29](https://github.com/mike-bronner/phpcs-rules/issues/29).
 
 - **Commented-out code** — `Squiz.PHP.CommentedOutCode` (warning): flags
-  comments that are mostly code-shaped tokens. Explanatory prose comments and
-  doc-blocks stay below its threshold and are not flagged.
+  comments that are mostly code-shaped tokens. An explanatory prose comment
+  stays below its threshold and is not flagged. A doc-block is never scored at
+  all: `/** … */` tokenizes as `T_DOC_COMMENT_*`, and the sniff registers only
+  `T_COMMENT`, so it never sees one.
 - **Unused parameters** — custom `CleanCode.DeadCode.UnusedFormalParameter`
   sniff (error): flags declared parameters never read in the function body.
   `SlevomatCodingStandard.Functions.UnusedParameter` carried this until
@@ -37,15 +39,36 @@ Most of this standard is covered by existing sniffs wired into the master
   `Classes.UnusedPrivateElements` was removed in slevomat/coding-standard 7.0
   (this package pins ^8.15), so the check is reimplemented here. Detection is
   deliberately conservative to avoid false positives: any mention of the
-  element's name in the class body — `$this->`/`self::`/`static::` access or
+  element's name in the body — `$this->`/`self::`/`static::` access or
   a string literal (callable arrays, `compact()`, interpolation) — counts as
   a usage. Magic methods and promoted constructor properties are never
   flagged.
+
+  **Constructs scanned:** named classes, **enums**, and **anonymous classes**.
+  A private member of any of the three is reachable only from that same body,
+  so a single-file scan can prove it dead. An enum can only ever report a
+  method — PHP forbids enum properties.
+
+  **Property and method names are tracked separately**, because PHP keeps them
+  in separate namespaces. `$this->foo` marks the property used and leaves a
+  same-named `private function foo()` reportable; `$this->foo()` does the
+  reverse. Only a name mined from a *string literal* still marks both — a bare
+  `'foo'` is as plausibly a callable-array method name as a `compact()`
+  property name, so that one stays a deliberate false negative.
 
 ## What remains code review
 
 Unused *public/protected* elements (their callers live outside the file, so a
 single-file token scan cannot prove them dead), unused private constants,
 unused local variables, dynamic access via variable variables, and unreachable
-branches. Dead code that a token-based, single-file sniff cannot prove dead
-stays with code review.
+branches.
+
+**Private members of a `trait`** are on this list by name, not just by the
+catch-all above: a trait's private method or property is flattened into every
+consuming class and may be used only there, so the trait's own body never
+proves it dead. `CleanCode.DeadCode.UnusedPrivateElements` therefore does not
+scan trait bodies at all. (Interfaces raise no question — PHP forbids private
+interface members.)
+
+Dead code that a token-based, single-file sniff cannot prove dead stays with
+code review.
