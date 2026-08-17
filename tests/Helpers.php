@@ -14,6 +14,7 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
 use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Config;
@@ -127,6 +128,49 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
     }
 
     return $built;
+}
+
+/**
+ * Tokenises a fixture without running a single sniff over it.
+ *
+ * The helper classes under CleanCode/Helpers/ read the token stream and report
+ * on it rather than adding violations, so their tests need a parsed file and
+ * nothing else. Driving them through a sniff instead would only be able to
+ * observe them through that sniff's own filtering.
+ */
+function parseFixture(string $directory, string $fixture): LocalFile
+{
+    [$config, $ruleset] = buildRuleset();
+
+    $file = new LocalFile(fixturePath($directory, $fixture), $ruleset, $config);
+    $file->parse();
+
+    return $file;
+}
+
+/**
+ * Every T_STRING in a parsed file whose content starts with $prefix, mapped to
+ * FunctionCalls' verdict for each of its occurrences in source order.
+ *
+ * A name can appear more than once — an imported one shows up in its own `use`
+ * statement as well as at the call site — so the verdicts are a list rather
+ * than a single value, and a test pins every occurrence.
+ *
+ * @return array<string, array<int, bool>>
+ */
+function globalFunctionCallVerdicts(LocalFile $file, string $prefix): array
+{
+    $verdicts = [];
+
+    foreach ($file->getTokens() as $pointer => $token) {
+        if ($token['code'] !== T_STRING || str_starts_with($token['content'], $prefix) === false) {
+            continue;
+        }
+
+        $verdicts[$token['content']][] = FunctionCalls::isGlobalFunctionCall($file, $pointer);
+    }
+
+    return $verdicts;
 }
 
 /**

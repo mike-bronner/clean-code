@@ -30,6 +30,7 @@ loses no coverage. Add nothing to `CleanCode/Tests/`.
 rules.xml                                  # master ruleset — standards get wired in here
 CleanCode/
 ├── ruleset.xml                            # the installable CleanCode standard
+├── Helpers/<Name>.php                     # token-stream decisions shared by several sniffs
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/                                 # legacy AbstractSniffUnitTest pair — uncollected, do not extend
@@ -42,8 +43,10 @@ tests/
 ├── Helpers.php                            # the sniff-driving helper functions
 ├── fixtures/
 │   ├── <Name>Sniff/                       # per-sniff fixtures, named for the sniff class
+│   ├── <Name>/                            # per-helper fixtures, named for the helper class
 │   └── _rulesets/<Standard>/              # fixtures for standards carried by several sniffs
 ├── Contract/                              # the generic three-fixture sweep
+├── Helpers/                               # the shared classes under CleanCode/Helpers/
 ├── Standards/                             # a custom sniff's own behaviour — one file per sniff
 ├── Rules/                                 # four older files doing tests/Ruleset/'s job — closed to new work
 ├── Ruleset/                               # a standard as rules.xml wires and configures it, plus its own fixtures/
@@ -53,10 +56,11 @@ tests/
 ### How a test gets collected
 
 `composer test` runs Pest against `phpunit.xml.dist`, which declares one
-`<testsuite>` per suite directory — `Contract`, `Integration`, `Rules`,
-`Ruleset`, `Standards` — each pointing at `tests/<Name>`. A `<directory>`
-defaults to `suffix="Test.php"`, so a file is collected when it sits in one of
-those five directories **and** its name ends `Test.php`. Nothing else registers
+`<testsuite>` per suite directory — `Contract`, `Helpers`, `Integration`,
+`Rules`, `Ruleset`, `Standards` — each pointing at `tests/<Name>`. A
+`<directory>` defaults to `suffix="Test.php"`, so a file is collected when it
+sits in one of those six directories **and** its name ends `Test.php`. Nothing
+else registers
 a test, which is also why `CleanCode/Tests/` never runs: no `<testsuite>` names
 it.
 
@@ -165,6 +169,32 @@ issue's acceptance criteria carry an older fixture or harness convention —
 several still quote a `Fixtures/<SniffClassName>/` layout that exists nowhere in
 this repo — this file wins.
 
+### The shared helpers
+
+`CleanCode/Helpers/` holds the decisions more than one sniff has to make about
+the token stream. `FunctionCalls::isGlobalFunctionCall()` is the first:
+"is this `T_STRING` a call to PHP's own global function, or a same-named method,
+declaration, class, attribute, or imported symbol?".
+
+**Route through it rather than hand-rolling the test again.** Every sniff that
+flags a global function call needs that answer, and before the helper existed
+each one carried its own copy: the copies drifted, and each new sniff inherited
+whichever gaps its nearest neighbour had. One implementation means a shape fixed
+once is fixed everywhere.
+
+`tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
+the only thing they share: the directory is a suite covering the shared classes
+under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite
+here calls.
+
+A helper carries its own fixtures under `tests/fixtures/<Name>/` and its own
+tests under `tests/Helpers/<Name>Test.php`, driven by `parseFixture()` — it
+tokenises a fixture without running a sniff, which is what lets a test read the
+helper's verdict for every shape rather than only the ones some sniff's own name
+list would let through. A helper directory holds no sniff, so the contract sweep
+in `tests/Contract/` never reaches it: `tests/fixtures/<Name>/` is bound to its
+suite only by the helper's own test file.
+
 ### The fixture contract
 
 Every sniff owns a directory under `tests/fixtures/` named for its **class short
@@ -243,6 +273,8 @@ intentionally non-compliant fixture must not fail the PSR-12 self-lint.
 nothing about driving a sniff is stateful across a test's lifecycle. The ones
 you will reach for:
 
+- `parseFixture($directory, $fixture)` — tokenise a fixture without running any
+  sniff, for testing the shared classes under `CleanCode/Helpers/` directly.
 - `analyzeFixture($sniffCode, $fixture, $configure = null)` — run one fixture
   through a ruleset narrowed to one sniff, resolving the fixture directory from
   the sniff code. `$configure` receives the sniff instance so a test can set its
@@ -294,7 +326,10 @@ in and what applies the `<properties>` configured there.
    `CleanCode.<Category>.<Name>`. Use
    `CleanCode/Sniffs/Debug/DisallowDebugFunctionsSniff.php` as the template.
    Sniffs in the standard's `Sniffs/` directory are included automatically —
-   no per-sniff registration in `CleanCode/ruleset.xml` is needed.
+   no per-sniff registration in `CleanCode/ruleset.xml` is needed. If it flags a
+   call to a global PHP function, call
+   `FunctionCalls::isGlobalFunctionCall()` — see "The shared helpers" above —
+   instead of writing that check again.
 
    **Give every token-kind classification array a named family.** A
    `private const` enumerating PHPCS token constants — the `EXPRESSION_SCOPES`,
