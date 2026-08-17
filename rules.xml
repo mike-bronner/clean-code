@@ -695,21 +695,28 @@
         CleanCode.Arrays.ConvertToCollection warning the sniff raises across
         CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
         sniffs and 46 in the suite — is a native call kept on purpose. The
-        reason is one package-level fact rather than 65 separate judgements:
-        this package is a PHP_CodeSniffer standard, illuminate/collections is
-        absent from its composer.json by design, and adding it to require so a
-        linter could call collect() would put Laravel's collections in every
-        downstream consumer's install. So collect() does not exist here to call,
-        which is exactly the plain-PHP context named above.
+        pinned set has since grown with the sniffs that landed after that
+        review: 83 warnings in 50 files, 27 in the shipped sniffs and 56 in the
+        suite. The reason is one package-level fact rather than 83 separate
+        judgements: this package is a PHP_CodeSniffer standard,
+        illuminate/collections is absent from its composer.json by design, and
+        adding it to require so a linter could call collect() would put
+        Laravel's collections in every downstream consumer's install. So
+        collect() does not exist here to call, which is exactly the plain-PHP
+        context named above.
 
         Each site's own value was still read before it was left native, and PR
-        #312 records what consumes it one site at a time. 63 of the 65 are
+        #312 records what consumes it one site at a time for the 65 sites that
+        existed when that review ran. 63 of those 65 are
         consumed by something a Collection does not satisfy: a strict in_array()
         haystack, an argument to another native array function, sort() by
         reference, a declared array return, or a strict comparison against an
         array literal. The other two are only counted, which a Collection
         satisfies through Countable, so for those two the package-level fact is
         the whole reason rather than a reinforcement of the site's own usage.
+        The 18 sites added since #312 are pinned on the package-level fact
+        alone; they have not been walked one at a time the way that PR walked
+        the first 65, so the per-site tally stays scoped to that set.
 
         The reviewed set is pinned by file, line and column in
         tests/Standards/ConvertToCollectionTest.php

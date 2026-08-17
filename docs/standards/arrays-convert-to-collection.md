@@ -78,9 +78,11 @@ rather than about which API does the manipulating.
 [#286](https://github.com/mike-bronner/phpcs-rules/issues/286) reviewed every
 warning this sniff raises against `CleanCode/` and `tests/` one site at a time:
 65 warnings in 37 files, 19 in the shipped sniffs and 46 in the test suite.
-Every one is a native call kept on purpose.
+Every one is a native call kept on purpose. The pinned set has since grown with
+the sniffs that landed after that review — 83 warnings in 50 files, 27 in the
+shipped sniffs and 56 in the test suite.
 
-The reason is a single package-level fact rather than 65 separate judgements.
+The reason is a single package-level fact rather than 83 separate judgements.
 This package is a PHP_CodeSniffer standard; `illuminate/collections` is absent
 from its `composer.json` by design, and adding it to `require` so a linter could
 call `collect()` would put Laravel's collections in every downstream consumer's
@@ -89,7 +91,8 @@ warning severity exists for.
 
 Each site's own value was still read before it was left native, and
 [PR #312](https://github.com/mike-bronner/phpcs-rules/pull/312) records what
-consumes it one site at a time. 63 of the 65 are consumed by something a
+consumes it one site at a time for the 65 sites that existed when that review
+ran. 63 of those 65 are consumed by something a
 `Collection` does not satisfy: a strict `in_array()` haystack, an argument to
 another native array function (`implode()`, `array_keys()`, `array_column()`,
 `array_sum()`, `array_diff()`), `sort()` by reference, a declared `array`
@@ -98,6 +101,11 @@ return, or a strict comparison against an array literal. The other two —
 `tests/Standards/LogicalGroupingsTest.php:206` — are only counted, which a
 `Collection` satisfies through `Countable`; for those two the package-level fact
 is the whole reason rather than a reinforcement of the site's own usage.
+
+The 18 sites added since #312 are pinned on the package-level fact alone. They
+have not been walked one at a time the way that PR walked the first 65, so the
+per-site tally above stays scoped to that set rather than widened to cover
+reviews nobody performed.
 
 That reviewed set is pinned by file, line and column in
 `tests/Standards/ConvertToCollectionTest.php`
