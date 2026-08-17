@@ -61,19 +61,54 @@ than failing a build.
     property), so a route registered from a service provider or a package boot
     method is not seen. Widening the gate raises the false-positive rate on
     every non-routes file.
-- **Do: for special action routes, use invokable controllers.** The action
+- **Do: for special action routes, use invokable controllers.** Enforced by
+  the custom `CleanCode.Routes.NonInvokableSpecialAction` sniff
+  ([#249](https://github.com/mike-bronner/phpcs-rules/issues/249)). The action
   argument carries the answer: a bare `FooController::class` is invokable and
   compliant, while an array action `[FooController::class, 'method']` (or the
   legacy `'FooController@method'` string) with a method outside the seven
-  RESTful actions is a candidate violation. Focused sniff issue:
-  [#249](https://github.com/mike-bronner/phpcs-rules/issues/249).
-  - **False positive** — several related non-RESTful actions deliberately
-    grouped on one controller read as violations on shape alone.
-  - **False negative** — a bare `::class` action passes on shape; whether
-    that class actually defines `__invoke()` lives in another file.
-  - **False negative** — the "very rare" half of the bullet is a frequency
-    judgement, and a file of thirty invokable special-action routes passes
-    every token check while breaking the intent.
+  RESTful actions is a candidate violation.
+
+  The sniff reads the action argument of `Route::get`, `post`, `put`, `patch`,
+  `delete`, `options`, `any` and `match` — second for every verb but `match`,
+  whose HTTP-methods array comes first and whose action is therefore third. An
+  action naming one of the seven RESTful methods is *not* flagged: that shape
+  is a resource route written longhand, which #248 reports at the verb call
+  itself, and flagging it here would double-report one line.
+
+  Five boundaries, all deliberate:
+  - **False positive — a deliberately shared controller.** Several related
+    non-RESTful actions grouped on one controller read as violations on shape
+    alone. The sniff reports them; a reviewer dismisses them. That is why the
+    rule is a warning and not an error.
+  - **False negative — an invokable-looking class that is not invokable.** A
+    bare `FooController::class` action passes on shape; whether that class
+    really declares `__invoke()` lives in another file and needs project-wide
+    symbol resolution.
+  - **False negative — the "very rare" half of the bullet.** Frequency is not
+    token-visible. A routes file holding thirty invokable special-action
+    routes clears every check while plainly breaking the intent; that
+    judgement stays with code review.
+  - **Dynamic actions are skipped, not guessed at.** An action built from a
+    variable, a call, a class constant or string interpolation —
+    `[$controller, 'x']`, `[FooController::class, $method]`,
+    `[FooController::class, self::ACTION]`, `"FooController@{$method}"` — is
+    unreadable at token level. So is the associative `['uses' => …]` action
+    shape, which is left alone rather than read by position.
+  - **Symbol resolution assumes the Laravel `Route` facade.** As with #174 and
+    #248, the receiver is matched on the literal token `Route`, so an aliased
+    import cannot be resolved. Two consequences: an unrelated `Http::get()` is
+    never mistaken for a route registration, and a verb reached through a
+    chained builder (`Route::middleware('auth')->get(…)`) is not seen, because
+    the verb is called on the returned object rather than on the facade.
+
+  The check is gated on the file path by the sniff's own configurable
+  `routeFilePatterns` property, which ships matching any path holding a
+  `routes` directory segment. Without it every `Route::verb()` call in a
+  service provider, a package boot method or a test would be in scope — the
+  same false-positive flood #248's gate exists to prevent. Detection only:
+  converting an action to an invokable controller means creating that class
+  and moving the method into it.
 
 ### Not statically enforceable — code review only (Tier 3)
 

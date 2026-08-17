@@ -88,6 +88,15 @@ const SWEPT_SNIFFS = [
 
 /**
  * Every sniff wired into rules.xml that reports warnings.
+ *
+ * CleanCode.Routes.NonInvokableSpecialAction is deliberately absent, for the
+ * reason CONTRIBUTING.md's "Adding a new sniff" step 3 gives: it scopes itself
+ * by path from its own $routeFilePatterns property, the sweep processes each
+ * fixture where it lives under tests/, and the sweep configures nothing — so
+ * its failing fixture would report nothing here and the floor would pass
+ * vacuously. tests/Standards/NonInvokableSpecialActionTest.php applies the same
+ * floor instead, against copies staged into a routes/ directory outside the
+ * repository, and pins the gate itself from four different paths.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
