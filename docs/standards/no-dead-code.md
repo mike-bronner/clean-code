@@ -49,6 +49,19 @@ Most of this standard is covered by existing sniffs wired into the master
   so a single-file scan can prove it dead. An enum can only ever report a
   method — PHP forbids enum properties.
 
+  **Each body is scanned against its own mentions only.** A nested anonymous
+  class is a separate class, and PHP denies it access to the enclosing class's
+  private members — `$outer->helper()` inside one raises *Call to private
+  method Outer::helper() from scope class@anonymous*. So a mention inside the
+  nested body never keeps an enclosing member alive; it is measured on its own
+  pass instead. **Its constructor arguments are not part of that body**, on the
+  same terms as `CleanCode.CodeSize.CyclomaticComplexity` and
+  `ExcessiveClassComplexity`: `new class ($this->config)` is evaluated in the
+  enclosing scope and reads the enclosing property. Anonymous classes are the
+  only nesting to account for — PHP rejects a named class, enum, trait, or
+  interface declared inside another class-like body, or inside a closure within
+  one, with *Class declarations may not be nested*.
+
   **Property and method names are tracked separately**, because PHP keeps them
   in separate namespaces. `$this->foo` marks the property used and leaves a
   same-named `private function foo()` reportable; `$this->foo()` does the

@@ -104,3 +104,37 @@ class HostsDeadAnonymousClass
         };
     }
 }
+
+/**
+ * A member name shared across the anonymous-class boundary. PHP denies an
+ * anonymous class any access to the enclosing class's private members, so the
+ * mentions below belong to the nested body alone. The enclosing `$tag` and
+ * `shared()` are never touched outside it and are dead; the nested pair is
+ * used and stays silent.
+ */
+class HostsCollidingAnonymousClass
+{
+    private string $tag = 'never read out here';
+
+    public function make(): object
+    {
+        return new class () {
+            private string $tag = 'inner';
+
+            public function read(): string
+            {
+                return $this->tag . $this->shared();
+            }
+
+            private function shared(): string
+            {
+                return 'inner';
+            }
+        };
+    }
+
+    private function shared(): string
+    {
+        return 'never called out here';
+    }
+}

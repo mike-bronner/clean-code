@@ -15,9 +15,12 @@
  *
  * Every expectation below was cross-checked by mutation: reverting register()
  * to [T_CLASS] drops the enum and anonymous-class findings, and collapsing the
- * two usage maps back into one drops both shared-name findings. The compliant
- * fixture discriminates in the same way — adding T_TRAIT to register(), or
- * forcing the call lookahead to a constant, each makes it report.
+ * two usage maps back into one drops both shared-name findings. Dropping the
+ * anonymous-class skip from collectUsedNames() drops the two host-collision
+ * findings. The compliant fixture discriminates in the same way — adding
+ * T_TRAIT to register(), forcing the call lookahead to a constant, or moving
+ * that skip's start from the opening brace to the `new class` token (which
+ * swallows the constructor arguments), each makes it report.
  */
 
 declare(strict_types=1);
@@ -53,6 +56,8 @@ it('flags every dead private member and nothing else', function (): void {
         ['line' => 78, 'column' => 22, 'source' => UNUSED_PRIVATE_ELEMENTS . '.UnusedMethod'],
         ['line' => 93, 'column' => 28, 'source' => UNUSED_PRIVATE_ELEMENTS . '.UnusedProperty'],
         ['line' => 100, 'column' => 30, 'source' => UNUSED_PRIVATE_ELEMENTS . '.UnusedMethod'],
+        ['line' => 117, 'column' => 20, 'source' => UNUSED_PRIVATE_ELEMENTS . '.UnusedProperty'],
+        ['line' => 136, 'column' => 22, 'source' => UNUSED_PRIVATE_ELEMENTS . '.UnusedMethod'],
     ]);
 });
 
@@ -86,6 +91,39 @@ it('leaves a trait body alone even when nothing in it uses its private members',
     expect(violationTuples($file))->toBe([])
         ->and(file_get_contents(fixturePath('UnusedPrivateElementsSniff', 'passing.php')))
         ->toContain('private function secretHelper');
+});
+
+/**
+ * An anonymous class is a separate class, and PHP denies it access to the
+ * enclosing class's private members, so a mention inside its body says nothing
+ * about a same-named member of the enclosing one. `HostsCollidingAnonymousClass`
+ * uses `$tag` and `shared()` only inside the nested body; both enclosing
+ * members are dead and must still be reported. Sharing one usage map across
+ * the boundary hid both.
+ */
+it('does not let a nested anonymous class excuse a same-named host member', function (int $line, string $code): void {
+    $lines = array_column(violationTuples(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')), 'source', 'line');
+
+    expect($lines)->toHaveKey($line)
+        ->and($lines[$line])->toBe(UNUSED_PRIVATE_ELEMENTS . '.' . $code);
+})->with([
+    'host property read only inside the nested body' => [117, 'UnusedProperty'],
+    'host method called only inside the nested body' => [136, 'UnusedMethod'],
+]);
+
+/**
+ * Only the anonymous class's *body* is skipped. Its constructor arguments are
+ * evaluated in the enclosing scope, so `new class ($this->config)` in
+ * `PassesPrivateStateToAnonymousClass` is the sole read that keeps that
+ * property alive. Skipping from the `new class` token instead of the opening
+ * brace would swallow the argument list and report it dead.
+ */
+it('still counts a usage in the arguments of a nested anonymous class', function (): void {
+    $file = analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'passing.php');
+
+    expect(violationTuples($file))->toBe([])
+        ->and(file_get_contents(fixturePath('UnusedPrivateElementsSniff', 'passing.php')))
+        ->toContain('new class ($this->config)');
 });
 
 /**

@@ -168,3 +168,28 @@ class HostsAnonymousClass
         };
     }
 }
+
+/**
+ * An anonymous class's constructor arguments sit outside its body and belong
+ * to the enclosing class, so only the body is skipped. `$this->config` below
+ * is the one and only read of the private property above it, and must keep it
+ * silent.
+ */
+class PassesPrivateStateToAnonymousClass
+{
+    private string $config = 'value';
+
+    public function make(): object
+    {
+        return new class ($this->config) {
+            public function __construct(private string $config)
+            {
+            }
+
+            public function read(): string
+            {
+                return $this->config;
+            }
+        };
+    }
+}

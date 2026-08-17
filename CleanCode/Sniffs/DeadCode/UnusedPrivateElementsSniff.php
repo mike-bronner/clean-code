@@ -31,6 +31,12 @@ use PHP_CodeSniffer\Util\Tokens;
  * - `T_INTERFACE` is not scanned because PHP forbids private interface
  *   members outright.
  *
+ * Each body is measured against its own mentions only. A nested anonymous
+ * class gets its own pass, and its mentions stay there: PHP denies it access
+ * to the enclosing class's private members, so they can never be a usage of
+ * one. Its constructor arguments are a different matter — they are evaluated
+ * in the enclosing scope and still count there.
+ *
  * Methods and properties are matched against separate usage maps, because PHP
  * keeps them in separate namespaces: `$this->foo` reads a property and
  * `$this->foo()` calls a method, and one must not mark the other used. Names
@@ -214,6 +220,11 @@ class UnusedPrivateElementsSniff implements Sniff
      * deliberate false negative, in keeping with the sniff's conservative
      * "any mention counts" heuristic.
      *
+     * A nested anonymous class body is jumped over, mirroring the skip
+     * findPrivateDeclarations() makes: its mentions belong to that body, not
+     * to this one, and counting them here would mark an enclosing member used
+     * that nothing in the enclosing body ever touches.
+     *
      * @return array{0: array<string, true>, 1: array<string, true>} used
      *         property names, then used method names
      */
@@ -225,6 +236,12 @@ class UnusedPrivateElementsSniff implements Sniff
 
         for ($i = ($opener + 1); $i < $closer; $i++) {
             $code = $tokens[$i]['code'];
+
+            if ($this->opensAnonymousClass($phpcsFile, $i) === true) {
+                $i = $tokens[$i]['scope_closer'];
+
+                continue;
+            }
 
             if ($code === T_STRING || $code === T_VARIABLE) {
                 $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($i - 1), null, true);
@@ -253,6 +270,38 @@ class UnusedPrivateElementsSniff implements Sniff
         }
 
         return [$usedProperties, $usedMethods];
+    }
+
+    /**
+     * Whether $stackPtr is the brace that opens an anonymous class body.
+     *
+     * An anonymous class is a separate class, and PHP refuses it access to the
+     * enclosing class's private members — `$outer->helper()` inside one raises
+     * "Call to private method Outer::helper() from scope class@anonymous". So
+     * a mention inside that body can never be a usage of an enclosing private
+     * member, and must not mark one used.
+     *
+     * The body is skipped from its opening brace rather than from the
+     * T_ANON_CLASS token, because the constructor arguments in between belong
+     * to the enclosing body: `new class ($this->config)` reads an enclosing
+     * property and is a real usage.
+     *
+     * Anonymous classes are the only class-like construct this has to handle.
+     * PHP rejects a named class, enum, trait, or interface declared inside
+     * another class-like body — or inside a closure within one — with "Class
+     * declarations may not be nested".
+     */
+    private function opensAnonymousClass(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $token = $tokens[$stackPtr];
+
+        if (isset($token['scope_condition'], $token['scope_opener'], $token['scope_closer']) === false) {
+            return false;
+        }
+
+        return $token['scope_opener'] === $stackPtr
+            && $tokens[$token['scope_condition']]['code'] === T_ANON_CLASS;
     }
 
     /**
