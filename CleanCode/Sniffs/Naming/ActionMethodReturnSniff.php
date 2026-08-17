@@ -291,26 +291,40 @@ class ActionMethodReturnSniff implements Sniff
 
     /**
      * Whether a declared return type says a value comes back.
+     *
+     * The exemption switch is read before the builder is looked for rather than
+     * inside the search: switched off, every declaration that is not `void` or
+     * `never` returns a value, and what the type happens to name stops being a
+     * question worth asking.
      */
     private function declarationReturnsValue(File $phpcsFile, int $stackPtr, string $declared): bool
     {
         return match (true) {
             in_array($declared, self::COMMAND_RETURN_TYPES, true) => false,
-            $this->isFluentType($phpcsFile, $stackPtr, $declared) => false,
+            $this->allowFluentInterface === false => true,
+            $this->everyMemberIsFluent($phpcsFile, $stackPtr, $declared) => false,
             default => true,
         };
     }
 
     /**
      * Whether an undeclared body hands a value back.
+     *
+     * A body with no value-return at all is settled first, and separately: it is
+     * not a *fluent* body, it is a body that answers nothing. Asked the other way
+     * round, "every value-return is `$this`" is vacuously true of no returns at
+     * all — which reads as a builder while the exemption is on, and as a method
+     * that returns a value once it is off.
      */
     private function bodyReturnsValue(File $phpcsFile, int $stackPtr): bool
     {
         $returns = $this->valueReturns($phpcsFile, $stackPtr);
+        $closer = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_closer');
 
         return match (true) {
             $returns === [] => false,
-            $this->isFluentBody($phpcsFile, $returns) => false,
+            $this->allowFluentInterface === false => true,
+            $this->everyReturnIsThis($phpcsFile, $returns, $closer) => false,
             default => true,
         };
     }
@@ -318,27 +332,41 @@ class ActionMethodReturnSniff implements Sniff
     /**
      * The declaration's return type, normalised — whitespace removed, folded to
      * lower case (PHP type names are case-insensitive), and stripped of the
-     * nullable marker and any `null` union member, since neither changes
-     * whether a value comes back. An empty string means none was declared.
+     * nullable marker. An empty string means none was declared.
      */
     private function declaredReturnType(File $phpcsFile, int $stackPtr): string
     {
         $written = (string) $phpcsFile->getMethodProperties($stackPtr)['return_type'];
         $normalized = ltrim(strtolower((string) preg_replace('/\s+/', '', $written)), '?');
-        $members = array_values(array_diff(explode('|', $normalized), ['null', '']));
+        $members = array_values(array_diff(explode('|', $normalized), ['']));
 
-        return implode('|', $members);
+        return implode('|', $this->withoutNullability($members));
     }
 
     /**
-     * Whether a normalised return type says "my own object", and the exemption
-     * is switched on.
+     * The union's members with `null` dropped — but only while another member
+     * outlives it.
+     *
+     * Beside another type, `null` says the value may be absent rather than what
+     * the value is: `?static` and `Builder|null` are the same object, chained or
+     * not, and dropping the member is what leaves the type this rule reads.
+     *
+     * Alone, `null` *is* the type. It is neither `void` nor `never` — the two
+     * spellings of "nothing comes back" — so `: null` hands a value back and the
+     * rule reports it. Dropping it there would empty the list, and an empty type
+     * reads as "none declared", which sends the declaration to a body scan; a
+     * bodyless or empty-body method has nothing to scan, and the finding
+     * disappears without a trace.
+     *
+     * @param array<int, string> $members
+     *
+     * @return array<int, string>
      */
-    private function isFluentType(File $phpcsFile, int $stackPtr, string $type): bool
+    private function withoutNullability(array $members): array
     {
-        return match ($this->allowFluentInterface) {
-            false => false,
-            default => $this->everyMemberIsFluent($phpcsFile, $stackPtr, $type),
+        return match (count($members)) {
+            1 => $members,
+            default => array_values(array_diff($members, ['null'])),
         };
     }
 
@@ -483,55 +511,81 @@ class ActionMethodReturnSniff implements Sniff
     }
 
     /**
-     * Whether every value-return in the body is `return $this;`, and the
-     * exemption is switched on.
-     */
-    private function isFluentBody(File $phpcsFile, array $returns): bool
-    {
-        return match ($this->allowFluentInterface) {
-            false => false,
-            default => $this->everyReturnIsThis($phpcsFile, $returns),
-        };
-    }
-
-    /**
      * Every one of them, because a body that returns `$this` on one path and a
      * result on another is exactly the mixed command-query this rule is about.
      *
      * @param array<int, int> $returns
      */
-    private function everyReturnIsThis(File $phpcsFile, array $returns): bool
+    private function everyReturnIsThis(File $phpcsFile, array $returns, int $closer): bool
     {
         $fluent = 0;
 
         foreach ($returns as $expression) {
-            $fluent += (int) $this->isBareThis($phpcsFile, $expression);
+            $fluent += (int) $this->isBareThis($phpcsFile, $expression, $closer);
         }
 
         return $fluent === count($returns);
     }
 
     /**
-     * Whether the expression is `$this` and nothing more.
+     * Whether what a `return` hands back is `$this` and nothing more.
      *
-     * Matched on content and adjacency — the `$this` token followed immediately
-     * by the semicolon — so `$this->name`, `$this->save()` and `$this ?: $other`
-     * are values built from `$this`, not `$this` itself. No token-type check
-     * accompanies the content one: `$this` is spelled with a sigil no other
-     * token in an expression can carry, so the content answers the type too,
-     * and mutation testing confirmed the extra check could not change an
-     * outcome.
+     * The *whole* expression is read, from its first token to the semicolon that
+     * ends the statement, rather than the one token the expression starts with.
+     * A parenthesised `return ($this);` starts on the `(`, so a one-token read
+     * never sees the variable and calls the plainest spelling of the builder
+     * idiom a value-return. Grouping parentheses are what the comparison then
+     * drops, since they change nothing about what comes back.
+     *
+     * `$this->name`, `$this->save()` and `$this ?: $other` keep every other
+     * character they are written with, so each is a value built from `$this`
+     * rather than `$this` itself. Nothing but parentheses is dropped, so the
+     * only expressions left reading `$this` are the ones that are it.
+     *
+     * A statement with no semicolon before the body ends cannot be read, and is
+     * answered "not fluent" — the exemption is what silences a report, so an
+     * unreadable expression has to lose it rather than gain it.
      */
-    private function isBareThis(File $phpcsFile, int $expression): bool
+    private function isBareThis(File $phpcsFile, int $expression, int $closer): bool
     {
-        $next = $this->orNull(
-            $phpcsFile->findNext(Tokens::$emptyTokens, ($expression + 1), null, true)
-        );
+        $end = $this->orNull($phpcsFile->findNext(T_SEMICOLON, $expression, $closer));
 
-        return match ($this->contentOf($phpcsFile, $expression)) {
-            '$this' => $this->isToken($phpcsFile, $next, T_SEMICOLON),
-            default => false,
+        return match ($end) {
+            null => false,
+            default => $this->isThisExpression($phpcsFile, $expression, $end),
         };
+    }
+
+    /**
+     * Whether everything written between two pointers is `$this`, once the
+     * grouping parentheses are taken off.
+     */
+    private function isThisExpression(File $phpcsFile, int $start, int $end): bool
+    {
+        $written = $this->meaningfulContent($phpcsFile, $start, $end);
+
+        return str_replace(['(', ')'], '', $written) === '$this';
+    }
+
+    /**
+     * The text between two pointers with whitespace and comments left out.
+     *
+     * Built token by token rather than taken as one getTokensAsString() run,
+     * because that run reproduces the source verbatim: a comment written inside
+     * the expression would land in the middle of the text being compared, and a
+     * `return` with one written before `$this` would read as something else.
+     */
+    private function meaningfulContent(File $phpcsFile, int $start, int $end): string
+    {
+        $written = '';
+        $pointer = $phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true);
+
+        while ($pointer !== false) {
+            $written .= $this->contentOf($phpcsFile, $pointer);
+            $pointer = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), $end, true);
+        }
+
+        return $written;
     }
 
     /**

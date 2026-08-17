@@ -59,6 +59,12 @@ read from tokens:
   `return` inside a closure, an arrow function, a nested function, or an
   anonymous class belongs to that declaration, not this one.
 
+  `void` and `never` are the only two types that report nothing. A standalone
+  `: null` is a declared type in its own right rather than the nullable marker,
+  so it reports — a caller still receives something, and `null` is the answer.
+  Beside another type (`?static`, `Builder|null`) the same word only says the
+  value may be absent, and it is read that way instead.
+
 Methods only. A plain function, a closure, and an arrow function are left
 alone: the standard describes an action taken on a class.
 
@@ -81,6 +87,11 @@ naming the enclosing class, and a body whose *every* value-return is
 too: `null` only adds a third state to the same object. So is a union whose
 *every* member is one of those spellings — `self|static`, `Builder|static` —
 since no member of it can be a value.
+
+The body half reads the whole returned expression, so how it is written down
+does not change the answer: `return ($this);` and a `return $this;` with a
+comment before it are the same builder as the plain spelling. Only what comes
+back counts, and parentheses and comments are not part of it.
 
 Three shapes are **not** exempt. A body that returns `$this` on one path and a
 result on another — that mix is the command–query blur the rule is about. A

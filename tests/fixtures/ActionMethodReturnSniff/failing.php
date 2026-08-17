@@ -170,3 +170,35 @@ $renderer = new class () {
         return 'html';
     }
 };
+
+/**
+ * `null` on its own is a declared type, not a nullable marker. It is neither
+ * `void` nor `never`, so a value comes back — and none of these three has a body
+ * to fall back on, which is what makes reading the type the whole answer.
+ */
+interface Cancellable
+{
+    public function removeCancellation(): null;
+}
+
+abstract class Reminder
+{
+    abstract public function sendReminder(): null;
+}
+
+class Receipt
+{
+    public function storeReceipt(): null
+    {
+    }
+
+    /**
+     * Parenthesised, and still not `$this`. Taking the parentheses off is what
+     * lets `return ($this);` be read as the builder idiom, and this is the half
+     * that proves taking them off does not swallow the expression with them.
+     */
+    public function updateReceipt()
+    {
+        return ($this->number);
+    }
+}

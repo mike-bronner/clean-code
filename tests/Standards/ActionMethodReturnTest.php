@@ -155,6 +155,20 @@ it('produces no violations on the compliant fixture', function (): void {
  * - line 122, `return $status;` — a single token, then the semicolon, exactly
  *   the shape of `return $this;` without being it. Matching the fluent body on
  *   adjacency alone would exempt this.
+ * - line 200, `return ($this->number);` — parenthesised, and still not `$this`.
+ *   Taking the parentheses off is what lets `return ($this);` be read as the
+ *   builder idiom, and this is the half that proves taking them off does not
+ *   swallow the expression with them.
+ *
+ * The standalone `null` type, on lines 181, 186 and 191:
+ *
+ * - `null` is a declared type in its own right, not the nullable marker. It is
+ *   neither `void` nor `never`, so a value comes back.
+ * - None of the three has a body — an interface method, an abstract method, and
+ *   an empty one — which is what makes reading the type the whole answer.
+ *   Dropping the member from a one-member union leaves an empty type, an empty
+ *   type reads as "none declared", and a body scan over no body finds no return
+ *   and reports nothing at all.
  */
 it('flags every action method that returns a value in the failing fixture', function (): void {
     $file = analyzeFixture(ACTION_METHOD_RETURN, 'failing.php');
@@ -178,6 +192,10 @@ it('flags every action method that returns a value in the failing fixture', func
         ['line' => 148, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 158, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 168, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 181, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 186, 'column' => 30, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 191, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 200, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
 });
 
@@ -194,14 +212,19 @@ it('flags every action method that returns a value in the failing fixture', func
  *   Between them they report one line, 86 — `store_line()`, for the underscore
  *   — and would keep reporting it after the return type was removed.
  * - SlevomatCodingStandard.TypeHints.ReturnTypeHint asks only that a type be
- *   *declared*, and how completely. It reports the four declarations that omit
- *   one (48, 58, 70, 122) and line 148's bare `array`, for an unspecified item
- *   type — and stays silent on the other thirteen, which declare a returning
+ *   *declared*, and how completely. It reports the five declarations that omit
+ *   one (48, 58, 70, 122, 200) and line 148's bare `array`, for an unspecified
+ *   item type — and stays silent on the other sixteen, which declare a returning
  *   type perfectly well. That is the opposite half of this rule: it wants a
  *   type where there is none, this wants none where there is a type.
  *
- * Their six lines overlap this sniff's eighteen by shape, not by coverage: fix
- * every one of those six and all eighteen still report here. Pinned
+ *   The three `: null` declarations on lines 181, 186 and 191 are where the two
+ *   halves are furthest apart: each declares a type, so ReturnTypeHint is
+ *   satisfied and silent, and each declares a *returning* type, which is the
+ *   whole of what this sniff is reporting.
+ *
+ * Their seven lines overlap this sniff's twenty-two by shape, not by coverage:
+ * fix every one of those seven and all twenty-two still report here. Pinned
  * rather than asserted once in a comment, because a vendor upgrade can quietly
  * change the answer.
  */
@@ -233,7 +256,7 @@ it('is answered by no nearby vendor standard', function (): void {
     expect($reported)->toBe([
         'PEAR.NamingConventions.ValidFunctionName' => [86],
         'PSR1.Methods.CamelCapsMethodName' => [86],
-        'SlevomatCodingStandard.TypeHints.ReturnTypeHint' => [48, 58, 70, 122, 148],
+        'SlevomatCodingStandard.TypeHints.ReturnTypeHint' => [48, 58, 70, 122, 148, 200],
         'Squiz.NamingConventions.ValidFunctionName' => [86],
     ]);
 });
@@ -261,7 +284,7 @@ it('names the method and the matched verb in the message', function (): void {
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(ACTION_METHOD_RETURN, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(18)
+    expect($file->getWarningCount())->toBe(22)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
@@ -313,8 +336,18 @@ it('flags a fluent interface when allowFluentInterface is off', function (): voi
 
 /**
  * Turning the exemption off widens the rule to fluent declarations and to
- * nothing else. Every other near-miss in `passing.php` stays silent: the four
- * fluent spellings on lines 92, 99, 106 and 118 are the whole difference.
+ * nothing else. Every other near-miss in `passing.php` stays silent: the six
+ * fluent spellings on lines 92, 99, 106, 118, 179 and 191 are the whole
+ * difference.
+ *
+ * Lines 179 and 191 — `return ($this);` and a `return $this;` with a comment
+ * written before it — are the pair that proves each is silent above because the
+ * exemption reached it, not because the sniff read one token, found neither
+ * `$this` nor anything like it, and gave up. Reading one token answers "not
+ * fluent" in *both* states, so the default run alone cannot tell the two apart.
+ * Their opposite is `failing.php` line 200, `return ($this->number);`, which
+ * reports in both: the parentheses come off, and what is inside them is still
+ * not `$this`.
  *
  * The two that matter here declare no return type and hand back nothing — line
  * 35, whose body holds only a bare `return;`, and line 47, whose body holds no
@@ -338,6 +371,8 @@ it('widens to fluent declarations only when allowFluentInterface is off', functi
         ['line' => 99, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 106, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 118, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 179, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 191, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
 });
 

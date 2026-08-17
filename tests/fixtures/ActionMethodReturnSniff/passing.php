@@ -170,6 +170,28 @@ class Post
             }
         };
     }
+
+    /**
+     * The same builder idiom in parentheses. The expression starts on the `(`,
+     * so reading the one token it starts with never sees the variable and calls
+     * this a value-return.
+     */
+    public function detachRenderer()
+    {
+        $this->renderer = null;
+
+        return ($this);
+    }
+
+    /**
+     * A comment written inside the expression. It is not part of what comes
+     * back, so it is not part of what the expression is compared against —
+     * reading the span verbatim would put it there.
+     */
+    public function clearRenderer()
+    {
+        return /* the builder itself */ $this;
+    }
 }
 
 abstract class Draft
