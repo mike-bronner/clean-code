@@ -49,6 +49,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Methods.NoNullArguments',
     'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.CyclomaticComplexity',
+    'CleanCode.Metrics.DepthOfInheritance',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.MethodNestingLevel',
@@ -57,6 +58,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.BooleanGetMethodName',
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.LongVariable',
+    'CleanCode.Naming.ModelNamingConventions',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Naming.ShortVariable',
@@ -104,6 +106,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
     'CleanCode.Testing.NoReflectionAccess',
+    'CleanCode.Testing.TestSuiteNamespace',
 ];
 
 /**
