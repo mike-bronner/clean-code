@@ -79,7 +79,12 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
  * Lines 7-13 sweep all seven verbs that carry their action second, so a verb
  * dropped from the enumeration falls out of this list. Lines 21-22 are the
  * Route::match pair, whose action sits third: reading position 2 for them
- * would inspect the URI and report nothing at all.
+ * would inspect the URI and report nothing at all. Lines 49-52 name the action
+ * instead of placing it, and their columns are what show the name was stripped
+ * off the front of the argument rather than reported as its first token. Line
+ * 56 puts a comment where the action starts, and line 59 spells the ::class
+ * keyword in upper case: both report, so neither the comment skip nor the
+ * keyword's casing can be dropped without this list changing.
  */
 it('flags every non-invokable action shape at its own line and column', function () use ($routeRun): void {
     expect(warningTuples($routeRun('failing.php')))->toBe([
@@ -100,6 +105,12 @@ it('flags every non-invokable action shape at its own line and column', function
         ['line' => 37, 'column' => 31, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 41, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 42, 'column' => 27, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 49, 'column' => 38, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 50, 'column' => 44, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 51, 'column' => 20, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 52, 'column' => 62, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 56, 'column' => 53, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 59, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
     ]);
 });
 
@@ -111,7 +122,7 @@ it('flags every non-invokable action shape at its own line and column', function
  */
 it('reports warnings and never errors', function () use ($routeRun): void {
     expect($routeRun('failing.php')->getErrors())->toBe([])
-        ->and($routeRun('failing.php')->getWarningCount())->toBe(17);
+        ->and($routeRun('failing.php')->getWarningCount())->toBe(23);
 });
 
 /**
@@ -144,8 +155,16 @@ it('stays silent on each near-miss shape', function (string $source) use ($route
     'match without an action argument' => ["Route::match(['get', 'post'], '/a');"],
     'another facade with the same verb' => ["Http::get('/a', [ApiClient::class, 'fetch']);"],
     'a router-like receiver that is not Route' => ["Router::get('/a', [PostController::class, 'archive']);"],
+    'lower cased receiver' => ["route::get('/a', [PostController::class, 'archive']);"],
+    'upper cased receiver' => ["ROUTE::get('/a', [PostController::class, 'archive']);"],
+    'mixed case receiver on a string action' => ["RoUtE::post('/a', 'PostController@archive');"],
     'resource registration' => ["Route::resource('posts', PostController::class);"],
-    'named arguments' => ["Route::get(uri: '/a', action: [PostController::class, 'archive']);"],
+    'named invokable action' => ["Route::get(uri: '/a', action: ArchiveController::class);"],
+    'named RESTful action' => ["Route::get(uri: '/a', action: [PostController::class, 'index']);"],
+    'named dynamic action' => ["Route::get(uri: '/a', action: [PostController::class, \$method]);"],
+    'mis-cased action name' => ["Route::get(uri: '/a', Action: [PostController::class, 'archive']);"],
+    'named uri without an action' => ["Route::get(uri: '/a');"],
+    'action name with no value after it' => ["Route::get(uri: '/a', action:);"],
     'single element array action' => ["Route::get('/a', [PostController::class]);"],
     'three element array action' => ["Route::get('/a', [PostController::class, 'archive', 'extra']);"],
     'static::class first element' => ["Route::get('/a', [static::class, 'archive']);"],
@@ -179,6 +198,22 @@ it('names the targeted method in the warning', function (string $source, string 
     'upper cased verb' => ["Route::GET('/a', [PostController::class, 'archive']);", 'archive'],
     'leading separator on the facade' => ["\\Route::get('/a', [PostController::class, 'archive']);", 'archive'],
     'restful name differing only in case' => ["Route::get('/a', [PostController::class, 'Show']);", 'Show'],
+    'named action after a positional uri' => [
+        "Route::get('/a', action: [PostController::class, 'archive']);",
+        'archive',
+    ],
+    'fully named call' => [
+        "Route::post(uri: '/a', action: [PostController::class, 'publish']);",
+        'publish',
+    ],
+    'named action written before the uri' => [
+        "Route::get(action: 'PostController@promote', uri: '/a');",
+        'promote',
+    ],
+    'named action in a match call' => [
+        "Route::match(['get'], uri: '/a', action: [PostController::class, 'rebuild']);",
+        'rebuild',
+    ],
 ]);
 
 /**
@@ -191,8 +226,8 @@ it('names the targeted method in the warning', function (string $source, string 
 it('inspects a file only under a routes directory', function (string $directory, int $expected) use ($routeRun): void {
     expect($routeRun('failing.php', $directory)->getWarningCount())->toBe($expected);
 })->with([
-    'routes' => ['routes', 17],
-    'nested under routes' => ['routes/admin', 17],
+    'routes' => ['routes', 23],
+    'nested under routes' => ['routes/admin', 23],
     'app' => ['app', 0],
     'app/Providers' => ['app/Providers', 0],
     'tests' => ['tests', 0],
@@ -213,7 +248,7 @@ it('honours a ruleset-configured routeFilePatterns', function (): void {
         }
     );
 
-    expect($configured->getWarningCount())->toBe(17);
+    expect($configured->getWarningCount())->toBe(23);
 });
 
 /**

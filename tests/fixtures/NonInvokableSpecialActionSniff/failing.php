@@ -40,3 +40,20 @@ Route::GET('/reports/replay', [ReportController::class, 'replay']);
 // only in case — the list is matched exactly and case-sensitively.
 Route::get('/posts/indexes', [PostController::class, 'indexAll']);
 Route::get('/posts/Show', [PostController::class, 'Show']);
+
+// A named action is the same registration written another way, so it is read
+// the same. The name identifies the argument on its own: it is read where it
+// follows a positional uri, where every argument is named, where the names are
+// written in the other order, and in a match() call whose action would
+// otherwise be found by position.
+Route::get('/posts/feature', action: [PostController::class, 'feature']);
+Route::post(uri: '/posts/publish', action: [PostController::class, 'publish']);
+Route::get(action: 'PostController@promote', uri: '/posts/promote');
+Route::match(['get', 'post'], uri: '/posts/rebuild', action: [PostController::class, 'rebuild']);
+
+// A comment inside the argument list is skipped along with the whitespace
+// around it, so it neither opens an argument nor shifts the action's position.
+Route::post('/posts/note', /* the action follows */ [PostController::class, 'note']);
+
+// `class` is a keyword there, and a keyword carries no casing.
+Route::get('/posts/rewrite', [PostController::CLASS, 'rewrite']);

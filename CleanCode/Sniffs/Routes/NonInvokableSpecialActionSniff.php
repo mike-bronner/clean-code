@@ -24,6 +24,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *   - `Route::get('/x', 'PostController@archive')` — the legacy string
  *     spelling of the same thing, flagged.
  *
+ * The action is read at the verb's own argument position — third for
+ * `match()`, second for every other verb — or by name when the call writes
+ * `action: …`, which identifies the argument whatever order the names are in.
+ *
  * An action naming one of the seven RESTful methods (index, create, store,
  * show, edit, update, destroy) is deliberately NOT flagged. That shape is a
  * resource route written out longhand, which is
@@ -85,6 +89,16 @@ class NonInvokableSpecialActionSniff implements Sniff
      * `ROUTE::get()` through while widening the match buys nothing.
      */
     private const ROUTE_FACADE = 'Route';
+
+    /**
+     * The name Laravel's Router gives the action parameter of every verb it
+     * declares, which is what a named argument spells: `action: [...]`.
+     *
+     * Matched exactly. PHP resolves a named argument against the parameter's
+     * own spelling, so `Action:` names no parameter of the call at all and is
+     * a call PHP rejects rather than a second spelling of this one.
+     */
+    private const ACTION_PARAMETER = 'action';
 
     /**
      * The verb methods that register a route, mapped to the 1-based position
@@ -279,13 +293,19 @@ class NonInvokableSpecialActionSniff implements Sniff
 
     /**
      * The `[start, end]` token span of the call's action argument, or null
-     * when there is nothing positional to read there.
+     * when there is nothing to read there.
      *
-     * Null covers three separate cases, all of them "skip rather than guess":
-     * the verb is not called at all (`Route::get;`), the call is written with
-     * named arguments (so position says nothing about order), and the call
-     * carries fewer arguments than the action's position — `Route::get($uri)`
-     * or `Route::match($methods, $uri)` register nothing to inspect.
+     * An argument written as `action: …` is read by its name, wherever it
+     * sits: a name identifies the argument outright, so neither the verb's
+     * position map nor the order the names are written in comes into it.
+     * Only when the call names nothing does position decide, and then only
+     * across the arguments that are actually positional.
+     *
+     * Null covers two cases, both of them "skip rather than guess": the verb
+     * is not called at all (`Route::get;`), and the call names no action and
+     * carries fewer positional arguments than the action's position —
+     * `Route::get($uri)` or `Route::match($methods, $uri)` register nothing to
+     * inspect.
      *
      * @return array{0: int, 1: int}|null
      */
@@ -298,25 +318,37 @@ class NonInvokableSpecialActionSniff implements Sniff
             return null;
         }
 
-        $arguments = $this->argumentRanges($phpcsFile, $openPtr);
+        $arguments = array_map(
+            fn (array $range): array => $this->labelledArgument($phpcsFile, $range[0], $range[1]),
+            $this->argumentRanges($phpcsFile, $openPtr)
+        );
 
-        return $arguments[$position - 1] ?? null;
+        foreach ($arguments as $argument) {
+            if ($argument['label'] === self::ACTION_PARAMETER) {
+                return [$argument['start'], $argument['end']];
+            }
+        }
+
+        $positional = array_values(
+            array_filter($arguments, static fn (array $argument): bool => $argument['label'] === null)
+        );
+        $action = $positional[$position - 1] ?? null;
+
+        return $action === null ? null : [$action['start'], $action['end']];
     }
 
     /**
-     * The `[start, end]` span of each positional argument between $openPtr and
-     * its closer, or [] when the call uses named arguments.
+     * The `[start, end]` span of each argument between $openPtr and its
+     * closer, a named argument's own label included in its span.
      *
      * Commas are only counted at the call's own depth: every group opener
      * (parentheses, arrays, subscripts, braces, attributes) is jumped straight
      * to its closer, so a comma inside a nested array or a nested call cannot
      * shift an argument's position.
      *
-     * A named argument needs no guard of its own. Its range opens on the name
-     * token rather than on an array or a string literal, so it fails both
-     * recognised action shapes and falls out with every other unread shape —
-     * and PHP requires positional arguments first, so a name cannot displace
-     * one that is written positionally either.
+     * A name needs no rule of its own here. It opens the span of the argument
+     * it belongs to, exactly as a positional argument's first token does, and
+     * labelledArgument() below is what separates the two.
      *
      * @return array<int, array{0: int, 1: int}>
      */
@@ -360,6 +392,42 @@ class NonInvokableSpecialActionSniff implements Sniff
         }
 
         return $ranges;
+    }
+
+    /**
+     * The name the argument spanning $start to $end is written under — null
+     * when it is positional — and the span of its value with any label taken
+     * off the front.
+     *
+     * Stripping the label is what makes `action: [Foo::class, 'archive']`
+     * present the same span as the positional spelling of it, so one reading
+     * covers both and a violation is reported at its action rather than at its
+     * name.
+     *
+     * A named argument opens on three significant tokens in a fixed order: the
+     * name, its colon, then the value. PHP_CodeSniffer only spells a name
+     * T_PARAM_NAME when the next significant token is that colon, so the colon
+     * needs no check of its own and the value is simply the third of them. A
+     * name with no value after it at all is not a call PHP accepts; that span
+     * falls back to its own end, which reads as no recognised action shape.
+     *
+     * @return array{label: string|null, start: int, end: int}
+     */
+    private function labelledArgument(File $phpcsFile, int $start, int $end): array
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if ($tokens[$start]['code'] !== T_PARAM_NAME) {
+            return ['label' => null, 'start' => $start, 'end' => $end];
+        }
+
+        $meaningful = $this->meaningfulTokens($phpcsFile, $start, $end);
+
+        return [
+            'label' => $tokens[$start]['content'],
+            'start' => $meaningful[2] ?? $end,
+            'end' => $end,
+        ];
     }
 
     /**

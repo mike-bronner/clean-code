@@ -71,10 +71,13 @@ than failing a build.
 
   The sniff reads the action argument of `Route::get`, `post`, `put`, `patch`,
   `delete`, `options`, `any` and `match` — second for every verb but `match`,
-  whose HTTP-methods array comes first and whose action is therefore third. An
-  action naming one of the seven RESTful methods is *not* flagged: that shape
-  is a resource route written longhand, which #248 reports at the verb call
-  itself, and flagging it here would double-report one line.
+  whose HTTP-methods array comes first and whose action is therefore third. A
+  call that writes `action: …` is read by that name instead, in whatever order
+  the names are written, so a named registration is reported exactly as the
+  positional spelling of it is. An action naming one of the seven RESTful
+  methods is *not* flagged: that shape is a resource route written longhand,
+  which #248 reports at the verb call itself, and flagging it here would
+  double-report one line.
 
   Five boundaries, all deliberate:
   - **False positive — a deliberately shared controller.** Several related
@@ -96,11 +99,13 @@ than failing a build.
     unreadable at token level. So is the associative `['uses' => …]` action
     shape, which is left alone rather than read by position.
   - **Symbol resolution assumes the Laravel `Route` facade.** As with #174 and
-    #248, the receiver is matched on the literal token `Route`, so an aliased
-    import cannot be resolved. Two consequences: an unrelated `Http::get()` is
-    never mistaken for a route registration, and a verb reached through a
-    chained builder (`Route::middleware('auth')->get(…)`) is not seen, because
-    the verb is called on the returned object rather than on the facade.
+    #248, the receiver is matched on the literal token `Route`, case included,
+    so an aliased import cannot be resolved and a differently cased spelling
+    (`route::get(…)`) is read as another name. Two consequences: an unrelated
+    `Http::get()` is never mistaken for a route registration, and a verb
+    reached through a chained builder (`Route::middleware('auth')->get(…)`) is
+    not seen, because the verb is called on the returned object rather than on
+    the facade.
 
   The check is gated on the file path by the sniff's own configurable
   `routeFilePatterns` property, which ships matching any path holding a

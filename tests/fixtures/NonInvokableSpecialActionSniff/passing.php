@@ -69,6 +69,14 @@ Http::get('/remote', [ApiClient::class, 'fetch']);
 Cache::get('/cached', [CacheStore::class, 'fetch']);
 Router::get('/aliased', [PostController::class, 'archive']);
 
+// The receiver is matched case-sensitively, unlike the verb after it: a class
+// name is a name, and the facade is spelled `Route`. A differently cased
+// spelling is another name as far as this sniff reads it, so it is left alone
+// the same way `Router` above is.
+route::get('/lower-cased-receiver', [PostController::class, 'archive']);
+ROUTE::get('/upper-cased-receiver', [PostController::class, 'archive']);
+RoUtE::post('/mixed-case-receiver', 'PostController@archive');
+
 // Registrations that are not verb calls at all carry no action argument in
 // the position this sniff reads.
 Route::resource('posts', PostController::class);
@@ -77,10 +85,28 @@ Route::group(['prefix' => 'admin'], function () {
     Route::get('/dashboard', DashboardController::class);
 });
 
-// Named arguments abandon the call: names may be written in any order, so a
-// position no longer identifies an argument.
-Route::get(uri: '/named', action: [PostController::class, 'archive']);
-Route::get(action: [PostController::class, 'archive'], uri: '/named-reordered');
+// A named action is read by its name, so the compliant and RESTful shapes are
+// as silent written that way as they are written positionally. The violating
+// spellings are in failing.php.
+Route::get(uri: '/named-invokable', action: ArchiveReportController::class);
+Route::get(uri: '/named-restful', action: [PostController::class, 'index']);
+Route::get(action: 'TagController@update', uri: '/named-restful-string');
+Route::get(uri: '/named-dynamic', action: [PostController::class, $method]);
+Route::match(methods: ['get', 'post'], uri: '/named-match', action: ExportReportController::class);
+
+// PHP resolves a named argument against the parameter's own spelling, so
+// `Action:` names no parameter of the call. The sniff reads no action out of
+// it, and the remaining argument is named too, so nothing is read positionally
+// either.
+Route::get(uri: '/mis-cased-name', Action: [PostController::class, 'archive']);
+
+// A name cannot be read positionally either: the call below names its only
+// argument, so there is no second positional argument for the action.
+Route::get(uri: '/named-uri-only');
+
+// A name with nothing after it is not a call PHP accepts, but it still
+// tokenizes, so the sniff has to read it without reaching past the argument.
+Route::get(uri: '/named-without-a-value', action:);
 
 // A nested comma cannot shift the action's position — the array and the call
 // below are both jumped whole.
