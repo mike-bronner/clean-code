@@ -110,6 +110,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.ClearCode.ActionSingleEntryPoint',
+    'CleanCode.ClearCode.JunkDrawerNamespace',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
@@ -117,7 +118,6 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Constructors.PrimaryConstructorDelegation',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Controllers.NoCustomActions',
-    'CleanCode.ClearCode.JunkDrawerNamespace',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
     'CleanCode.Models.ModelMagicMethodLocation',
     'CleanCode.Models.RequireLazyLoadingPrevention',
@@ -126,9 +126,9 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
     'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
+    'CleanCode.Testing.TestSuiteNamespace',
     'Generic.Commenting.Fixme',
     'Generic.Commenting.Todo',
-    'CleanCode.Testing.TestSuiteNamespace',
 ];
 
 /**
