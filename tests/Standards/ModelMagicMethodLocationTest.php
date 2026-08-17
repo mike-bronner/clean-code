@@ -198,11 +198,13 @@ it('ignores a return type that does not resolve to the cast', function (): void 
 });
 
 /**
- * A class the tokenizer never closed records neither scope_opener nor
- * scope_closer — PHP_CodeSniffer sets the pair together or not at all. The
- * walk needs a closer to stop at, so the sniff passes over the class rather
- * than running to the end of the file on a null bound, which is what it does
- * without the guard.
+ * A class the tokenizer never closed opens no scope, so PHP_CodeSniffer records
+ * no enclosing condition on the declarations written inside it. isOwnMethod()
+ * asks for the nearest enclosing class and gets none, so the accessor is not a
+ * member of anything and is not reported.
+ *
+ * Non-vacuous: making isOwnMethod() return true unconditionally reports the
+ * accessor on line 14 and reddens this test.
  */
 it('passes over a class the tokenizer never closed', function (): void {
     $file = analyzeFixture(MODEL_MAGIC_METHOD, 'unclosed-class.php');
@@ -212,33 +214,49 @@ it('passes over a class the tokenizer never closed', function (): void {
 });
 
 /**
- * `public function ;` has no parameter list, and getDeclarationName() bounds
- * its search at the parenthesis opener — with none to stop at it searches to
- * the end of the file and returns the next declaration's name. Only the
- * accessor on line 18 is reported; without the guard the same name is also
- * reported against line 16.
+ * declarationName() reads the name from the tokens and requires two things of
+ * it: that the token after `function` is a name at all, and that the parameter
+ * list's opening parenthesis follows it. The fixture cuts a declaration short
+ * in both places, because each test catches a shape the other lets through.
+ *
+ * - line 21, `public function ;` — no name. The name test rejects it first.
+ * - line 29, `public function getSubtitleAttribute` — a name spelled as an
+ *   accessor, no parameter list. Only the parenthesis test rejects it.
+ *
+ * Requiring the parenthesis is also what keeps some *later* declaration's name
+ * off an unfinished line: getDeclarationName() bounds its search at an opener
+ * that is not there and walks on to the next one.
+ *
+ * The parenthesis test is the one this fixture discriminates, and line 28 is
+ * here because nothing else reached it: deleting that test reports line 29 and
+ * reddens this assertion. Deleting the *name* test changes nothing, because
+ * the token after line 21's `function` is a semicolon and the parenthesis test
+ * rejects it a step later — it is kept as the type guard that makes reading the
+ * name well-defined, not as a check the fixtures pin, and this says so rather
+ * than implying coverage it does not carry. Only the finished accessor on line
+ * 23 is reported.
  */
 it('does not borrow a later declaration name for an unfinished one', function (): void {
     $file = analyzeFixture(MODEL_MAGIC_METHOD, 'truncated-declaration.php');
     $warnings = $file->getWarnings();
 
     expect($file->getErrors())->toBe([])
-        ->and(violationSourcesByLine($warnings))->toBe([18 => [MODEL_MAGIC_ATTRIBUTE]]);
+        ->and(violationSourcesByLine($warnings))->toBe([23 => [MODEL_MAGIC_ATTRIBUTE]]);
 });
 
 /**
- * The import map is memoised, because resolving a return type otherwise
- * rescans the whole file once per method — quadratic on the many-accessor
- * class this sniff exists to find. Memoisation on a sniff instance that
- * outlives the file is what makes a stale map possible, and every other test
- * here builds its own ruleset, so none of them would see one.
+ * A sniff object outlives the file it is given: PHP_CodeSniffer builds one
+ * instance per ruleset and runs every file through it. The import map is
+ * therefore rebuilt per class rather than cached on the instance, and this test
+ * is what holds that decision in place — a future memoisation that keys on
+ * anything staler than the file would redden it.
  *
  * These two fixtures disagree about what `Attribute` means: failing.php
  * imports Laravel's cast, unimported-attribute.php imports a different class
  * of that short name. Run through one ruleset — one sniff instance — in that
  * order, the second file must still be judged on its own imports.
  */
-it('rebuilds its import map for each file in a run', function (): void {
+it('judges each file in a run on its own imports', function (): void {
     [$config, $ruleset] = buildRuleset([MODEL_MAGIC_METHOD], true);
     $ruleset->sniffs = array_intersect_key(
         $ruleset->sniffs,
@@ -255,4 +273,73 @@ it('rebuilds its import map for each file in a run', function (): void {
     }
 
     expect($counts)->toBe(['failing.php' => 14, 'unimported-attribute.php' => 0]);
+});
+
+/**
+ * A group `use` may mix class, function and constant imports, and the keyword
+ * binds to its own member only — `use A\{function b, const C, D};` is one
+ * statement importing one class. Only the class member may be recorded.
+ *
+ * The fixture writes both keyword members ahead of the class member and binds
+ * all three to the name `Attribute`, which PHP allows because the three live in
+ * separate symbol tables. Members merge first-one-wins, so a reader that takes
+ * either keyword member for a class import binds `attribute` to it and
+ * discards the real `Casts\Attribute` behind it — and title() on line 26, a
+ * method returning exactly that cast, goes unreported.
+ *
+ * Non-vacuous, and the reason this fixture exists: dropping the keyword test
+ * from readMember() drops line 26 from this assertion, leaving it empty.
+ * subtitle() on line 33 is the other half — `makeAttribute` is imported as a
+ * function, so nothing binds `MakeAttribute` as a class and its return type
+ * must stay unresolved rather than being read as the cast.
+ */
+it('reads a group import past its function and constant members', function (): void {
+    $file = analyzeFixture(MODEL_MAGIC_METHOD, 'group-import.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($file->getWarnings()))
+        ->toBe([26 => [MODEL_MAGIC_ATTRIBUTE]]);
+});
+
+/**
+ * The sniff's own source passes rules.xml, the standard it belongs to — the
+ * claim rules.xml makes about this file, and the reason the file reads the way
+ * it does: match(true) guard chains instead of if
+ * (CleanCode.Conditionals.AvoidConditionals), the File API instead of the token
+ * array (CleanCode.Arrays.ArrayAccessors), flat const value lists instead of
+ * stacked one-per-line tables (CleanCode.Pattern.AvoidDuplicateCodeBlocks) and
+ * a NOWDOC message (CleanCode.Strings.MultilineStrings). Registering on T_CLASS
+ * and resolving scope through getCondition() rather than the token array's
+ * scope_opener/scope_closer pair is part of the same constraint: File publishes
+ * no accessor for those bounds.
+ *
+ * Asserted here because nothing else does, and because a sibling standard
+ * landing in rules.xml later can falsify the claim without touching this file
+ * — which is exactly what happened to ManualModelResolutionSniff.php, whose
+ * own copy of this test exists for that reason. Warnings are counted alongside
+ * errors on purpose: this sniff reports warnings itself, so a check that read
+ * errors only would stay green through exactly that drift.
+ *
+ * Every sniff wired into rules.xml is active, not just this one, because the
+ * claim is about the whole standard. Run through the *installed* phpcs rather
+ * than an in-process ruleset, because "exits 0" is a claim about the binary a
+ * consumer runs.
+ *
+ * The one exception, recorded rather than silenced, and the same one
+ * ManualModelResolutionTest.php records: CleanCode.Classes.RequireProperties
+ * (#55) reports this file, because a PHP_CodeSniffer sniff is a stateless
+ * strategy object — it holds constants and methods and no data at all — and
+ * that standard exists to say a class like it encapsulates nothing. The rule is
+ * right about this file, so the honest fix is to give the sniff classes state,
+ * not to exempt them; that is a package-wide refactor and belongs to its own
+ * issue. The assertion stays exact — one named source, nothing else — so it
+ * still reddens on any *other* drift, which is the reason it was written.
+ */
+it('passes the standard it belongs to', function (): void {
+    $report = installedPhpcsReport(
+        cleanCodeRoot() . '/rules.xml',
+        cleanCodeRoot() . '/CleanCode/Sniffs/Models/ModelMagicMethodLocationSniff.php'
+    );
+
+    expect(array_column($report, 'source'))->toBe(['CleanCode.Classes.RequireProperties.MissingProperty']);
 });
