@@ -1226,6 +1226,35 @@
     -->
 
     <!--
+        Routes: Conventions (Do / Do Not) (#65), resource-route slice (#248) —
+        docs/standards/routes-conventions-do-do-not.md.
+
+        The custom CleanCode.Routes.DisallowNonResourceRoutes sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here.
+
+        No <include-pattern> for route paths, and this is deliberately unlike
+        the NoProceduralCode block above: that sniff never looks at the file's
+        path, so the ruleset has to scope it, while this one is only meaningful
+        inside a route file and decides that itself from its routeFilePatterns
+        property — the same arrangement CleanCode.Testing.NoReflectionAccess
+        uses for test paths. A project whose route files live somewhere else
+        retunes the property instead of overriding this ruleset.
+
+        Nothing shipped covers it, and nothing could: the rule turns on a
+        framework convention — which receiver is Laravel's routing facade, and
+        which of its methods register a resource rather than a bare verb — that
+        no general-purpose PHPCS or Slevomat sniff models. A vendor rule would
+        have to name Route::get() and Route::resource() specifically and confine
+        itself to route files; none does either.
+
+        Warnings, not errors, and detection only. The standard permits rare
+        special-action routes registered with a verb call, so a report is a
+        prompt to look rather than a proven defect and must not fail a
+        consumer's build; and turning a verb route into a resource route means
+        writing the seven RESTful actions, which no fixer can do.
+    -->
+  <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoFirstPartyMocks sniff (#146) carries the
