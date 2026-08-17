@@ -99,6 +99,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Conditionals.MappingArrayCandidate',
     'CleanCode.Controllers.NoCustomActions',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
+    'CleanCode.Models.ModelMagicMethodLocation',
     'CleanCode.Models.RequireLazyLoadingPrevention',
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
