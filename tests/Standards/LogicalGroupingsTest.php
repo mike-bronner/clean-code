@@ -460,11 +460,12 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
  * stream and Fixer::fixFile() replaces that stream up to fifty times per file.
  * This shape needs one pass per level: breaking the stack apart puts each
  * group's opener on a line of its own, which is what gives the group inside it
- * a deeper level to be measured against on the pass after. Six levels, six
- * passes, six streams — small enough to converge well inside the fifty-pass
- * ceiling and large enough for the cascade to happen. It is the count the
- * timing test cannot borrow: 600 levels would want 600 passes and the fixer
- * would give up.
+ * a deeper level to be measured against on the pass after. Six levels, so six
+ * fixing passes, and then a seventh that finds nothing and ends the loop —
+ * seven tokenizations, seven streams, measured rather than assumed. Small
+ * enough to converge well inside the fifty-pass ceiling and large enough for
+ * the cascade to happen. It is the count the timing test cannot borrow: 600
+ * levels would want 600 passes and the fixer would give up.
  *
  * Both halves of the round trip are asserted. The output is compared in full,
  * so a line start read off a scan cut short before it reaches the start of its
@@ -473,11 +474,13 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
  * the input.
  *
  * What it does not pin is which parts of the index's key are load-bearing.
- * Every stream change this sniff's own fixes produce is already separated by
- * the token count, so dropping the fixer's loop counter from the key leaves
- * the whole suite green; the loop counter is there for a stream another
- * sniff's fix replaces in the same phpcbf pass, and no fixture of this sniff
- * can reach that.
+ * Dropping the fixer's loop counter from the key leaves the whole suite green,
+ * and no multi-pass fixture could redden it: Fixer::fixFile() rebuilds every
+ * sniff before each pass, so the index this test drives through seven passes
+ * is a fresh, empty one seven times over and no key from one loop is ever
+ * compared against a key from the next. What keeps this round trip honest
+ * across passes is that object lifecycle, not the key. See lineStart()'s
+ * docblock.
  */
 it('reindents a stack of same-line openers through the multi-pass fixer', function () use ($stackedGroupings): void {
     [$source] = $stackedGroupings('&& (', 0, 6);

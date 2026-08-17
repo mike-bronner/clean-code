@@ -507,15 +507,31 @@ class LogicalGroupingsSniff implements Sniff
      * once per control structure: rebuilding it for every `if` in a file would
      * move the same quadratic cost up a level rather than remove it. The key
      * is the one three sniffs in this package already use for a per-stream
-     * index — file, token count, fixer loop — and each part answers a way the
-     * stream this index describes can be replaced underneath it. The file
-     * separates two files. The count separates a retokenization that added or
-     * removed tokens, and separates two sources analysed as STDIN, which the
-     * file cannot because they share one name. The loop counter separates a
-     * retokenization that did neither: Fixer::fixFile() re-tokenizes and
-     * re-runs every sniff up to fifty times per file, and a fix elsewhere in
-     * the ruleset can move a line without changing how many tokens the file
-     * has.
+     * index — file, token count, fixer loop — but the three parts do not
+     * carry equal weight. The file separates two files. The count separates a
+     * retokenization that added or removed tokens, and separates two sources
+     * analysed as STDIN, which the file cannot because they share one name.
+     *
+     * The loop counter is the part worth being exact about, because the
+     * obvious reading of it is wrong. It looks like the part that keeps a
+     * stale index from surviving one phpcbf pass into the next —
+     * Fixer::fixFile() re-tokenizes and re-runs every sniff up to fifty times
+     * per file, and a fix elsewhere in the ruleset can move a line without
+     * changing how many tokens the file has. Nothing stale does survive, but
+     * the key is not what stops it: Fixer::fixFile() calls
+     * Ruleset::populateTokenListeners() before every pass, which constructs a
+     * new instance of every sniff. This object, and with it $lineStarts and
+     * $lineStartsKey, is discarded and rebuilt each pass, so no instance lives
+     * across two passes and no key from one loop is ever compared against a
+     * key from the next. Between passes the object lifecycle does the whole
+     * job; the counter is along for the ride. Dropping it from the key leaves
+     * every pass of the round-trip test behaving identically, which is what
+     * that test's docblock records.
+     *
+     * It stays because the key is character-for-character the one the three
+     * sibling sniffs use, and issue #343 tracks that shared idiom across all
+     * four sites at once; giving this one site a different key shape now would
+     * split the thing that issue is about.
      *
      * A line the index has no entry for cannot arise — every token's own line
      * is recorded — and the fallback is the answer the old walk gave when it
