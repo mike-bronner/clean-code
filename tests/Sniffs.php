@@ -31,6 +31,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
+    'CleanCode.CodeStyle.NoFormatterDirectives',
     'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.DisallowListAssignmentInCondition',
     'CleanCode.Conditionals.DisallowNestedTernary',

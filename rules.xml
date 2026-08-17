@@ -120,6 +120,46 @@
     </rule>
 
     <!--
+        Code Style: Linters (config & no auto-formatter) (#51, sniff #143).
+        Its document is the "code-style-linters-config" file under
+        docs/standards/; the name is not spelled out here because it carries a
+        double hyphen, which an XML comment cannot hold.
+
+        The custom CleanCode.CodeStyle.NoFormatterDirectives sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping and no configuration are wanted. The sniff
+        reports a comment carrying an auto-formatter on/off or ignore marker,
+        which is the one part of this standard the tokens can show — a marker
+        is only ever written to steer a formatter around a region, so the file
+        that carries it is being formatted. The shipped list of markers is the
+        sniff's own `directives` property, and a consuming project that uses a
+        formatter this package has not heard of re-lists the shipped three
+        beside its own:
+
+            <rule ref="CleanCode.CodeStyle.NoFormatterDirectives">
+                <properties>
+                    <property name="directives" type="array">
+                        <element value="@formatter:off"/>
+                        <element value="@formatter:on"/>
+                        <element value="prettier-ignore"/>
+                        <element value="@fmt:off"/>
+                    </property>
+                </properties>
+            </rule>
+
+        Detection only: deleting the marker removes the evidence rather than
+        the formatter, and leaves the region it guarded formatted. The rest of
+        the standard — editors configured to lint against the project's
+        phpcs.xml, and the ban on formatters that fix linter violations
+        silently — is a process rule that no sniff can see, and stays with code
+        review. The standard's document records each slice that was considered
+        and rejected.
+
+        tests/Standards/NoFormatterDirectivesTest.php asserts the sniff
+        resolves from this master ruleset.
+    -->
+
+    <!--
         Type Hints and Return Types (#45): every property carries a native type
         hint. Parameter and return hints for all callables are owned by the
         Methods: Type Hints rule (#70) below — per the #70 scope decision, #45
