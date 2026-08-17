@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -146,12 +147,18 @@ class TooManyFieldsSniff implements Sniff
      * closure, or a nested anonymous class — each of those opens a scope of its
      * own, and the anonymous class is processed separately as its own class.
      *
-     * That leaves two ways to reach the class scope: from a parameter list,
+     * That leaves two ways to reach the class scope: from inside parentheses,
      * where only a promoted parameter declares a field, and from the class body
      * itself, where the statement has to actually be a property declaration.
-     * The second check is what keeps the bodies of property hooks out of the
-     * count — PHP_CodeSniffer opens no scope for a hook, so every `$this` and
-     * every local inside one arrives here looking class-scoped.
+     * Both checks are what keep the bodies of property hooks out of the count —
+     * PHP_CodeSniffer opens no scope for a hook, so every `$this` and every
+     * local inside one arrives here looking class-scoped, a hook's own
+     * parameter and every call argument written in a hook body among them.
+     *
+     * The parenthesis branch therefore has to ask for promotion positively.
+     * ParameterDeclaration::isPlainParameter() negated would answer "field" for
+     * all of those too, since none of them is a plain parameter either — see
+     * that class for why the two questions are not each other's negation.
      */
     private function isFieldOf(File $phpcsFile, int $variablePtr, int $classPtr): bool
     {
@@ -162,34 +169,10 @@ class TooManyFieldsSniff implements Sniff
         }
 
         if (empty($tokens[$variablePtr]['nested_parenthesis']) === false) {
-            return $this->isPromotedParameter($phpcsFile, $variablePtr);
+            return ParameterDeclaration::isPromotedParameter($phpcsFile, $variablePtr);
         }
 
         return $this->isPropertyDeclaration($phpcsFile, $variablePtr);
-    }
-
-    /**
-     * Whether the parameter at $variablePtr carries a visibility modifier, and
-     * so declares a field rather than taking an argument.
-     *
-     * The parameter starts after the nearest preceding comma, or at the opening
-     * parenthesis for the first one, and a modifier can only appear between
-     * that point and the variable. Bounding the search at the comma is what
-     * stops a plain parameter inheriting the modifier of a promoted one
-     * declared before it.
-     */
-    private function isPromotedParameter(File $phpcsFile, int $variablePtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $opener = array_key_first($tokens[$variablePtr]['nested_parenthesis']);
-        $comma = $phpcsFile->findPrevious(T_COMMA, ($variablePtr - 1), $opener);
-        $start = ($comma === false ? $opener : $comma);
-
-        return $phpcsFile->findPrevious(
-            Tokens::$scopeModifiers,
-            ($variablePtr - 1),
-            $start
-        ) !== false;
     }
 
     /**
