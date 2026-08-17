@@ -78,14 +78,16 @@ renaming the method rewrites the call sites themselves.
 The fluent exemption covers a declared `static`, `self`, or a bare return type
 naming the enclosing class, and a body whose *every* value-return is
 `return $this;`. The nullable spellings (`?static`, `Builder|null`) are covered
-too: `null` only adds a third state to the same object.
+too: `null` only adds a third state to the same object. So is a union whose
+*every* member is one of those spellings — `self|static`, `Builder|static` —
+since no member of it can be a value.
 
 Three shapes are **not** exempt. A body that returns `$this` on one path and a
 result on another — that mix is the command–query blur the rule is about. A
-union such as `static|false`, which hands back either the object or a value.
-And a qualified spelling of the enclosing class (`\App\Models\Order`):
-resolving it needs the file's imports, and a wrong answer there would silence a
-real finding.
+union with a member that *is* a value, such as `static|false`, which hands back
+either the object or something to read. And a qualified spelling of the
+enclosing class (`\App\Models\Order`): resolving it needs the file's imports,
+and a wrong answer there would silence a real finding.
 
 Switch the exemption off and those declarations report like any other returning
 method:

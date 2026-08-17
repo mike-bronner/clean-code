@@ -59,4 +59,29 @@ class Builder
     {
         return $this->fields === [] ? null : $this;
     }
+
+    /**
+     * A union of two spellings of the same object. Neither member can ever be a
+     * value, so the whole union is the fluent interface — comparing the union
+     * against `self`/`static` as one string would report this line while the
+     * exemption is on.
+     */
+    public function attachTag(string $tag): self|static
+    {
+        $this->tags[] = $tag;
+
+        return $this;
+    }
+
+    /**
+     * The same union written with the enclosing class name in place of `self`,
+     * so the member that has to be resolved from context is a union member
+     * rather than the whole type.
+     */
+    public function detachTag(string $tag): Builder|static
+    {
+        unset($this->tags[$tag]);
+
+        return $this;
+    }
 }

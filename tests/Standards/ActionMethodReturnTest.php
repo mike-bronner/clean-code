@@ -34,6 +34,51 @@ it('is registered in the master ruleset', function (): void {
 });
 
 /**
+ * The sniff's own source passes rules.xml, the standard it belongs to. That is
+ * the claim rules.xml makes about this file, and the reason the file reads the
+ * way it does: match(true) guard chains instead of `if`
+ * (CleanCode.Conditionals.AvoidConditionals), counted folds instead of
+ * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection), the File
+ * API instead of the token array (CleanCode.Arrays.ArrayAccessors), a NOWDOC
+ * message (CleanCode.Strings.MultilineStrings), and the verb list written
+ * several to a line rather than fourteen lines of one repeated token shape
+ * (CleanCode.Pattern.AvoidDuplicateCodeBlocks). Each replacement those Arrays
+ * and Strings rules ask for is a Laravel helper this package does not ship, so
+ * each is written around rather than adopted.
+ *
+ * Asserted here because nothing else does. This exact claim was checked off
+ * unrun once already on this sniff — the source reported 18 errors and 30
+ * warnings while the box was ticked — and the sibling precedent is worse: the
+ * same claim on ManualModelResolutionSniff.php was true when written and then
+ * quietly falsified by a *later* standard landing in rules.xml, with no test to
+ * notice. A comment cannot catch either failure; this can.
+ *
+ * Every sniff wired into rules.xml is active, not just this one, because the
+ * claim is about the whole standard. Run through the *installed* phpcs rather
+ * than an in-process ruleset, because "exits 0" is a claim about the binary a
+ * consumer runs. Warnings are counted alongside errors deliberately: this sniff
+ * reports warnings itself, so a check that read errors only would stay green
+ * through exactly the drift most likely to happen. The status is asserted
+ * beside the messages because phpcs exits 0 only when it reported nothing at
+ * all — the two together say "phpcs looked, and found nothing," which an empty
+ * message list alone does not.
+ *
+ * Confirmed non-vacuous by restoring the previous `if`-chain spelling of
+ * matchedPrefix(), which reddens this assertion with
+ * CleanCode.Conditionals.AvoidConditionals.IfStatement warnings and a status
+ * of 1.
+ */
+it('passes the standard it belongs to', function (): void {
+    $run = installedPhpcsRun(
+        cleanCodeRoot() . '/rules.xml',
+        cleanCodeRoot() . '/CleanCode/Sniffs/Naming/ActionMethodReturnSniff.php'
+    );
+
+    expect(array_column($run['messages'], 'source'))->toBe([])
+        ->and($run['status'])->toBe(0);
+});
+
+/**
  * The compliant fixture carries the constructs the sniff registers on — methods
  * with and without a declared return type, with and without a body — plus the
  * near-miss shapes it must stay silent on:
@@ -223,12 +268,19 @@ it('reports detection-only warnings', function (): void {
 });
 
 /**
- * The fluent exemption ships on, so the six spellings of a builder — `static`,
- * `?static`, `self`, a bare enclosing-class name, that name unioned with
- * `null`, and a body whose every value-return is `return $this;` — are silent
- * out of the box. This run is the baseline the
- * next one is measured against: without it, a property that silenced the sniff
- * outright would look exactly like a working exemption.
+ * The fluent exemption ships on, so the eight spellings of a builder —
+ * `static`, `?static`, `self`, a bare enclosing-class name, that name unioned
+ * with `null`, a body whose every value-return is `return $this;`, and the two
+ * all-fluent unions `self|static` (line 69) and `Builder|static` (line 81) —
+ * are silent out of the box. This run is the baseline the next one is measured
+ * against: without it, a property that silenced the sniff outright would look
+ * exactly like a working exemption.
+ *
+ * The two unions are the case a whole-string comparison got wrong: every member
+ * of them independently means "my own object," so the union chains like any
+ * other builder. Their discriminating opposite is `failing.php` line 40,
+ * `static|false`, which still reports — a union is exempt only when *no* member
+ * of it can be a value.
  */
 it('exempts a fluent interface by default', function (): void {
     $file = analyzeFixture(ACTION_METHOD_RETURN, 'fluent.php');
@@ -237,10 +289,12 @@ it('exempts a fluent interface by default', function (): void {
 });
 
 /**
- * Switching the exemption off reads those same six declarations like any other
- * returning method. A project that has decided against fluent setters gets the
- * whole rule, and the six lines it gets are exactly the six the exemption was
- * holding back.
+ * Switching the exemption off reads those same eight declarations like any
+ * other returning method. A project that has decided against fluent setters
+ * gets the whole rule, and the eight lines it gets are exactly the eight the
+ * exemption was holding back — the two unions included, which is what proves
+ * lines 69 and 81 are silent above because the exemption reached them and not
+ * because the sniff never looked at them.
  */
 it('flags a fluent interface when allowFluentInterface is off', function (): void {
     $file = analyzeFixtureWithProperty(ACTION_METHOD_RETURN, 'fluent.php', 'allowFluentInterface', false);
@@ -252,6 +306,38 @@ it('flags a fluent interface when allowFluentInterface is off', function (): voi
         ['line' => 39, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 46, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 58, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 69, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 81, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+    ]);
+});
+
+/**
+ * Turning the exemption off widens the rule to fluent declarations and to
+ * nothing else. Every other near-miss in `passing.php` stays silent: the four
+ * fluent spellings on lines 92, 99, 106 and 118 are the whole difference.
+ *
+ * The two that matter here declare no return type and hand back nothing — line
+ * 35, whose body holds only a bare `return;`, and line 47, whose body holds no
+ * `return` at all. A body with no value-return is not a *fluent* body, it is a
+ * body that answers nothing, so the two are separate questions and the empty
+ * case has to be settled before the fluent one is asked. Asked the other way
+ * round, "every value-return is `$this`" is vacuously true of no returns at
+ * all, which reads as fluent while the exemption is on and — with the exemption
+ * off — as a method that returns a value, reporting both lines.
+ *
+ * Confirmed non-vacuous by deleting that empty-returns guard, which reddens
+ * this with lines 35 and 47 added. The default-state run above cannot catch it:
+ * with the exemption on, both spellings answer "not returning" and the outcome
+ * is the same either way.
+ */
+it('widens to fluent declarations only when allowFluentInterface is off', function (): void {
+    $file = analyzeFixtureWithProperty(ACTION_METHOD_RETURN, 'passing.php', 'allowFluentInterface', false);
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 92, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 99, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 106, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 118, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
 });
 
@@ -270,7 +356,7 @@ it('turns the fluent exemption off from a ruleset property', function (): void {
         ['allowFluentInterface' => 'false']
     );
 
-    expect(warningTuples($file))->toHaveCount(6);
+    expect(warningTuples($file))->toHaveCount(8);
 });
 
 /**
@@ -302,6 +388,34 @@ it('flags configured verbs when actionPrefixes is retuned', function (): void {
         ['line' => 15, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
         ['line' => 20, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
     ]);
+});
+
+/**
+ * An empty verb in the configured list matches nothing, rather than matching
+ * every method whose name does not start lower-case.
+ *
+ * Reachable from a consumer's ruleset by a single stray comma:
+ * `value="set,,save"` is split on the comma by PHP_CodeSniffer and each piece
+ * appended as written, so the sniff receives `['set', '', 'save']` with the
+ * empty string intact. Without the guard, `str_starts_with($name, '')` answers
+ * true for every name and the camelCase boundary is then asked about the name's
+ * own first character — which reports `SetSubtitle()` on line 75 of
+ * passing.php, a declaration #22/#100 owns, and names the matched verb as `""`.
+ *
+ * Driven through the XML `[]` property form rather than by assigning the array
+ * directly, because the stray comma is the way the empty member arises.
+ *
+ * Confirmed non-vacuous by deleting the guard, which reddens this with exactly
+ * that line-75 warning.
+ */
+it('matches nothing for an empty verb in the configured list', function (): void {
+    $file = analyzeFixtureWithRulesetProperties(
+        ACTION_METHOD_RETURN,
+        'passing.php',
+        ['actionPrefixes[]' => 'set,,save']
+    );
+
+    expect(warningTuples($file))->toBe([]);
 });
 
 /**

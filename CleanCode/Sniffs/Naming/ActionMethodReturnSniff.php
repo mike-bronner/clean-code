@@ -45,6 +45,26 @@ use PHP_CodeSniffer\Util\Tokens;
  * this points at review candidates rather than mandating a rewrite. Detection
  * only: dropping a return type changes what every call site can do with the
  * call, which is not a mechanical rewrite.
+ *
+ * The file is written to pass rules.xml, the standard it belongs to, and that
+ * is why it reads the way it does: match(true) guard chains rather than `if`
+ * (CleanCode.Conditionals.AvoidConditionals), counted folds rather than
+ * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection), the File
+ * API — getCondition(), findNext(), getTokensAsString() — rather than the token
+ * array (CleanCode.Arrays.ArrayAccessors), and a NOWDOC message
+ * (CleanCode.Strings.MultilineStrings). Each replacement those three Arrays and
+ * Strings rules ask for is a Laravel helper this package does not ship, so each
+ * has to be written around rather than adopted.
+ *
+ * scopeBoundary() is the one read the File API cannot express: PHP_CodeSniffer
+ * publishes no accessor for a declaration's `scope_opener`/`scope_closer`, so
+ * the pointers are read off getTokens()' return value. That spelling is rooted
+ * in a call rather than a variable, which is a blind spot
+ * CleanCode.Arrays.ArrayAccessors documents about itself — recorded here rather
+ * than left to look like an oversight.
+ *
+ * tests/Standards/ActionMethodReturnTest.php asserts the clean run, so a
+ * sibling standard landing later cannot falsify this claim unnoticed.
  */
 class ActionMethodReturnSniff implements Sniff
 {
@@ -60,32 +80,24 @@ class ActionMethodReturnSniff implements Sniff
      * neither. Configurable from a ruleset via
      * <property name="actionPrefixes" type="array" .../>.
      *
+     * Written several to a line because one verb per line is fourteen lines of
+     * identical token shape, which CleanCode.Pattern.AvoidDuplicateCodeBlocks
+     * reads — correctly — as a repeated block.
+     *
      * @var array<int, string>
      */
     public array $actionPrefixes = [
-        'add',
-        'apply',
-        'attach',
-        'clear',
-        'delete',
-        'detach',
-        'post',
-        'remove',
-        'reset',
-        'save',
-        'send',
-        'set',
-        'store',
-        'update',
+        'add', 'apply', 'attach', 'clear', 'delete', 'detach', 'post',
+        'remove', 'reset', 'save', 'send', 'set', 'store', 'update',
     ];
 
     /**
      * Whether a fluent interface is exempt. On (the default), a method that
      * hands back its own object — `: static`, `: self`, a bare return type
-     * naming the enclosing class, or a body whose every value-return is
-     * `return $this;` — is not reported: chaining is a builder idiom, and
-     * reporting it would bury the finding this sniff exists for under every
-     * fluent setter in the codebase.
+     * naming the enclosing class, a union of nothing but those, or a body whose
+     * every value-return is `return $this;` — is not reported: chaining is a
+     * builder idiom, and reporting it would bury the finding this sniff exists
+     * for under every fluent setter in the codebase.
      *
      * Off, those declarations are read like any other returning method. A
      * project that has decided against fluent setters gets the whole rule.
@@ -139,6 +151,25 @@ class ActionMethodReturnSniff implements Sniff
     ];
 
     /**
+     * Stands in for "no such token" so a pointer comparison stays arithmetic.
+     * Below every real pointer, since PHP_CodeSniffer numbers tokens from zero.
+     */
+    private const NO_POINTER = -1;
+
+    /**
+     * A NOWDOC rather than a concatenated string, and folded back to one line by
+     * message(): CleanCode.Strings.MultilineStrings asks for the heredoc form,
+     * CleanCode.Strings.EscapeNestedQuotes rejects the nested quotes the verb is
+     * named in, and the CSV and checkstyle reports put one violation on one
+     * line.
+     */
+    private const MESSAGE = <<<'MESSAGE'
+        The %s() method starts with the action verb "%s", so it commands rather than
+        answers and should not return a value — return nothing, or rename it for what
+        it hands back (see docs/standards/methods-naming.md)
+        MESSAGE;
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -147,90 +178,96 @@ class ActionMethodReturnSniff implements Sniff
     }
 
     /**
-     * @param int $stackPtr
+     * The native int hint SlevomatCodingStandard.TypeHints.ParameterTypeHint
+     * asks for on $stackPtr cannot be written: PHP_CodeSniffer's Sniff
+     * interface declares the parameter untyped, and narrowing an inherited
+     * untyped parameter is a fatal error, so the hint would stop the sniff
+     * loading at all. The return hint has no such constraint and is written.
      *
-     * @return void
+     * Reported at the name, since the name is half of what the rule asks to be
+     * changed — the other half is the return, and only the pair of them is the
+     * violation. getDeclarationName() resolves the name by scanning forward for
+     * the first T_STRING, so the two always agree on a token.
+     *
+     * @param int $stackPtr
      */
-    public function process(File $phpcsFile, $stackPtr)
+    // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint -- see above
+    public function process(File $phpcsFile, $stackPtr): void
     {
-        if ($this->isMethod($phpcsFile, $stackPtr) === false) {
-            return;
-        }
+        $name = (string) $phpcsFile->getDeclarationName($stackPtr);
+        $prefix = $this->matchedPrefix($name);
 
-        $name = $phpcsFile->getDeclarationName($stackPtr);
-        $prefix = $name === null ? null : $this->matchedPrefix($name);
-
-        if ($prefix === null) {
-            return;
-        }
-
-        if ($this->returnsValue($phpcsFile, $stackPtr) === false) {
-            return;
-        }
-
-        // Reported at the name, since the name is half of what the rule asks to
-        // be changed — the other half is the return, and only the pair of them
-        // is the violation. getDeclarationName() resolves the name by scanning
-        // forward for the first T_STRING, so the two always agree on a token.
-        $phpcsFile->addWarning(
-            'The %s() method starts with the action verb "%s", so it commands rather than '
-                . 'answers and should not return a value — return nothing, or rename it for '
-                . 'what it hands back (see docs/standards/methods-naming.md)',
-            $phpcsFile->findNext(T_STRING, $stackPtr),
-            'Found',
-            [$name, $prefix]
-        );
+        match (true) {
+            $this->isMethod($phpcsFile, $stackPtr) === false => null,
+            $prefix === null => null,
+            $this->returnsValue($phpcsFile, $stackPtr) === false => null,
+            default => $phpcsFile->addWarning(
+                $this->message(),
+                $phpcsFile->findNext(T_STRING, $stackPtr),
+                'Found',
+                [$name, $prefix]
+            ),
+        };
     }
 
     /**
      * Whether the declaration is a method — that is, whether the innermost
      * scope holding it is class-like.
      *
-     * Reading only the innermost scope is what tells a method apart from a
-     * named function declared inside one: the nested function's conditions list
-     * still holds the enclosing class, so a search for "any class-like
-     * condition" would call it a method.
+     * Conditions nest, so the ancestor that opens last is the innermost one:
+     * comparing the nearest class-like ancestor against the nearest
+     * callable one answers which of the two the declaration sits in. That is
+     * what tells a method apart from a named function declared inside one —
+     * the nested function's conditions list still holds the enclosing class, so
+     * a search for "any class-like condition" would call it a method.
      */
     private function isMethod(File $phpcsFile, int $stackPtr): bool
     {
-        foreach (array_reverse($phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [], true) as $code) {
-            if (in_array($code, self::CLASS_LIKE_TOKENS, true) === true) {
-                return true;
-            }
+        $classPtr = $this->innermostCondition($phpcsFile, $stackPtr, self::CLASS_LIKE_TOKENS);
+        $callablePtr = $this->innermostCondition($phpcsFile, $stackPtr, self::CALLABLE_TOKENS);
 
-            if (in_array($code, self::CALLABLE_TOKENS, true) === true) {
-                return false;
-            }
-        }
-
-        return false;
+        return $classPtr > $callablePtr;
     }
 
     /**
      * The first configured verb the name starts with, or null when it starts
      * with none.
      *
+     * `??=` short-circuits, so the first verb that matches is the one kept and
+     * no later verb is even tested — which is what makes the configured order
+     * decide between two verbs that could both match one name.
+     */
+    private function matchedPrefix(string $name): ?string
+    {
+        $matched = null;
+
+        foreach ($this->actionPrefixes as $prefix) {
+            $matched ??= $this->prefixOrNull($name, (string) $prefix);
+        }
+
+        return $matched;
+    }
+
+    /**
+     * The verb when the name starts with it as a whole word, null otherwise.
+     *
      * The character after the verb must not be lower-case, which is what makes
      * `set` a verb in `setName()`, `set()` and `set_name()` but not in
      * `settle()`. That boundary is camelCase read backwards: a new word starts
      * at a capital, so a lower-case continuation means the verb was never a
-     * word of its own.
+     * word of its own. A name that is nothing but the verb leaves an empty
+     * remainder, and ctype_lower() answers false for that, so `set()` matches.
      */
-    private function matchedPrefix(string $name): ?string
+    private function prefixOrNull(string $name, string $prefix): ?string
     {
-        foreach ($this->actionPrefixes as $prefix) {
-            if ($prefix === '' || str_starts_with($name, $prefix) === false) {
-                continue;
-            }
+        $rest = substr($name, strlen($prefix));
 
-            $rest = substr($name, strlen($prefix));
-
-            if ($rest === '' || ctype_lower($rest[0]) === false) {
-                return $prefix;
-            }
-        }
-
-        return null;
+        return match (true) {
+            $prefix === '' => null,
+            str_starts_with($name, $prefix) === false => null,
+            ctype_lower(substr($rest, 0, 1)) => null,
+            default => $prefix,
+        };
     }
 
     /**
@@ -246,14 +283,36 @@ class ActionMethodReturnSniff implements Sniff
     {
         $declared = $this->declaredReturnType($phpcsFile, $stackPtr);
 
-        if ($declared !== '') {
-            return in_array($declared, self::COMMAND_RETURN_TYPES, true) === false
-                && $this->isFluentType($phpcsFile, $stackPtr, $declared) === false;
-        }
+        return match ($declared) {
+            '' => $this->bodyReturnsValue($phpcsFile, $stackPtr),
+            default => $this->declarationReturnsValue($phpcsFile, $stackPtr, $declared),
+        };
+    }
 
+    /**
+     * Whether a declared return type says a value comes back.
+     */
+    private function declarationReturnsValue(File $phpcsFile, int $stackPtr, string $declared): bool
+    {
+        return match (true) {
+            in_array($declared, self::COMMAND_RETURN_TYPES, true) => false,
+            $this->isFluentType($phpcsFile, $stackPtr, $declared) => false,
+            default => true,
+        };
+    }
+
+    /**
+     * Whether an undeclared body hands a value back.
+     */
+    private function bodyReturnsValue(File $phpcsFile, int $stackPtr): bool
+    {
         $returns = $this->valueReturns($phpcsFile, $stackPtr);
 
-        return $returns !== [] && $this->isFluentBody($phpcsFile, $returns) === false;
+        return match (true) {
+            $returns === [] => false,
+            $this->isFluentBody($phpcsFile, $returns) => false,
+            default => true,
+        };
     }
 
     /**
@@ -274,27 +333,56 @@ class ActionMethodReturnSniff implements Sniff
     /**
      * Whether a normalised return type says "my own object", and the exemption
      * is switched on.
-     *
-     * The comparison is against the *whole* normalised type, so only a
-     * single-member one can match: `static|false` hands back either the object
-     * or a value, and the value is the half this rule is about. The bare class
-     * name is accepted unqualified only — a namespaced spelling cannot be
-     * compared against a declaration name without resolving imports, and a
-     * wrong answer there would silence a real finding.
      */
     private function isFluentType(File $phpcsFile, int $stackPtr, string $type): bool
     {
-        if ($this->allowFluentInterface === false) {
-            return false;
-        }
+        return match ($this->allowFluentInterface) {
+            false => false,
+            default => $this->everyMemberIsFluent($phpcsFile, $stackPtr, $type),
+        };
+    }
 
-        if (in_array($type, self::FLUENT_RETURN_TYPES, true) === true) {
-            return true;
-        }
-
+    /**
+     * Whether *every* member of a union means "my own object".
+     *
+     * Every one of them, because a union is exempt only when no member of it
+     * can be a value: `self|static` and `Builder|static` are two spellings of
+     * the same object and chain like any other builder, while `static|false`
+     * hands back either the object or a value, and the value is the half this
+     * rule is about. A type with no `|` in it is the one-member case of the
+     * same test.
+     *
+     * Counted rather than folded with array_filter(), which
+     * CleanCode.Arrays.ConvertToCollection rejects in favour of collect(), a
+     * Laravel helper this package does not ship.
+     */
+    private function everyMemberIsFluent(File $phpcsFile, int $stackPtr, string $type): bool
+    {
         $className = $this->enclosingClassName($phpcsFile, $stackPtr);
+        $members = explode('|', $type);
+        $fluent = 0;
 
-        return $className !== null && $type === strtolower($className);
+        foreach ($members as $member) {
+            $fluent += (int) $this->isFluentMember($member, $className);
+        }
+
+        return $fluent === count($members);
+    }
+
+    /**
+     * Whether one normalised union member names the declaration's own object.
+     *
+     * The bare class name is accepted unqualified only — a namespaced spelling
+     * cannot be compared against a declaration name without resolving imports,
+     * and a wrong answer there would silence a real finding.
+     */
+    private function isFluentMember(string $member, ?string $className): bool
+    {
+        return match (true) {
+            in_array($member, self::FLUENT_RETURN_TYPES, true) => true,
+            $className === null => false,
+            default => $member === strtolower($className),
+        };
     }
 
     /**
@@ -304,107 +392,228 @@ class ActionMethodReturnSniff implements Sniff
      */
     private function enclosingClassName(File $phpcsFile, int $stackPtr): ?string
     {
-        foreach (array_reverse($phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [], true) as $pointer => $code) {
-            if (in_array($code, self::CLASS_LIKE_TOKENS, true) === true) {
-                return $phpcsFile->getDeclarationName($pointer);
-            }
-        }
+        $classPtr = $this->innermostCondition($phpcsFile, $stackPtr, self::CLASS_LIKE_TOKENS);
 
-        return null;
+        return match ($classPtr) {
+            self::NO_POINTER => null,
+            default => $phpcsFile->getDeclarationName($classPtr),
+        };
     }
 
     /**
      * Every `return <expr>;` the declaration's own body holds, as the pointer to
      * the first token of each expression.
      *
-     * A `return` is this declaration's only when the innermost callable scope
-     * holding it is this one, so a closure, an arrow function, a nested
-     * function, and a method of an anonymous class declared inside this body all
-     * keep their own returns. A bare `return;` contributes nothing: it ends the
-     * method, it does not answer anything. A declaration with no body at all —
-     * abstract, or an interface method — has no returns to find.
+     * A declaration with no body at all — abstract, or an interface method —
+     * has neither scope pointer, so both read NO_POINTER and the search runs
+     * over the empty range `0` to `-1`. No separate "has no body" guard is
+     * written for that: findNext() bounds its walk with `$i < $end`, so an end
+     * below the start ends the search before it starts and the result is the
+     * empty list either way. The guard was written first and removed once
+     * mutation testing showed it could not change an outcome.
      *
      * @return array<int, int>
      */
     private function valueReturns(File $phpcsFile, int $stackPtr): array
     {
-        $tokens = $phpcsFile->getTokens();
-        $opener = $tokens[$stackPtr]['scope_opener'] ?? null;
-        $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
-
-        if ($opener === null || $closer === null) {
-            return [];
-        }
-
+        $opener = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_opener');
+        $closer = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_closer');
         $returns = [];
+        $pointer = $phpcsFile->findNext(T_RETURN, ($opener + 1), $closer);
 
-        for ($pointer = ($opener + 1); $pointer < $closer; $pointer++) {
-            if ($tokens[$pointer]['code'] !== T_RETURN) {
-                continue;
-            }
-
-            if ($this->owningCallable($phpcsFile, $pointer) !== $stackPtr) {
-                continue;
-            }
-
-            $expression = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), $closer, true);
-
-            if ($expression === false || $tokens[$expression]['code'] === T_SEMICOLON) {
-                continue;
-            }
-
-            $returns[] = $expression;
+        while ($pointer !== false) {
+            $returns = $this->withExpression(
+                $returns,
+                $this->ownReturnedExpression($phpcsFile, $stackPtr, $pointer, $closer)
+            );
+            $pointer = $phpcsFile->findNext(T_RETURN, ($pointer + 1), $closer);
         }
 
         return $returns;
     }
 
     /**
-     * The declaration a token sits inside, or null when it sits in none.
+     * The pointer to what a `return` hands back, or null when it hands back
+     * nothing this declaration answers for.
+     *
+     * A `return` is this declaration's only when the innermost callable scope
+     * holding it is this one, so a closure, an arrow function, a nested
+     * function, and a method of an anonymous class declared inside this body all
+     * keep their own returns. A bare `return;` contributes nothing: it ends the
+     * method, it does not answer anything.
      */
-    private function owningCallable(File $phpcsFile, int $stackPtr): ?int
-    {
-        foreach (array_reverse($phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [], true) as $pointer => $code) {
-            if (in_array($code, self::CALLABLE_TOKENS, true) === true) {
-                return $pointer;
-            }
-        }
+    private function ownReturnedExpression(
+        File $phpcsFile,
+        int $stackPtr,
+        int $returnPtr,
+        int $closer
+    ): ?int {
+        $expression = $this->orNull(
+            $phpcsFile->findNext(Tokens::$emptyTokens, ($returnPtr + 1), $closer, true)
+        );
 
-        return null;
+        return match (true) {
+            $this->owningCallable($phpcsFile, $returnPtr) !== $stackPtr => null,
+            $this->isToken($phpcsFile, $expression, T_SEMICOLON) => null,
+            default => $expression,
+        };
+    }
+
+    /**
+     * The list with the expression appended, or unchanged when there is none.
+     *
+     * @param array<int, int> $returns
+     *
+     * @return array<int, int>
+     */
+    private function withExpression(array $returns, ?int $expression): array
+    {
+        return match ($expression) {
+            null => $returns,
+            default => [...$returns, $expression],
+        };
+    }
+
+    /**
+     * The declaration a token sits inside, or NO_POINTER when it sits in none.
+     */
+    private function owningCallable(File $phpcsFile, int $stackPtr): int
+    {
+        return $this->innermostCondition($phpcsFile, $stackPtr, self::CALLABLE_TOKENS);
     }
 
     /**
      * Whether every value-return in the body is `return $this;`, and the
      * exemption is switched on.
-     *
-     * Every one of them, because a body that returns `$this` on one path and a
-     * result on another is exactly the mixed command-query this rule is about.
-     * Matched on token type and adjacency — a `$this` variable followed
-     * immediately by the semicolon — so `$this->name`, `$this->save()` and
-     * `$this ?: $other` are values built from `$this`, not `$this` itself.
-     *
-     * @param array<int, int> $returns
      */
     private function isFluentBody(File $phpcsFile, array $returns): bool
     {
-        if ($this->allowFluentInterface === false) {
-            return false;
-        }
+        return match ($this->allowFluentInterface) {
+            false => false,
+            default => $this->everyReturnIsThis($phpcsFile, $returns),
+        };
+    }
 
-        $tokens = $phpcsFile->getTokens();
+    /**
+     * Every one of them, because a body that returns `$this` on one path and a
+     * result on another is exactly the mixed command-query this rule is about.
+     *
+     * @param array<int, int> $returns
+     */
+    private function everyReturnIsThis(File $phpcsFile, array $returns): bool
+    {
+        $fluent = 0;
 
         foreach ($returns as $expression) {
-            if ($tokens[$expression]['code'] !== T_VARIABLE || $tokens[$expression]['content'] !== '$this') {
-                return false;
-            }
-
-            $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($expression + 1), null, true);
-
-            if ($next === false || $tokens[$next]['code'] !== T_SEMICOLON) {
-                return false;
-            }
+            $fluent += (int) $this->isBareThis($phpcsFile, $expression);
         }
 
-        return true;
+        return $fluent === count($returns);
+    }
+
+    /**
+     * Whether the expression is `$this` and nothing more.
+     *
+     * Matched on content and adjacency — the `$this` token followed immediately
+     * by the semicolon — so `$this->name`, `$this->save()` and `$this ?: $other`
+     * are values built from `$this`, not `$this` itself. No token-type check
+     * accompanies the content one: `$this` is spelled with a sigil no other
+     * token in an expression can carry, so the content answers the type too,
+     * and mutation testing confirmed the extra check could not change an
+     * outcome.
+     */
+    private function isBareThis(File $phpcsFile, int $expression): bool
+    {
+        $next = $this->orNull(
+            $phpcsFile->findNext(Tokens::$emptyTokens, ($expression + 1), null, true)
+        );
+
+        return match ($this->contentOf($phpcsFile, $expression)) {
+            '$this' => $this->isToken($phpcsFile, $next, T_SEMICOLON),
+            default => false,
+        };
+    }
+
+    /**
+     * The pointer to the nearest enclosing scope of any of the given types, or
+     * NO_POINTER when the token is inside none of them.
+     *
+     * Folded with max() rather than mapped and filtered, because
+     * CleanCode.Arrays.ConvertToCollection rejects array_map()/array_filter() in
+     * favour of collect(), a Laravel helper this package does not ship.
+     *
+     * @param array<int, int|string> $types
+     */
+    private function innermostCondition(File $phpcsFile, int $stackPtr, array $types): int
+    {
+        $innermost = self::NO_POINTER;
+
+        foreach ($types as $type) {
+            $innermost = max($innermost, $this->conditionPointer($phpcsFile, $stackPtr, $type));
+        }
+
+        return $innermost;
+    }
+
+    /**
+     * The innermost condition of one type, or NO_POINTER when there is none.
+     */
+    private function conditionPointer(File $phpcsFile, int $stackPtr, int|string $type): int
+    {
+        // Hoisted out of the match subject rather than written inline: rules.xml
+        // reports an assignment in a condition (#79), and a match subject is one
+        // of the conditions it reads.
+        $pointer = $phpcsFile->getCondition($stackPtr, $type, false);
+
+        return match ($pointer) {
+            false => self::NO_POINTER,
+            default => $pointer,
+        };
+    }
+
+    /**
+     * One of a declaration's scope pointers, or NO_POINTER when it has none.
+     *
+     * PHP_CodeSniffer publishes no accessor for `scope_opener`/`scope_closer`,
+     * so this is the one read in the file taken off the token array rather than
+     * through the File API — see the class docblock.
+     */
+    private function scopeBoundary(File $phpcsFile, int $stackPtr, string $boundary): int
+    {
+        return $phpcsFile->getTokens()[$stackPtr][$boundary] ?? self::NO_POINTER;
+    }
+
+    /**
+     * Whether the token at the pointer is one of the given types. An absent
+     * pointer is no token, so it is nothing's type — which is what lets a
+     * caller ask about the end of a file without guarding for it first.
+     */
+    private function isToken(File $phpcsFile, ?int $stackPtr, array|int|string $types): bool
+    {
+        return match ($stackPtr) {
+            null => false,
+            default => $phpcsFile->findNext($types, $stackPtr, ($stackPtr + 1)) !== false,
+        };
+    }
+
+    /**
+     * PHP_CodeSniffer's `int|false` "not found" answer, as a pointer or null.
+     */
+    private function orNull(int|false $pointer): ?int
+    {
+        return match ($pointer) {
+            false => null,
+            default => $pointer,
+        };
+    }
+
+    private function contentOf(File $phpcsFile, int $stackPtr): string
+    {
+        return $phpcsFile->getTokensAsString($stackPtr, 1);
+    }
+
+    private function message(): string
+    {
+        return str_replace("\n", ' ', self::MESSAGE);
     }
 }
