@@ -121,6 +121,8 @@ Route::get('/double-at', 'PostController@archive@extra');
 // A ::class-like first element that is not a resolvable class name is skipped
 // with the rest of the dynamic shapes.
 Route::get('/static-class', [static::class, 'archive']);
+Route::get('/self-class', [self::class, 'archive']);
+Route::get('/parent-class', [parent::class, 'archive']);
 Route::get('/variable-class', [$this->controller::class, 'archive']);
 
 // An array action that is not a two-element list is not the recognised shape.

@@ -175,6 +175,8 @@ it('stays silent on each near-miss shape', function (string $source) use ($route
     'single element array action' => ["Route::get('/a', [PostController::class]);"],
     'three element array action' => ["Route::get('/a', [PostController::class, 'archive', 'extra']);"],
     'static::class first element' => ["Route::get('/a', [static::class, 'archive']);"],
+    'self::class first element' => ["Route::get('/a', [self::class, 'archive']);"],
+    'parent::class first element' => ["Route::get('/a', [parent::class, 'archive']);"],
     'string holding an @ that names no controller' => ["Route::get('/a', 'support@example.com');"],
     'string action with no method' => ["Route::get('/a', 'PostController@');"],
     'chained builder registration' => ["Route::middleware('auth')->get('/a', [PostController::class, 'archive']);"],

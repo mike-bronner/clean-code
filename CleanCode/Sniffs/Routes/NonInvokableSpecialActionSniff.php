@@ -579,8 +579,8 @@ class NonInvokableSpecialActionSniff implements Sniff
      * assumed to be one token, because PHP_CodeSniffer backfills PHP 8's
      * single qualified-name tokens into the pre-8.0 T_STRING/T_NS_SEPARATOR
      * spelling: `\App\PostController::class` arrives as four name tokens.
-     * `$class::class`, `static::class` and `self::class` all fail here — none
-     * of them names a controller a reader can resolve.
+     * `$class::class`, `static::class`, `self::class` and `parent::class` all
+     * fail here — none of them names a controller a reader can resolve.
      */
     private function isClassConstant(File $phpcsFile, int $start, int $end): bool
     {
