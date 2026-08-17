@@ -181,7 +181,7 @@ class ShortVariableSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        $occurrences = $this->scopeOccurrences($phpcsFile, $stackPtr);
+        $occurrences = $this->occurrencesInScope($phpcsFile, $stackPtr);
 
         $this->reportFirstOccurrences($phpcsFile, $occurrences);
     }
@@ -190,9 +190,15 @@ class ShortVariableSniff implements Sniff
      * Every variable occurrence belonging to the scope this token owns, in
      * source order.
      *
+     * Named for the scope it reads rather than prefixed with it: a `scope*`
+     * method name is Laravel's local-query-scope convention, which
+     * CleanCode.Models.ModelMagicMethodLocation reports wherever it appears in
+     * a class body. This helper is nothing of the kind, so it does not carry
+     * the name.
+     *
      * @return array<int, array{pointer: int, name: string}>
      */
-    private function scopeOccurrences(File $phpcsFile, int $stackPtr): array
+    private function occurrencesInScope(File $phpcsFile, int $stackPtr): array
     {
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$stackPtr]['code'];
