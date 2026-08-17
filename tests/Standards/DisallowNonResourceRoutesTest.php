@@ -74,10 +74,11 @@ $expectedWarnings = static fn (): array => array_map(
         [9, 8],
         [10, 8],
         [12, 8],
-        [14, 9],
-        [15, 35],
-        [17, 8],
-        [20, 12],
+        [13, 8],
+        [15, 9],
+        [16, 35],
+        [18, 8],
+        [21, 12],
     ]
 );
 
@@ -126,7 +127,7 @@ it('is registered in the master ruleset', function (): void {
  *   the receiver both match, and only the missing `(` separates it from a
  *   registration.
  * - line 28, `Route::get(...)` — PHP 8.1's first-class-callable syntax builds
- *   a Closure and registers nothing. The paired case is failing.php line 17,
+ *   a Closure and registers nothing. The paired case is failing.php line 18,
  *   `Route::get(...$definition)`, an argument spread that *does* register and
  *   is flagged; between them they pin both halves of isFirstClassCallable().
  * - lines 29-30, `Route::middleware('auth')->get()` and
@@ -155,16 +156,23 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
  *   comparison is too. Column 8 is the same as its lowercase siblings above,
  *   which is what makes this more than a duplicate of line 3: the
  *   non-lowercase spelling resolves to the same violation at the same anchor.
- * - line 14, `\Route::post()` at column 9 and line 15,
+ * - line 13, `ROUTE::get()` — the receiver half of the same rule. PHP class
+ *   names are case-insensitive too, so a consuming codebase's spelling of the
+ *   facade must not matter, and the sniff lower-cases the receiver's trailing
+ *   segment before comparing. The receiver is the same length as the canonical
+ *   `Route`, so the anchor stays at column 8 and only the casing differs from
+ *   line 3. A comparison against a literal `Route` — or one folded the wrong
+ *   way — leaves this line unreported.
+ * - line 15, `\Route::post()` at column 9 and line 16,
  *   `Illuminate\Support\Facades\Route::put()` at column 35 — the qualified
  *   spellings of the same facade. The receiver is compared on its trailing
  *   segment, so both report, and their columns record that the anchor follows
  *   the receiver rather than opening the statement.
- * - line 17, `Route::get(...$definition)` — an argument spread, not a
+ * - line 18, `Route::get(...$definition)` — an argument spread, not a
  *   first-class callable, so it registers a route and is flagged. Its
  *   counterpart is passing.php line 28.
- * - line 20, a verb call nested inside a `Route::group()` closure, at column
- *   12 — the shape real route files are full of. The group itself on line 19
+ * - line 21, a verb call nested inside a `Route::group()` closure, at column
+ *   12 — the shape real route files are full of. The group itself on line 20
  *   reports nothing.
  */
 it('flags every violation at its own line and column', function () use ($routeRun, $expectedWarnings): void {
@@ -217,14 +225,14 @@ it('inspects nothing outside a route file', function () use ($routeRun): void {
         ->and($inRepo->getErrors())->toBe([])
         ->and($outsideRoutes->getWarnings())->toBe([])
         ->and($outsideRoutes->getErrors())->toBe([])
-        ->and($routeRun('failing.php')->getWarnings())->toHaveCount(13);
+        ->and($routeRun('failing.php')->getWarnings())->toHaveCount(14);
 });
 
 /**
  * The gate's globs are a public sniff property, as the standard's doc
  * advertises. The same bytes at the same path are run twice: under the shipped
  * default a copy staged outside any `routes` directory is silent, and once the
- * property names that directory the full thirteen warnings arrive. A property
+ * property names that directory the full fourteen warnings arrive. A property
  * that was ignored would leave both runs identical and fail the second half.
  *
  * The replacement glob is derived from the staged path rather than written out,
@@ -260,7 +268,7 @@ it('exposes a configurable route-file pattern list', function () use ($expectedW
 it('reports detection-only warnings', function () use ($routeRun): void {
     $file = $routeRun('failing.php');
 
-    expect($file->getWarningCount())->toBe(13)
+    expect($file->getWarningCount())->toBe(14)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
@@ -280,7 +288,7 @@ it('reports detection-only warnings', function () use ($routeRun): void {
  * Asserted in the same paired shape as the gate test above rather than on the
  * positive half alone:
  *
- * - the copy staged under `routes` reports all thirteen, every message under
+ * - the copy staged under `routes` reports all fourteen, every message under
  *   this sniff's own code and at WARNING severity, at status 1 — violations,
  *   none of them fixable, which is what this detection-only rule owes. Status 2
  *   would mean phpcbf had been offered a fix, and 3 is what a broken install
@@ -299,7 +307,7 @@ it('reports the violation end to end through the installed package', function ()
     );
     $passing = installedSniffRun(NON_RESOURCE_ROUTES, $routePath('passing.php'));
 
-    expect(array_column($staged['messages'], 'source'))->toHaveCount(13)
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(14)
         ->each->toBe(NON_RESOURCE_ROUTES_WARNING)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
         ->and($staged['status'])->toBe(1)

@@ -10,6 +10,7 @@ Route::any('/photos', [PhotoController::class, 'any']);
 Route::match(['get', 'post'], '/photos', [PhotoController::class, 'index']);
 
 Route::GET('/invoices', [InvoiceController::class, 'index']);
+ROUTE::get('/receipts', [ReceiptController::class, 'index']);
 
 \Route::post('/invoices', [InvoiceController::class, 'store']);
 Illuminate\Support\Facades\Route::put('/invoices/{invoice}', [InvoiceController::class, 'update']);
