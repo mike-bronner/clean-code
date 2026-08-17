@@ -69,6 +69,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
+    'CleanCode.Routes.DisallowClosureRoutes',
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',
     'CleanCode.Strings.MultilineStrings',

@@ -835,6 +835,42 @@
     -->
 
     <!--
+        Routes: Conventions (Do / Do Not) (#65), the "Do Not: use closures in
+        routes" bullet (#174) —
+        docs/standards/routes-conventions-do-do-not.md.
+
+        The custom CleanCode.Routes.DisallowClosureRoutes sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records why it is custom rather than a wiring of an existing sniff, and
+        that no scoping is wanted.
+
+        Neither catalogue carries the rule. The nearest shapes are about
+        closures in general rather than about a route action:
+        SlevomatCodingStandard.Functions.RequireArrowFunction and
+        SlevomatCodingStandard.Functions.StaticClosure both police how a
+        closure is written, and Generic.Functions.OpeningFunctionBraceKernighanRitchie
+        polices where its brace goes. None of them knows what a route is, so
+        none can separate a route action — which breaks route:cache — from the
+        group callback beside it, which does not. That distinction is the whole
+        rule, so it has to be custom.
+
+        No scoping: the sniff speaks only about a call whose class segment
+        spells Route and whose method is one of the nine registration verbs, so
+        it is already silent in every file that registers no routes. An
+        include-pattern on routes/ would buy nothing and would lose the routes
+        a package or a service provider registers from elsewhere.
+
+        Error severity, unlike the two heuristic sniffs this standard's other
+        enforceable bullets get (#248, #249). Those report warnings because the
+        standard itself permits their false-positive shape; this one has no
+        permitted shape — a closure action cannot be serialized, so
+        `php artisan route:cache` fails outright.
+
+        Detection only: replacing a closure action means writing a controller
+        and deciding where it lives, which is a design decision rather than a
+        mechanical rewrite.
+-->
+  <!--
         Models: Organization (member ordering) (#75) —
         docs/standards/models-organization.md.
 
