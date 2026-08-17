@@ -498,7 +498,11 @@ class UnusedFormalParameterSniff implements Sniff
 
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-        if ($next === false || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS) {
+        if (
+            $next === false
+            || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS
+            || $this->isFirstClassCallable($phpcsFile, $next) === true
+        ) {
             return false;
         }
 
@@ -506,6 +510,39 @@ class UnusedFormalParameterSniff implements Sniff
 
         return $previous === false
             || in_array($tokens[$previous]['code'], self::NOT_A_FUNCTION_CALL, true) === false;
+    }
+
+    /**
+     * Whether these parentheses hold PHP 8.1's first-class callable syntax
+     * rather than an argument list — `func_get_args(...)`, not
+     * `func_get_args()`.
+     *
+     * The two are the same tokens up to the opening parenthesis, so a check
+     * that stops there reads `f(...)` as a call to `f`. It is not one: it
+     * builds a Closure and calls nothing, so the body never reaches its
+     * parameters through it and the exemption must not apply. The parameters
+     * are not reached later either — `func_get_args()` and `compact()` both
+     * refuse to run from a Closure's scope, so the Closure throws whenever it
+     * is invoked (`func_get_args() cannot be called from the global scope`,
+     * confirmed on PHP 8.4).
+     *
+     * The literal `...` on its own is what tells the syntax apart. A spread of
+     * a real argument — `f(...$arguments)` — puts a variable after the
+     * ellipsis instead of the closer, and that *is* a call, so it is left to
+     * exempt as before.
+     */
+    private function isFirstClassCallable(File $phpcsFile, int $opener): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $argument = $phpcsFile->findNext(Tokens::$emptyTokens, $opener + 1, null, true);
+
+        if ($argument === false || $tokens[$argument]['code'] !== T_ELLIPSIS) {
+            return false;
+        }
+
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $argument + 1, null, true);
+
+        return $after !== false && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     /**
@@ -831,15 +868,57 @@ class UnusedFormalParameterSniff implements Sniff
      */
     private function inheritedNames(File $phpcsFile, int $classPtr): array
     {
-        $parent = $phpcsFile->findExtendedClassName($classPtr);
-        $names = $phpcsFile->findImplementedInterfaceNames($classPtr);
-        $names = $names === false ? [] : $names;
+        return $this->qualifiedNames(
+            $phpcsFile,
+            $classPtr,
+            $this->declaredAncestorNames($phpcsFile, $classPtr)
+        );
+    }
 
-        if ($parent !== false) {
-            $names[] = $parent;
+    /**
+     * Every name the class-like's own header lists, across both of its clauses.
+     *
+     * PHP_CodeSniffer's findExtendedClassName() cannot be used for this: it
+     * collects the parent name from separators, strings and whitespace only, so
+     * the first comma ends it, and `interface Base extends One, Two` yields
+     * `One` alone. An interface is the one class-like whose `extends` takes a
+     * list, and it is also the one findImplementedInterfaceNames() refuses —
+     * that method answers for T_CLASS, T_ANON_CLASS and T_ENUM — so nothing
+     * else covers the ancestors it drops, and every method inherited from them
+     * loses its override exemption and is reported as unused.
+     *
+     * The header is therefore read here instead, from the first clause keyword
+     * to the body's opening brace. Both clauses live in that span — a class can
+     * carry each at once — and the keywords separate their entries as a comma
+     * does, so one walk collects the whole ancestry whichever spelling declares
+     * it. Anything in front of the first keyword is left out, which is what
+     * keeps an anonymous class's constructor arguments and an enum's backing
+     * type from being read as names.
+     *
+     * A declaration with no ancestors yields nothing, which is the ordinary
+     * case and the one the fixtures exercise on every trait and every
+     * standalone class. An absent scope opener yields the same, and shares that
+     * exit rather than taking one of its own: it cannot be reached by a parsed
+     * declaration — the walk only ever reaches a named class-like this file
+     * indexed — but without the bound the search would run past the header to
+     * the end of the file, so the possibility is not left to chance. The two
+     * sibling readers here, methodNames() and usedTraitNames(), guard the same
+     * pointers for the same reason.
+     *
+     * @return array<int, string>
+     */
+    private function declaredAncestorNames(File $phpcsFile, int $classPtr): array
+    {
+        $opener = $phpcsFile->getTokens()[$classPtr]['scope_opener'] ?? null;
+        $clause = $opener === null
+            ? false
+            : $phpcsFile->findNext([T_EXTENDS, T_IMPLEMENTS], $classPtr + 1, $opener);
+
+        if ($clause === false) {
+            return [];
         }
 
-        return $this->qualifiedNames($phpcsFile, $classPtr, $names);
+        return $this->segmentNames($phpcsFile, $clause, $opener, [T_COMMA, T_EXTENDS, T_IMPLEMENTS]);
     }
 
     /**
@@ -922,8 +1001,11 @@ class UnusedFormalParameterSniff implements Sniff
         while ($pointer !== false) {
             $end = $phpcsFile->findNext([T_SEMICOLON, T_OPEN_CURLY_BRACKET], $pointer + 1, $closer);
 
-            if ($this->enclosingClass($phpcsFile, $pointer) === $classPtr) {
-                $names = array_merge($names, $this->namesBetween($phpcsFile, $pointer, $end));
+            if ($end !== false && $this->enclosingClass($phpcsFile, $pointer) === $classPtr) {
+                $names = array_merge(
+                    $names,
+                    $this->segmentNames($phpcsFile, $pointer + 1, $end, [T_COMMA])
+                );
             }
 
             $pointer = $phpcsFile->findNext(T_USE, ($end === false ? $pointer : $end) + 1, $closer);
@@ -933,24 +1015,44 @@ class UnusedFormalParameterSniff implements Sniff
     }
 
     /**
-     * The T_STRING names between two pointers, as one name per comma-separated
-     * entry — `use A, B;` imports two traits.
+     * One name per separated entry between two pointers — `use A, B;` names two
+     * traits, `implements One, Two` two interfaces.
+     *
+     * Each entry yields its *last* T_STRING, which is the segment the lookup
+     * compares. PHP_CodeSniffer hands a qualified reference back as alternating
+     * separators and strings, so collecting every T_STRING instead would read
+     * `use \App\Vendor;` as naming two ancestors, `App` and `Vendor` — and
+     * qualifiedNames() then keys the qualifier under the referring class's own
+     * namespace, where a class genuinely called `App` answers for it and
+     * exempts methods it never declared. Only the last segment names the type.
+     *
+     * @param array<int, int|string> $separators
      *
      * @return array<int, string>
      */
-    private function namesBetween(File $phpcsFile, int $start, int|false $end): array
+    private function segmentNames(File $phpcsFile, int $start, int $end, array $separators): array
     {
-        if ($end === false) {
-            return [];
-        }
-
         $tokens = $phpcsFile->getTokens();
         $names = [];
+        $segment = null;
 
-        for ($pointer = $start + 1; $pointer < $end; $pointer++) {
-            if ($tokens[$pointer]['code'] === T_STRING) {
-                $names[] = $tokens[$pointer]['content'];
+        for ($pointer = $start; $pointer < $end; $pointer++) {
+            $code = $tokens[$pointer]['code'];
+
+            if ($code === T_STRING) {
+                $segment = $tokens[$pointer]['content'];
+
+                continue;
             }
+
+            if ($segment !== null && in_array($code, $separators, true) === true) {
+                $names[] = $segment;
+                $segment = null;
+            }
+        }
+
+        if ($segment !== null) {
+            $names[] = $segment;
         }
 
         return $names;

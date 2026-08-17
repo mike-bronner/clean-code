@@ -104,6 +104,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
     'CleanCode.Testing.NoReflectionAccess',
+    'CleanCode.Testing.TestSuiteNamespace',
 ];
 
 /**
