@@ -56,7 +56,7 @@ use PHP_CodeSniffer\Util\Tokens;
  * Arrays and Strings rules ask for is a Laravel helper this package does not
  * ship, so each has to be written around rather than adopted.
  *
- * scopeBoundary() is the one read the File API cannot express: PHP_CodeSniffer
+ * boundaryPointer() is the one read the File API cannot express: PHP_CodeSniffer
  * publishes no accessor for a declaration's `scope_opener`/`scope_closer`, nor
  * for a parenthesis's `parenthesis_closer`, so the pointers are read off
  * getTokens()' return value. That spelling is rooted in a call rather than a
@@ -319,7 +319,7 @@ class ActionMethodReturnSniff implements Sniff
     private function bodyReturnsValue(File $phpcsFile, int $stackPtr): bool
     {
         $returns = $this->valueReturns($phpcsFile, $stackPtr);
-        $closer = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_closer');
+        $closer = $this->boundaryPointer($phpcsFile, $stackPtr, 'scope_closer');
 
         return match (true) {
             $returns === [] => false,
@@ -444,8 +444,8 @@ class ActionMethodReturnSniff implements Sniff
      */
     private function valueReturns(File $phpcsFile, int $stackPtr): array
     {
-        $opener = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_opener');
-        $closer = $this->scopeBoundary($phpcsFile, $stackPtr, 'scope_closer');
+        $opener = $this->boundaryPointer($phpcsFile, $stackPtr, 'scope_opener');
+        $closer = $this->boundaryPointer($phpcsFile, $stackPtr, 'scope_closer');
         $returns = [];
         $pointer = $phpcsFile->findNext(T_RETURN, ($opener + 1), $closer);
 
@@ -608,7 +608,7 @@ class ActionMethodReturnSniff implements Sniff
      */
     private function isGroupedThis(File $phpcsFile, int $first, ?int $last): bool
     {
-        $closer = $this->scopeBoundary($phpcsFile, $first, 'parenthesis_closer');
+        $closer = $this->boundaryPointer($phpcsFile, $first, 'parenthesis_closer');
 
         return match ($closer) {
             $last => $this->isThisExpression($phpcsFile, ($first + 1), $closer),
@@ -674,7 +674,7 @@ class ActionMethodReturnSniff implements Sniff
      * read in the file taken off the token array rather than through the File
      * API — see the class docblock.
      */
-    private function scopeBoundary(File $phpcsFile, int $stackPtr, string $boundary): int
+    private function boundaryPointer(File $phpcsFile, int $stackPtr, string $boundary): int
     {
         return $phpcsFile->getTokens()[$stackPtr][$boundary] ?? self::NO_POINTER;
     }

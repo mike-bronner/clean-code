@@ -296,7 +296,7 @@ class ModelMagicMethodLocationSniff implements Sniff
         return match (true) {
             $name === null => null,
             preg_match(self::ACCESSOR_PATTERN, $name) === 1 => self::ATTRIBUTES,
-            $this->returnsAttributeCast($phpcsFile, $functionPtr, $imports) === true
+            $this->hasAttributeCastReturn($phpcsFile, $functionPtr, $imports) === true
                 => self::ATTRIBUTES,
             preg_match(self::SCOPE_PATTERN, $name) === 1 => self::QUERIES,
             $this->hasScopeAttribute($phpcsFile, $functionPtr) === true => self::QUERIES,
@@ -354,7 +354,7 @@ class ModelMagicMethodLocationSniff implements Sniff
      *
      * @param array<string, string> $imports
      */
-    private function returnsAttributeCast(File $phpcsFile, int $functionPtr, array $imports): bool
+    private function hasAttributeCastReturn(File $phpcsFile, int $functionPtr, array $imports): bool
     {
         $returnType = $phpcsFile->getMethodProperties($functionPtr)['return_type'];
         $found = false;
