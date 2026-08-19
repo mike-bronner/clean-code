@@ -118,7 +118,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 967, 'column' => 16],
+        ['line' => 1037, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
