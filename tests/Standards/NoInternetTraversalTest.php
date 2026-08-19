@@ -5,7 +5,8 @@
  * Suites, #60, partial enforcement per #149). Fixtures live in
  * tests/fixtures/NoInternetTraversalSniff/: the sanctioned Http-facade route
  * and every near-miss shape in passing.php, the flagged primitives in
- * failing.php, and the inline-suppression case in suppressed.php. The rule is
+ * failing.php, the inline-suppression case in suppressed.php, and the two
+ * shapes no well-formed file can produce in malformed.php. The rule is
  * detection-only, so there is no autofixed fixture.
  *
  * The sniff decides what to inspect from the file's own path, and the fixture
@@ -134,9 +135,38 @@ it('is registered in the master ruleset', function (): void {
  *   name, and an anonymous class.
  * - line 40, a `curl_exec` *declaration* — the T_FUNCTION preceder, which
  *   FunctionCalls::isGlobalFunctionCall() is what rules out.
+ * - line 47, a call carrying no argument at all — the argument region is empty,
+ *   so there is no first token to read a URL out of. Confirmed by mutation: this
+ *   is the only fixture line that reddens when the empty-argument guard is made
+ *   to fall open.
  */
 it('produces no violations on the compliant fixture', function () use ($featureRun): void {
     $file = $featureRun('passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The two guards a well-formed file can never reach, each one fail-closed.
+ *
+ * Both shapes in malformed.php stop the sniff before it has a token region to
+ * read, and neither is reachable from source that parses:
+ *
+ * - line 12, an argument list that is never closed. PHP_CodeSniffer leaves the
+ *   opening parenthesis with no `parenthesis_closer`, so the argument region has
+ *   no end — and the URL written inside it must not be reported off a region the
+ *   tokenizer never established.
+ * - line 16, a `new` with nothing after it but whitespace, so there is no token
+ *   to read a class name from.
+ *
+ * The fixture is deliberate, not a broken file left in the tree: a consumer runs
+ * phpcs over whatever is on disk, including a file mid-edit, and a sniff that
+ * reports off half a token region is worse than one that says nothing. Both
+ * assertions discriminate — each guard, made to fall open, reddens this test.
+ */
+it('says nothing about source it cannot read to the end of', function () use ($featureRun): void {
+    $file = $featureRun('malformed.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);

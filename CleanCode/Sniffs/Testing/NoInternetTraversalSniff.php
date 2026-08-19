@@ -37,8 +37,8 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * in the message:
  *
  * - a call to one of NETWORK_FUNCTIONS — `curl_init()`, `curl_exec()`,
- *   `fsockopen()` and `stream_socket_client()`. None of them has a non-network
- *   use, so the call alone is the violation.
+ *   `fsockopen()` and `stream_socket_client()`. Each one exists to open a
+ *   connection, so the call alone is the violation and no argument is read.
  * - a call to `file_get_contents()` whose first argument is a string literal
  *   whose text begins `http://` or `https://`. The function itself is ordinary,
  *   so here the URL is what makes it a network read.
@@ -68,7 +68,7 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * hands over, so a checkout living under `tests/Feature` widens the gate to the
  * whole project. A project with a different suite layout retunes the property.
  *
- * ## Boundaries, all six also recorded in the standard's doc
+ * ## Boundaries, all seven also recorded in the standard's doc
  *
  * - **A request through an un-faked `Http` facade call (false negative).**
  *   `Http::get('https://…')` is the sanctioned API *and* a real request when no
@@ -92,6 +92,13 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * - **A URL split across physical lines (false negative).** PHP_CodeSniffer
  *   tokenizes a literal containing a newline into one token per line, and only
  *   a whole literal is read.
+ * - **A local transport through a socket primitive (false positive, kept).**
+ *   `fsockopen()` and `stream_socket_client()` also address a `unix://` or
+ *   `udg://` socket, which never leaves the machine, and both are reported all
+ *   the same. The argument is not read because the standard's own wording, and
+ *   the acceptance criteria taken from it, name these two calls outright — and a
+ *   raw socket opened by hand is not what a feature test should hold whichever
+ *   transport it names.
  * - **Another HTTP client (false negative).** NETWORK_CLIENTS names the one
  *   client the standard's own wording is about, and it is a constant rather than
  *   a property: the standard names Guzzle, and a list a consumer could retune
@@ -170,9 +177,11 @@ class NoInternetTraversalSniff implements Sniff
     ];
 
     /**
-     * Functions whose every use traverses the internet, lowercased for
-     * comparison. The call alone is the violation — none of them has an
-     * argument that could make it local.
+     * Functions that exist to open a connection, lowercased for comparison. The
+     * call alone is the violation: unlike URL_READER below, none of them has an
+     * ordinary local use that an argument could put it to. The two socket calls
+     * can name a `unix://` transport that stays on the machine, and are reported
+     * anyway — see the boundary of that name in the class docblock.
      *
      * @var array<int, string>
      */
@@ -321,6 +330,17 @@ class NoInternetTraversalSniff implements Sniff
      *   or starts the next argument. That is what keeps a concatenation out —
      *   the head of `'https://…' . $path` is a whole literal, but the argument
      *   is an expression.
+     *
+     * The token-type check between them is a precondition rather than a
+     * discriminator, and this says so outright rather than implying coverage the
+     * fixtures do not have: no fixture can redden when it is removed, because
+     * the scheme test downstream already rejects everything a non-literal
+     * argument could produce — a token outside Tokens::$stringTokens that stands
+     * alone as a whole argument cannot carry `http://` in the text inner()
+     * returns. It stays because inner() is documented as taking a complete
+     * literal, and the token type is what says this is one. Its membership is
+     * pinned instead, against PHPCS's own register, by `accounts for every
+     * string token PHPCS defines`.
      *
      * The second check is also what establishes StringLiteral::inner()'s stated
      * precondition, which is why no separate isComplete() call stands here: one

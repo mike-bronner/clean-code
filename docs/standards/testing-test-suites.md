@@ -60,8 +60,8 @@ written in the file that calls them. The custom sniff
 under a single `Found` code, naming the primitive that matched:
 
 - `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
-  none of them has a use that stays on the machine, so the call alone is the
-  violation;
+  each one exists to open a connection, so the call alone is the violation and
+  no argument is read;
 - `file_get_contents()` whose first argument is one whole string literal whose
   text begins `http://` or `https://` (either case) — the function is otherwise
   ordinary, so the URL is what makes it a request;
@@ -79,7 +79,7 @@ It reports **warnings, not errors**, and is **detection-only**: replacing a real
 request with a fake means writing the fake — what to return, and for which URLs
 — which is not recoverable from the call being replaced.
 
-Six boundaries come with it, and none is a defect to be fixed later:
+Seven boundaries come with it, and none is a defect to be fixed later:
 
 - a request through an un-faked `Http` facade call is not flagged, because
   whether a fake is active is set up elsewhere and is not statically decidable;
@@ -93,6 +93,10 @@ Six boundaries come with it, and none is a defect to be fixed later:
   `"http://…"` hold identical characters between their delimiters;
 - a URL literal split across physical lines is tokenized one token per line, and
   only a whole literal is read;
+- `fsockopen()` and `stream_socket_client()` also address a `unix://` or
+  `udg://` socket, which never leaves the machine, and are reported all the same
+  — the standard names the two calls outright, and a raw socket opened by hand is
+  not what a feature test should hold whichever transport it names;
 - another HTTP client is outside the slice: the watched list is a constant, not a
   property, because the standard names Guzzle and a retunable list would make the
   rule mean something different in each project.

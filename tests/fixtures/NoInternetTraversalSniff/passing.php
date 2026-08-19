@@ -41,3 +41,7 @@ $anonymous = new class {
 function curl_exec(string $handle): void
 {
 }
+
+// A call with no argument at all — there is no URL to read, so there is
+// nothing the file states about where it points.
+$empty = file_get_contents();
