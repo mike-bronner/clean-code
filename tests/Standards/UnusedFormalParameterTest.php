@@ -484,42 +484,70 @@ it('leaves the failing fixture untouched when the fixer runs', function (): void
     expect(autofixedContents($file))->toBe(file_get_contents($fixture));
 });
 
+
 /**
  * The same-file ancestor index is built once per token stream, not once per
  * method.
  *
  * It used to be rebuilt inside every override check, and each rebuild walked
  * the whole file, so a class of n methods scanned the file n times: measured
- * here at 0.58s for 250 methods, 1.47s for 500, 5.01s for 1,000 and better
- * than 3x per doubling throughout. Accessors are exactly the shape that
- * reaches it — this repo's own TooManyMethods and TooManyPublicMethods sniffs
- * exempt `get*`/`set*`/`is*`/`has*` by ignorepattern, so a class may carry any
- * number of them and no other rule objects — which is why the fixture below is
- * built from them.
+ * when the memoization landed at 0.58s for 250 methods, 1.47s for 500, 5.01s
+ * for 1,000 and better than 3x per doubling throughout. Accessors are exactly
+ * the shape that reaches it — this repo's own TooManyMethods and
+ * TooManyPublicMethods sniffs exempt `get*`/`set*`/`is*`/`has*` by
+ * ignorepattern, so a class may carry any number of them and no other rule
+ * objects — which is why the fixture below is built from them.
  *
- * Two things are asserted per size, and they answer different questions:
+ * The claim is counted, not timed. buildDeclarations() records how often it
+ * built the index and how often its key check answered from the index already
+ * built, and this test reads both as a delta around one process() run. The
+ * earlier wall-clock form stated the same claim only as far as a shared runner
+ * allowed: the 250-method baseline is ~13ms, small enough that ordinary CI
+ * jitter carried the measured cross-size ratio past its 8x bound on two runs
+ * out of three with no code change between them (#321). A count cannot fail
+ * that way — it is the mechanism itself rather than a shadow of it — and it
+ * needs no headroom, so it also states the claim more tightly than any ratio.
+ *
+ * Three things are asserted per size, and they answer different questions:
  *
  * - Every method is still read, and the one unused parameter still reported.
- *   An index that had stopped resolving would run fast for the wrong reason.
- * - The sniff costs less than twice PHP_CodeSniffer's own parse of the same
- *   file. That is the scale-free half: the parse is the work the file
- *   inherently needs, so a sniff that stays within a constant factor of it at
- *   every size is not walking anything quadratic. The sibling
- *   CleanCode.Arrays.ArrayAccessors scale tests make the same claim the same
- *   way.
+ *   An index that had stopped resolving would count right for the wrong
+ *   reason.
+ * - The index is built exactly once for the file, whatever n is. That is the
+ *   whole of the memoization claim, stated without reference to elapsed time.
+ * - Every other read answers from it. Each of the n+1 declarations consults
+ *   the index twice — declarationsByName() and inheritedNames() each ask — so
+ *   the reads total 2n+2, of which one builds and 2n+1 hit. Pinning that
+ *   keeps the build count from passing vacuously: a sniff that stopped
+ *   consulting the index at all would report 0 builds and 0 hits.
  *
- * Mutation-checked by deleting the memoization guard from buildDeclarations():
- * the rebuild returns and this test reddens at the smallest size measured,
- * n=250, where the sniff costs 0.66s against a parse of 0.02s — thirty times
- * the parse, against a bound of twice it. Measured the same way outside the
- * harness, the rebuild runs a file of 1,000 methods in 10.76s where the index
- * built once runs it in 0.37s.
+ * Mutation-checked by deleting the `$this->declarationsKey === $key` guard
+ * from buildDeclarations(), so every read rebuilds. `composer test` then fails
+ * on this test at the smallest size measured, n=250, where the counts read 502
+ * builds / 0 hits against the 1 / 501 asserted here; n=500 reads 1,002 / 0
+ * against 1 / 1,001, and n=1,000 reads 2,002 / 0 against 1 / 2,001. The
+ * builds are one past the hits the guard buys, because the read that built the
+ * index is a read the guard never had to answer.
  */
 it('indexes same-file ancestors once per file, not once per method', function (): void {
-    $sizes = [250, 500, 1000];
-    $sniffedBySize = [];
+    $delta = static function (array $before, array $after): array {
+        $counted = [];
 
-    foreach ($sizes as $size) {
+        foreach ($after as $counter => $count) {
+            $counted[$counter] = $count - $before[$counter];
+        }
+
+        return $counted;
+    };
+
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // runs. Its counters are therefore cumulative across all of them, which is
+    // why each size below is read as a delta rather than as a total.
+    [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
+    $sniff = $ruleset->sniffs[$ruleset->sniffCodes[UNUSED_FORMAL_PARAMETER]];
+
+    foreach ([250, 500, 1000] as $size) {
         $accessors = '';
 
         for ($index = 0; $index < $size; $index++) {
@@ -530,43 +558,30 @@ it('indexes same-file ancestors once per file, not once per method', function ()
         $source = "<?php\n\nclass Big\n{\n" . $accessors
             . "    public function unusedOne(int \$unused): int\n    {\n        return 1;\n    }\n}\n";
 
-        [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
         $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-scale-', true) . '.php';
         file_put_contents($path, $source);
+        $before = $sniff->cacheCounts();
 
         try {
             $file = new LocalFile($path, $ruleset, $config);
-
-            $parseAt = hrtime(true);
-            $file->parse();
-            $parsed = (hrtime(true) - $parseAt) / 1e9;
-
-            $sniffAt = hrtime(true);
             $file->process();
-            $sniffed = (hrtime(true) - $sniffAt) / 1e9;
             $reported = $file->getErrorCount();
         } finally {
             unlink($path);
         }
 
-        $sniffedBySize[$size] = $sniffed;
+        $counted = $delta($before, $sniff->cacheCounts());
 
         expect($reported)->toBe(1, "n={$size} still reports the one unused parameter")
-            ->and($sniffed)->toBeLessThan(
-                ($parsed * 2.0),
-                "n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
+            ->and($counted['declarations.builds'])->toBe(
+                1,
+                "n={$size}: the index is built once for the file, not once per method"
+            )
+            ->and($counted['declarations.hits'])->toBe(
+                (2 * $size) + 1,
+                "n={$size}: every read after the first answers from the index already built"
             );
     }
-
-    // The growth half, which the parse-relative bound above cannot state on its
-    // own. Four times the methods costs four times the work when the index is
-    // built once and sixteen when it is rebuilt per method, so the bound sits
-    // between the two: 8x is twice the headroom linear growth needs and half of
-    // what the rebuild spends. Measured at 4.8x with the index in place.
-    expect($sniffedBySize[1000])->toBeLessThan(
-        ($sniffedBySize[250] * 8.0),
-        "1000 methods took {$sniffedBySize[1000]}s against 250 at {$sniffedBySize[250]}s"
-    );
 });
 
 /**
@@ -582,75 +597,89 @@ it('indexes same-file ancestors once per file, not once per method', function ()
  * - methodNames(), which reads an ancestor's method list, and
  * - traitNames(), which reads the traits that ancestor uses.
  *
- * The two are reached by *different* shapes, which is why both are measured
+ * The two are reached by *different* shapes, which is why both are counted
  * here. The walk stops at the first ancestor declaring the method it is asked
  * about, so a class whose methods all override their parent's returns before
  * traitNames() is ever called; only a class whose method the parent does *not*
  * declare drains the queue and reaches it. Memoising methodNames() alone leaves
  * that second shape — a class that adds methods rather than replacing them,
- * which is the ordinary one — quadratic through the other door, measured at
- * 0.11s for 250 methods, 0.46s for 500, 2.21s for 1,000 and 9.38s for 2,000,
- * a clean 4x per doubling with the first index already in place.
+ * which is the ordinary one — quadratic through the other door, measured when
+ * that memoization landed, with the first index already in place, at 0.11s for
+ * 250 methods, 0.46s for 500, 2.21s for 1,000 and 9.38s for 2,000: a clean 4x
+ * per doubling.
  *
  * Both shapes are asserted the same way the test above asserts its own, and for
  * the same reasons: a report count per size, so an index that had stopped
- * resolving cannot run fast by answering wrongly, and a cost measured against
- * PHP_CodeSniffer's own parse of the same file, which is the scale-free bound.
- * Every timing is the median of three readings, for the reason given at the
- * measurement itself: one contended moment on a shared runner moves a reading
- * of this size far enough to decide the cross-size ratio on its own.
+ * resolving cannot count right by answering wrongly, and build/hit counts read
+ * as a delta around one process() run, which state the memoization directly
+ * rather than through elapsed time. Nothing here is timed. The wall-clock form
+ * these assertions replace flaked on CI for the reason #321 records: at these
+ * sizes a single reading is 6-15ms, small enough that one contended moment on
+ * a shared runner moved it ~40% and decided the cross-size ratio on its own.
+ *
+ * Each ancestor is counted separately, keyed by its own pointer, which is what
+ * "once per ancestor" is stated against: both shapes here resolve exactly one
+ * ancestor, `Base`, so each index shows one entry at one build. Those
+ * per-ancestor counts are read straight rather than as a delta, and can be:
+ * buildDeclarations() clears them in the same branch that discards the indexes
+ * themselves, so they describe the token stream those indexes describe, which
+ * for every size below is the file just processed. The pointer would otherwise
+ * be ambiguous — every size here holds `Base` at the same pointer, and two
+ * files' counts would merge under it.
  *
  * The report counts are what make the two shapes discriminating rather than
- * merely slow: the overriding shape must report *nothing* — every parameter is
- * dead and every method exempt — and the extending shape must report *every*
- * one of them. An exemption that stopped resolving would redden the first, and
- * one that started over-resolving would redden the second. That is also what
- * keeps the overriding shape worth its runtime once the timings are met: the
- * extending shape alone would let the exemption break silently.
+ * merely counted: the overriding shape must report *nothing* — every parameter
+ * is dead and every method exempt — and the extending shape must report
+ * *every* one of them. An exemption that stopped resolving would redden the
+ * first, and one that started over-resolving would redden the second. That is
+ * also what keeps the overriding shape worth its runtime: the extending shape
+ * alone would let the exemption break silently.
  *
- * Mutation-checked one cache at a time, by deleting its `isset()` guard. The
- * two are not symmetric, because the walk reaches them by different paths:
+ * Mutation-checked one cache at a time, by deleting its `isset()` guard and
+ * re-running `composer test`. The two are not symmetric, because the walk
+ * reaches them by different paths. Counts below are that cache's own build/hit
+ * pair at the smallest size measured, n=250, against the 1 build and 249 hits
+ * this test asserts wherever the index is reached at all — n=500 and n=1,000
+ * read 500 and 1,000 builds against 1 the same way:
  *
- *     | Cache dropped  | overriding | extending |
- *     |----------------|------------|-----------|
- *     | methodNames()  | reddens    | reddens   |
- *     | traitNames()   | passes     | reddens   |
+ *     | Cache dropped  | overriding        | extending         |
+ *     |----------------|-------------------|-------------------|
+ *     | methodNames()  | reddens, 250/0    | reddens, 250/0    |
+ *     | traitNames()   | passes, 0/0       | reddens, 250/0    |
  *
  * methodNames() is read on the way to both, so dropping it reddens both.
  * traitNames() is read only after the walk fails to match, so the extending
  * shape is the only thing in the suite that holds it — drop that shape and
- * memoising traitNames() could be reverted with every test still green.
+ * memoising traitNames() could be reverted with every test still green. The
+ * overriding shape's own assertion that traitNames() is never reached (0
+ * builds, 0 hits) is what keeps that asymmetry pinned rather than assumed.
  */
 it('indexes an ancestor once per file, not once per descendant method', function (): void {
     $shapes = [
         // Every method overrides its parent's, so the walk matches on the first
-        // ancestor and returns: methodNames() is the index it re-reads.
-        'overriding' => ['name' => 'getThing', 'reports' => false],
+        // ancestor and returns: methodNames() is the index it re-reads, and
+        // traitNames() is never reached at all.
+        'overriding' => ['name' => 'getThing', 'reports' => false, 'traits' => false],
         // No method overrides anything, so the walk drains the queue and asks
         // the ancestor for its traits too: traitNames() is the second index.
-        'extending' => ['name' => 'ownThing', 'reports' => true],
+        'extending' => ['name' => 'ownThing', 'reports' => true, 'traits' => true],
     ];
 
-    // Each size is measured three times and read at its median rather than
-    // from one sample. At these sizes a single reading is 6-15ms, small enough
-    // that one contended moment on a shared runner moves it by ~40% in either
-    // direction — enough on its own to carry the closing cross-size ratio past
-    // its budget while the cost being measured has not changed. A median of
-    // three discards that one sample. It does not move the budget, so a walk
-    // that went back to indexing once per descendant method still reddens these
-    // assertions: dropping either cache the walk relies on was re-checked here
-    // and reddens exactly as the table above records.
-    $median = static function (array $samples): float {
-        sort($samples);
+    $delta = static function (array $before, array $after): array {
+        $counted = [];
 
-        return $samples[(int) (count($samples) / 2)];
+        foreach ($after as $counter => $count) {
+            $counted[$counter] = $count - $before[$counter];
+        }
+
+        return $counted;
     };
 
-    foreach ($shapes as $shape => $spec) {
-        $sizes = [250, 500, 1000];
-        $sniffedBySize = [];
+    [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
+    $sniff = $ruleset->sniffs[$ruleset->sniffCodes[UNUSED_FORMAL_PARAMETER]];
 
-        foreach ($sizes as $size) {
+    foreach ($shapes as $shape => $spec) {
+        foreach ([250, 500, 1000] as $size) {
             $base = '';
             $derived = '';
 
@@ -664,48 +693,58 @@ it('indexes an ancestor once per file, not once per descendant method', function
             $source = "<?php\n\nclass Base\n{\n" . $base . "}\n\n"
                 . "class Derived extends Base\n{\n" . $derived . "}\n";
 
-            $parsedRuns = [];
-            $sniffedRuns = [];
-            $reported = null;
+            $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-ancestor-', true) . '.php';
+            file_put_contents($path, $source);
+            $before = $sniff->cacheCounts();
 
-            for ($run = 0; $run < 3; $run++) {
-                [$config, $ruleset] = buildRuleset([UNUSED_FORMAL_PARAMETER]);
-                $path = sys_get_temp_dir() . '/' . uniqid('cleancode-ufp-ancestor-', true) . '.php';
-                file_put_contents($path, $source);
-
-                try {
-                    $file = new LocalFile($path, $ruleset, $config);
-
-                    $parseAt = hrtime(true);
-                    $file->parse();
-                    $parsedRuns[] = (hrtime(true) - $parseAt) / 1e9;
-
-                    $sniffAt = hrtime(true);
-                    $file->process();
-                    $sniffedRuns[] = (hrtime(true) - $sniffAt) / 1e9;
-                    $reported = $file->getErrorCount();
-                } finally {
-                    unlink($path);
-                }
+            try {
+                $file = new LocalFile($path, $ruleset, $config);
+                $file->process();
+                $reported = $file->getErrorCount();
+            } finally {
+                unlink($path);
             }
 
-            $parsed = $median($parsedRuns);
-            $sniffed = $median($sniffedRuns);
+            $counted = $delta($before, $sniff->cacheCounts());
+            $byAncestor = $sniff->cacheCountsByClass();
 
-            $sniffedBySize[$size] = $sniffed;
+            // The first of the n descendant methods builds the ancestor's
+            // index and the other n-1 answer from it. A walk that went back to
+            // reading the ancestor once per descendant method reports n builds
+            // and no hits. The overriding shape never reaches traitNames() at
+            // all, which is why its expectation there is no read of either kind.
+            $traitReads = $spec['traits'] === true
+                ? ['builds' => 1, 'hits' => $size - 1]
+                : ['builds' => 0, 'hits' => 0];
 
             expect($reported)->toBe(
                 $spec['reports'] === true ? $size : 0,
                 "{$shape} n={$size}: the override exemption still resolves"
-            )->and($sniffed)->toBeLessThan(
-                ($parsed * 2.0),
-                "{$shape} n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
-            );
+            )
+                ->and($counted['methodNames.builds'])->toBe(
+                    1,
+                    "{$shape} n={$size}: the ancestor's method list is read once for the file"
+                )
+                ->and($counted['methodNames.hits'])->toBe(
+                    $size - 1,
+                    "{$shape} n={$size}: every later descendant method answers from that read"
+                )
+                ->and(array_values($byAncestor['methodNames']))->toBe(
+                    [['builds' => 1, 'hits' => $size - 1]],
+                    "{$shape} n={$size}: one ancestor, its method list built once"
+                )
+                ->and($counted['traitNames.builds'])->toBe(
+                    $traitReads['builds'],
+                    "{$shape} n={$size}: the ancestor's trait list is read once, or never reached"
+                )
+                ->and($counted['traitNames.hits'])->toBe(
+                    $traitReads['hits'],
+                    "{$shape} n={$size}: every later descendant method answers from that read"
+                )
+                ->and(array_values($byAncestor['traitNames']))->toBe(
+                    $spec['traits'] === true ? [['builds' => 1, 'hits' => $size - 1]] : [],
+                    "{$shape} n={$size}: one ancestor, its trait list built once, or never reached"
+                );
         }
-
-        expect($sniffedBySize[1000])->toBeLessThan(
-            ($sniffedBySize[250] * 8.0),
-            "{$shape}: 1000 methods took {$sniffedBySize[1000]}s against 250 at {$sniffedBySize[250]}s"
-        );
     }
 });
