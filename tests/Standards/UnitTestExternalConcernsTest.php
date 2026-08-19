@@ -26,6 +26,13 @@
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
  * sibling standards land in rules.xml.
+ *
+ * Two tests at the foot of this file stage their subjects outside the
+ * repository instead, because a committed fixture cannot express what they
+ * measure: one needs two files at the *same* real path differing by a single
+ * character, the other needs the shipped binary run against a path the generic
+ * sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach. Each says
+ * so where it stands.
  */
 
 declare(strict_types=1);
@@ -472,4 +479,66 @@ it('reads the test-case receiver case-sensitively', function (): void {
     ])
         ->and($miscased->getErrors())->toBe([])
         ->and($miscased->getWarnings())->toBe([]);
+});
+
+/**
+ * Every test above drives PHP_CodeSniffer in process through ConfigDouble,
+ * which supplies the registration Composer would have supplied — so a package
+ * that never registered itself with the installed standards passes all of them,
+ * including "it is registered in the master ruleset", whose buildRuleset() runs
+ * through that same double. This one executes the real vendor/bin/phpcs as a
+ * separate process from outside the package, against rules.xml, the file a
+ * consumer points --standard at.
+ *
+ * The shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach
+ * this sniff, which is why the gap has to be closed here: the sweep drives each
+ * fixture where it lives, under tests/fixtures/UnitTestExternalConcernsSniff/,
+ * a path carrying no `Unit` segment, and it configures no properties, so it can
+ * neither open failing.php under the shipped scope nor point the scope at it.
+ * That is the same reason the sniff is held out of SWEPT_SNIFFS (see
+ * tests/Sniffs.php) and the same shape the four sniffs already excluded that way
+ * carry a run of their own for.
+ *
+ * Asserted in the paired shape those four use rather than on the positive half
+ * alone:
+ *
+ * - failing.php staged under a real `tests/Unit` directory reports all 28, split
+ *   across the three families exactly as the in-process assertion above splits
+ *   them, every message at WARNING severity, at status 1 — violations, none of
+ *   them fixable, which is what this detection-only rule owes. Status 2 would
+ *   mean phpcbf had been offered a fix, and 3 is what a broken install exits
+ *   with.
+ * - the same bytes staged under `tests/Feature` report nothing and exit 0, so
+ *   the reporting half cannot be coming from a run that ignores the scope.
+ * - passing.php staged under `tests/Unit` reports nothing and exits 0 — the
+ *   negative control, without which a shell-out that always reported would
+ *   satisfy the first.
+ */
+it('reports the violation end to end through the installed package', function (): void {
+    $fixtures = sniffFixtureDirectory(UNIT_EXTERNAL);
+
+    $inSuite = installedSniffRun(
+        UNIT_EXTERNAL,
+        stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Unit')
+    );
+    $outsideSuite = installedSniffRun(
+        UNIT_EXTERNAL,
+        stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Feature')
+    );
+    $compliant = installedSniffRun(
+        UNIT_EXTERNAL,
+        stageFixtureOutsideTests(fixturePath($fixtures, 'passing.php'), 'tests/Unit')
+    );
+
+    expect(array_count_values(array_column($inSuite['messages'], 'source')))->toBe([
+        UNIT_EXTERNAL_TRAIT => 7,
+        UNIT_EXTERNAL_FAKE => 9,
+        UNIT_EXTERNAL_HTTP => 12,
+    ])
+        ->and(array_unique(array_column($inSuite['messages'], 'type')))->toBe(['WARNING'])
+        ->and($inSuite['status'])->toBe(1)
+        ->and($outsideSuite['messages'])->toBe([])
+        ->and($outsideSuite['status'])->toBe(0)
+        ->and($compliant['messages'])->toBe([])
+        ->and($compliant['status'])->toBe(0);
 });

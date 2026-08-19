@@ -176,7 +176,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 145, 'column' => 27],
+        ['line' => 146, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 573, 'column' => 66],
@@ -193,7 +193,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 206, 'column' => 15],
+        ['line' => 207, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 268, 'column' => 17],

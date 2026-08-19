@@ -113,8 +113,9 @@ const SWEPT_SNIFFS = [
  * The sweep configures nothing, so it cannot point a property-scoped sniff at
  * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
  * carries the whole floor instead: the two flat fixtures driven under a scope
- * pointed at their own directory, and the shipped scope exercised by a nested
- * tests/Unit/ tree beside them.
+ * pointed at their own directory, the shipped scope exercised by a nested
+ * tests/Unit/ tree beside them, and the shipped-binary run in both directions
+ * that the sweep gives up on its behalf.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
