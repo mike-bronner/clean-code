@@ -30,14 +30,16 @@ use PHP_CodeSniffer\Util\Tokens;
  *   comment token that looks, on its own, exactly like a section label.
  * - **On its own line**, with no code before or after it there. A comment
  *   trailing a statement annotates that statement; it labels nothing.
- * - **The head of its run.** Every *label* line with nothing but whitespace
- *   between it and the one above is part of the same run — a blank line
- *   between two label lines does not start a second label — and only the head
- *   reports. Reporting each line would multiply one extraction candidate into
- *   several. A comment the rule would not report in its own right is not a
- *   label line and does not absorb the one below it, so a label written under
- *   a debt marker, a formatter directive, a docblock or a comment trailing a
- *   statement is still the head of its own run.
+ * - **The head of its run.** A run is every *label* line standing against the
+ *   same statement boundary as the comment, and only the head reports:
+ *   reporting each line would multiply one extraction candidate into several.
+ *   A blank line between two label lines does not start a second label, and
+ *   neither does a comment the rule would not report in its own right — a debt
+ *   marker, a formatter directive, a docblock, a `phpcs:` annotation or a
+ *   fragment of a multi-line block comment written between two labels leaves
+ *   them one label for one block. A comment *trailing a statement* is the
+ *   exception, and needs no rule of its own: the statement it trails is a
+ *   boundary, so a label under it heads a run of its own and reports.
  * - **At a statement boundary** — the token before it is `;`, `}`, or the
  *   opener of the block the comment stands in (`{`, or the `:` of a
  *   `case`/`default` arm or an alternative-syntax block). This is what
@@ -358,11 +360,7 @@ class SectionCommentSniff implements Sniff
             return;
         }
 
-        if ($this->headsItsRun($phpcsFile, $stackPtr) === false) {
-            return;
-        }
-
-        if ($this->followsAStatementBoundary($phpcsFile, $stackPtr, $comment['conditions']) === false) {
+        if ($this->headsARunAtAStatementBoundary($phpcsFile, $stackPtr, $comment['conditions']) === false) {
             return;
         }
 
@@ -486,38 +484,76 @@ class SectionCommentSniff implements Sniff
     }
 
     /**
-     * Whether the comment is the first line of its own comment run.
+     * Whether the comment stands against a statement boundary, and is the first
+     * label line that stands against that one.
      *
-     * A run is every label line with nothing but whitespace between it and the
-     * one above — blank lines included, because a label written as a paragraph
-     * and a label written as one block are the same label for the same block.
-     * It reports once, at its first line: reporting each line would multiply
-     * one extraction candidate into several.
+     * Both questions are answered from the same token — the first one above the
+     * comment that is neither whitespace nor a comment — so it is found once,
+     * here, and handed to both. A comment with no such token above it is at the
+     * start of the file, where there is no statement for it to follow.
+     *
+     * @param array<int, int|string> $conditions
      */
-    private function headsItsRun(File $phpcsFile, int $stackPtr): bool
+    private function headsARunAtAStatementBoundary(File $phpcsFile, int $stackPtr, array $conditions): bool
     {
-        $before = $phpcsFile->findPrevious(T_WHITESPACE, ($stackPtr - 1), null, true);
+        $boundary = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        return $before === false || $this->isALabelLine($phpcsFile, $before) === false;
+        if ($boundary === false) {
+            return false;
+        }
+
+        return $this->followsAStatementBoundary($phpcsFile, $boundary, $conditions) === true
+            && $this->headsItsRun($phpcsFile, $boundary, $stackPtr) === true;
     }
 
     /**
-     * Whether the token is a line of the same label as the comment below it.
+     * Whether the comment is the first label line standing against its
+     * boundary.
      *
-     * Run membership is the sniff's own candidacy test, applied to the line
-     * above: a comment only continues into the comment below it when this rule
-     * could have reported it in its own right. Asking "is it comment-shaped?"
-     * instead — the whole of Tokens::$commentTokens, which spans every docblock
-     * fragment and every PHPCS annotation — silently drops a genuine label
-     * written directly under a `// TODO`, under a formatter directive, under a
-     * docblock or under a comment trailing a statement — the spellings of the
-     * directives are the $formatterDirectives defaults, deliberately not
-     * repeated here for the reason given on the class above. None of those four
-     * is a label line, so none
-     * of them takes the label below it into its run: a debt marker and a
-     * formatter directive belong to the sibling standards that own them, a
-     * docblock documents the thing after it, and a comment sharing a line with
-     * code annotates that code.
+     * Everything between that boundary and the comment is whitespace or a
+     * comment, by the definition of the boundary — the first thing above the
+     * comment that is neither. Every label line in that stretch therefore
+     * stands against the same boundary and introduces the same block, and one
+     * block is one extraction candidate: the first of them reports and the rest
+     * are the rest of its run. Blank lines and comment lines this rule would
+     * not report — a debt marker, a formatter directive, a docblock, a PHPCS
+     * annotation, a fragment of a multi-line block comment — are equally
+     * transparent here, because they are transparent to the boundary lookup and
+     * to the search for the block below. Reading only the line directly above
+     * instead reports twice for one block whenever one of them is written
+     * between two label lines.
+     *
+     * A comment trailing a statement is not transparent, and needs no case of
+     * its own: the statement it trails is the boundary, so a label above it
+     * belongs to a different block and reports in its own right.
+     */
+    private function headsItsRun(File $phpcsFile, int $boundary, int $stackPtr): bool
+    {
+        for ($pointer = ($boundary + 1); $pointer < $stackPtr; $pointer++) {
+            if ($this->isALabelLine($phpcsFile, $pointer) === true) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether the token is a line of the label the comment below it belongs to.
+     *
+     * Run membership is the sniff's own candidacy test, applied to the lines
+     * above: a comment only joins the run of the comment below it when this
+     * rule could have reported it in its own right. Asking "is it
+     * comment-shaped?" instead — the whole of Tokens::$commentTokens, which
+     * spans every docblock fragment and every PHPCS annotation — silently drops
+     * a genuine label written directly under a `// TODO`, under a formatter
+     * directive, under a docblock or under a comment trailing a statement — the
+     * spellings of the directives are the $formatterDirectives defaults,
+     * deliberately not repeated here for the reason given on the class above.
+     * None of those four is a label line, so none of them takes the label below
+     * it into its run: a debt marker and a formatter directive belong to the
+     * sibling standards that own them, a docblock documents the thing after it,
+     * and a comment sharing a line with code annotates that code.
      */
     private function isALabelLine(File $phpcsFile, int $stackPtr): bool
     {
@@ -543,22 +579,20 @@ class SectionCommentSniff implements Sniff
      * block, or the opening of the block it stands in — the places a label can
      * stand.
      *
-     * Any comments above are looked past, so a label separated from the code
-     * by a blank line and a second comment is still judged on the code. A
-     * comment preceded by anything else sits inside a statement — an array
-     * element, an argument, a multi-line expression — where what follows is
-     * not a statement in this scope.
+     * The boundary is the first token above the comment that is neither
+     * whitespace nor a comment, found by headsARunAtAStatementBoundary() and
+     * read by headsItsRun() as well: any comments above are looked past, so a
+     * label separated from
+     * the code by a blank line and a second comment is still judged on the
+     * code. A comment preceded by anything else sits inside a statement — an
+     * array element, an argument, a multi-line expression — where what follows
+     * is not a statement in this scope.
      *
      * @param array<int, int|string> $conditions
      */
-    private function followsAStatementBoundary(File $phpcsFile, int $stackPtr, array $conditions): bool
+    private function followsAStatementBoundary(File $phpcsFile, int $boundary, array $conditions): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $boundary = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-
-        if ($boundary === false) {
-            return false;
-        }
 
         if (in_array($tokens[$boundary]['code'], self::STATEMENT_BOUNDARY, true) === true) {
             return $this->finishesWhatItCloses($tokens, $boundary);

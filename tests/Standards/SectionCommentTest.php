@@ -122,7 +122,7 @@ it('produces no violations on the compliant fixture', function (): void {
  *   than `{`, which is why the boundary is read off the comment's own scope.
  * - line 238, a label inside an alternative-syntax `foreach`, which opens on
  *   `:` the same way.
- * - line 250, a label inside a method of an anonymous class, and line 327, one
+ * - line 250, a label inside a method of an anonymous class, and line 398, one
  *   inside a closure at file scope. Neither is nested in a named method, and
  *   both are function bodies in their own right.
  * - lines 261, 270, 279, 288, 298 and 307 — a label written directly under a
@@ -133,7 +133,20 @@ it('produces no violations on the compliant fixture', function (): void {
  *   "is the line above comment-shaped?" instead drops all six labels silently,
  *   and the comment above each label is deliberately absent from the map
  *   below.
- * - line 319, a label after a bare `{ … }` block, which PHP_CodeSniffer
+ * - lines 317, 329, 341, 353 and 365 — a label written *above* one of five
+ *   comment lines this rule would not report, with a second label under it and
+ *   one block below the pair: a debt marker, a formatter directive, a docblock,
+ *   a `phpcs:ignore` annotation and a multi-line block comment. Both labels
+ *   stand against the same statement boundary and introduce the same block, so
+ *   the first reports and the second is deliberately absent from the map:
+ *   reading only the line directly above reports both, once per label, for one
+ *   extraction candidate.
+ * - lines 376 and 378, the shape those five are measured against — two labels
+ *   separated by a statement that carries a trailing comment. The statement is
+ *   a boundary of its own, so these are two blocks and both report. A rule that
+ *   silenced a label because *any* comment stands between it and the label
+ *   above drops line 378.
+ * - line 390, a label after a bare `{ … }` block, which PHP_CodeSniffer
  *   records no scope owner for. Its brace still ends a statement, which is the
  *   ownerless case the brace test has to admit.
  */
@@ -174,15 +187,22 @@ it('flags every section label at its own line with the expected code', function 
             288 => [SECTION_COMMENT_WARNING],
             298 => [SECTION_COMMENT_WARNING],
             307 => [SECTION_COMMENT_WARNING],
-            319 => [SECTION_COMMENT_WARNING],
-            327 => [SECTION_COMMENT_WARNING],
+            317 => [SECTION_COMMENT_WARNING],
+            329 => [SECTION_COMMENT_WARNING],
+            341 => [SECTION_COMMENT_WARNING],
+            353 => [SECTION_COMMENT_WARNING],
+            365 => [SECTION_COMMENT_WARNING],
+            376 => [SECTION_COMMENT_WARNING],
+            378 => [SECTION_COMMENT_WARNING],
+            390 => [SECTION_COMMENT_WARNING],
+            398 => [SECTION_COMMENT_WARNING],
         ]);
 });
 
 /**
  * Each warning is reported at the comment itself, so an editor's inline marker
  * sits under the label rather than under the block it introduces. The columns
- * are asserted for one line per indentation depth: line 327 sits in a closure
+ * are asserted for one line per indentation depth: line 398 sits in a closure
  * at file scope, line 17 in a method body, line 93 one level deeper inside a
  * closure, and line 219 two levels deeper inside a `case` body.
  */
@@ -190,7 +210,7 @@ it('reports at the comment rather than the statement it introduces', function ()
     $file = analyzeFixture(SECTION_COMMENT, 'failing.php');
 
     expect(warningTuples($file))
-        ->toContain(['line' => 327, 'column' => 5, 'source' => SECTION_COMMENT_WARNING])
+        ->toContain(['line' => 398, 'column' => 5, 'source' => SECTION_COMMENT_WARNING])
         ->toContain(['line' => 17, 'column' => 9, 'source' => SECTION_COMMENT_WARNING])
         ->toContain(['line' => 93, 'column' => 13, 'source' => SECTION_COMMENT_WARNING])
         ->toContain(['line' => 219, 'column' => 17, 'source' => SECTION_COMMENT_WARNING]);
@@ -359,7 +379,7 @@ it('is never handed an arrow function as a comment\'s enclosing scope', function
 it('reports detection-only warnings', function (): void {
     $file = analyzeFixture(SECTION_COMMENT, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(34)
+    expect($file->getWarningCount())->toBe(41)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });

@@ -51,13 +51,16 @@ A comment is reported when **all** of the following hold:
   splits it into one comment token per physical line and a continuation line
   reads, on its own, exactly like a label.
 - It has **its line to itself** — no code before or after it there.
-- It is the **first line of its comment run**. Every *label* line with nothing
-  but whitespace above it belongs to the same run — a blank line between two
-  label lines does not start a second label — and only the head reports. A
-  comment the rule would not report in its own right is not a label line and
-  does not absorb the one below it, so a label written directly under a debt
-  marker, a formatter directive, a docblock, a `phpcs:` annotation or a comment
-  trailing a statement still reports.
+- It is the **first line of its comment run**. A run is every *label* line
+  standing against the same statement boundary as the comment, and only the
+  head reports — reporting each line would multiply one extraction candidate
+  into several. A blank line between two label lines does not start a second
+  label, and neither does a comment the rule would not report in its own
+  right: a debt marker, a formatter directive, a docblock, a `phpcs:`
+  annotation or a fragment of a multi-line block comment written between two
+  labels leaves them one label for one block. A comment *trailing a statement*
+  is the exception — the statement it trails is a boundary, so a label written
+  under it heads a run of its own and reports.
 - It stands at a **statement boundary** — the token before it is `;`, `}`, or
   the opener of the block it stands in (`{`, or the `:` of a `case`/`default`
   arm or an alternative-syntax block). This is what separates a label from a

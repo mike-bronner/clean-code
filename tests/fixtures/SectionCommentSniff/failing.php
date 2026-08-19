@@ -310,6 +310,77 @@ class LabelledBlocks
         return $payload;
     }
 
+    public function aroundADebtMarker(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Validate the payload.
+        // TODO: revisit the normalisation below.
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
+    public function aroundAFormatterDirective(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Validate the payload.
+        // @formatter:off
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
+    public function aroundADocblock(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Validate the payload.
+        /** @var array<string, mixed> $payload */
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
+    public function aroundAPhpcsAnnotation(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Validate the payload.
+        // phpcs:ignore Squiz.PHP.Eval
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
+    public function aroundAMultiLineBlockComment(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Validate the payload.
+        /* A block comment spanning
+           two physical lines, so neither of its tokens is a label line. */
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
+    public function aroundACommentTrailingAStatement(array $payload): array
+    {
+        // Validate the payload.
+        $payload['seen'] = true; // A note about the assignment it shares a line with.
+        // Normalise the keys.
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
+
     public function afterABareBlock(array $payload): array
     {
         {
