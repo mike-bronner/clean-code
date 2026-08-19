@@ -124,6 +124,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.ActionMethodReturn',
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
+    'CleanCode.Pattern.DisallowRepositoryClasses',
     'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
     'CleanCode.Testing.TestSuiteNamespace',
