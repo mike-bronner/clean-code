@@ -2692,10 +2692,12 @@
         constructs together anyway, so narrowing to PHPMD's subset is not
         expressible as configuration.
 
-        The sniff reports warnings out of the box; <type>error</type> raises it
-        so an assignment in a condition fails a phpcs run the way it fails a
-        phpmd run. It has no fixer, matching PHPMD — turning an assignment into
-        a comparison is a guess at intent, not a mechanical rewrite.
+        The sniff reports warnings out of the box. <type>error</type> raises the
+        Found code so an assignment in a condition fails a phpcs run the way it
+        fails a phpmd run; the second code stays at the sniff's own warning, for
+        the reason set out under #157 below. It has no fixer, matching PHPMD —
+        turning an assignment into a comparison is a guess at intent, not a
+        mechanical rewrite.
 
         The one shape the Generic sniff misses is a list() destructuring target
         (`if (list($a, $b) = $data)`), which PHPMD does report; the custom
@@ -2703,9 +2705,108 @@
         it and is picked up automatically via the ./CleanCode/ruleset.xml ref
         above.
     -->
-    <rule ref="Generic.CodeAnalysis.AssignmentInCondition">
+
+    <!--
+        Clear Code: One Idea Per Statement (#157, spun out of #8) —
+        docs/standards/clear-code-one-idea-per-statement.md.
+
+        The while-condition half of the rule, left at the sniff's own warning
+        severity. The sniff splits its reports across two codes: Found covers
+        if/elseif/for/switch/case/match, FoundInWhileCondition covers while and
+        do...while, and it is the only code either of those two constructs
+        reports under.
+
+        `while ($row = $statement->fetch())` is the one assignment-in-condition
+        shape that is idiomatic rather than accidental — it is how a cursor is
+        drained in PHP, and there is no assignment-free spelling of it that
+        reads better. Pointing at it is still worth doing, because the
+        deliberate use and the mistyped comparison look identical, but failing a
+        build over it would be wrong often enough that the rule would be turned
+        off.
+
+        Parity with PHPMD survives the downgrade untouched. PHPMD's
+        IfStatementAssignment reads if/elseif clauses only, so every report this
+        touches was already outside the mapping — no line phpmd flags moves off
+        the failing side of a phpcs run. That split is what
+        tests/fixtures/AssignmentInConditionSniff/ already encodes: the shared
+        failing.php carries no while case at all, and both while shapes sit in
+        divergences.php.
+
+        Both elements below are load-bearing, and so is their order.
+
+        The bare ref registers the sniff with both codes live. Without it, a ref
+        naming a single message code is read by Ruleset::processRule as "include
+        only this message": it sets the sniff's own severity to 0 and the named
+        code's to 5, which silences FoundInWhileCondition altogether rather than
+        lowering it. That branch is reached only when the ref introduces a sniff
+        not already included, so including the sniff first is what disarms it.
+
+        The raise is then scoped to Found rather than written as a
+        <type>warning</type> scoped to FoundInWhileCondition, because only one of
+        those two spellings does anything. File::addMessage resolves severity by
+        walking the message's codes from most to least specific and flipping on
+        the first one whose configured type is the *opposite* of what the sniff
+        reported — it does not simply let the most specific configured code win.
+        The sniff reports both codes as warnings, so a warning scoped to
+        FoundInWhileCondition matches what was already reported, flips nothing,
+        and lets the walk reach a sniff-wide <type>error</type> one step later
+        and raise the while case after all. Raising only Found leaves nothing
+        sniff-wide for the walk to find, which is what keeps the while case a
+        warning.
+
+        tests/Ruleset/IfStatementAssignmentTest.php pins both halves by
+        severity, so neither the inert spelling nor a dropped bare ref can be
+        restored silently.
+    -->
+    <rule ref="Generic.CodeAnalysis.AssignmentInCondition"/>
+    <rule ref="Generic.CodeAnalysis.AssignmentInCondition.Found">
         <type>error</type>
     </rule>
+
+    <!--
+        Clear Code: One Idea Per Statement (#157, spun out of #8) —
+        docs/standards/clear-code-one-idea-per-statement.md.
+
+        The chained-assignment half. `$a = $b = $c;` binds two names in one
+        statement, which is two ideas by the standard's own reading, and unlike
+        the semantic core of that standard it is fully visible in the token
+        stream. Squiz.PHP.DisallowMultipleAssignments already implements it, so
+        it is wired in rather than reimplemented; it reports errors out of the
+        box, so unlike Squiz.PHP.Eval and VariableAnalysis above it needs no
+        <type> override.
+
+        What the sniff actually covers is narrower than "multiple assignments"
+        in three ways, all of them measured against this PHPCS release rather
+        than inferred, and all of them pinned by
+        tests/fixtures/DisallowMultipleAssignmentsSniff/divergences.php:
+
+        - It registers T_EQUAL only, so a compound-operator chain
+          (`$total = $count += 1;`) is silent. A real limitation of the sniff,
+          not a carve-out, and left alone: the shape is vanishingly rare, and
+          the alternative is a custom sniff for one spelling of it.
+        - It returns early on any assignment nested in a while condition, so
+          `while ($a = $b = $c)` is silent here and reported only by the
+          warning-level FoundInWhileCondition above. A chained assignment
+          drained in a loop header is therefore a warning rather than an error.
+        - It exempts parameter defaults and property defaults
+          (`function f($x = 1)`, `public $bar = 1;`), which are declarations
+          rather than statements and carry one idea each.
+
+        The sniff reports under two codes and both are kept. Found is the
+        chained-assignment shape this standard is here for. FoundInControlStructure
+        is the same "assignment is not the first thing on the line" finding
+        raised from inside an if/elseif/switch/case/for/match condition — despite
+        the name it says nothing about braceless bodies, which the sniff does not
+        report at all. That code overlaps the rule above on purpose: an assignment
+        written inside a condition is reported once by each sniff, which is the
+        existing behaviour of every pair of rules here that agree, and narrowing
+        either one would take a code the other does not carry offline.
+
+        No fixer, matching the rule above — splitting `$a = $b = $c;` into two
+        statements has to decide the order the names are bound in, and where the
+        chain is deliberate that decision is the intent.
+    -->
+    <rule ref="Squiz.PHP.DisallowMultipleAssignments"/>
 
     <!--
         PHPMD UnusedCode: UnusedFormalParameter (#120) —

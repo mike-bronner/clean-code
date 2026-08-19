@@ -943,11 +943,13 @@ class UnusedFormalParameterSniff implements Sniff
             return $this->traitNames[$classPtr];
         }
 
-        return $this->traitNames[$classPtr] = $this->qualifiedNames(
+        $this->traitNames[$classPtr] = $this->qualifiedNames(
             $phpcsFile,
             $classPtr,
             $this->usedTraitNames($phpcsFile, $classPtr)
         );
+
+        return $this->traitNames[$classPtr];
     }
 
     /**
@@ -1195,7 +1197,9 @@ class UnusedFormalParameterSniff implements Sniff
         $names = [];
 
         if ($opener === null || $closer === null) {
-            return $this->methodNames[$classPtr] = $names;
+            $this->methodNames[$classPtr] = $names;
+
+            return $names;
         }
 
         $pointer = $phpcsFile->findNext(T_FUNCTION, $opener + 1, $closer);
@@ -1210,7 +1214,9 @@ class UnusedFormalParameterSniff implements Sniff
             $pointer = $phpcsFile->findNext(T_FUNCTION, $pointer + 1, $closer);
         }
 
-        return $this->methodNames[$classPtr] = $names;
+        $this->methodNames[$classPtr] = $names;
+
+        return $names;
     }
 
     /**

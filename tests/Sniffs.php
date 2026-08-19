@@ -89,6 +89,7 @@ const SWEPT_SNIFFS = [
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
     'SlevomatCodingStandard.Namespaces.UnusedUses',
+    'Squiz.PHP.DisallowMultipleAssignments',
     'Squiz.PHP.Eval',
     'VariableAnalysis.CodeAnalysis.VariableAnalysis',
 ];

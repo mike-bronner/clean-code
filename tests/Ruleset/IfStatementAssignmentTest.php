@@ -35,9 +35,19 @@
  * division of labour between them visible.
  *
  * Two properties beyond plain detection are pinned. The sniff reports warnings
- * out of the box; rules.xml raises it to an error so an assignment in a
- * condition fails a phpcs run the way it fails a phpmd run. It also has no
+ * out of the box; rules.xml raises its Found code to an error so an assignment
+ * in a condition fails a phpcs run the way it fails a phpmd run. It also has no
  * fixer, matching PHPMD, which the fixable-count assertion pins.
+ *
+ * Severity is split across the sniff's two codes (#157). Found stays the error
+ * #79 wired. FoundInWhileCondition — the only code a while or do...while
+ * condition reports under — keeps the sniff's own warning, because draining a
+ * cursor with `while ($row = fetch())` is idiomatic rather than accidental.
+ * Parity with PHPMD is unaffected: its rule reads if/elseif clauses only, so
+ * every lowered report was already outside the mapping. The split shows up here
+ * on divergences.php alone, which carries the suite's only two while cases;
+ * failing.php has none, so the error-severity assertion below runs against it
+ * unchanged.
  */
 
 declare(strict_types=1);
@@ -80,21 +90,35 @@ const IF_STATEMENT_ASSIGNMENT_SHARED = [
 ];
 
 /**
- * Every report on divergences.php — the shapes only the Generic sniff reports,
- * confirmed silent under phpmd 2.15. Two of them come under the sniff's second
- * code, which is what a source-blind assertion would let slip.
+ * The error-severity reports on divergences.php — the shapes only the Generic
+ * sniff reports, confirmed silent under phpmd 2.15, minus the two while cases
+ * that #157 moved to a warning and that are pinned separately below.
+ *
+ * Every condition kind except while and do...while comes under the Found code
+ * and stays an error, which is what proves the #157 downgrade is scoped to the
+ * one code rather than to the sniff: lines 36 (for), 44 (switch), 45 (case) and
+ * 49 (match) all sit here.
  */
 const IF_STATEMENT_ASSIGNMENT_BROADER = [
     ['line' => 20, 'column' => 21, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
     ['line' => 24, 'column' => 23, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
     ['line' => 28, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
-    ['line' => 32, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
     ['line' => 36, 'column' => 36, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
-    ['line' => 42, 'column' => 26, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
     ['line' => 44, 'column' => 26, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
     ['line' => 45, 'column' => 25, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
     ['line' => 49, 'column' => 32, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
     ['line' => 57, 'column' => 16, 'source' => IF_STATEMENT_ASSIGNMENT_FOUND],
+];
+
+/**
+ * The warning-severity reports on divergences.php: every while and do...while
+ * condition in the file, and nothing else. Line 32 is a while header, line 42
+ * the trailing while of a do...while — the two shapes FoundInWhileCondition
+ * covers, and the whole of what #157 lowered.
+ */
+const IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS = [
+    ['line' => 32, 'column' => 24, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
+    ['line' => 42, 'column' => 26, 'source' => IF_STATEMENT_ASSIGNMENT_IN_WHILE],
 ];
 
 /**
@@ -147,6 +171,49 @@ it('flags the conditions PHPMD overlooks too', function (): void {
     );
 
     expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_BROADER);
+});
+
+/**
+ * The #157 severity split, asserted from both sides at once.
+ *
+ * The error list is what stops the warning list passing vacuously: a ruleset
+ * that lowered the whole sniff instead of the one code would empty the errors
+ * and still satisfy an assertion that only read the warnings, and one that
+ * dropped the override entirely would empty the warnings. Naming the source on
+ * every entry is what separates the two codes, since both carry the same
+ * message text and the same fixture reports under both.
+ */
+it('lowers the while-condition code to a warning and leaves every other condition an error', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'divergences.php')
+    );
+
+    expect(warningTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS)
+        ->and(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_BROADER)
+        ->and($file->getWarningCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS))
+        ->and($file->getErrorCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_BROADER));
+});
+
+/**
+ * The bare <rule ref> that has to sit beside the code-scoped one in rules.xml.
+ *
+ * Without it, Ruleset::processRule reads a lone code-scoped ref as "include
+ * only this message", sets the sniff's own severity to 0 and the named code's
+ * to 5 — which silences FoundInWhileCondition altogether instead of lowering
+ * it. That failure is invisible to an error-only assertion, because the errors
+ * are identical either way; only a report that the while lines still exist
+ * catches it. Asserted as a non-empty warning set on the fixture that carries
+ * the only two while cases in the suite.
+ */
+it('keeps the while-condition code reporting rather than excluding it', function (): void {
+    $file = analyzeWithSniffs(
+        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+        fixturePath('AssignmentInConditionSniff', 'divergences.php')
+    );
+
+    expect(array_column(warningTuples($file), 'source'))
+        ->toBe(array_fill(0, count(IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS), IF_STATEMENT_ASSIGNMENT_IN_WHILE));
 });
 
 /**
