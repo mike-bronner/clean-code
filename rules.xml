@@ -1464,6 +1464,46 @@
     -->
 
     <!--
+        Pattern: Repository (#6, #126) — docs/standards/pattern-repository.md.
+
+        The custom CleanCode.Pattern.DisallowRepositoryClasses sniff carries the
+        one token-visible slice of an otherwise Tier 3 standard: whether
+        persistence behaviour actually lives on the model is a judgement about
+        intent that no single file's token stream can settle, while a dedicated
+        repository type that *names* itself for the pattern is right there in the
+        declaration. It is picked up automatically via the ./CleanCode/ruleset.xml
+        ref above; this comment records that no scoping and no property override
+        is wanted here.
+
+        It warns on a class, interface, trait, or enum whose declared name ends
+        in Repository or RepositoryInterface, or whose namespace carries a
+        Repositories segment — both compared case-insensitively, as PHP resolves
+        those names. Only the declaration is read: extends, implements, a trait
+        use, an import, and new are consumption sites, so a project forced to
+        extend a third-party *Repository base class is not reported for it.
+
+        Warning severity is the sniff's own, and deliberate — no <type>
+        override. The heuristic reads names rather than behaviour, so a hit is a
+        hint for the reviewer (the standard's own doc says so) and must not fail
+        a consumer's build on a type it has merely misread. Detection only:
+        dissolving a repository type means moving its methods onto a model and
+        rewriting every call site, which no single-file fixer can do.
+
+        No existing PHPCS, Slevomat, Squiz, PSR12 or PEAR sniff covers this.
+        Each of those standards was run whole against
+        tests/fixtures/DisallowRepositoryClassesSniff/failing.php and reported
+        only on the fixture's shape, never on what it is named for: bracketed
+        namespaces and several declarations in one file, brace and blank-line
+        layout, missing docblocks, and file-name/type-name mismatch.
+        SlevomatCodingStandard.Classes.SuperfluousInterfaceNaming is the nearest
+        neighbour and the only one whose report overlaps at all — it fires on
+        OrderRepositoryInterface for the *Interface* suffix, on every interface
+        that carries it, and says nothing about UserRepository or about a
+        Repositories namespace. Generic.NamingConventions.TraitNameSuffix is the
+        mirror image: it requires a suffix rather than forbidding one.
+    -->
+
+    <!--
         PHPMD Design: ExitExpression (#105) — docs/phpmd/design-exitexpression.md.
 
         No existing PHPCS, Slevomat or Generic sniff matches this rule.
