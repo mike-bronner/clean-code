@@ -56,4 +56,10 @@ class ExternalConcernsTest
         $this->putJson('/orders/1');
         $this?->get('/orders');
     }
+
+    public function testNamesSpelledInANonCanonicalCase(): void
+    {
+        HTTP::FAKE();
+        $this->GETJSON('/orders');
+    }
 }

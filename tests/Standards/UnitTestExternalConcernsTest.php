@@ -67,6 +67,14 @@ it('is registered in the master ruleset', function (): void {
  *   the trait; before the marker was read by content this exact line reported,
  *   because PHP_CodeSniffer tokenizes `function` here as T_STRING rather than
  *   T_FUNCTION.
+ * - `use FUNCTION …\refreshDatabase` — the same marker in a case no one
+ *   writes. `function` is a reserved word and PHP reads it case-insensitively,
+ *   so the sniff folds the marker before matching it; unfold that and this line
+ *   is read as a name beginning `FUNCTIONIlluminate\…`, whose trailing segment
+ *   is still `refreshDatabase`, and it reports. It is the only spelling that
+ *   discriminates the fold — inside a group import the marker glues to the
+ *   member instead (`FUNCTIONrefreshDatabase`), which matches no trait either
+ *   way.
  * - `…\{function refreshDatabase, const REFRESH_DATABASE}` — the same markers
  *   per-member inside a group import, which is a separate position in the scan.
  * - the trait adaptation block — its body names traits, and none of them is a
@@ -76,9 +84,14 @@ it('is registered in the master ruleset', function (): void {
  *   — `fake()`, but not on a watched facade. `Http::fake` with no `(` —
  *   a constant fetch, which installs nothing.
  * - `$repository->get(…)` / `$repository->getJson(…)` — a request-method name
- *   on a receiver that is not `$this`. `$this->getName()` / `$this->postProcess()`
- *   — `$this`, but not a request method. `$this->get` with no `(` — a property
- *   fetch.
+ *   on a receiver that is not `$this`. `$This->get(…)` / `$This?->getJson(…)`
+ *   — the same, spelled to differ from the pseudo-variable in case alone, which
+ *   is the one comparison in the sniff that must not be folded. PHP resolves
+ *   variable names case-sensitively, so `$This` is an ordinary variable holding
+ *   some other object; the nullsafe spelling is there so the second member of
+ *   the object-operator pair is checked on this side too.
+ *   `$this->getName()` / `$this->postProcess()` — `$this`, but not a request
+ *   method. `$this->get` with no `(` — a property fetch.
  * - `function () use ($refreshDatabase)` — a closure capture list, which shares
  *   the T_USE keyword with the imports above and carries variables, not names.
  */
@@ -116,6 +129,16 @@ it('produces no violations on the compliant fixture', function (): void {
  * spelling, which is what makes the receiver's trailing-segment comparison
  * load-bearing rather than decorative. Line 57 is `$this?->get()`, the nullsafe
  * operator, which is the second member of the object-operator pair.
+ *
+ * Lines 62-63 are the same two calls spelled in a case no one writes —
+ * `HTTP::FAKE()` and `$this->GETJSON()`. PHP resolves class and method names
+ * case-insensitively, so both are the same calls as their canonical spellings
+ * and both have to report; the sniff folds four names to lower case for that
+ * reason, and these two lines are what hold the folds that the rest of the
+ * fixture leaves as no-ops. `fake` and `getJson` are written here in upper
+ * case, so dropping either fold reddens this assertion; the facade's own fold
+ * is already load-bearing everywhere, since FAKEABLE_FACADES is stored lower
+ * case while every other line spells the facade `Http`.
  */
 it('flags every external concern on the failing fixture', function (): void {
     $file = analyzeFixtureWithRulesetProperties(UNIT_EXTERNAL, 'failing.php', UNIT_EXTERNAL_FLAT_SCOPE);
@@ -147,6 +170,8 @@ it('flags every external concern on the failing fixture', function (): void {
         ['line' => 55, 'column' => 16, 'source' => UNIT_EXTERNAL_HTTP],
         ['line' => 56, 'column' => 16, 'source' => UNIT_EXTERNAL_HTTP],
         ['line' => 57, 'column' => 17, 'source' => UNIT_EXTERNAL_HTTP],
+        ['line' => 62, 'column' => 13, 'source' => UNIT_EXTERNAL_FAKE],
+        ['line' => 63, 'column' => 16, 'source' => UNIT_EXTERNAL_HTTP],
     ]);
 });
 
@@ -317,7 +342,7 @@ it('inspects only what the configured unit-test path reaches', function (): void
 
     $configured = analyzeFixtureWithRulesetProperties(UNIT_EXTERNAL, 'failing.php', UNIT_EXTERNAL_FLAT_SCOPE);
 
-    expect($configured->getWarningCount())->toBe(26);
+    expect($configured->getWarningCount())->toBe(28);
 });
 
 /**
@@ -397,4 +422,54 @@ it('says nothing when there is no path to read', function (): void {
 
     expect($piped->getErrors())->toBe([])
         ->and($piped->getWarnings())->toBe([]);
+});
+
+/**
+ * The receiver comparison is the one name match in this sniff that is *not*
+ * folded to lower case, and this is what holds it that way.
+ *
+ * Every other name the sniff matches — a trait, a facade, a method, the
+ * `function`/`const` kind marker — is a class, function or reserved word, and
+ * PHP resolves those case-insensitively, so folding is what makes
+ * `HTTP::FAKE()` report like `Http::fake()`. A variable is the opposite: PHP
+ * resolves variable names case-sensitively, and `$This` is an ordinary variable
+ * holding some other object rather than the test case. Folding it reports a
+ * receiver the sniff's own docblock declines to guess at, in a message that
+ * would then spell it `$this` when the source says otherwise.
+ *
+ * Asserted in both directions, from one template that differs by the receiver
+ * alone, so neither half can be satisfied by the sniff having stopped looking:
+ * the canonical spelling reports at the call, and the miscased one is silent on
+ * bytes identical to it but for that single character. Fold this comparison and
+ * the silent half goes red on its own.
+ *
+ * Staged under a real `tests/Unit` directory outside the repository rather than
+ * committed, because the scope is read from the path and both files have to sit
+ * at the same one for the receiver to be the only variable between them.
+ */
+it('reads the test-case receiver case-sensitively', function (): void {
+    $template = <<<'PHP'
+        <?php
+
+        class ReceiverCaseTest
+        {
+            public function testItReachesTheHttpKernel(): void
+            {
+                RECEIVER->getJson('/orders');
+            }
+        }
+        PHP;
+
+    $stage = static fn (string $receiver, string $name): string => stageProjectOutsideTests(
+        ['tests/Unit/' . $name => str_replace('RECEIVER', $receiver, $template)]
+    );
+
+    $canonical = analyzeWithSniffs([UNIT_EXTERNAL], $stage('$this', 'CanonicalReceiverTest.php'));
+    $miscased = analyzeWithSniffs([UNIT_EXTERNAL], $stage('$This', 'MiscasedReceiverTest.php'));
+
+    expect(warningTuples($canonical))->toBe([
+        ['line' => 7, 'column' => 16, 'source' => UNIT_EXTERNAL_HTTP],
+    ])
+        ->and($miscased->getErrors())->toBe([])
+        ->and($miscased->getWarnings())->toBe([]);
 });

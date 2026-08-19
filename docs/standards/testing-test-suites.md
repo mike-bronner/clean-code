@@ -97,6 +97,12 @@ Known limits, all deliberate:
 - **Names are matched, not resolved.** A project's own class called `Http`, or
   its own trait called `RefreshDatabase`, reads as the Illuminate one; an
   aliased import does not.
+- **Only `$this` is read as the test case.** A request method reached through
+  any other variable is a call on some object the sniff cannot resolve, and is
+  not flagged. That comparison is case-sensitive, unlike every other name here:
+  PHP resolves variable names case-sensitively, so `$This` is a different
+  variable, while `HTTP::FAKE()` is the same call as `Http::fake()` and does
+  report.
 - **The request-method list is #148's own enumeration**, taken in both the plain
   and `Json` spelling of each verb it names. Laravel is not a dependency of this
   package, so the rest of `MakesHttpRequests` (`options`, `head`, `call`,

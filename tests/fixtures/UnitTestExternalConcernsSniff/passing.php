@@ -10,6 +10,7 @@ use Support\RefreshDatabaseHelper;
 use Support\Traits\Sortable;
 use Support\Traits\Timestampable;
 use function Illuminate\Foundation\Testing\refreshDatabase;
+use FUNCTION Illuminate\Foundation\Testing\refreshDatabase;
 use const Support\HTTP;
 use Illuminate\Foundation\Testing\{function refreshDatabase, const REFRESH_DATABASE};
 
@@ -55,6 +56,11 @@ class CalculatorTest
 
         $repository->get('orders');
         $repository->getJson('orders');
+
+        $This = $repository;
+
+        $This->get('orders');
+        $This?->getJson('orders');
 
         $this->getName();
         $this->postProcess();

@@ -68,6 +68,10 @@ use PHP_CodeSniffer\Util\Tokens;
  *   the conservative answer, and the one a consumer can recover from.
  * - A closure's `use (...)` capture list, which shares the T_USE keyword with
  *   the imports and trait uses this sniff reads.
+ * - A request method reached through any variable other than the pseudo-
+ *   variable `$this` — including one spelled `$This`. PHP resolves variable
+ *   names case-sensitively, which is why that one comparison is exact while
+ *   every other name here is folded; see processHttpRequest().
  * - A line carrying a `phpcs:ignore` or `@codingStandardsIgnoreLine` comment,
  *   handled by PHP_CodeSniffer itself and deliberately relied on rather than
  *   reimplemented. $this->get(...) can be an ordinary userland method on a
@@ -157,6 +161,8 @@ class UnitTestExternalConcernsSniff implements Sniff
     /**
      * The method that installs a facade double. See the class docblock for why
      * `fakeSequence` and the post-fake assertions are not here.
+     *
+     * Compared case-insensitively, PHP method names being case-insensitive.
      */
     private const FAKE_METHOD = 'fake';
 
@@ -332,12 +338,25 @@ class UnitTestExternalConcernsSniff implements Sniff
      * Only `$this` is a receiver here. A request method reached through any
      * other variable is a call on some other object, which this sniff cannot
      * resolve and does not guess at.
+     *
+     * The receiver is compared *case-sensitively*, which is the one comparison
+     * in this class that is, and deliberately so. Every other name this sniff
+     * matches — a trait, a facade, a method, the `function`/`const` kind
+     * marker — is a class, function or reserved word, and PHP resolves all of
+     * those case-insensitively, so `HTTP::FAKE()` is the same call as
+     * `Http::fake()` and has to report. A variable is the opposite: PHP
+     * resolves variable names case-sensitively, so `$This` is an ordinary
+     * variable holding some other object and `$this` is the pseudo-variable
+     * this rule is about. Fold the case here and a differently-cased variable
+     * is reported as if it were the test case — a false positive on a receiver
+     * the docblock above already commits to not guessing at, in a message that
+     * would spell the receiver `$this` when the source says otherwise.
      */
     private function processHttpRequest(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
-        if (strtolower($tokens[$stackPtr]['content']) !== '$this') {
+        if ($tokens[$stackPtr]['content'] !== '$this') {
             return;
         }
 
