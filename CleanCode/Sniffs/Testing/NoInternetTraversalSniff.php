@@ -39,9 +39,12 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * - a call to one of NETWORK_FUNCTIONS — `curl_init()`, `curl_exec()`,
  *   `fsockopen()` and `stream_socket_client()`. Each one exists to open a
  *   connection, so the call alone is the violation and no argument is read.
- * - a call to `file_get_contents()` whose first argument is a string literal
- *   whose text begins `http://` or `https://`. The function itself is ordinary,
- *   so here the URL is what makes it a network read.
+ * - a call to `file_get_contents()` whose filename argument is a string
+ *   literal whose text begins `http://` or `https://`. The function itself is
+ *   ordinary, so here the URL is what makes it a network read. The filename is
+ *   the first argument when the call passes it positionally and the argument
+ *   labelled `filename:` when the call names its arguments, so the two
+ *   spellings of one call are read the same way.
  * - a `new` of a class resolving to `GuzzleHttp\Client`. The sanctioned route to
  *   a faked third-party API is Laravel's `Http` facade with `Http::fake()`;
  *   building the underlying Guzzle client by hand steps around it.
@@ -205,6 +208,15 @@ class NoInternetTraversalSniff implements Sniff
     private const URL_READER = 'file_get_contents';
 
     /**
+     * URL_READER's own name for the parameter the URL is passed as, spelled as
+     * PHP declares it. A named argument is matched against this exactly rather
+     * than case-insensitively, because PHP resolves a named argument's label
+     * case-sensitively: `FileName:` is an Error at run time, not another
+     * spelling of the same call.
+     */
+    private const URL_PARAMETER = 'filename';
+
+    /**
      * The URL schemes that name a request leaving the machine, lowercased for
      * comparison. PHP resolves a stream wrapper's scheme case-insensitively, so
      * `HTTPS://` reaches the same wrapper as `https://` and is read the same
@@ -326,8 +338,9 @@ class NoInternetTraversalSniff implements Sniff
      * Whether the call opening after $stackPtr reads a URL naming one of the
      * network schemes.
      *
-     * Two things have to hold, and each rules out a shape the file does not
-     * state the value of:
+     * The argument read is the filename one — urlArgument() finds it under
+     * either spelling — and two things have to hold of it, each ruling out a
+     * shape the file does not state the value of:
      *
      * - the argument opens with a string literal, so `$base . '…'` is out on
      *   its first token;
@@ -366,9 +379,9 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         $closePtr = $tokens[$openPtr]['parenthesis_closer'];
-        $urlPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), $closePtr, true);
+        $urlPtr = $this->urlArgument($phpcsFile, $openPtr, $closePtr);
 
-        if ($urlPtr === false) {
+        if ($urlPtr === null) {
             return false;
         }
 
@@ -391,6 +404,91 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         return $this->namesNetworkScheme(StringLiteral::inner($tokens[$urlPtr]['content']));
+    }
+
+    /**
+     * Pointer to the first token of the call's filename argument, null when the
+     * call states no filename argument at all.
+     *
+     * A call spells that argument one of two ways, and both name the same
+     * parameter: positionally, as the first argument, or by label, as
+     * `filename:` anywhere in the list — PHP orders named arguments freely, so
+     * `file_get_contents(offset: 0, filename: '…')` passes the same filename as
+     * the plain call. Which one the call used is decided by its first argument:
+     * a leading label means every argument is named, since PHP rejects a
+     * positional argument written after a named one.
+     *
+     * Null is the answer for every other shape — an empty argument list, a
+     * spread or first-class-callable `...`, a named list that labels other
+     * parameters but not this one — because none of them states a filename this
+     * file can be read for.
+     */
+    private function urlArgument(File $phpcsFile, int $openPtr, int $closePtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $labelPtr = $this->urlParameterLabel($phpcsFile, $openPtr, $closePtr);
+
+        if ($labelPtr !== null) {
+            return $this->labelledValue($phpcsFile, $labelPtr, $closePtr);
+        }
+
+        $firstPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), $closePtr, true);
+
+        if ($firstPtr === false || $tokens[$firstPtr]['code'] === T_PARAM_NAME) {
+            return null;
+        }
+
+        return $firstPtr;
+    }
+
+    /**
+     * Pointer to the call's own `filename:` label, null when it writes none.
+     *
+     * The label has to be this call's own rather than one written inside a
+     * nested call, which the innermost enclosing parenthesis says. In
+     * `file_get_contents(offset: filesize(filename: 'local.json'), filename:
+     * '…')` the first `filename:` in the token run is filesize()'s, and reading
+     * it would hide the URL this call is actually given. A token
+     * PHP_CodeSniffer recorded no enclosing parenthesis for is left alone for
+     * the same reason: a pointer it did not establish is not one to report off.
+     */
+    private function urlParameterLabel(File $phpcsFile, int $openPtr, int $closePtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($pointer = ($openPtr + 1); $pointer < $closePtr; $pointer++) {
+            $isOwnLabel = $tokens[$pointer]['code'] === T_PARAM_NAME
+                && $tokens[$pointer]['content'] === self::URL_PARAMETER
+                && array_key_last($tokens[$pointer]['nested_parenthesis'] ?? []) === $openPtr;
+
+            if ($isOwnLabel === true) {
+                return $pointer;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Pointer to the first token of the value a label at $labelPtr introduces,
+     * null when the label is not followed by its colon and a value.
+     *
+     * PHP_CodeSniffer only spells a name T_PARAM_NAME when a colon follows it,
+     * so the colon is checked rather than assumed only because a malformed or
+     * half-typed file is what this sniff must stay silent about, not report off.
+     */
+    private function labelledValue(File $phpcsFile, int $labelPtr, int $closePtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $colonPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($labelPtr + 1), $closePtr, true);
+
+        if ($colonPtr === false || $tokens[$colonPtr]['code'] !== T_COLON) {
+            return null;
+        }
+
+        $valuePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($colonPtr + 1), $closePtr, true);
+
+        return $valuePtr === false ? null : $valuePtr;
     }
 
     /**

@@ -62,9 +62,11 @@ under a single `Found` code, naming the primitive that matched:
 - `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
   each one exists to open a connection, so the call alone is the violation and
   no argument is read;
-- `file_get_contents()` whose first argument is one whole string literal whose
-  text begins `http://` or `https://` (either case) — the function is otherwise
-  ordinary, so the URL is what makes it a request;
+- `file_get_contents()` whose filename argument is one whole string literal
+  whose text begins `http://` or `https://` (either case) — the function is
+  otherwise ordinary, so the URL is what makes it a request. The filename is the
+  first argument when the call passes it positionally and the argument labelled
+  `filename:` when the call names its arguments, wherever in the list it stands;
 - `new GuzzleHttp\Client` — resolved through the file's own namespace and `use`
   imports, so an import, an alias and the fully-qualified spelling all report
   while an unrelated `Client` from another namespace does not.

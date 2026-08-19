@@ -45,3 +45,8 @@ function curl_exec(string $handle): void
 // A call with no argument at all — there is no URL to read, so there is
 // nothing the file states about where it points.
 $empty = file_get_contents();
+
+// Named arguments that state no URL for the filename: one labels a different
+// parameter, the other names the filename but not where it points.
+$otherParameter = file_get_contents(context: 'https://api.example.test/orders');
+$namedDynamic = file_get_contents(filename: $url);
