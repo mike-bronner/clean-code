@@ -45,11 +45,18 @@ to run separately for it.
 - **Not auto-fixable** — matching PHPMD. Deleting a debug call is a judgement
   about what the surrounding code was meant to do, so the rule is
   detection-only.
-- **Methods and declarations named after a debug function are not flagged** —
-  `$debugger->print_r(...)`, `$debugger?->debug_print_backtrace(...)`,
-  `Debugger::debug_zval_dump(...)`, a `function dump()` declaration, `new
-  Dump(...)`, and the bare name used as a string or property are not calls to
-  the global function. The compliant fixture pins each of those shapes.
+- **Only a real call to the global function is flagged** — `$debugger->print_r(...)`,
+  `$debugger?->debug_print_backtrace(...)`, `Debugger::debug_zval_dump(...)`, a
+  `function dump()` declaration, its return-by-reference form `function &ray()`,
+  `new Dump(...)` and `new \print_r(...)`, an attribute such as `#[dd(1)]`, a
+  bare name a `use function` import redirects to another namespace, and the name
+  used as a string or property are none of them calls to the global function.
+  The compliant fixture pins each of those shapes.
+- **The detection is shared, not per-sniff** — the decision is
+  `MikeBronner\CleanCode\Helpers\FunctionCalls`, which every sniff that flags a
+  global function call routes through. A shape fixed there is fixed for all of
+  them at once, which is the point: hand-rolled copies of this test had already
+  drifted apart before it existed.
 - **Return-mode calls are still flagged** — `print_r($data, true)` returns the
   dump instead of printing it, but it is the same development-only function and
   PHPMD does not special-case the second argument. Neither does the sniff.
