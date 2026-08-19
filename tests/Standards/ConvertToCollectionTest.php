@@ -162,6 +162,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
     ],
+    'CleanCode/Sniffs/Testing/NoHttpFakesInIntegrationTestsSniff.php' => [
+        ['line' => 532, 'column' => 21],
+        ['line' => 536, 'column' => 31],
+        ['line' => 573, 'column' => 44],
+    ],
     'CleanCode/Sniffs/Testing/NoReflectionAccessSniff.php' => [
         ['line' => 278, 'column' => 44],
     ],
@@ -189,7 +194,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 196, 'column' => 15],
+        ['line' => 204, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 268, 'column' => 17],
@@ -259,6 +264,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/MultiLineStatementIndentTest.php' => [
         ['line' => 445, 'column' => 28],
         ['line' => 458, 'column' => 28],
+    ],
+    'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
+        ['line' => 65, 'column' => 44],
     ],
     'tests/Standards/NoProceduralCodeTest.php' => [
         ['line' => 142, 'column' => 57],
