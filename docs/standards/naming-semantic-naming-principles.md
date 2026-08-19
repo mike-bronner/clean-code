@@ -71,7 +71,12 @@ its own self-evident values:
 ```xml
 <rule ref="CleanCode.Naming.DisallowMagicNumbers">
     <properties>
-        <property name="ignoredNumbers" type="array" value="0,1,-1,100"/>
+        <property name="ignoredNumbers" type="array">
+            <element value="0"/>
+            <element value="1"/>
+            <element value="-1"/>
+            <element value="100"/>
+        </property>
     </properties>
 </rule>
 ```

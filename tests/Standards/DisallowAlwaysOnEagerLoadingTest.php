@@ -151,7 +151,8 @@ it('names the query-site alternative in the warning message', function (): void 
  *   - line 92, an abstract method. It has no body, so PHPCS records no scope
  *     opener or closer for it at all — the parameter list is all there is.
  *
- *   Dropping the sniff's isPlainParameter() call reports all four.
+ *   Dropping the sniff's ParameterDeclaration::isPlainParameter() call reports
+ *   all four.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(EAGER_LOADING_WITH, 'passing.php');

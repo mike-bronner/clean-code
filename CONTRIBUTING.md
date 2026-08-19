@@ -12,17 +12,19 @@ to `<input>.fixed`. Neither can express the fixture layout below, which gives a
 sniff its own directory and fixed names inside it. Tests here drive the real
 `phpcs`/`phpcbf` through the helpers in `tests/Helpers.php` instead.
 
-Two files still extend that harness and are the only exception:
-`CleanCode/Tests/DeadCode/UnusedPrivateElementsUnitTest.php` and
+One file still extends that harness and is the only exception:
 `CleanCode/Tests/Operators/DisallowNewlineAroundEvaluativeOperatorsUnitTest.php`,
-with their `.inc` fixtures beside them (and, for the operators one, an
-`.inc.fixed`). No `<testsuite>` in `phpunit.xml.dist` covers `CleanCode/Tests/`,
-so `composer test` never collects them — they are dead weight awaiting deletion,
-not a second convention. Both
-sniffs they name still have live assertions under `tests/`
-(`tests/Ruleset/NoDeadCodeRulesetTest.php` and
-`tests/Integration/OperatorRulesIntegrationTest.php`), so deleting the pair
-loses no coverage. Add nothing to `CleanCode/Tests/`.
+with its `.inc` and `.inc.fixed` fixtures beside it. No `<testsuite>` in
+`phpunit.xml.dist` covers `CleanCode/Tests/`, so `composer test` never collects
+it — it is dead weight awaiting deletion, not a second convention. The sniff it
+names still has live assertions under `tests/`
+(`tests/Integration/OperatorRulesIntegrationTest.php`), so deleting it loses no
+coverage. Add nothing to `CleanCode/Tests/`.
+
+The `DeadCode` half of that pair is gone: #206 deleted
+`CleanCode/Tests/DeadCode/UnusedPrivateElementsUnitTest.php` and its `.inc`
+after porting their coverage to `tests/Standards/UnusedPrivateElementsTest.php`
+and `tests/fixtures/UnusedPrivateElementsSniff/`.
 
 ## Layout
 
@@ -30,9 +32,10 @@ loses no coverage. Add nothing to `CleanCode/Tests/`.
 rules.xml                                  # master ruleset — standards get wired in here
 CleanCode/
 ├── ruleset.xml                            # the installable CleanCode standard
+├── Helpers/<Name>.php                     # token-stream decisions shared by several sniffs
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
-└── Tests/                                 # legacy AbstractSniffUnitTest pair — uncollected, do not extend
+└── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
 docs/standards/                            # one doc per clean-code standard
 docs/phpmd/                                # one doc per replicated PHPMD rule
 tests/
@@ -42,8 +45,10 @@ tests/
 ├── Helpers.php                            # the sniff-driving helper functions
 ├── fixtures/
 │   ├── <Name>Sniff/                       # per-sniff fixtures, named for the sniff class
+│   ├── <Name>/                            # per-helper fixtures, named for the helper class
 │   └── _rulesets/<Standard>/              # fixtures for standards carried by several sniffs
 ├── Contract/                              # the generic three-fixture sweep
+├── Helpers/                               # the shared classes under CleanCode/Helpers/
 ├── Standards/                             # a custom sniff's own behaviour — one file per sniff
 ├── Rules/                                 # four older files doing tests/Ruleset/'s job — closed to new work
 ├── Ruleset/                               # a standard as rules.xml wires and configures it, plus its own fixtures/
@@ -53,10 +58,11 @@ tests/
 ### How a test gets collected
 
 `composer test` runs Pest against `phpunit.xml.dist`, which declares one
-`<testsuite>` per suite directory — `Contract`, `Integration`, `Rules`,
-`Ruleset`, `Standards` — each pointing at `tests/<Name>`. A `<directory>`
-defaults to `suffix="Test.php"`, so a file is collected when it sits in one of
-those five directories **and** its name ends `Test.php`. Nothing else registers
+`<testsuite>` per suite directory — `Contract`, `Helpers`, `Integration`,
+`Rules`, `Ruleset`, `Standards` — each pointing at `tests/<Name>`. A
+`<directory>` defaults to `suffix="Test.php"`, so a file is collected when it
+sits in one of those six directories **and** its name ends `Test.php`. Nothing
+else registers
 a test, which is also why `CleanCode/Tests/` never runs: no `<testsuite>` names
 it.
 
@@ -127,11 +133,13 @@ Four files sit outside the table and stay where they are.
 `tests/Ruleset/DisallowStaticMembersTest.php`,
 `tests/Ruleset/MultilineStringsTest.php` and
 `tests/Ruleset/NoDeadCodeRulesetTest.php` cover custom ones.
-`NoDeadCodeRulesetTest` is the only test of any kind for
-`CleanCode.DeadCode.UnusedPrivateElements`: it drives that sniff alongside the
-three third-party sniffs the No Dead Code standard also needs, which is why it
-sits in `tests/Ruleset/` and not beside the other custom-sniff tests. Follow the
-table rather than these four.
+`NoDeadCodeRulesetTest` drives `CleanCode.DeadCode.UnusedPrivateElements`
+alongside the three third-party sniffs the No Dead Code standard also needs,
+which is why it sits in `tests/Ruleset/` and not beside the other custom-sniff
+tests. Since #206 it is no longer that sniff's only test: the sniff's own
+behaviour moved to `tests/Standards/UnusedPrivateElementsTest.php`, where the
+table puts it, and this file kept the wiring half. Follow the table rather than
+these four.
 
 #### Layouts this table supersedes
 
@@ -164,6 +172,32 @@ Neither is in the tree the merge landed, and neither is a pattern to copy.
 issue's acceptance criteria carry an older fixture or harness convention —
 several still quote a `Fixtures/<SniffClassName>/` layout that exists nowhere in
 this repo — this file wins.
+
+### The shared helpers
+
+`CleanCode/Helpers/` holds the decisions more than one sniff has to make about
+the token stream. `FunctionCalls::isGlobalFunctionCall()` is the first:
+"is this `T_STRING` a call to PHP's own global function, or a same-named method,
+declaration, class, attribute, or imported symbol?".
+
+**Route through it rather than hand-rolling the test again.** Every sniff that
+flags a global function call needs that answer, and before the helper existed
+each one carried its own copy: the copies drifted, and each new sniff inherited
+whichever gaps its nearest neighbour had. One implementation means a shape fixed
+once is fixed everywhere.
+
+`tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
+the only thing they share: the directory is a suite covering the shared classes
+under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite
+here calls.
+
+A helper carries its own fixtures under `tests/fixtures/<Name>/` and its own
+tests under `tests/Helpers/<Name>Test.php`, driven by `parseFixture()` — it
+tokenises a fixture without running a sniff, which is what lets a test read the
+helper's verdict for every shape rather than only the ones some sniff's own name
+list would let through. A helper directory holds no sniff, so the contract sweep
+in `tests/Contract/` never reaches it: `tests/fixtures/<Name>/` is bound to its
+suite only by the helper's own test file.
 
 ### The fixture contract
 
@@ -243,6 +277,8 @@ intentionally non-compliant fixture must not fail the PSR-12 self-lint.
 nothing about driving a sniff is stateful across a test's lifecycle. The ones
 you will reach for:
 
+- `parseFixture($directory, $fixture)` — tokenise a fixture without running any
+  sniff, for testing the shared classes under `CleanCode/Helpers/` directly.
 - `analyzeFixture($sniffCode, $fixture, $configure = null)` — run one fixture
   through a ruleset narrowed to one sniff, resolving the fixture directory from
   the sniff code. `$configure` receives the sniff instance so a test can set its
@@ -294,7 +330,51 @@ in and what applies the `<properties>` configured there.
    `CleanCode.<Category>.<Name>`. Use
    `CleanCode/Sniffs/Debug/DisallowDebugFunctionsSniff.php` as the template.
    Sniffs in the standard's `Sniffs/` directory are included automatically —
-   no per-sniff registration in `CleanCode/ruleset.xml` is needed.
+   no per-sniff registration in `CleanCode/ruleset.xml` is needed. If it flags a
+   call to a global PHP function, call
+   `FunctionCalls::isGlobalFunctionCall()` — see "The shared helpers" above —
+   instead of writing that check again.
+
+   **Give every token-kind classification array a named family.** A
+   `private const` enumerating PHPCS token constants — the `EXPRESSION_SCOPES`,
+   `CHAIN_OPERATORS`, `NON_FUNCTION_CALL_PRECEDERS` shape — must carry a doc
+   comment naming the **canonical, independent source** of the family it
+   classifies, and accounting for every member of that source: included, or
+   excluded with a one-line reason, inline in that same comment. A canonical
+   source is a `PHP_CodeSniffer\Util\Tokens::$…` grouping array, or a closed
+   list stated with its provenance ("every `T_*_ARROW` constant `token_name()`
+   reports"). A family read off the array's own current contents does not
+   count — it is complete by construction and asks nothing of the author.
+   Where the source and the family differ, say so and prove it, rather than
+   quietly widening either: `T_FN` is in `EXPRESSION_SCOPES`'s family but not
+   in `Tokens::$scopeOpeners`, and the test below asserts both halves of that
+   against a tokenized arrow function.
+
+   `MultiLineStatementIndentSniff::EXPRESSION_SCOPES` is the worked example,
+   and `accounts for every scope opener PHPCS defines` in
+   `tests/Standards/MultiLineStatementIndentTest.php` is the test shape that
+   holds it: the family read out of PHPCS at run time, the accounting parsed
+   out of the docblock, neither restated in the test. A PHPCS release that
+   adds a scope opener reddens the suite instead of slipping past it.
+
+   This is a checklist step rather than a check that runs over every such array
+   in the tree, because **nothing declares which family a given array answers
+   to.** Finding the declarations is easy — tokenize the tree, take every
+   `private const` of `T_*` constants — but the family each one is measured
+   against is a judgement (`CHAIN_OPERATORS` against dereference operators,
+   `RAW_CONTENT` against raw-content tokens), and no registry maps an array to
+   its family, so an automated checker has nothing to compare against. The
+   lighter, purely structural alternative — assert every such constant has an
+   adjacent family doc comment — was considered and **rejected**: it says
+   nothing about whether the named family is canonical or the accounting
+   complete, which is the whole loophole this convention closes, and switching
+   it on would fail against every already-shipped classification array (some
+   ninety of them, across forty-odd sniffs), a retrofit issue #316 scopes out.
+
+   When a sniff does ship a classification array missing a member of its
+   family, open the issue **against this checklist step**, not against the
+   individual sniff. The step is what failed; fixing the one array again
+   leaves the step exactly as unable to catch the next one.
 2. **Add its fixtures** at `tests/fixtures/<Name>Sniff/`, following the contract
    above. Compliant and violating code go in **separate files**, never one.
 3. **Add it to the contract sweep** — one entry in `SWEPT_SNIFFS` if it reports
@@ -307,7 +387,9 @@ in and what applies the `<properties>` configured there.
    half-applied.) Add it to
    `autofixable sniffs` too, and, if its fixer is total,
    `sniffs whose fixer resolves every violation`. That alone gives it the
-   generic passing/failing/autofix/idempotence coverage.
+   generic passing/failing/autofix/idempotence coverage. Every one of those
+   lists is kept in alphabetical order, enforced by `it keeps every sniff list
+   in alphabetical order` — file each entry in its sorted position.
 
    A sniff **scoped by path** is the one exception: the sweep processes each
    fixture where it lives, under `tests/`, and the scoping is decided from the

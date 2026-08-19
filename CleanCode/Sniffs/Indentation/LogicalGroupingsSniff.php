@@ -84,6 +84,19 @@ class LogicalGroupingsSniff implements Sniff
     ];
 
     /**
+     * Physical line number => pointer to the first token recorded on that line,
+     * for the token stream named by $lineStartsKey.
+     *
+     * @var array<int, int>
+     */
+    private array $lineStarts = [];
+
+    /**
+     * The token stream $lineStarts describes: file, token count, and fixer loop.
+     */
+    private string $lineStartsKey = '';
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -477,19 +490,87 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
+     * The pointer to the first token recorded on the given token's line, read
+     * from an index built once per token stream.
+     *
+     * Both callers used to find it by stepping backwards one token at a time
+     * until the line changed. That is fine once, but each group of a condition
+     * is checked in its own right, so a line carrying n stacked group openers
+     * paid a walk for each of them over an ever-growing prefix of that one
+     * line: n walks of 1, 2, … n tokens, quadratic in the number of groups on
+     * the line. The one-opener-per-line shape was already made linear by giving
+     * every walk in this class a way to jump past a nested region, but that
+     * change never reached here, because these two walks are along a physical
+     * line rather than through a group's contents.
+     *
+     * The index is keyed rather than rebuilt per call because process() runs
+     * once per control structure: rebuilding it for every `if` in a file would
+     * move the same quadratic cost up a level rather than remove it. The key
+     * is the one three sniffs in this package already use for a per-stream
+     * index — file, token count, fixer loop — but the three parts do not
+     * carry equal weight. The file separates two files. The count separates a
+     * retokenization that added or removed tokens, and separates two sources
+     * analysed as STDIN, which the file cannot because they share one name.
+     *
+     * The loop counter is the part worth being exact about, because the
+     * obvious reading of it is wrong. It looks like the part that keeps a
+     * stale index from surviving one phpcbf pass into the next —
+     * Fixer::fixFile() re-tokenizes and re-runs every sniff up to fifty times
+     * per file, and a fix elsewhere in the ruleset can move a line without
+     * changing how many tokens the file has. Nothing stale does survive, but
+     * the key is not what stops it: Fixer::fixFile() calls
+     * Ruleset::populateTokenListeners() before every pass, which constructs a
+     * new instance of every sniff. This object, and with it $lineStarts and
+     * $lineStartsKey, is discarded and rebuilt each pass, so no instance lives
+     * across two passes and no key from one loop is ever compared against a
+     * key from the next. Between passes the object lifecycle does the whole
+     * job; the counter is along for the ride. Dropping it from the key leaves
+     * every pass of the round-trip test behaving identically, which is what
+     * that test's docblock records.
+     *
+     * It stays because the key is character-for-character the one the three
+     * sibling sniffs use, and issue #343 tracks that shared idiom across all
+     * four sites at once; giving this one site a different key shape now would
+     * split the thing that issue is about.
+     *
+     * A line the index has no entry for cannot arise — every token's own line
+     * is recorded — and the fallback is the answer the old walk gave when it
+     * could not move: the token itself, treated as its line's first.
+     */
+    private function lineStart(File $phpcsFile, int $stackPtr): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $key = $phpcsFile->getFilename()
+            . '|' . count($tokens)
+            . '|' . ($phpcsFile->fixer->loops ?? 0);
+
+        if ($this->lineStartsKey !== $key) {
+            $this->lineStartsKey = $key;
+            $this->lineStarts = [];
+
+            foreach ($tokens as $pointer => $token) {
+                // Token lines never decrease, so the first pointer seen for a
+                // line is the same one the backward walk used to land on.
+                $this->lineStarts[$token['line']] ??= $pointer;
+            }
+        }
+
+        return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);
+    }
+
+    /**
      * The indentation (leading-space count) of the line the given token sits on.
      */
     private function indentOfLine(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
         $line = $tokens[$stackPtr]['line'];
-        $first = $stackPtr;
 
-        while ($first > 0 && $tokens[($first - 1)]['line'] === $line) {
-            $first--;
-        }
-
-        for ($i = $first; $tokens[$i]['line'] === $line; $i++) {
+        for (
+            $i = $this->lineStart($phpcsFile, $stackPtr);
+            isset($tokens[$i]) === true && $tokens[$i]['line'] === $line;
+            $i++
+        ) {
             if ($tokens[$i]['code'] !== T_WHITESPACE) {
                 return $tokens[$i]['column'] - 1;
             }
@@ -505,13 +586,7 @@ class LogicalGroupingsSniff implements Sniff
     private function reindent(File $phpcsFile, int $pointer, int $expected): void
     {
         $tokens = $phpcsFile->getTokens();
-        $line = $tokens[$pointer]['line'];
-        $first = $pointer;
-
-        while ($first > 0 && $tokens[($first - 1)]['line'] === $line) {
-            $first--;
-        }
-
+        $first = $this->lineStart($phpcsFile, $pointer);
         $padding = str_repeat(' ', $expected);
 
         if ($tokens[$first]['code'] !== T_WHITESPACE) {

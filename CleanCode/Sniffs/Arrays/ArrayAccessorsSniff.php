@@ -669,10 +669,15 @@ class ArrayAccessorsSniff implements Sniff
      * - isForeachTargetClause() compares `as` against the chain root, and every
      *   root reaching this step lies inside this construct — so the construct
      *   is wholly on one side of `as` and every one of those roots is on that
-     *   side with it. The exception is an `as` *within* the construct, which
-     *   only a `foreach` header nested in the clause can produce: there the
-     *   roots genuinely differ, and the step is answered STEP_ROOT_DEPENDENT so
-     *   the walk decides it per root rather than caching either answer.
+     *   side with it. STEP_ROOT_DEPENDENT answers the remaining case, where the
+     *   `as` sits *within* the construct and the roots on either side of it
+     *   genuinely differ, so the walk decides it per root rather than caching
+     *   either answer. No well-formed header reaches it: foreachClauseAs()
+     *   returns the `as` at the header's own parenthesis depth, and a construct
+     *   inside the header that spanned that `as` would enclose it and so change
+     *   its depth. It is kept as the answer that decides nothing on its own,
+     *   because assuming a token stream cannot produce it is the direction that
+     *   drops a read.
      *
      * The rest of classifyEnclosure() is a property of the closer alone, so it
      * carries over unchanged.
@@ -789,9 +794,26 @@ class ArrayAccessorsSniff implements Sniff
      * something else — or a header with no `as` at all, which assigns into
      * nothing and so decides exactly as a header that is not a target does.
      *
+     * The header's *own* `as` is the one at the header's own parenthesis depth,
+     * not the first `T_AS` in its span. A header's subject can hold a scope of
+     * any kind — a closure, an anonymous class' method — and a scope can hold a
+     * `foreach` of its own, whose `as` sits in the same span and comes first.
+     * Comparing a chain root against that one takes a genuine read on its far
+     * side for the outer header's write target and silently drops it.
+     *
+     * Depth is read from the candidate's own `nested_parenthesis`, whose *last*
+     * entry is the innermost pair enclosing it. Only that pair identifies the
+     * owner: the header's parentheses enclose every nested `as` too, so mere
+     * membership matches the nested ones as readily as the real one. A
+     * candidate with no enclosing pair on record cannot be shown to be this
+     * header's own, so it is passed over — leaving the header deciding as one
+     * with no `as` does, which reports the read rather than dropping it.
+     *
      * The lookup scans the header, which is the whole of it: a header holding a
      * staircase of reads would be rescanned once per read without this, which is
-     * the O(n²) the outward walk itself no longer has.
+     * the O(n²) the outward walk itself no longer has. Passing over a nested
+     * candidate resumes the scan just past it, so the whole search still crosses
+     * the header once however many nested `foreach` headers sit inside it.
      */
     private function foreachClauseAs(File $phpcsFile, int $closerPtr): ?int
     {
@@ -805,8 +827,19 @@ class ArrayAccessorsSniff implements Sniff
 
         if ($ownerPtr !== null && $tokens[$ownerPtr]['code'] === T_FOREACH) {
             $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
-            $foundPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
-            $asPtr = $foundPtr === false ? null : $foundPtr;
+            $searchPtr = ($openerPtr + 1);
+
+            while (($foundPtr = $phpcsFile->findNext(T_AS, $searchPtr, $closerPtr)) !== false) {
+                $nestedPtrs = $tokens[$foundPtr]['nested_parenthesis'] ?? [];
+
+                if (array_key_last($nestedPtrs) === $openerPtr) {
+                    $asPtr = $foundPtr;
+
+                    break;
+                }
+
+                $searchPtr = ($foundPtr + 1);
+            }
         }
 
         return $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;

@@ -47,11 +47,14 @@ non-overlapping remainder — `PropertyTypeHint` and docblock hygiene.
   widened to the native `bool` (not the 8.2 standalone `false`), and a
   docblock `@param null` — which has no native 8.1 spelling — is left
   unhinted rather than flagged.
-- **`MissingTraversableTypeHintSpecification` and `UselessAnnotation` are
-  excluded** — they police docblock hygiene (`@param array<int, string>`
-  specifications, annotations duplicating native hints), not missing native
-  hints. Docblock and property coverage belongs to the general Type Hints
-  standard ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)).
+- **`MissingTraversableTypeHintSpecification`, `UselessAnnotation`, and
+  `LessSpecificNativeTypeHint` are excluded** — each acts on what a docblock
+  says rather than on a missing native hint: item-type specifications
+  (`@param array<int, string>`), annotations duplicating the native hint, and
+  narrowing a declared `: void` to `: never` on the strength of a
+  `@return never` annotation. Docblock and property coverage belongs to the
+  general Type Hints standard
+  ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)).
 
 ### Edge-case behaviour
 
