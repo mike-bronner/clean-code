@@ -133,7 +133,7 @@ it('is registered in the master ruleset', function (): void {
  * - lines 32-38, `new` of something that is not the Guzzle client: a same-named
  *   class from another namespace, its fully-qualified spelling, a dynamic class
  *   name, and an anonymous class.
- * - line 40, a `curl_exec` *declaration* — the T_FUNCTION preceder, which
+ * - line 41, a `curl_exec` *declaration* — the T_FUNCTION preceder, which
  *   FunctionCalls::isGlobalFunctionCall() is what rules out.
  * - line 47, a call carrying no argument at all — the argument region is empty,
  *   so there is no first token to read a URL out of. Confirmed by mutation: this
@@ -376,8 +376,10 @@ it('accounts for every string token PHPCS defines', function (): void {
  *
  * PHP_CodeSniffer 3.x undoes PHP 8's single qualified-name tokens back to the
  * pre-8.0 T_STRING/T_NS_SEPARATOR spelling, so the three T_NAME_* codes cannot
- * arrive at all, and T_NAMESPACE leads a relative name that resolves to the
- * watched client only inside that client's own namespace. Both halves of the
+ * arrive at all, and T_NAMESPACE leads a `namespace\Client` relative name that
+ * resolves to `\GuzzleHttp\namespace\Client` inside `namespace GuzzleHttp;` —
+ * a literal segment matching no watched client, so that token reaches no
+ * report either. Both halves of the
  * reachable pair are covered by failing.php — the short name on line 19, the
  * separator-led one on line 21 — and this test asserts the tokenizer behaviour
  * the disclosure rests on, so a release that stops undoing it reddens here

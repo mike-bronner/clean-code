@@ -140,8 +140,13 @@ class NoInternetTraversalSniff implements Sniff
      * and the sniff's test says so outright rather than implying coverage of the
      * rest, as CleanCode.Routes.DisallowNonResourceRoutes does for the same
      * split. The other four are inert here, in both directions: T_NAMESPACE
-     * leads a `namespace\Client` relative name that resolves to this client only
-     * inside the client's own namespace, and the three T_NAME_* codes cannot
+     * leads a `namespace\Client` relative name, which resolveClassName() reads
+     * as an ordinary unmatched segment and prefixes with the current namespace:
+     * written inside `namespace GuzzleHttp;` it resolves to
+     * `\GuzzleHttp\namespace\Client`, matching nothing in NETWORK_CLIENTS. The
+     * shape that does resolve to the watched client inside that client's own
+     * namespace is the plain `new Client()`, and it arrives as T_STRING. The
+     * three T_NAME_* codes cannot
      * arrive at all while PHPCS 3.x undoes PHP 8's qualified-name tokens back to
      * the pre-8.0 spelling. They are carried so a release that stops undoing it
      * finds the run already reading a whole name instead of half of one.

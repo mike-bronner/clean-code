@@ -172,7 +172,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 336, 'column' => 20],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 145, 'column' => 27],
+        ['line' => 146, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 573, 'column' => 66],
