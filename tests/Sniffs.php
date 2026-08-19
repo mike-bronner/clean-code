@@ -105,6 +105,14 @@ const SWEPT_SNIFFS = [
  * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
  * instead, fixtures staged under a real `routes` directory, plus the
  * shipped-binary run in both directions that the sweep gives up on its behalf.
+ *
+ * Absent for the same reason, and in the same shape:
+ * CleanCode.Testing.NoHttpFakesInIntegrationTests, whose default
+ * integrationPatterns gate cannot match
+ * tests/fixtures/NoHttpFakesInIntegrationTestsSniff/ — the directory holds no
+ * `tests/Integration` pair. tests/Standards/NoHttpFakesInIntegrationTestsTest.php
+ * carries its whole floor, fixtures staged under a real `tests/Integration`
+ * directory, plus the same shipped-binary run in both directions.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
