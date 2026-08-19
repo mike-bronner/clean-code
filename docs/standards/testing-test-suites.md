@@ -13,7 +13,7 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 core, one enforced slice
+## Enforceability — Tier 3 core, two enforced slices
 
 The standard's core is architectural / semantic, and stays enforced by **code
 review and developer discipline**.
@@ -52,14 +52,61 @@ correct depends on the project's layout rather than on anything in the file, so
 there is no fixer.
 
 This is the layout half only. Whether the *code* in a test belongs in the suite
-it sits in remains a judgment, and stays with code review.
+it sits in remains a judgment — but one part of it is not. A feature test must
+not traverse the internet, and the raw primitives that can only traverse it are
+written in the file that calls them. The custom sniff
+**`CleanCode.Testing.NoInternetTraversal`**
+([#149](https://github.com/mike-bronner/phpcs-rules/issues/149)) reports them
+under a single `Found` code, naming the primitive that matched:
+
+- `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
+  none of them has a use that stays on the machine, so the call alone is the
+  violation;
+- `file_get_contents()` whose first argument is one whole string literal whose
+  text begins `http://` or `https://` (either case) — the function is otherwise
+  ordinary, so the URL is what makes it a request;
+- `new GuzzleHttp\Client` — resolved through the file's own namespace and `use`
+  imports, so an import, an alias and the fully-qualified spelling all report
+  while an unrelated `Client` from another namespace does not.
+
+The sanctioned route is the `Http` facade with `Http::fake()`, which is
+deliberately not a watched primitive. Only files whose path matches
+`featureTestPatterns` are inspected — fnmatch globs defaulting to any path
+holding a `tests/Feature` pair — so the same primitive in an integration test,
+where the standard says it belongs, is left alone.
+
+It reports **warnings, not errors**, and is **detection-only**: replacing a real
+request with a fake means writing the fake — what to return, and for which URLs
+— which is not recoverable from the call being replaced.
+
+Six boundaries come with it, and none is a defect to be fixed later:
+
+- a request through an un-faked `Http` facade call is not flagged, because
+  whether a fake is active is set up elsewhere and is not statically decidable;
+- a request made through a service class the test calls carries no primitive of
+  its own and needs project-wide symbol resolution;
+- a variable URL (`file_get_contents($url)`) states nothing about where it
+  points, and neither does a concatenation — the argument must be one whole
+  literal;
+- a URL whose scheme is spelled with escape sequences (`"\x68ttp://…"`) is not
+  recognised; the two idiomatic spellings agree, since `'http://…'` and
+  `"http://…"` hold identical characters between their delimiters;
+- a URL literal split across physical lines is tokenized one token per line, and
+  only a whole literal is read;
+- another HTTP client is outside the slice: the watched list is a constant, not a
+  property, because the standard names Guzzle and a retunable list would make the
+  rule mean something different in each project.
+
+Whether a feature test that uses none of these still reaches the internet — and
+whether every faked feature test has its unfaked integration twin — remains a
+judgment, and stays with code review.
 
 ## Partial enforcement assessment
 
 Each suite has a token-visible *content-mismatch* slice — code whose mere
-presence in that suite's directory contradicts the suite's definition. Each
-slice has a focused follow-up issue rather than a sniff built under this
-documentation-only standard:
+presence in that suite's directory contradicts the suite's definition. Each got
+a focused follow-up issue rather than a sniff built under this
+documentation-only standard; one of the three has since shipped:
 
 - **External concerns in `tests/Unit/`** —
   [#148](https://github.com/mike-bronner/phpcs-rules/issues/148). Database
@@ -67,11 +114,12 @@ documentation-only standard:
   `Queue::fake`, …), and HTTP-kernel test calls (`$this->get(`, …) are
   token-visible external concerns; a unit test concerns only the class under
   test.
-- **Internet-traversing primitives in `tests/Feature/`** —
-  [#149](https://github.com/mike-bronner/phpcs-rules/issues/149). Raw
+- **Internet-traversing primitives in `tests/Feature/`** — *implemented*, as
+  `CleanCode.Testing.NoInternetTraversal` (see Enforceability above). Raw
   `curl_*`/`fsockopen` calls, `file_get_contents('http…')`, and direct
   `GuzzleHttp\Client` instantiation are token-visible signals a feature test
-  traverses the internet instead of faking it.
+  traverses the internet instead of faking it
+  ([#149](https://github.com/mike-bronner/phpcs-rules/issues/149)).
 - **HTTP fakes in `tests/Integration/`** —
   [#150](https://github.com/mike-bronner/phpcs-rules/issues/150).
   `Http::fake(` / `Http::fakeSequence(` inside an integration test doubles out

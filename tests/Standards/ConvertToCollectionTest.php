@@ -189,7 +189,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 196, 'column' => 15],
+        ['line' => 205, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 268, 'column' => 17],
@@ -259,6 +259,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/MultiLineStatementIndentTest.php' => [
         ['line' => 445, 'column' => 28],
         ['line' => 458, 'column' => 28],
+    ],
+    'tests/Standards/NoInternetTraversalTest.php' => [
+        ['line' => 73, 'column' => 44],
+        ['line' => 327, 'column' => 15],
     ],
     'tests/Standards/NoProceduralCodeTest.php' => [
         ['line' => 142, 'column' => 57],

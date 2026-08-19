@@ -105,6 +105,15 @@ const SWEPT_SNIFFS = [
  * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
  * instead, fixtures staged under a real `routes` directory, plus the
  * shipped-binary run in both directions that the sweep gives up on its behalf.
+ *
+ * Deliberately absent for exactly that reason too:
+ * CleanCode.Testing.NoInternetTraversal, whose default featureTestPatterns gate
+ * wants a `tests/Feature` pair that tests/fixtures/NoInternetTraversalSniff/
+ * does not have. The sweep configures nothing, so a property-scoped sniff cannot
+ * be pointed at its own fixtures there, and its failing fixture would report
+ * nothing. tests/Standards/NoInternetTraversalTest.php carries the whole floor,
+ * fixtures staged under a real feature-suite directory, plus the same
+ * shipped-binary run in both directions.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
