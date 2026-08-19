@@ -369,3 +369,32 @@ it('names the sibling suite from the configured path', function (): void {
 
     expect($messages[0]['message'])->toContain('Tests/Feature/');
 });
+
+/**
+ * Piped input with no --stdin-path gives PHP_CodeSniffer the file name STDIN,
+ * so there is no directory for the scope to read — an editor linting a buffer
+ * that way would otherwise have to guess which suite the buffer belongs to.
+ *
+ * The bytes run here are the shipped unit-suite fixture's own, read off disk
+ * rather than transcribed, and that same file reports four warnings at its real
+ * path in "it flags a test under the shipped unit-suite directory" above. That
+ * is what pins the silence to the missing path rather than to the source having
+ * nothing the sniff reacts to.
+ *
+ * What this pins is the behaviour, not the UNKNOWN_PATH guard that states it:
+ * delete that guard and the segment scan reaches the same silence on its own,
+ * because `STDIN` is a single segment and the file's own name is dropped before
+ * the scope is matched, leaving nothing for the root to match. The guard names
+ * the decision where a reader of the sniff will look for it; this test is what
+ * stops the opposite decision being taken later.
+ */
+it('says nothing when there is no path to read', function (): void {
+    $source = (string) file_get_contents(
+        fixturePath(sniffFixtureDirectory(UNIT_EXTERNAL), 'tests/Unit/external-concerns.php')
+    );
+
+    $piped = analyzeStdinSource([UNIT_EXTERNAL], $source);
+
+    expect($piped->getErrors())->toBe([])
+        ->and($piped->getWarnings())->toBe([]);
+});
