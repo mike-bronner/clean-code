@@ -105,6 +105,16 @@ const SWEPT_SNIFFS = [
  * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
  * instead, fixtures staged under a real `routes` directory, plus the
  * shipped-binary run in both directions that the sweep gives up on its behalf.
+ *
+ * CleanCode.Testing.UnitTestExternalConcerns is absent for the same reason and
+ * is the second sniff of that shape: its default unitTestPath is `tests/Unit/`,
+ * and tests/fixtures/UnitTestExternalConcernsSniff/ carries no `Unit` segment,
+ * so the sweep would drive failing.php against a path the sniff never opens.
+ * The sweep configures nothing, so it cannot point a property-scoped sniff at
+ * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
+ * carries the whole floor instead: the two flat fixtures driven under a scope
+ * pointed at their own directory, and the shipped scope exercised by a nested
+ * tests/Unit/ tree beside them.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',

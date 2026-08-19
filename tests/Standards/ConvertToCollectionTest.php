@@ -169,7 +169,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 274, 'column' => 49],
     ],
     'CleanCode/Sniffs/Testing/TestSuiteNamespaceSniff.php' => [
-        ['line' => 336, 'column' => 20],
+        ['line' => 338, 'column' => 20],
+    ],
+    'CleanCode/Sniffs/Testing/UnitTestExternalConcernsSniff.php' => [
+        ['line' => 592, 'column' => 16],
+        ['line' => 610, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
         ['line' => 145, 'column' => 27],
@@ -189,7 +193,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 196, 'column' => 15],
+        ['line' => 206, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 268, 'column' => 17],
