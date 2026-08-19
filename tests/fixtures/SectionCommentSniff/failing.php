@@ -130,4 +130,83 @@ class LabelledBlocks
 
         return $payload;
     }
+
+    public function followedByAControlStructure(array $payload): array
+    {
+        // Normalise the keys before comparing them.
+        if ($payload !== []) {
+            $payload = array_change_key_case($payload);
+        }
+
+        return $payload;
+    }
+
+    public function followedByAReturn(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        // Hand the payload back.
+        return $payload;
+    }
+
+    public function beforeACaseLabel(string $key): int
+    {
+        switch ($key) {
+            // Handle the keys the feed still spells the old way.
+            case 'a':
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    public function insideACaseBody(string $key, array $payload): array
+    {
+        switch ($key) {
+            case 'a':
+                // Normalise the keys.
+                $payload = array_change_key_case($payload);
+
+                break;
+            default:
+                // Leave the payload alone.
+                $payload['untouched'] = true;
+
+                break;
+        }
+
+        return $payload;
+    }
+
+    public function insideAnAlternativeSyntaxBlock(array $rows): array
+    {
+        $seen = [];
+
+        foreach ($rows as $row):
+            // Record the row.
+            $seen[] = $row;
+        endforeach;
+
+        return $seen;
+    }
+
+    public function insideAnAnonymousClassMethod(): object
+    {
+        return new class {
+            public function handle(array $payload): array
+            {
+                // Normalise the keys.
+                $payload = array_change_key_case($payload);
+
+                return $payload;
+            }
+        };
+    }
 }
+
+$atFileScope = function (array $payload): array {
+    // Normalise the keys.
+    $payload = array_change_key_case($payload);
+
+    return $payload;
+};

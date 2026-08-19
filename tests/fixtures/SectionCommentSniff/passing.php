@@ -151,4 +151,61 @@ class AlreadyExtracted
     {
         return $payload + ['built' => true];
     }
+
+    public function runLastInItsScope(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        return $payload;
+
+        // Two comment lines, one run, and nothing but the closing brace of the
+        // method after them.
+    }
+
+    public function runSplitByABlankLineLastInItsScope(array $payload): array
+    {
+        $payload['seen'] = true;
+
+        return $payload;
+
+        // A run whose lines are set apart by a blank one,
+
+        // still with nothing but the closing brace after it.
+    }
+
+    public function insideAnArrowFunction(array $payload): callable
+    {
+        return fn (array $extra): array =>
+            // An arrow function's body is one expression: nothing further can
+            // follow this comment in its scope.
+            array_merge($payload, $extra);
+    }
+
+    public function afterATernaryColon(array $payload): string
+    {
+        $label = $payload === [] ? 'empty' :
+            // Not a label: a ternary arm follows a `:` that opens no block.
+            'full';
+
+        return $label;
+    }
+}
+
+interface BodylessSignatures
+{
+    public function first(): void;
+
+    // A comment between two bodyless signatures: no scope opens, nothing to
+    // extract, and no error.
+
+    public function second(): void;
+}
+
+abstract class AbstractSignatures
+{
+    abstract public function first(): void;
+
+    // The same between two abstract signatures.
+
+    abstract public function second(): void;
 }

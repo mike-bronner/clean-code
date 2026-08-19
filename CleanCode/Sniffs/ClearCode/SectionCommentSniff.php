@@ -30,18 +30,24 @@ use PHP_CodeSniffer\Util\Tokens;
  *   comment token that looks, on its own, exactly like a section label.
  * - **On its own line**, with no code before or after it there. A comment
  *   trailing a statement annotates that statement; it labels nothing.
- * - **The head of its run.** Two adjacent comment lines are one label for one
- *   block, so only the first reports. Reporting each line would multiply one
- *   extraction candidate into several.
- * - **At a statement boundary** — the token before it is `;`, `{` or `}`. This
- *   is what separates a label from a comment inside an array literal or an
- *   argument list, where the following "statement" is an element rather than a
+ * - **The head of its run.** Every comment line with nothing but whitespace
+ *   between it and the one above is part of the same run — a blank line
+ *   between two label lines does not start a second label — and only the head
+ *   reports. Reporting each line would multiply one extraction candidate into
+ *   several.
+ * - **At a statement boundary** — the token before it is `;`, `}`, or the
+ *   opener of the block the comment stands in (`{`, or the `:` of a
+ *   `case`/`default` arm or an alternative-syntax block). This is what
+ *   separates a label from a comment inside an array literal or an argument
+ *   list, where the following "statement" is an element rather than a
  *   statement in the enclosing scope.
  * - **Inside a function body**, decided from the innermost enclosing scope
  *   rather than from whether a function appears anywhere in the chain: a
  *   comment inside an anonymous class or a `match` arm-list nested in a method
  *   still has T_FUNCTION in its conditions, and neither labels a block of
- *   statements.
+ *   statements. Control structures — `if`, loops, `switch` arms, `try` — hold
+ *   statements rather than deciding the question, so the walk passes through
+ *   them to the function that owns them.
  * - **Followed by a further statement in the same scope**, blank lines and
  *   further comments ignored. A comment with nothing but the closing brace
  *   after it introduces no block, so there is nothing to extract.
@@ -52,9 +58,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * - Debt markers (`TODO`, `FIXME`, `HACK`, `XXX`) — Debt: Technical Debt
  *   (#138). Matched on word boundaries, so `// TODO: extract this` is excluded
  *   while a comment merely containing the letters is not.
- * - Auto-formatter directives (`@formatter:off`, `@formatter:on`,
- *   `prettier-ignore`) — Code Style: Linters & Config (#143). Matched as
- *   case-insensitive substrings, because these are literal spellings and the
+ * - Auto-formatter directives — Code Style: Linters & Config (#143). The
+ *   spellings are the $formatterDirectives defaults below, deliberately not
+ *   repeated here: written out in a comment they would trip
+ *   CleanCode.CodeStyle.NoFormatterDirectives against this very file. Matched
+ *   as case-insensitive substrings, because they are literal spellings whose
  *   leading `@` has no word boundary before it.
  *
  * Both lists are public properties, so a consuming ruleset can extend either
@@ -75,10 +83,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * - A comment inside a PHP 8.4 property hook is not reported. The tokenizer
  *   gives a hook no scope of its own, so its body's comments carry the class
  *   as their innermost scope and read as class-level.
- * - A comment introducing a `case` body or an alternative-syntax block is not
- *   reported, because the token before it is `:` — which also ends a ternary
- *   arm and a return type, so admitting it would trade a rare miss for a
- *   plausible false positive on a warning-level advisory rule.
+ * - A comment above a `match` arm is not reported. An arm list is a
+ *   comma-separated expression list, like an array literal, so the "block" a
+ *   label there introduces is not a run of statements that can move into a
+ *   method of its own. A `switch` arm, whose body *is* a run of statements,
+ *   is reported.
  * - An unrecognized enclosing scope resolves to "not a function body", so a
  *   construct this sniff has never seen stays silent rather than reporting on
  *   a guess.
@@ -91,9 +100,57 @@ class SectionCommentSniff implements Sniff
     /**
      * Scopes that hold statements and therefore do not themselves decide
      * whether the comment sits in a function body — the search for the owning
-     * scope walks straight through them. Everything else terminates the walk,
-     * so a class, an interface, a trait, an enum, an anonymous class and a
-     * `match` all resolve to "not a function body" without being enumerated.
+     * scope walks straight through them, on to the scope outside.
+     *
+     * Family: every member of `PHP_CodeSniffer\Util\Tokens::$scopeOpeners`,
+     * PHPCS's own register of the tokens a `scope_opener`/`scope_closer` pair
+     * hangs off, plus `T_FN`, which the tokenizer gives that same pair in
+     * `PHP::processAdditional()` while leaving it out of that array. That union
+     * is every scope this walk can meet in a `conditions` chain, so it is the
+     * family both this constant and FUNCTION_LIKE answer to, and it is
+     * accounted for once, here. A member excluded from both is not thereby
+     * unhandled: it ends the walk at "not a function body", which is the right
+     * answer for a scope whose contents are not statements.
+     *
+     * - `T_IF` — included: its body is a run of statements inside the function
+     *   that holds it.
+     * - `T_ELSEIF` — included: a branch body, as `T_IF` is.
+     * - `T_ELSE` — included: a branch body, as `T_IF` is.
+     * - `T_FOR` — included: a loop body is a run of statements.
+     * - `T_FOREACH` — included: a loop body, as `T_FOR` is.
+     * - `T_WHILE` — included: a loop body, as `T_FOR` is.
+     * - `T_DO` — included: a loop body, as `T_FOR` is.
+     * - `T_SWITCH` — included: its body holds the arms, and a comment above an
+     *   arm labels the arms that follow.
+     * - `T_CASE` — included: an arm body is a run of statements. An enum's
+     *   `case` is `T_ENUM_CASE` and opens no scope, so it cannot arrive here.
+     * - `T_DEFAULT` — included: an arm body, as `T_CASE` is. A match arm's
+     *   `default` is `T_MATCH_DEFAULT` and opens no scope.
+     * - `T_TRY` — included: its body is a run of statements.
+     * - `T_CATCH` — included: a handler body, as `T_TRY` is.
+     * - `T_FINALLY` — included: a handler body, as `T_TRY` is.
+     * - `T_FUNCTION`, `T_CLOSURE`, `T_FN` — excluded from this list because
+     *   they end the walk with the answer "yes": FUNCTION_LIKE holds them.
+     * - `T_CLASS` — excluded: a class body holds members, not statements, so a
+     *   comment there labels no block to extract.
+     * - `T_ANON_CLASS` — excluded: a class body, as `T_CLASS` is. Reaching the
+     *   method around it instead is exactly the false positive the innermost
+     *   scope prevents.
+     * - `T_INTERFACE` — excluded: a body of bodyless signatures.
+     * - `T_TRAIT` — excluded: a class body, as `T_CLASS` is.
+     * - `T_ENUM` — excluded: a class body, as `T_CLASS` is.
+     * - `T_MATCH` — excluded: an arm list is a comma-separated expression
+     *   list, like an array literal, so what a label there introduces is not a
+     *   run of statements.
+     * - `T_NAMESPACE` — excluded: a braced namespace holds declarations, and a
+     *   comment at that level labels no block.
+     * - `T_DECLARE` — excluded: a directive block, at file level.
+     * - `T_USE` — excluded: it opens a scope only as a trait-adaptation block,
+     *   which holds adaptations rather than statements.
+     * - `T_PROPERTY` — excluded: only the JavaScript tokenizer emits it, so no
+     *   PHP source reaches it.
+     * - `T_OBJECT` — excluded: only the JavaScript tokenizer emits it, so no
+     *   PHP source reaches it.
      */
     private const TRANSPARENT_SCOPES = [
         T_IF,
@@ -112,10 +169,16 @@ class SectionCommentSniff implements Sniff
     ];
 
     /**
-     * The scopes that are a function body: a named function or method, a
-     * closure, and an arrow function. T_FN is listed for completeness — an
-     * arrow function's body is a single expression and holds no comment on its
-     * own line — so that a future tokenizer change cannot silently drop it.
+     * The scopes that end the walk with "yes, a function body". The family is
+     * TRANSPARENT_SCOPES's, accounted for in full there.
+     *
+     * `T_FN` is included but unreachable in practice, and deliberately so: an
+     * arrow function's body is one expression, so no comment inside it can be
+     * followed by a further statement in that scope, and no fixture can make
+     * this entry decide a report. It is listed because the alternative is
+     * silence built on a tokenizer detail — a body that grew statements, or a
+     * PHPCS release that gave `T_FN` a braced form, would otherwise resolve to
+     * "not a function body" without anything saying so.
      */
     private const FUNCTION_LIKE = [
         T_FUNCTION,
@@ -127,6 +190,27 @@ class SectionCommentSniff implements Sniff
      * The tokens a comment may follow and still be labelling the block after
      * it: the end of the previous statement, the start of the block, and the
      * end of a nested block.
+     *
+     * Family: the punctuation tokens PHPCS emits for the five characters that
+     * can stand between one PHP construct and the next — `;`, `{`, `}`, `:`
+     * and `,`. Every one is accounted for:
+     *
+     * - `T_SEMICOLON` — included: it ends the statement above the comment.
+     * - `T_OPEN_CURLY_BRACKET` — included: the comment heads the block that
+     *   brace opens. Listed by type as well as resolved through
+     *   opensTheEnclosingScope(), because a bare `{ … }` block is a scope PHPCS
+     *   records no owner for, so no `conditions` entry points at it.
+     * - `T_CLOSE_CURLY_BRACKET` — included: a nested block ended above the
+     *   comment, and the next statement belongs to this scope.
+     * - `T_COLON` — excluded here, admitted by opensTheEnclosingScope()
+     *   instead: it opens a `case`/`default` arm and an alternative-syntax
+     *   block, but the same token also ends a ternary arm, a return type and a
+     *   named argument, so only the colon that opens the comment's own scope
+     *   can be admitted.
+     * - `T_COMMA` — excluded: it separates the elements of an array literal,
+     *   an argument list or a `match` arm list. What follows one is an element,
+     *   not a statement, which is the false positive this rule is narrowed to
+     *   avoid.
      */
     private const STATEMENT_BOUNDARY = [
         T_SEMICOLON,
@@ -195,11 +279,11 @@ class SectionCommentSniff implements Sniff
             return;
         }
 
-        if ($this->headsItsRun($phpcsFile, $stackPtr, $comment['line']) === false) {
+        if ($this->headsItsRun($phpcsFile, $stackPtr) === false) {
             return;
         }
 
-        if ($this->followsAStatementBoundary($phpcsFile, $stackPtr) === false) {
+        if ($this->followsAStatementBoundary($phpcsFile, $stackPtr, $comment['conditions']) === false) {
             return;
         }
 
@@ -255,16 +339,19 @@ class SectionCommentSniff implements Sniff
             }
         }
 
-        $markers = array_filter($this->debtMarkers, static fn (string $marker): bool => $marker !== '');
+        $markers = [];
+
+        foreach ($this->debtMarkers as $marker) {
+            if ($marker !== '') {
+                $markers[] = preg_quote($marker, '/');
+            }
+        }
 
         if ($markers === []) {
             return false;
         }
 
-        $quoted = array_map(static fn (string $marker): string => preg_quote($marker, '/'), $markers);
-        $pattern = '/\b(?:' . implode('|', $quoted) . ')\b/i';
-
-        return preg_match($pattern, $content) === 1;
+        return preg_match('/\b(?:' . implode('|', $markers) . ')\b/i', $content) === 1;
     }
 
     /**
@@ -322,43 +409,73 @@ class SectionCommentSniff implements Sniff
     /**
      * Whether the comment is the first line of its own comment run.
      *
-     * Adjacent comment lines are one label for one block, so only the first
-     * reports; a blank line ends the run, because a comment set apart from the
-     * one above it labels its own block. Adjacency is measured against the
-     * preceding comment's end line, so a multi-line block comment above still
-     * counts as directly above.
+     * A run is every comment line with nothing but whitespace between it and
+     * the one above — blank lines included, because a label written as a
+     * paragraph and a label written as one block are the same label for the
+     * same block. It reports once, at its first line: reporting each line
+     * would multiply one extraction candidate into several.
      */
-    private function headsItsRun(File $phpcsFile, int $stackPtr, int $commentLine): bool
+    private function headsItsRun(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $before = $phpcsFile->findPrevious(T_WHITESPACE, ($stackPtr - 1), null, true);
 
-        if ($before === false || isset(Tokens::$commentTokens[$tokens[$before]['code']]) === false) {
-            return true;
-        }
-
-        return $this->endLine($tokens[$before]) !== ($commentLine - 1);
+        return $before === false || isset(Tokens::$commentTokens[$tokens[$before]['code']]) === false;
     }
 
     /**
-     * Whether the comment follows the end of a statement, the start of a block
-     * or the end of a nested block — the three places a label can stand.
+     * Whether the comment follows the end of a statement, the end of a nested
+     * block, or the opening of the block it stands in — the places a label can
+     * stand.
      *
      * Any comments above are looked past, so a label separated from the code
      * by a blank line and a second comment is still judged on the code. A
      * comment preceded by anything else sits inside a statement — an array
      * element, an argument, a multi-line expression — where what follows is
      * not a statement in this scope.
+     *
+     * @param array<int, int|string> $conditions
      */
-    private function followsAStatementBoundary(File $phpcsFile, int $stackPtr): bool
+    private function followsAStatementBoundary(File $phpcsFile, int $stackPtr, array $conditions): bool
     {
+        $tokens = $phpcsFile->getTokens();
         $boundary = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if ($boundary === false) {
             return false;
         }
 
-        return in_array($phpcsFile->getTokens()[$boundary]['code'], self::STATEMENT_BOUNDARY, true);
+        if (in_array($tokens[$boundary]['code'], self::STATEMENT_BOUNDARY, true) === true) {
+            return true;
+        }
+
+        return $this->opensTheEnclosingScope($tokens, $boundary, $conditions);
+    }
+
+    /**
+     * Whether the token is the opener of the scope the comment sits directly
+     * inside.
+     *
+     * `{` covers most blocks by itself, but a `case`/`default` arm and an
+     * alternative-syntax block open on `:` — a token that also ends a ternary
+     * arm and a return type, and so cannot be admitted by its type alone.
+     * Reading the opener off the comment's own innermost scope admits exactly
+     * the colons that open the block the comment stands in, and no other. A
+     * bare `{ … }` block, which PHP_CodeSniffer records as no scope at all, is
+     * why `{` stays in STATEMENT_BOUNDARY rather than relying on this.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int|string> $conditions
+     */
+    private function opensTheEnclosingScope(array $tokens, int $boundary, array $conditions): bool
+    {
+        if ($conditions === []) {
+            return false;
+        }
+
+        $owner = array_key_last($conditions);
+
+        return ($tokens[$owner]['scope_opener'] ?? null) === $boundary;
     }
 
     /**

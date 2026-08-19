@@ -51,13 +51,16 @@ A comment is reported when **all** of the following hold:
   splits it into one comment token per physical line and a continuation line
   reads, on its own, exactly like a label.
 - It has **its line to itself** — no code before or after it there.
-- It is the **first line of its comment run**. Adjacent comment lines are one
-  label for one block; a blank line ends the run.
-- It stands at a **statement boundary** — the token before it is `;`, `{` or
-  `}`. This is what separates a label from a comment inside an array literal or
-  an argument list.
+- It is the **first line of its comment run**. Every comment line with nothing
+  but whitespace above it belongs to the same run — a blank line between two
+  label lines does not start a second label — and only the head reports.
+- It stands at a **statement boundary** — the token before it is `;`, `}`, or
+  the opener of the block it stands in (`{`, or the `:` of a `case`/`default`
+  arm or an alternative-syntax block). This is what separates a label from a
+  comment inside an array literal or an argument list.
 - Its **innermost enclosing scope is a function body** — a method, a function
-  or a closure, reached through any number of nested control structures. The
+  or a closure, reached through any number of nested control structures
+  (`if`/`else`, the loops, `switch` arms, `try`/`catch`/`finally`). The
   innermost scope is what decides it, so a comment inside an anonymous class or
   above a `match` arm nested in a method is not a label.
 - At least **one further statement follows in that same scope**, blank lines
@@ -102,10 +105,10 @@ All three are deliberate silence rather than a guess:
 - A comment inside a **PHP 8.4 property hook** is not reported. The tokenizer
   opens no scope for a hook body, so its comments carry the class as their
   innermost scope and read as class-level.
-- A comment introducing a **`case` body or an alternative-syntax block** is not
-  reported: the token before it is `:`, which also ends a ternary arm and a
-  return type, so admitting it would trade a rare miss for a plausible false
-  positive.
+- A comment above a **`match` arm** is not reported. An arm list is a
+  comma-separated expression list, like an array literal, so what a label there
+  introduces is not a run of statements that can move into a method of its own.
+  A `switch` arm, whose body *is* a run of statements, is reported.
 - An **unrecognized enclosing scope** resolves to "not a function body", so a
   construct the rule has never seen stays silent.
 
