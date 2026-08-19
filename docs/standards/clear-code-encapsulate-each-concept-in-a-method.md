@@ -51,13 +51,24 @@ A comment is reported when **all** of the following hold:
   splits it into one comment token per physical line and a continuation line
   reads, on its own, exactly like a label.
 - It has **its line to itself** — no code before or after it there.
-- It is the **first line of its comment run**. Every comment line with nothing
+- It is the **first line of its comment run**. Every *label* line with nothing
   but whitespace above it belongs to the same run — a blank line between two
-  label lines does not start a second label — and only the head reports.
+  label lines does not start a second label — and only the head reports. A
+  comment the rule would not report in its own right is not a label line and
+  does not absorb the one below it, so a label written directly under a debt
+  marker, a formatter directive, a docblock, a `phpcs:` annotation or a comment
+  trailing a statement still reports.
 - It stands at a **statement boundary** — the token before it is `;`, `}`, or
   the opener of the block it stands in (`{`, or the `:` of a `case`/`default`
   arm or an alternative-syntax block). This is what separates a label from a
   comment inside an array literal or an argument list.
+- It stands **between two statements rather than inside one**. A `}` ends a
+  statement only when the construct it belongs to is over there: a closure, an
+  anonymous class and a `match` are expressions whose brace is followed by the
+  rest of the expression around them, and a `do` block is followed by its
+  `while`. Read forwards, an `else`, `elseif`, `catch` or `finally` after the
+  comment continues the construct above it rather than starting a statement. A
+  comment in either position labels nothing.
 - Its **innermost enclosing scope is a function body** — a method, a function
   or a closure, reached through any number of nested control structures
   (`if`/`else`, the loops, `switch` arms, `try`/`catch`/`finally`). The
@@ -100,7 +111,7 @@ $payload = array_change_key_case($payload);
 
 ### Known limits
 
-All three are deliberate silence rather than a guess:
+All four are deliberate silence rather than a guess:
 
 - A comment inside a **PHP 8.4 property hook** is not reported. The tokenizer
   opens no scope for a hook body, so its comments carry the class as their
@@ -109,6 +120,11 @@ All three are deliberate silence rather than a guess:
   comma-separated expression list, like an array literal, so what a label there
   introduces is not a run of statements that can move into a method of its own.
   A `switch` arm, whose body *is* a run of statements, is reported.
+- A comment inside an **arrow function** is judged as a label of the enclosing
+  function's body. PHP_CodeSniffer leaves `T_FN` out of a token's conditions
+  altogether, so the arrow never presents itself as the comment's scope. The
+  criteria above already decide these correctly — an arrow function is an
+  expression, so a comment inside one never stands between two statements.
 - An **unrecognized enclosing scope** resolves to "not a function body", so a
   construct the rule has never seen stays silent.
 

@@ -30,17 +30,27 @@ use PHP_CodeSniffer\Util\Tokens;
  *   comment token that looks, on its own, exactly like a section label.
  * - **On its own line**, with no code before or after it there. A comment
  *   trailing a statement annotates that statement; it labels nothing.
- * - **The head of its run.** Every comment line with nothing but whitespace
+ * - **The head of its run.** Every *label* line with nothing but whitespace
  *   between it and the one above is part of the same run — a blank line
  *   between two label lines does not start a second label — and only the head
  *   reports. Reporting each line would multiply one extraction candidate into
- *   several.
+ *   several. A comment the rule would not report in its own right is not a
+ *   label line and does not absorb the one below it, so a label written under
+ *   a debt marker, a formatter directive, a docblock or a comment trailing a
+ *   statement is still the head of its own run.
  * - **At a statement boundary** — the token before it is `;`, `}`, or the
  *   opener of the block the comment stands in (`{`, or the `:` of a
  *   `case`/`default` arm or an alternative-syntax block). This is what
  *   separates a label from a comment inside an array literal or an argument
  *   list, where the following "statement" is an element rather than a
  *   statement in the enclosing scope.
+ * - **Between two statements rather than inside one.** A `}` closes a
+ *   statement only when the construct it belongs to is over there: a closure,
+ *   an anonymous class and a `match` are expressions whose brace is followed by
+ *   the rest of the expression, and a `do` block is followed by its `while`.
+ *   The same holds read forwards — an `else`, `elseif`, `catch` or `finally`
+ *   after the comment continues the construct above it rather than starting a
+ *   statement. A comment in either position labels nothing.
  * - **Inside a function body**, decided from the innermost enclosing scope
  *   rather than from whether a function appears anywhere in the chain: a
  *   comment inside an anonymous class or a `match` arm-list nested in a method
@@ -83,6 +93,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * - A comment inside a PHP 8.4 property hook is not reported. The tokenizer
  *   gives a hook no scope of its own, so its body's comments carry the class
  *   as their innermost scope and read as class-level.
+ * - A comment inside an arrow function carries the *enclosing* function as its
+ *   innermost scope, because PHP_CodeSniffer leaves `T_FN` out of a token's
+ *   `conditions` altogether. It is judged as a label of that enclosing body,
+ *   which the rules above already decide correctly — an arrow function is an
+ *   expression, so a comment inside one never stands between two statements.
  * - A comment above a `match` arm is not reported. An arm list is a
  *   comma-separated expression list, like an array literal, so the "block" a
  *   label there introduces is not a run of statements that can move into a
@@ -172,13 +187,22 @@ class SectionCommentSniff implements Sniff
      * The scopes that end the walk with "yes, a function body". The family is
      * TRANSPARENT_SCOPES's, accounted for in full there.
      *
-     * `T_FN` is included but unreachable in practice, and deliberately so: an
-     * arrow function's body is one expression, so no comment inside it can be
-     * followed by a further statement in that scope, and no fixture can make
-     * this entry decide a report. It is listed because the alternative is
-     * silence built on a tokenizer detail — a body that grew statements, or a
-     * PHPCS release that gave `T_FN` a braced form, would otherwise resolve to
-     * "not a function body" without anything saying so.
+     * `T_FN` is included but never consulted, for a reason that is a tokenizer
+     * detail rather than a property of arrow functions: PHP_CodeSniffer does
+     * not put `T_FN` in a token's `conditions` array at all, though it does
+     * give the token a `scope_opener`/`scope_closer` pair. A comment written
+     * inside an arrow function therefore arrives here carrying the *enclosing*
+     * function as its innermost scope, and this entry decides nothing.
+     *
+     * That is not the same as "a comment inside an arrow function is never
+     * reported". It is reported when it reads as a label of the enclosing
+     * function's body — which is why an arrow function holding a nested scope
+     * has a fixture of its own in passing.php, pinned by the same construct-
+     * continuation rule that covers the shape without the arrow function. The
+     * entry stays listed because the alternative is silence built on that
+     * tokenizer detail: a PHPCS release that started recording `T_FN` in
+     * `conditions` would otherwise resolve an arrow function to "not a function
+     * body" without anything saying so.
      */
     private const FUNCTION_LIKE = [
         T_FUNCTION,
@@ -216,6 +240,61 @@ class SectionCommentSniff implements Sniff
         T_SEMICOLON,
         T_OPEN_CURLY_BRACKET,
         T_CLOSE_CURLY_BRACKET,
+    ];
+
+    /**
+     * The scopes whose closing brace leaves the statement around it unfinished,
+     * so a comment after that brace stands inside one construct rather than
+     * between two.
+     *
+     * Family: TRANSPARENT_SCOPES's, accounted for in full there, read for a
+     * different question — not "does this scope hold statements?" but "is the
+     * statement over once this scope closes?". Every member whose closer is a
+     * brace answers yes except these four, and the two answers are independent:
+     * `T_DO` is transparent *and* unfinished at its brace.
+     *
+     * - `T_CLOSURE` — excluded: a closure is an expression, so its brace is
+     *   followed by the rest of the expression that holds it.
+     * - `T_ANON_CLASS` — excluded: an anonymous class is an expression, as a
+     *   closure is.
+     * - `T_MATCH` — excluded: a `match` is an expression, as a closure is.
+     * - `T_DO` — excluded: the `while` that ends the loop follows the brace.
+     * - `T_IF`, `T_ELSEIF`, `T_TRY`, `T_CATCH` — included, though each *may*
+     *   be continued by an `else`, `elseif`, `catch` or `finally`. Whether it
+     *   is cannot be read off the brace, so it is read off what follows the
+     *   comment instead, through CONTINUATION_KEYWORDS.
+     * - `T_FN` — omitted: an arrow function's scope closes on the token that
+     *   ends its expression — `;`, `,`, `)` — never on a brace, so it can never
+     *   own the token this list is matched against.
+     * - `T_OBJECT` and `T_PROPERTY` — omitted: PHP_CodeSniffer emits both from
+     *   its JavaScript tokenizer only, so neither reaches a PHP file.
+     * - Every other member — included: a declaration or a statement block is
+     *   over at its closing brace.
+     */
+    private const CONTINUING_SCOPES = [
+        T_CLOSURE,
+        T_ANON_CLASS,
+        T_MATCH,
+        T_DO,
+    ];
+
+    /**
+     * The keywords that continue the construct above them instead of starting a
+     * statement, so a comment before one introduces nothing.
+     *
+     * Family: the four keywords PHP allows after a closed brace to extend the
+     * construct that brace belongs to. `while` — the one other such keyword,
+     * ending a `do` — is not here because it also opens a loop of its own; the
+     * `do` it ends is read off the brace instead, through CONTINUING_SCOPES.
+     * The alternative-syntax terminators (`endif`, `endforeach` and their
+     * siblings) are not here either: each closes the scope the comment sits in,
+     * so the comment is already last in its scope and reports nothing.
+     */
+    private const CONTINUATION_KEYWORDS = [
+        T_ELSE,
+        T_ELSEIF,
+        T_CATCH,
+        T_FINALLY,
     ];
 
     /**
@@ -409,18 +488,54 @@ class SectionCommentSniff implements Sniff
     /**
      * Whether the comment is the first line of its own comment run.
      *
-     * A run is every comment line with nothing but whitespace between it and
-     * the one above — blank lines included, because a label written as a
-     * paragraph and a label written as one block are the same label for the
-     * same block. It reports once, at its first line: reporting each line
-     * would multiply one extraction candidate into several.
+     * A run is every label line with nothing but whitespace between it and the
+     * one above — blank lines included, because a label written as a paragraph
+     * and a label written as one block are the same label for the same block.
+     * It reports once, at its first line: reporting each line would multiply
+     * one extraction candidate into several.
      */
     private function headsItsRun(File $phpcsFile, int $stackPtr): bool
     {
-        $tokens = $phpcsFile->getTokens();
         $before = $phpcsFile->findPrevious(T_WHITESPACE, ($stackPtr - 1), null, true);
 
-        return $before === false || isset(Tokens::$commentTokens[$tokens[$before]['code']]) === false;
+        return $before === false || $this->isALabelLine($phpcsFile, $before) === false;
+    }
+
+    /**
+     * Whether the token is a line of the same label as the comment below it.
+     *
+     * Run membership is the sniff's own candidacy test, applied to the line
+     * above: a comment only continues into the comment below it when this rule
+     * could have reported it in its own right. Asking "is it comment-shaped?"
+     * instead — the whole of Tokens::$commentTokens, which spans every docblock
+     * fragment and every PHPCS annotation — silently drops a genuine label
+     * written directly under a `// TODO`, under a formatter directive, under a
+     * docblock or under a comment trailing a statement — the spellings of the
+     * directives are the $formatterDirectives defaults, deliberately not
+     * repeated here for the reason given on the class above. None of those four
+     * is a label line, so none
+     * of them takes the label below it into its run: a debt marker and a
+     * formatter directive belong to the sibling standards that own them, a
+     * docblock documents the thing after it, and a comment sharing a line with
+     * code annotates that code.
+     */
+    private function isALabelLine(File $phpcsFile, int $stackPtr): bool
+    {
+        $token = $phpcsFile->getTokens()[$stackPtr];
+
+        if ($token['code'] !== T_COMMENT) {
+            return false;
+        }
+
+        if ($this->isSelfContainedSingleLine($token['content']) === false) {
+            return false;
+        }
+
+        if ($this->isExcludedByASiblingStandard($token['content']) === true) {
+            return false;
+        }
+
+        return $this->standsAloneOnItsLine($phpcsFile, $stackPtr, $token['line']);
     }
 
     /**
@@ -446,10 +561,36 @@ class SectionCommentSniff implements Sniff
         }
 
         if (in_array($tokens[$boundary]['code'], self::STATEMENT_BOUNDARY, true) === true) {
-            return true;
+            return $this->finishesWhatItCloses($tokens, $boundary);
         }
 
         return $this->opensTheEnclosingScope($tokens, $boundary, $conditions);
+    }
+
+    /**
+     * Whether the statement the boundary token belongs to is over at it.
+     *
+     * `;` and `{` always are: one ends a statement, the other opens the block
+     * the comment heads. A `}` only is when the scope it closes is one the
+     * statement does not outlive — see CONTINUING_SCOPES. A brace PHP_CodeSniffer
+     * records no owner for is a bare `{ … }` block, which is over at its closer
+     * like any other statement block.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function finishesWhatItCloses(array $tokens, int $boundary): bool
+    {
+        if ($tokens[$boundary]['code'] !== T_CLOSE_CURLY_BRACKET) {
+            return true;
+        }
+
+        $owner = ($tokens[$boundary]['scope_condition'] ?? null);
+
+        if ($owner === null) {
+            return true;
+        }
+
+        return in_array($tokens[$owner]['code'], self::CONTINUING_SCOPES, true) === false;
     }
 
     /**
@@ -504,6 +645,11 @@ class SectionCommentSniff implements Sniff
      * different chain from its body, so a comment with nothing but the closer
      * after it falls out here whatever shape that closer takes.
      *
+     * A keyword that continues the construct above the comment carries that
+     * same chain — an `else` sits in the scope its `if` sits in — so it is
+     * excluded by name first. Between an `if` block and its `else` the comment
+     * stands inside one statement, not before a new one.
+     *
      * @param array<int, int|string> $conditions
      */
     private function introducesABlock(File $phpcsFile, int $stackPtr, array $conditions): bool
@@ -514,6 +660,12 @@ class SectionCommentSniff implements Sniff
             return false;
         }
 
-        return $phpcsFile->getTokens()[$next]['conditions'] === $conditions;
+        $tokens = $phpcsFile->getTokens();
+
+        if (in_array($tokens[$next]['code'], self::CONTINUATION_KEYWORDS, true) === true) {
+            return false;
+        }
+
+        return $tokens[$next]['conditions'] === $conditions;
     }
 }

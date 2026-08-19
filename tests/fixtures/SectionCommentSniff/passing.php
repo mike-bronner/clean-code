@@ -189,6 +189,129 @@ class AlreadyExtracted
 
         return $label;
     }
+
+    public function formatterDirectiveWithTrailingText(array $payload): array
+    {
+        // @formatter:off for the block below
+        $payload['a'] = 1;
+
+        return $payload;
+    }
+
+    public function afterAClosuresBrace(): int
+    {
+        $value = (function (): int {
+            return 1;
+        }
+            // Not a label: the expression holding the closure continues.
+        )();
+
+        return $value;
+    }
+
+    public function afterAnAnonymousClassBrace(): int
+    {
+        $value = (new class {
+            public function held(): int
+            {
+                return 1;
+            }
+        }
+            // Not a label: the expression holding the anonymous class continues.
+        )->held();
+
+        return $value;
+    }
+
+    public function insideAnArrowFunctionPastANestedBrace(): callable
+    {
+        return fn (): int => (new class {
+            public function held(): int
+            {
+                return 1;
+            }
+        }
+            // The same shape inside an arrow function, whose T_FN the tokenizer
+            // keeps out of this comment's conditions altogether.
+        )->held();
+    }
+
+    public function afterAMatchBrace(int $value): int
+    {
+        $mapped = match ($value) {
+            1 => 10,
+            default => 0,
+        }
+            // Not a label: the statement holding the `match` continues.
+        ;
+
+        return $mapped;
+    }
+
+    public function afterADoBlocksBrace(int $count): int
+    {
+        do {
+            $count++;
+        }
+        // Not a label: the `while` that ends the loop follows.
+        while ($count < 5);
+
+        return $count;
+    }
+
+    public function beforeAnElse(array $payload): array
+    {
+        if ($payload === []) {
+            $payload['empty'] = true;
+        }
+        // Not a label: the `else` continues the `if` above it.
+        else {
+            $payload['empty'] = false;
+        }
+
+        return $payload;
+    }
+
+    public function beforeAnElseif(array $payload): array
+    {
+        if ($payload === []) {
+            $payload['size'] = 'none';
+        }
+        // Not a label: the `elseif` continues the `if` above it.
+        elseif (count($payload) === 1) {
+            $payload['size'] = 'one';
+        }
+
+        return $payload;
+    }
+
+    public function beforeACatch(array $payload): array
+    {
+        try {
+            $payload['tried'] = true;
+        }
+        // Not a label: the `catch` continues the `try` above it.
+        catch (\Throwable $exception) {
+            $payload['tried'] = false;
+        }
+
+        return $payload;
+    }
+
+    public function beforeAFinally(array $payload): array
+    {
+        try {
+            $payload['tried'] = true;
+        } catch (\Throwable $exception) {
+            $payload['tried'] = false;
+        }
+        // Not a label: the `finally` continues the `try` above it.
+        finally {
+            $payload['done'] = true;
+        }
+
+        return $payload;
+    }
 }
 
 interface BodylessSignatures

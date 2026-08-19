@@ -35,4 +35,12 @@ class Retunable
 
         return $payload;
     }
+
+    public function formatterDirectiveWithTrailingText(array $payload): array
+    {
+        // @formatter:off for the block below
+        $payload = array_change_key_case($payload);
+
+        return $payload;
+    }
 }
