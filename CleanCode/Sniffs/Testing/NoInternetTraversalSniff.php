@@ -39,6 +39,8 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * - a call to one of NETWORK_FUNCTIONS — `curl_init()`, `curl_exec()`,
  *   `fsockopen()` and `stream_socket_client()`. Each one exists to open a
  *   connection, so the call alone is the violation and no argument is read.
+ *   What is read of the argument list is only whether the line calls the
+ *   function at all: `curl_init(...)` names it and calls nothing.
  * - a call to `file_get_contents()` whose filename argument is a string
  *   literal whose text begins `http://` or `https://`. The function itself is
  *   ordinary, so here the URL is what makes it a network read. The filename is
@@ -71,7 +73,20 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * hands over, so a checkout living under `tests/Feature` widens the gate to the
  * whole project. A project with a different suite layout retunes the property.
  *
- * ## Boundaries, all seven also recorded in the standard's doc
+ * ## Boundaries, all eight also recorded in the standard's doc
+ *
+ * - **A primitive named without being called, or called without being named
+ *   (false negative).** What is read is a written name standing in call
+ *   position, and the two halves of that come apart in both directions.
+ *   `curl_init(...)` names the primitive and calls nothing — PHP 8.1's
+ *   first-class-callable syntax builds a Closure — so it is not reported, and
+ *   reporting it would flag a line that opens no connection, which is the trade
+ *   this rule refuses everywhere else. The line that invokes that Closure later
+ *   (`$open()`), a variable function (`$fn = 'curl_init'; $fn();`) and
+ *   `call_user_func('curl_init')` are the other direction: a real call whose
+ *   name is a variable or a string, which no token scan can hold to the function
+ *   it reaches. Both directions are the boundary a request through a service
+ *   class already names, reached inside the file instead of outside it.
  *
  * - **A request through an un-faked `Http` facade call (false negative).**
  *   `Http::get('https://…')` is the sanctioned API *and* a real request when no
@@ -325,6 +340,10 @@ class NoInternetTraversalSniff implements Sniff
             return;
         }
 
+        if ($this->isFirstClassCallable($phpcsFile, $stackPtr) === true) {
+            return;
+        }
+
         if ($isNetworkFunction === false) {
             if ($this->readsNetworkUrl($phpcsFile, $stackPtr) === false) {
                 return;
@@ -332,6 +351,54 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         $this->report($phpcsFile, $stackPtr, $tokens[$stackPtr]['content'] . '()');
+    }
+
+    /**
+     * Whether what follows the name at $stackPtr is PHP 8.1's first-class
+     * callable syntax — `curl_init(...)` — rather than a call.
+     *
+     * The expression builds a Closure over the function and invokes nothing, so
+     * no connection is opened and no URL is read: the primitive is named, but
+     * writing it traverses nothing. Every watched name is checked, the four
+     * NETWORK_FUNCTIONS as much as URL_READER, because the shape says the same
+     * thing about all of them — that this line calls no function at all.
+     *
+     * The ellipsis has to be the whole argument list. `curl_init(...$arguments)`
+     * spells a real call with a spread argument, opens a connection like any
+     * other call, and stays reported — which is why the token after the ellipsis
+     * is required to close the call rather than the ellipsis being taken alone.
+     *
+     * The same shape is read the same way by
+     * CleanCode.ControlStructures.DisallowCountInLoopExpression and
+     * CleanCode.DeadCode.UnusedFormalParameter, for this same reason.
+     *
+     * None of the three `=== false` halves can be discriminated by a fixture,
+     * and this says so rather than leaving them to look covered. The first
+     * cannot arrive at all: FunctionCalls::isGlobalFunctionCall() has already
+     * required the next non-empty token to be the opening parenthesis, so the
+     * opener is established before this method is reached. The other two need a
+     * file that ends inside the argument list, and either one made to fall open
+     * reads a token that is not there rather than returning a different verdict.
+     * All three guard the array read beside them.
+     */
+    private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $openPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
+
+        if ($openPtr === false) {
+            return false;
+        }
+
+        $ellipsisPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), null, true);
+
+        if ($ellipsisPtr === false || $tokens[$ellipsisPtr]['code'] !== T_ELLIPSIS) {
+            return false;
+        }
+
+        $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsisPtr + 1), null, true);
+
+        return $afterPtr !== false && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     /**
@@ -418,10 +485,24 @@ class NoInternetTraversalSniff implements Sniff
      * a leading label means every argument is named, since PHP rejects a
      * positional argument written after a named one.
      *
-     * Null is the answer for every other shape — an empty argument list, a
-     * spread or first-class-callable `...`, a named list that labels other
-     * parameters but not this one — because none of them states a filename this
-     * file can be read for.
+     * Null is the answer for two shapes, neither of which states a filename
+     * this file can be read for: an empty argument list, and a named list that
+     * labels other parameters but not this one.
+     *
+     * A spread — `file_get_contents(...$arguments)` — is not one of them, and
+     * this states what the method really returns rather than the tidier answer.
+     * The ellipsis is the argument's own first token, so it is returned as the
+     * argument's start like any other token. What rules the shape out is the
+     * caller, one step later: T_ELLIPSIS is not in STRING_TOKENS, so
+     * readsNetworkUrl()'s string-literal precondition is the first check to
+     * answer false, and its trailing-token guard would answer false behind it —
+     * the variable after the ellipsis neither closes the call nor starts the
+     * next argument. A caller reading a null from here as the only sign of an
+     * unreadable argument would be reading a contract this method does not keep.
+     *
+     * The other `...` — the first-class-callable `file_get_contents(...)` —
+     * never arrives at all: processCall() has already returned on it, before any
+     * argument is looked for.
      */
     private function urlArgument(File $phpcsFile, int $openPtr, int $closePtr): ?int
     {

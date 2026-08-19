@@ -50,3 +50,11 @@ $empty = file_get_contents();
 // parameter, the other names the filename but not where it points.
 $otherParameter = file_get_contents(context: 'https://api.example.test/orders');
 $namedDynamic = file_get_contents(filename: $url);
+
+// Primitives named as first-class callables. Each builds a Closure and calls
+// nothing, so no connection is opened and no URL is read.
+$open = curl_init(...);
+$send = curl_exec(...);
+$connect = fsockopen(...);
+$stream = stream_socket_client(...);
+$read = file_get_contents(...);

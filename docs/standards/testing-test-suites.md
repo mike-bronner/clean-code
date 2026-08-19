@@ -61,7 +61,7 @@ under a single `Found` code, naming the primitive that matched:
 
 - `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
   each one exists to open a connection, so the call alone is the violation and
-  no argument is read;
+  no argument is read beyond whether the line calls the function at all;
 - `file_get_contents()` whose filename argument is one whole string literal
   whose text begins `http://` or `https://` (either case) — the function is
   otherwise ordinary, so the URL is what makes it a request. The filename is the
@@ -81,8 +81,14 @@ It reports **warnings, not errors**, and is **detection-only**: replacing a real
 request with a fake means writing the fake — what to return, and for which URLs
 — which is not recoverable from the call being replaced.
 
-Seven boundaries come with it, and none is a defect to be fixed later:
+Eight boundaries come with it, and none is a defect to be fixed later:
 
+- a primitive named without being called, or called without being named, is not
+  flagged: `curl_init(...)` builds a Closure and opens nothing, while the line
+  that later invokes that Closure (`$open()`), a variable function
+  (`$fn = 'curl_init'; $fn();`) and `call_user_func('curl_init')` are real calls
+  whose name is a variable or a string — what is read is a written name standing
+  in call position;
 - a request through an un-faked `Http` facade call is not flagged, because
   whether a fake is active is set up elsewhere and is not statically decidable;
 - a request made through a service class the test calls carries no primitive of

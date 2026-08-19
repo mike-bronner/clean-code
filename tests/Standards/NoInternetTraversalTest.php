@@ -96,6 +96,7 @@ $expectedWarnings = static fn (): array => array_map(
         [23, 13],
         [24, 14],
         [25, 11],
+        [26, 11],
     ]
 );
 
@@ -149,6 +150,15 @@ it('is registered in the master ruleset', function (): void {
  * - line 52, `filename:` given a variable — the label is the right one and the
  *   value is still not stated, which is the variable-URL boundary reached
  *   through the named spelling.
+ * - lines 56-60, each watched name written as a first-class callable — the four
+ *   network functions and the URL reader. `curl_init(...)` builds a Closure and
+ *   calls nothing, so the line opens no connection and reads no URL. The four
+ *   network functions are the discriminating half: each one reddens here when
+ *   the first-class-callable guard is removed, because their branch reports on
+ *   the name alone. `file_get_contents(...)` is silent either way — the
+ *   string-literal precondition downstream already refuses the ellipsis — and is
+ *   carried anyway so the shape is pinned for the whole rule rather than for the
+ *   branch that happens to need the guard.
  */
 it('produces no violations on the compliant fixture', function () use ($featureRun): void {
     $file = $featureRun('passing.php');
@@ -183,7 +193,7 @@ it('says nothing about source it cannot read to the end of', function () use ($f
 });
 
 /**
- * Every flagged shape, at its own line and column. The eighteen cover all three
+ * Every flagged shape, at its own line and column. The nineteen cover all three
  * detections and both halves of the case-insensitivity the sniff claims:
  *
  * - lines 8-11, one call per watched network function.
@@ -212,6 +222,11 @@ it('says nothing about source it cannot read to the end of', function () use ($f
  *   call: made to take the first `filename:` anywhere inside the parentheses,
  *   the sniff reads `filesize()`'s local path and goes silent on the URL beside
  *   it, which is what this line reddens on.
+ * - line 26, `curl_init(...$arguments)` — a spread argument, which spells a real
+ *   call and opens a real connection, unlike the first-class callable one token
+ *   shorter in passing.php. This line is what holds the two apart: the guard
+ *   made to take a leading ellipsis alone, without requiring the closing
+ *   parenthesis behind it, loses this warning.
  */
 it('flags every violation at its own line and column', function () use (
     $featureRun,
@@ -271,14 +286,14 @@ it('inspects nothing outside a feature test', function () use ($featureRun): voi
         ->and($inRepo->getErrors())->toBe([])
         ->and($outsideSuite->getWarnings())->toBe([])
         ->and($outsideSuite->getErrors())->toBe([])
-        ->and($featureRun('failing.php')->getWarnings())->toHaveCount(18);
+        ->and($featureRun('failing.php')->getWarnings())->toHaveCount(19);
 });
 
 /**
  * The gate's globs are a public sniff property, as the AC and the standard's doc
  * both require. The same bytes at the same path are run twice: under the shipped
  * default a copy staged in a suite this configuration does not name is silent,
- * and once the property names that directory the full eighteen warnings arrive.
+ * and once the property names that directory the full nineteen warnings arrive.
  * A property that was ignored would leave both runs identical and fail the
  * second half.
  *
@@ -336,7 +351,7 @@ it('honours inline suppression', function () use ($featureRun): void {
 it('reports detection-only warnings', function () use ($featureRun): void {
     $file = $featureRun('failing.php');
 
-    expect($file->getWarningCount())->toBe(18)
+    expect($file->getWarningCount())->toBe(19)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
@@ -436,7 +451,7 @@ it('sees a qualified class name in the pre-8.0 spelling', function (): void {
  * Asserted in the same paired shape as the gate test above rather than on the
  * positive half alone:
  *
- * - the copy staged under `tests/Feature` reports all eighteen, every message
+ * - the copy staged under `tests/Feature` reports all nineteen, every message
  *   under this sniff's own code and at WARNING severity, at status 1 —
  *   violations, none of them fixable, which is what this detection-only rule
  *   owes. Status 2 would mean phpcbf had been offered a fix, and 3 is what a
@@ -457,7 +472,7 @@ it('reports the violation end to end through the installed package', function ()
     );
     $passing = installedSniffRun(NO_INTERNET_TRAVERSAL, $featurePath('passing.php'));
 
-    expect(array_column($staged['messages'], 'source'))->toHaveCount(18)
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(19)
         ->each->toBe(NO_INTERNET_TRAVERSAL_WARNING)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
         ->and($staged['status'])->toBe(1)
