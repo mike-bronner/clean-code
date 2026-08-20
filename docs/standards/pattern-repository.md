@@ -23,8 +23,8 @@ The standard splits in two, and only one half is Tier 3: whether persistence
 logic actually lives in the model or its traits is **not** statically
 enforceable — that is a judgement about intent, and no token-based sniff can
 verify it — while the complementary half, "no dedicated class outside the model
-implements the repository pattern", is token-visible and is getting a sniff of
-its own.
+implements the repository pattern", is token-visible and has a sniff of its
+own.
 
 The Tier-3 rationale, in one sentence: repository *behaviour* is spread across
 persistence methods and traits throughout a codebase, so a single file's token
@@ -40,24 +40,31 @@ itself for it — a declaration named `*Repository` (`UserRepository`) or
 a `Repositories\` namespace. That declaration is the thing this standard rules
 out, whatever its body does.
 
-That slice is tracked and being implemented in
-[#126](https://github.com/mike-bronner/phpcs-rules/issues/126), as a focused
-sniff shipping in its own pull request — no sniff ships under this
-documentation entry.
+That slice is enforced by the custom
+`CleanCode.Pattern.DisallowRepositoryClasses` sniff
+([#126](https://github.com/mike-bronner/phpcs-rules/issues/126)), at **warning**
+severity and detection-only. It reads the declaration and nothing else:
+`extends`, `implements`, a trait `use`, an import, and `new` are consumption
+sites, so a class forced to extend a third-party `*Repository` base class is
+not reported for it. Both halves — the `Repository`/`RepositoryInterface` name
+suffix and the `Repositories` namespace segment — are compared
+case-insensitively, as PHP resolves type and namespace names. An anonymous
+class is never reported: `new class {}` is a `new` expression, and not a
+dedicated type that can be autoloaded, type-hinted, or bound by name.
 
 - **Boundaries** — the heuristic reads names, not behaviour, so it is evadable:
   a dedicated persistence class called `UserStore`, or one sitting outside a
   `Repositories\` namespace, does exactly what the standard forbids and the
-  sniff will stay silent. And a future hit from the
-  [#126](https://github.com/mike-bronner/phpcs-rules/issues/126) sniff is a
-  hint, not a verdict — code review still decides whether a flagged declaration
-  actually violates this standard, since a name alone cannot show that the
-  class drives model persistence.
+  sniff stays silent. And a hit is a hint, not a verdict — code review still
+  decides whether a flagged declaration actually violates this standard, since
+  a name alone cannot show that the class drives model persistence. That is why
+  the sniff warns rather than errors.
 
 ## What remains code review
 
 The semantic core — that persistence behaviour lives on the model and in its
 attribute/query traits — stays with code review. The
-[#126](https://github.com/mike-bronner/phpcs-rules/issues/126) sniff will cover
-one naming shape; it says nothing about where behaviour ended up, so the
-reviewer owns that call regardless.
+`CleanCode.Pattern.DisallowRepositoryClasses` sniff
+([#126](https://github.com/mike-bronner/phpcs-rules/issues/126)) covers one
+naming shape; it says nothing about where behaviour ended up, so the reviewer
+owns that call regardless.
