@@ -202,9 +202,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Sniffs.php' => [
         ['line' => 210, 'column' => 15],
+        ['line' => 211, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
-        ['line' => 268, 'column' => 17],
+        ['line' => 278, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
         ['line' => 511, 'column' => 22],

@@ -122,6 +122,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.ClearCode.ActionSingleEntryPoint',
     'CleanCode.ClearCode.JunkDrawerNamespace',
+    'CleanCode.ClearCode.SectionComment',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
