@@ -648,3 +648,89 @@ it('moves the reported condition lines and nothing else', function (): void {
         array_column(violationTuples(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')), 'line')
     );
 });
+
+/**
+ * The line-start index this sniff builds once per token stream must not answer
+ * one analysis with another analysis's pointers (#343).
+ *
+ * The index used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one index.
+ *
+ * The two sources here tokenise to 36 tokens each: the two `!` tokens sit in
+ * front of the measured group in A and behind it in B, which holds the counts
+ * equal while moving every pointer from the group onwards two places. Under the
+ * old key, B's `&& (` line was measured from A's pointer for that line — two
+ * tokens further along, past the `&&` and onto the `(` — and the diagnostic
+ * claimed `expected 11 spaces` for a group that is owed 8. All three expected
+ * indents are distinct (12 for A, 8 for B, 11 for the stale answer), so no
+ * assertion below can be satisfied by the wrong stream's value.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its own answer back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose index leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its line-start index from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        if (
+        !!$alpha
+                && ($beta
+                || $gamma)
+        ) {
+            $one = 1;
+        }
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        if (
+        $alpha
+            && ($beta
+            || $gamma)
+        ) {
+            $one = !!1;
+        }
+
+        PHP;
+
+    $first = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceA);
+    $second = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceB);
+    $third = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 5, 'column' => 9, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+            ['line' => 6, 'column' => 5, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            5 => [
+                'The first condition of a parenthesized group must start on its own line, '
+                    . 'indented one level deeper than its enclosing condition; expected 8 spaces',
+            ],
+            6 => [
+                "Condition in a parenthesized group must align with the group's first "
+                    . 'condition; expected 8 spaces, found 4',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([
+            ['line' => 5, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+            ['line' => 6, 'column' => 9, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        ])
+        ->and(violationMessagesByLine($third->getErrors()))->toBe([
+            5 => [
+                'The first condition of a parenthesized group must start on its own line, '
+                    . 'indented one level deeper than its enclosing condition; expected 12 spaces',
+            ],
+            6 => [
+                "Condition in a parenthesized group must align with the group's first "
+                    . 'condition; expected 12 spaces, found 8',
+            ],
+        ]);
+});

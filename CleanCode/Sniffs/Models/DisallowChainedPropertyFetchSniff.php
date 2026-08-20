@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Models;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -112,11 +113,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
     /**
      * The token stream self::$roots was built from, so a stream it does not
-     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
-     * every `phpcbf` pass and the record holds pointers into one particular
-     * stream, so the fixer's loop counter is part of the key alongside the file
-     * and its token count — the same key tests/../ArrayAccessorsSniff builds
-     * for its own per-stream maps.
+     * describe is never answered from. The record holds pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * four sniffs with a per-stream index in this package share — is what tells
+     * that stream from every other, including the next `phpcbf` pass over the
+     * same file.
      */
     private ?string $rootsKey = null;
 
@@ -381,9 +382,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
      */
     private function discardRootsOfOtherStreams(File $phpcsFile): void
     {
-        $key = $phpcsFile->getFilename()
-            . '|' . count($phpcsFile->getTokens())
-            . '|' . ($phpcsFile->fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->rootsKey === $key) {
             return;

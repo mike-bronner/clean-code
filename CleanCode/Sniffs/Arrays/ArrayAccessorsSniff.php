@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Arrays;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -168,10 +169,11 @@ class ArrayAccessorsSniff implements Sniff
 
     /**
      * The token stream every map below was built from, so a stream they do not
-     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
-     * every `phpcbf` pass, and the maps hold pointers into one particular
-     * stream: the fixer's loop counter is part of the key for that reason,
-     * alongside the file and its token count.
+     * describe is never answered from. The maps hold pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * four sniffs with a per-stream index in this package share — is what tells
+     * that stream from every other, including the next `phpcbf` pass over the
+     * same file.
      */
     private ?string $enclosureMapKey = null;
 
@@ -944,10 +946,7 @@ class ArrayAccessorsSniff implements Sniff
     private function buildEnclosureMap(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $fixer = $phpcsFile->fixer;
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->enclosureMapKey === $key) {
             return;

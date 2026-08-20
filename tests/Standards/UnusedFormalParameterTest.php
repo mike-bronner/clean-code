@@ -748,3 +748,87 @@ it('indexes an ancestor once per file, not once per descendant method', function
         }
     }
 });
+
+/**
+ * The class-like index this sniff builds once per token stream must not answer
+ * one analysis with another analysis's pointers (#343).
+ *
+ * The index used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one index.
+ *
+ * The two sources here tokenise to 67 tokens each — the ancestor's method is
+ * named `run` in A and `walk` in B, one token either way — and differ in
+ * exactly what the index records: the ancestor's method list. In A, `Kid::run()`
+ * overrides `Base::run()`, so its unread `$alpha` is exempt; in B nothing named
+ * `run` exists to override, so `$alpha` is dead. Under the old key B read A's
+ * method list, inherited the override exemption, and reported nothing.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its silence back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose index leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its class-like index from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        class Base
+        {
+            public function run($alpha)
+            {
+                return $alpha;
+            }
+        }
+
+        class Kid extends Base
+        {
+            public function run($alpha)
+            {
+                return 1;
+            }
+        }
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        class Base
+        {
+            public function walk($alpha)
+            {
+                return $alpha;
+            }
+        }
+
+        class Kid extends Base
+        {
+            public function run($alpha)
+            {
+                return 1;
+            }
+        }
+
+        PHP;
+
+    $first = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceA);
+    $second = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceB);
+    $third = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 13, 'column' => 25, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            13 => [
+                'The method run() never reads its parameter $alpha; remove it from the '
+                    . 'signature, or mark the method as an override with #[\\Override] or '
+                    . '@inheritdoc if the signature is imposed from outside '
+                    . '(see docs/phpmd/unusedcode-unusedformalparameter.md)',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
+});

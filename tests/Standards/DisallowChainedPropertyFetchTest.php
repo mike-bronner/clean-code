@@ -719,3 +719,64 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
 });
+
+/**
+ * The record of walked chain roots this sniff builds once per token stream must
+ * not answer one analysis with another analysis's pointers (#343).
+ *
+ * The record used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one record.
+ *
+ * The two sources here tokenise to 15 tokens each — `self::` in A and `!!` in B
+ * are two tokens either way, so the chain's receiver sits at the same pointer
+ * in both — and differ in exactly what the record holds for that pointer: A's
+ * chain hangs off a static property, which the standard leaves alone, so the
+ * walk records "not variable-rooted" there, while B's hangs off a plain
+ * variable. Under the old key B read A's verdict for that pointer, was ruled
+ * not variable-rooted, and its violation was never reported.
+ *
+ * rules.xml scopes this sniff out of test paths, and that exclusion is decided
+ * from the analysed file's own path; STDIN has none, so these three analyses
+ * reach the sniff where a fixture under tests/ would not.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its silence back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose record leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its root record from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        $flag = self::$book->author->name;
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        $flag = !!$book->author->name;
+
+        PHP;
+
+    $first = analyzeStdinSource([CHAINED], $sourceA);
+    $second = analyzeStdinSource([CHAINED], $sourceB);
+    $third = analyzeStdinSource([CHAINED], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 3, 'column' => 26, 'source' => CHAINED_ERROR],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            3 => [
+                'Chained property fetch author->name; expose the value as an accessor '
+                    . 'attribute on the first model instead (e.g. getAuthorNameAttribute() so '
+                    . 'callers read $book->authorName rather than $book->author->name) '
+                    . '(see docs/standards/models-relationship-properties.md)',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
+});

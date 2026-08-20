@@ -888,3 +888,64 @@ it('reports detection-only violations', function (): void {
     expect($file->getErrorCount())->toBe(47)
         ->and($file->getFixableCount())->toBe(0);
 });
+
+/**
+ * The enclosure map this sniff builds once per token stream must not answer one
+ * analysis with another analysis's pointers (#343).
+ *
+ * The map used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one map.
+ *
+ * The two sources here tokenise to 25 tokens each — `isset` and `strlen` are
+ * one token apiece — and differ in exactly what the map records: A's read sits
+ * inside an existence check, which the standard exempts, while B's sits inside
+ * an ordinary call, which it does not. Under the old key B was measured against
+ * A's map, inherited the exemption, and its line-3 violation was never
+ * reported. That is the assertion below: B owes two violations, not the one A
+ * owes.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires A's single violation back, which a sniff that had
+ * simply stopped caching would also give — but a sniff whose map leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its enclosure map from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        $one = isset($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        $one = strlen($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $first = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+    $second = analyzeStdinSource([ARRAY_ACCESSORS], $sourceB);
+    $third = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 3, 'column' => 15, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            3 => [sprintf(ARRAY_ACCESSORS_READ, '$alpha')],
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($third->getErrors()))->toBe([
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ]);
+});
