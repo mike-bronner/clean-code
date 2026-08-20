@@ -254,6 +254,20 @@ final class NearMisses
         }
     }
 
+    /**
+     * @param array<string, array<string, string>> $row
+     */
+    public function deepIndexIf(array $row): string
+    {
+        if ($row['meta']['type'] === 'circle') {
+            return 'Circle';
+        } elseif ($row['meta']['type'] === 'square') {
+            return 'Square';
+        } else {
+            return 'Unknown';
+        }
+    }
+
     public function deepPropertySwitch(object $shape): string
     {
         switch ($shape->meta->type) {

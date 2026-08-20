@@ -73,11 +73,12 @@ it('stays silent on every near-miss shape', function (int $line): void {
     'match expression' => 212,
     'same property on two variables' => 221,
     'switch (true)' => 232,
-    'index read two hops deep' => 247,
-    'property read two hops deep, switch' => 259,
-    'property read two hops deep, if' => 271,
-    'positional index' => 285,
-    'static property read' => 297,
+    'index read two hops deep, switch' => 247,
+    'index read two hops deep, if' => 262,
+    'property read two hops deep, switch' => 273,
+    'property read two hops deep, if' => 285,
+    'positional index' => 299,
+    'static property read' => 311,
 ]);
 
 /**
