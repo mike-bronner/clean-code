@@ -111,6 +111,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Conditionals/MappingArrayCandidateSniff.php' => [
         ['line' => 598, 'column' => 34],
     ],
+    'CleanCode/Sniffs/Conditionals/TypeDiscriminatorDispatchSniff.php' => [
+        ['line' => 528, 'column' => 18],
+        ['line' => 548, 'column' => 28],
+        ['line' => 583, 'column' => 31],
+    ],
     'CleanCode/Sniffs/Controllers/NoCustomActionsSniff.php' => [
         ['line' => 178, 'column' => 34],
     ],
@@ -197,8 +202,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 204, 'column' => 15],
-        ['line' => 197, 'column' => 15],
+        ['line' => 206, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 268, 'column' => 17],

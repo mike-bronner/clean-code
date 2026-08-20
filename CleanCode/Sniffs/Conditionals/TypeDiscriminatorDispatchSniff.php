@@ -1,0 +1,609 @@
+<?php
+
+declare(strict_types=1);
+
+namespace MikeBronner\CleanCode\Sniffs\Conditionals;
+
+use PHP_CodeSniffer\Files\File;
+use PHP_CodeSniffer\Sniffs\Sniff;
+use PHP_CodeSniffer\Util\Tokens;
+
+/**
+ * Enforces the token-visible slice of the Open-Closed principle from
+ * "Pattern: SOLID" (#5), as scoped by #324.
+ *
+ * Reports one **warning** per qualifying construct — at the `switch` keyword, or
+ * at the leading `if` of a chain. A `switch`, or an `if`/`elseif` chain, that
+ * dispatches on the same type-discriminator read across three or more literal
+ * branches is closed for extension and open for modification: adding a variant
+ * of that type forces an edit to this construct, which is the principle
+ * inverted.
+ *
+ * A construct qualifies when *all* of the following hold:
+ *
+ * 1. The subject is a **discriminator read** — a variable plus exactly one
+ *    property or index hop (`$shape->type`, `$shape?->type`, `$row['type']`).
+ *    A plain variable is not one, and neither is a read two hops deep.
+ * 2. For an `if` chain, every clause compares that read against a scalar
+ *    literal with `===` or `==`, in either operand order, and every clause reads
+ *    the *same* discriminator — compared token for token, base variable
+ *    included, so `$shape->type` and `$model->type` never share a chain. For a
+ *    `switch`, the subject is read once, and every `case` label is itself a
+ *    scalar literal.
+ * 3. The branch count reaches $minimumBranches. Each `case` label counts on its
+ *    own, so stacked labels sharing one fallthrough body count once each;
+ *    `default` counts as one wherever it sits; a trailing `else` counts as one.
+ *
+ * Every continuation shape PHP offers is walked, because PHP_CodeSniffer
+ * attaches scope to a different token in each (verified against the tokenizer,
+ * not assumed):
+ *
+ * | Shape                        | Where the clause's scope lives                 |
+ * |------------------------------|------------------------------------------------|
+ * | `} elseif (…) {`             | `T_ELSEIF`, closer is the `}`                  |
+ * | `} else if (…) {`            | the trailing `T_IF`; the `T_ELSE` has no scope |
+ * | `if (…) return …;`           | no scope at all — body ends at the `;`         |
+ * | `if (…): … elseif (…): …`    | opener is the `:`, closer is the *next clause* |
+ * | `switch (…): … endswitch;`   | opener is the `:`, closer is the `endswitch`   |
+ *
+ * Deliberately **not** flagged, and why:
+ *
+ * - A plain-variable subject (`switch ($type)`, `if ($type === 'circle')`). A
+ *   bare local carries no evidence it holds a *type*, and the `if` form of it is
+ *   already owned by CleanCode.Conditionals.MappingArrayCandidate.
+ * - `switch (true) { case <expr>: }`. The switch subject is the literal `true`,
+ *   not a discriminator field, even though each `case` re-reads one.
+ * - A discriminator read more than one hop deep (`$row['meta']['type']`,
+ *   `$a->b->type`). Skipped whole, never partially matched.
+ * - Any non-literal or compound branch condition — `instanceof`, ranges, `!==`,
+ *   calls, `&&`/`||` — and any `case` label that is not a scalar literal, which
+ *   includes a class constant and a bare constant. One such label disqualifies
+ *   the whole switch.
+ * - `match`. It is the construct CleanCode.Conditionals.MappingArrayCandidate
+ *   and CleanCode.Conditionals.AvoidConditionals both recommend as the
+ *   *replacement*, so flagging it would have the ruleset argue with itself. This
+ *   sniff never registers on T_MATCH.
+ *
+ * Overlap with CleanCode.Conditionals.AvoidConditionals is expected and
+ * deliberate: that sniff counts a branch, this one names a pattern.
+ *
+ * Detection only — the remedy is a type hierarchy or a map plus every call site
+ * rewritten, which is a design change rather than a mechanical one, so there is
+ * nothing to auto-fix. See docs/standards/pattern-solid.md.
+ */
+class TypeDiscriminatorDispatchSniff implements Sniff
+{
+    /**
+     * How many branches a construct needs before it is reported, counting each
+     * `case` label, a `default`, and a trailing `else` as one branch each.
+     *
+     * Left untyped on purpose: PHPCS hands ruleset `<property>` values over as
+     * strings, which a typed `int` property would reject with a TypeError. The
+     * value is cast where it is read instead.
+     *
+     * @var int
+     */
+    public $minimumBranches = 3;
+
+    /**
+     * The message every report carries: the principle by name, the branch
+     * count, and the discriminator as it is written in the source.
+     */
+    private const MESSAGE = 'Open-Closed principle: %d branches of this %s dispatch on the type discriminator'
+        . ' "%s", so a new variant of that type means editing this construct. Prefer polymorphism, or a'
+        . ' mapping array where the branches only produce a value.';
+
+    /**
+     * The two comparisons a dispatch chain is written with.
+     *
+     * Family: PHP_CodeSniffer's own Tokens::$equalityTokens, whose six members
+     * are accounted for here. T_IS_EQUAL and T_IS_IDENTICAL are the two that ask
+     * "is this the X variant?". T_IS_NOT_EQUAL and T_IS_NOT_IDENTICAL are the
+     * negation, which selects everything *but* one variant and so does not
+     * enumerate a type; T_IS_SMALLER_OR_EQUAL and T_IS_GREATER_OR_EQUAL are
+     * ordering comparisons, which a type discriminator has no ordering for.
+     *
+     * @var array<int, int|string>
+     */
+    private const EQUALITY_OPERATORS = [
+        T_IS_IDENTICAL,
+        T_IS_EQUAL,
+    ];
+
+    /**
+     * PHP's four scalar types written as literals — int, float, string, and both
+     * spellings of bool, which is why the list is five tokens long. `null` is
+     * absent because it is not a scalar and names no variant; an object or array
+     * literal cannot be a `case` label's whole value here either.
+     *
+     * @var array<int, int|string>
+     */
+    private const SCALAR_LITERALS = [
+        T_LNUMBER,
+        T_DNUMBER,
+        T_CONSTANT_ENCAPSED_STRING,
+        T_TRUE,
+        T_FALSE,
+    ];
+
+    /**
+     * The literals a sign may legally precede. PHP has no negative-number token:
+     * `-1` is a T_MINUS followed by a T_LNUMBER, so a signed literal is only ever
+     * recognised as this pair.
+     *
+     * @var array<int, int|string>
+     */
+    private const NUMERIC_LITERALS = [
+        T_LNUMBER,
+        T_DNUMBER,
+    ];
+
+    /**
+     * The two tokens that can sign a numeric literal.
+     *
+     * Family: PHP's two additive operators, `+` and `-`, which are also its two
+     * sign operators. Both are admitted only immediately before a numeric
+     * literal that is the operand's whole remainder, so neither is ever read as
+     * arithmetic — see isScalarLiteral().
+     *
+     * @var array<int, int|string>
+     */
+    private const SIGN_TOKENS = [
+        T_MINUS,
+        T_PLUS,
+    ];
+
+    /**
+     * The operators a one-hop property read is written with.
+     *
+     * Family: the three member-access operators PHP defines — `->`, `?->` and
+     * `::`. The two instance operators are here because both read a property off
+     * the variable on their left, and a nullsafe read discriminates exactly as a
+     * plain one does. T_DOUBLE_COLON is excluded: it reads a static property or
+     * a class constant, which belongs to the class rather than to the value
+     * being dispatched on, so it is not a per-instance type discriminator.
+     *
+     * @var array<int, int|string>
+     */
+    private const PROPERTY_OPERATORS = [
+        T_OBJECT_OPERATOR,
+        T_NULLSAFE_OBJECT_OPERATOR,
+    ];
+
+    /**
+     * The keywords a clause of an `if` chain can open with.
+     *
+     * Family: the five keywords PHP's `if` grammar defines — `if`, `elseif`,
+     * `else`, plus the alternative syntax's `endif` and the two-word `else if`.
+     * The three here each open a clause. T_ENDIF is excluded because it
+     * terminates the chain rather than opening a branch, and the two-word
+     * `else if` needs no entry: PHPCS tokenizes it as a T_ELSE followed by a
+     * full T_IF, both already listed.
+     *
+     * @var array<int, int|string>
+     */
+    private const CLAUSE_KEYWORDS = [
+        T_IF,
+        T_ELSEIF,
+        T_ELSE,
+    ];
+
+    /**
+     * @return array<int|string>
+     */
+    public function register(): array
+    {
+        return [T_SWITCH, T_IF];
+    }
+
+    /**
+     * @param int $stackPtr
+     *
+     * @return void
+     */
+    public function process(File $phpcsFile, $stackPtr)
+    {
+        if ($phpcsFile->getTokens()[$stackPtr]['code'] === T_SWITCH) {
+            $this->processSwitch($phpcsFile, $stackPtr);
+
+            return;
+        }
+
+        $this->processIfChain($phpcsFile, $stackPtr);
+    }
+
+    /**
+     * Reports a `switch` whose subject is a discriminator read and whose every
+     * arm is a scalar-literal `case` or the `default`.
+     */
+    private function processSwitch(File $phpcsFile, int $stackPtr): void
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$stackPtr]['parenthesis_opener'], $tokens[$stackPtr]['parenthesis_closer']) === false) {
+            return;
+        }
+
+        if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
+            return;
+        }
+
+        $subject = $this->discriminator($tokens, $this->significantTokens(
+            $phpcsFile,
+            $tokens[$stackPtr]['parenthesis_opener'] + 1,
+            $tokens[$stackPtr]['parenthesis_closer'] - 1
+        ));
+
+        if ($subject === null) {
+            return;
+        }
+
+        $branches = $this->switchBranches($phpcsFile, $stackPtr);
+
+        if ($branches === null || $branches < (int) $this->minimumBranches) {
+            return;
+        }
+
+        $phpcsFile->addWarning(
+            self::MESSAGE,
+            $stackPtr,
+            'SwitchDispatch',
+            [$branches, 'switch', $subject]
+        );
+    }
+
+    /**
+     * How many branches a `switch` has, or null when any arm disqualifies it.
+     *
+     * Only the arms of *this* switch are counted. A nested switch's arms carry
+     * that switch as their innermost condition, so the ownership check is what
+     * keeps their labels — and their disqualifications — out of this verdict.
+     */
+    private function switchBranches(File $phpcsFile, int $stackPtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$stackPtr]['scope_closer'];
+        $branches = 0;
+
+        for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
+            $code = $tokens[$pointer]['code'];
+
+            if ($code !== T_CASE && $code !== T_DEFAULT) {
+                continue;
+            }
+
+            if (array_key_last($tokens[$pointer]['conditions']) !== $stackPtr) {
+                continue;
+            }
+
+            if ($code === T_DEFAULT) {
+                $branches++;
+
+                continue;
+            }
+
+            // A `case` whose scope the tokenizer could not resolve — a truncated
+            // file is the reachable way there — has no readable label, so the
+            // whole switch fails closed rather than being counted short.
+            if (isset($tokens[$pointer]['scope_opener']) === false) {
+                return null;
+            }
+
+            $label = $this->significantTokens($phpcsFile, $pointer + 1, $tokens[$pointer]['scope_opener'] - 1);
+
+            if ($this->isScalarLiteral($tokens, $label) === false) {
+                return null;
+            }
+
+            $branches++;
+        }
+
+        return $branches;
+    }
+
+    /**
+     * Reports an `if` chain whose every clause compares one discriminator read
+     * against a scalar literal.
+     */
+    private function processIfChain(File $phpcsFile, int $stackPtr): void
+    {
+        if ($this->isChainHead($phpcsFile, $stackPtr) === false) {
+            return;
+        }
+
+        $subjects = $this->collectSubjects($phpcsFile, $stackPtr);
+
+        if ($subjects === null || count($subjects) < (int) $this->minimumBranches) {
+            return;
+        }
+
+        $subject = $this->sharedSubject($subjects);
+
+        if ($subject === null) {
+            return;
+        }
+
+        $phpcsFile->addWarning(
+            self::MESSAGE,
+            $stackPtr,
+            'IfChain',
+            [count($subjects), 'if/elseif chain', $subject]
+        );
+    }
+
+    /**
+     * Whether this `if` opens a chain rather than continuing one.
+     *
+     * The `if` of a spaced `else if` is a full T_IF token with its own scope, so
+     * it reaches process() exactly like a leading one. Its chain is already
+     * walked from the real head, and reporting it again would warn twice on one
+     * chain.
+     */
+    private function isChainHead(File $phpcsFile, int $stackPtr): bool
+    {
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $stackPtr - 1, null, true);
+
+        if ($previous === false) {
+            return true;
+        }
+
+        return $phpcsFile->getTokens()[$previous]['code'] !== T_ELSE;
+    }
+
+    /**
+     * One entry per branch of the chain — the discriminator each clause reads,
+     * or null for a trailing `else` — and null for the whole chain as soon as
+     * any clause fails the shape rules.
+     *
+     * @return array<int, string|null>|null
+     */
+    private function collectSubjects(File $phpcsFile, int $stackPtr): ?array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $subjects = [];
+        $pointer = $stackPtr;
+
+        while ($pointer !== null) {
+            $code = $tokens[$pointer]['code'];
+
+            if ($code === T_ELSE) {
+                $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+                // A spaced `else if`: the trailing `if` carries the condition
+                // and the scope, so hand the clause to it.
+                if ($next !== false && $tokens[$next]['code'] === T_IF) {
+                    $pointer = $next;
+
+                    continue;
+                }
+
+                // A trailing `else` is the chain's default branch and its last:
+                // nothing can follow it, so no continuation is looked for.
+                $subjects[] = null;
+
+                break;
+            }
+
+            if (in_array($code, self::CLAUSE_KEYWORDS, true) === false) {
+                break;
+            }
+
+            $subject = $this->conditionDiscriminator($phpcsFile, $pointer);
+
+            if ($subject === null) {
+                return null;
+            }
+
+            $subjects[] = $subject;
+            $pointer = $this->nextClause($phpcsFile, $pointer);
+        }
+
+        return $subjects;
+    }
+
+    /**
+     * Where the clause after this one begins, or null when the chain ends here.
+     *
+     * PHPCS models the three body forms differently, so each is read on its own
+     * terms rather than through one assumed scope shortcut:
+     *
+     * - braced — scope runs `{` to `}`, and the next clause follows the `}`;
+     * - alternative syntax — scope runs `:` to the *next clause's own keyword*,
+     *   which therefore doubles as the continuation pointer;
+     * - brace-less — no scope at all, so the body is the single statement after
+     *   the condition, ending at its semicolon.
+     */
+    private function nextClause(File $phpcsFile, int $clausePtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$clausePtr]['scope_opener'], $tokens[$clausePtr]['scope_closer']) === true) {
+            $closer = $tokens[$clausePtr]['scope_closer'];
+
+            if ($tokens[$closer]['code'] !== T_CLOSE_CURLY_BRACKET) {
+                return $closer;
+            }
+
+            $next = $phpcsFile->findNext(Tokens::$emptyTokens, $closer + 1, null, true);
+
+            return $next === false ? null : $next;
+        }
+
+        if (isset($tokens[$clausePtr]['parenthesis_closer']) === false) {
+            return null;
+        }
+
+        // findEndOfStatement() reads the token it is handed, so it has to start
+        // on the statement's first real token, never the whitespace before it.
+        $bodyStart = $phpcsFile->findNext(
+            Tokens::$emptyTokens,
+            $tokens[$clausePtr]['parenthesis_closer'] + 1,
+            null,
+            true
+        );
+
+        if ($bodyStart === false) {
+            return null;
+        }
+
+        $bodyEnd = $phpcsFile->findEndOfStatement($bodyStart);
+
+        if ($bodyEnd <= $clausePtr) {
+            return null;
+        }
+
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $bodyEnd + 1, null, true);
+
+        return $next === false ? null : $next;
+    }
+
+    /**
+     * The discriminator a condition tests, when the condition is exactly
+     * `<discriminator> === <literal>` or `<literal> === <discriminator>`; null
+     * otherwise.
+     *
+     * The condition is split on its single equality operator and each side is
+     * matched against one of two operand shapes. That is what excludes compound
+     * conditions, calls, parenthesised conditions, non-equality operators, and
+     * arithmetic on an operand in one stroke — while still admitting a signed
+     * numeric literal, which PHP writes as two tokens rather than one.
+     */
+    private function conditionDiscriminator(File $phpcsFile, int $clausePtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (isset($tokens[$clausePtr]['parenthesis_opener'], $tokens[$clausePtr]['parenthesis_closer']) === false) {
+            return null;
+        }
+
+        $condition = $this->significantTokens(
+            $phpcsFile,
+            $tokens[$clausePtr]['parenthesis_opener'] + 1,
+            $tokens[$clausePtr]['parenthesis_closer'] - 1
+        );
+
+        $operators = [];
+
+        foreach ($condition as $index => $pointer) {
+            if (in_array($tokens[$pointer]['code'], self::EQUALITY_OPERATORS, true) === true) {
+                $operators[] = $index;
+            }
+        }
+
+        if (count($operators) !== 1) {
+            return null;
+        }
+
+        $left = array_slice($condition, 0, $operators[0]);
+        $right = array_slice($condition, $operators[0] + 1);
+        $subject = $this->discriminator($tokens, $left);
+
+        if ($subject !== null && $this->isScalarLiteral($tokens, $right) === true) {
+            return $subject;
+        }
+
+        $subject = $this->discriminator($tokens, $right);
+
+        return $subject !== null && $this->isScalarLiteral($tokens, $left) === true ? $subject : null;
+    }
+
+    /**
+     * An operand read as a discriminator — a variable plus exactly one property
+     * or index hop — spelled back as its own source text, or null when the
+     * operand is any other shape.
+     *
+     * The text is what the branches are compared on, and it is built from every
+     * token of the read including the base variable's own name, so
+     * `$shape->type` and `$model->type` are two discriminators rather than one.
+     *
+     * A read two hops deep (`$row['meta']['type']`, `$a->b->type`) matches no
+     * shape here and is skipped whole: matching its tail would let two reads
+     * rooted in different values look identical.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $pointers
+     */
+    private function discriminator(array $tokens, array $pointers): ?string
+    {
+        $codes = array_map(static fn (int $pointer): int|string => $tokens[$pointer]['code'], $pointers);
+
+        $isPropertyRead = count($codes) === 3
+            && $codes[0] === T_VARIABLE
+            && in_array($codes[1], self::PROPERTY_OPERATORS, true) === true
+            && $codes[2] === T_STRING;
+
+        // Only a quoted key names a field. A positional index (`$row[0]`) says
+        // nothing about a type, and a constant or variable key cannot be
+        // compared across branches by its own text alone.
+        $isIndexRead = count($codes) === 4
+            && $codes[0] === T_VARIABLE
+            && $codes[1] === T_OPEN_SQUARE_BRACKET
+            && $codes[2] === T_CONSTANT_ENCAPSED_STRING
+            && $codes[3] === T_CLOSE_SQUARE_BRACKET;
+
+        if ($isPropertyRead === false && $isIndexRead === false) {
+            return null;
+        }
+
+        return implode('', array_map(
+            static fn (int $pointer): string => $tokens[$pointer]['content'],
+            $pointers
+        ));
+    }
+
+    /**
+     * Whether an operand is a scalar literal: one literal token, or a sign
+     * immediately followed by a numeric literal. The two-token form is the only
+     * way PHP spells a negative number, so without it `case -1:` would look like
+     * a non-literal label and disqualify a switch that is exactly the shape this
+     * sniff exists for.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<int, int>                  $pointers
+     */
+    private function isScalarLiteral(array $tokens, array $pointers): bool
+    {
+        if (count($pointers) === 1) {
+            return in_array($tokens[$pointers[0]]['code'], self::SCALAR_LITERALS, true);
+        }
+
+        return count($pointers) === 2
+            && in_array($tokens[$pointers[0]]['code'], self::SIGN_TOKENS, true) === true
+            && in_array($tokens[$pointers[1]]['code'], self::NUMERIC_LITERALS, true) === true;
+    }
+
+    /**
+     * The discriminator every condition in the chain reads, or null when they
+     * differ. A trailing `else` reads none and is skipped.
+     *
+     * @param array<int, string|null> $subjects
+     */
+    private function sharedSubject(array $subjects): ?string
+    {
+        $named = array_unique(array_filter($subjects, static fn (?string $subject): bool => $subject !== null));
+
+        return count($named) === 1 ? (string) reset($named) : null;
+    }
+
+    /**
+     * The pointers in a range, with whitespace and comments dropped.
+     *
+     * @return array<int, int>
+     */
+    private function significantTokens(File $phpcsFile, int $start, int $end): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $pointers = [];
+
+        for ($pointer = $start; $pointer <= $end; $pointer++) {
+            if (
+                isset($tokens[$pointer]) === true
+                && isset(Tokens::$emptyTokens[$tokens[$pointer]['code']]) === false
+            ) {
+                $pointers[] = $pointer;
+            }
+        }
+
+        return $pointers;
+    }
+}
