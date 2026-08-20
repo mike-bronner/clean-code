@@ -33,15 +33,18 @@ token-visible slice. Being precise about what that means today:
 
 - **Three are enforced now** — Single Responsibility, through seven shipped
   size and coupling sniffs; Dependency Inversion, through the shipped
-  `CleanCode.Classes.DisallowConstructorInstantiation`; and Interface
-  Segregation, through the shipped `CleanCode.Pattern.TooManyInterfaceMethods`
-  ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)). All are
+  `CleanCode.Classes.DisallowConstructorInstantiation`; and Liskov
+  Substitution, through the shipped `CleanCode.Pattern.ThrowOnlyMethodOverride`
+  ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)). All are
   wired into the master `rules.xml`.
 - **Two are accepted but not yet built** — Open-Closed
   ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)) and Liskov
   Substitution ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131))
   each have a focused sniff issue. An open issue is a plan, not enforcement;
   until each ships, those two principles rest entirely on code review.
+  ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) each have a
+  focused sniff issue. An open issue is a plan, not enforcement; until each
+  ships, those two principles rest entirely on code review.
 - **One candidate was rejected** — the specific Dependency Inversion heuristic
   of flagging a concrete type hint. It is rejected for named token-level facts,
   not a general appeal to semantics, and a different DIP slice is shipped in its
@@ -156,7 +159,7 @@ been polymorphism is a design call — some discriminator switches sit at a
 serialization boundary where polymorphism has nowhere to attach. The sniff is a
 warning-level prompt, and the judgement stays with review.
 
-### Liskov Substitution — accepted, focused sniff issue open
+### Liskov Substitution — accepted, already shipped
 
 **Heuristic evaluated:** a method whose entire body is a single `throw`
 statement, declared in a class that `extends` a parent or `implements` an
@@ -165,14 +168,28 @@ promises. Callers substituting the subtype break, which is what LSP forbids.
 
 **Construct checked:** `T_FUNCTION` with its `scope_opener`/`scope_closer`; the
 body qualifies when its first non-whitespace, non-comment token is `T_THROW` and
-that statement's `T_SEMICOLON` is the last token before the closer. The
-hierarchy test is `File::findExtendedClassName()` and
-`File::findImplementedInterfaceNames()`, both of which read the `T_EXTENDS` and
-`T_IMPLEMENTS` tokens of the declaration in this same file. The parent's own
-source is never needed: the signal is the stub, not what it overrides.
+the statement that token opens ends the body. The statement's end comes from
+`File::findEndOfStatement()` rather than from a scan for the next
+`T_SEMICOLON`, so a `throw` whose arguments carry a closure — semicolons and
+all — is still one statement. The hierarchy test is
+`File::findExtendedClassName()` and `File::findImplementedInterfaceNames()`,
+both of which read the `T_EXTENDS` and `T_IMPLEMENTS` tokens of the declaration
+in this same file. The parent's own source is never needed: the signal is the
+stub, not what it overrides.
 
-**Call: accepted.** Tracked as
-[#131](https://github.com/mike-bronner/phpcs-rules/issues/131).
+**Call: accepted.** Shipped as `CleanCode.Pattern.ThrowOnlyMethodOverride`
+under [#131](https://github.com/mike-bronner/phpcs-rules/issues/131),
+warning-level and detection-only, wired into `rules.xml` through the
+`./CleanCode/ruleset.xml` reference. It files under `Pattern/` beside
+`AvoidDuplicateCodeBlocks`, the other token-visible slice of a `Pattern:`
+standard.
+
+The sniff starts strict, as #131 asks. It offers no exclusion for the shapes it
+knowingly over-reports — a `private` or `final` stub, an abstract class's
+intentionally-guarded template method, and a method no supertype declares —
+because each is a warning a reviewer dismisses in a second, and narrowing any of
+them needs real-world noise this package has not yet seen. A consuming ruleset
+that disagrees can `<exclude>` the sniff outright.
 
 **What the heuristic does not cover:** true substitutability is behavioural — a
 subtype that narrows a precondition or widens a postcondition breaks LSP while
@@ -309,3 +326,5 @@ by rule: the shipped size and coupling sniffs keep whatever severity their
 PHPMD-parity issue set, several of them error-level, while
 `DisallowConstructorInstantiation`, `TooManyInterfaceMethods` and the two
 proposed sniffs are warning-level.)
+`DisallowConstructorInstantiation` and `ThrowOnlyMethodOverride` are
+warning-level, as are the two proposed sniffs.)

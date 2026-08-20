@@ -13,7 +13,7 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 core, one enforced slice
+## Enforceability — Tier 3 core, two enforced slices
 
 The standard's core is architectural / semantic, and stays enforced by **code
 review and developer discipline**.
@@ -52,14 +52,17 @@ correct depends on the project's layout rather than on anything in the file, so
 there is no fixer.
 
 This is the layout half only. Whether the *code* in a test belongs in the suite
-it sits in remains a judgment, and stays with code review.
+it sits in remains a judgment, and stays with code review — except where the
+code's mere presence contradicts the suite's own definition, which is the second
+enforced slice: `CleanCode.Testing.NoHttpFakesInIntegrationTests`, described
+under Partial enforcement assessment below.
 
 ## Partial enforcement assessment
 
 Each suite has a token-visible *content-mismatch* slice — code whose mere
-presence in that suite's directory contradicts the suite's definition. Each
-slice has a focused follow-up issue rather than a sniff built under this
-documentation-only standard:
+presence in that suite's directory contradicts the suite's definition. One of
+the three is now enforced; the other two are still focused follow-up issues
+rather than sniffs built under this documentation-only standard:
 
 - **External concerns in `tests/Unit/`** —
   [#148](https://github.com/mike-bronner/phpcs-rules/issues/148). Database
@@ -72,10 +75,48 @@ documentation-only standard:
   `curl_*`/`fsockopen` calls, `file_get_contents('http…')`, and direct
   `GuzzleHttp\Client` instantiation are token-visible signals a feature test
   traverses the internet instead of faking it.
-- **HTTP fakes in `tests/Integration/`** —
-  [#150](https://github.com/mike-bronner/phpcs-rules/issues/150).
-  `Http::fake(` / `Http::fakeSequence(` inside an integration test doubles out
-  the very external dependency the suite exists to exercise.
+
+The third is enforced:
+
+- **HTTP fakes in `tests/Integration/`** — *implemented*, as the custom sniff
+  **`CleanCode.Testing.NoHttpFakesInIntegrationTests`**
+  ([#150](https://github.com/mike-bronner/phpcs-rules/issues/150)). An HTTP
+  double inside an integration test doubles out the very external dependency the
+  suite exists to exercise, and installing one is token-visible. It reports two
+  shapes:
+
+  - `FakedHttpClient` — `Http::fake()`, `Http::fakeSequence()` and
+    `Http::preventStrayRequests()` on the `Http` facade. The third is the one
+    the standard's own wording turns on: an integration test *is* the stray
+    request.
+  - `MockedHttpClient` — a `createMock()` or `mock()` call whose first argument
+    names `GuzzleHttp\Client` or a class under `Illuminate\Http\Client`, which
+    doubles out the same dependency without going through the facade.
+
+  The receiver is compared on its trailing namespace segment, so `Http`,
+  `\Http` and `Illuminate\Support\Facades\Http` all read as the facade while
+  `Https` and `ApiHttp` do not. A *qualified* mocked class must equal a
+  configured client or sit beneath it, so a project's own `App\Support\Client`
+  is left alone; an *unqualified* one is matched on the configured client's
+  trailing segment, because one file's tokens cannot say what its imports bind.
+  The suite directory, the faked methods, the mock creators and the client list
+  are all configurable properties.
+
+  Six boundaries are by design, and each is a limit of a single-file token scan:
+  a fake installed in a shared base class or trait is invisible; an instance-side
+  `$this->http->fake()` is not the static facade call and is left alone; suite
+  *intent* is not read at all, so an "integration" test that never calls the
+  external service is not flagged (test absence is
+  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128)'s territory);
+  an aliased import is not resolved, while an unrelated class named `Client` is
+  reported; an imported `Illuminate\Http\Client\Factory` written as
+  `Factory::class` is not; and the mock creators are matched on member name
+  rather than on receiver type.
+
+  It reports **warnings, not errors**, and is **detection-only**: removing a
+  fake from an integration test means either deleting coverage or moving the
+  test to the feature suite, and only the project says which, so there is no
+  fixer.
 
 Considered and declined:
 
