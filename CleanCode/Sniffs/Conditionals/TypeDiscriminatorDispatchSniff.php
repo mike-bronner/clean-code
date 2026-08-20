@@ -46,6 +46,11 @@ use PHP_CodeSniffer\Util\Tokens;
  * | `if (…): … elseif (…): …`    | opener is the `:`, closer is the *next clause* |
  * | `switch (…): … endswitch;`   | opener is the `:`, closer is the `endswitch`   |
  *
+ * A chain ends where its continuations do. Only `elseif` and `else` continue
+ * one, so a bare `if` written after a clause's body opens a construct of its
+ * own however alike the two read, and the branches of the two are never added
+ * together.
+ *
  * Deliberately **not** flagged, and why:
  *
  * - A plain-variable subject (`switch ($type)`, `if ($type === 'circle')`). A
@@ -171,19 +176,21 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     ];
 
     /**
-     * The keywords a clause of an `if` chain can open with.
+     * The keywords that *continue* an `if` chain — the only tokens a finished
+     * clause may hand the walk on to.
      *
      * Family: the five keywords PHP's `if` grammar defines — `if`, `elseif`,
-     * `else`, plus the alternative syntax's `endif` and the two-word `else if`.
-     * The three here each open a clause. T_ENDIF is excluded because it
-     * terminates the chain rather than opening a branch, and the two-word
-     * `else if` needs no entry: PHPCS tokenizes it as a T_ELSE followed by a
-     * full T_IF, both already listed.
+     * `else`, the alternative syntax's `endif`, and the two-word `else if`. Two
+     * of them continue a chain. T_IF is deliberately absent: a bare `if` sitting
+     * after a clause's body is a *new* statement that merely happens to be
+     * adjacent, and admitting it here merges two unrelated constructs into one
+     * chain that was never written. The `if` of a two-word `else if` is reached
+     * through its own T_ELSE instead — see collectSubjects(). T_ENDIF closes the
+     * chain rather than continuing it.
      *
      * @var array<int, int|string>
      */
-    private const CLAUSE_KEYWORDS = [
-        T_IF,
+    private const CONTINUATION_KEYWORDS = [
         T_ELSEIF,
         T_ELSE,
     ];
@@ -280,20 +287,23 @@ class TypeDiscriminatorDispatchSniff implements Sniff
                 continue;
             }
 
+            // An arm whose scope the tokenizer could not resolve is an arm this
+            // switch cannot be read past, so the whole switch fails closed
+            // rather than being counted short. It holds for `default` as much as
+            // for `case`: `default` carries no label to read, but an arm PHP
+            // cannot parse is no evidence of a branch either, and counting it
+            // would report a file PHP rejects. The route there is an arm whose
+            // colon is missing from a switch that still closes — truncating the
+            // file instead costs the switch its own scope, and the check above
+            // turns it away before any arm is read.
+            if (isset($tokens[$pointer]['scope_opener']) === false) {
+                return null;
+            }
+
             if ($code === T_DEFAULT) {
                 $branches++;
 
                 continue;
-            }
-
-            // A `case` whose scope the tokenizer could not resolve has no
-            // readable label, so the whole switch fails closed rather than
-            // being counted short. The route there is an arm whose colon is
-            // missing from a switch that still closes: truncating the file
-            // instead costs the switch its own scope, and the check above turns
-            // it away before any arm is read.
-            if (isset($tokens[$pointer]['scope_opener']) === false) {
-                return null;
             }
 
             $label = $this->significantTokens($phpcsFile, $pointer + 1, $tokens[$pointer]['scope_opener'] - 1);
@@ -399,10 +409,9 @@ class TypeDiscriminatorDispatchSniff implements Sniff
                 break;
             }
 
-            if (in_array($code, self::CLAUSE_KEYWORDS, true) === false) {
-                break;
-            }
-
+            // Every other pointer the walk holds is a clause of this chain by
+            // construction: the head is the T_IF process() was handed, and
+            // nextClause() only ever hands back a continuation keyword.
             $subject = $this->conditionDiscriminator($phpcsFile, $pointer);
 
             if ($subject === null) {
@@ -427,6 +436,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      *   which therefore doubles as the continuation pointer;
      * - brace-less — no scope at all, so the body is the single statement after
      *   the condition, ending at its semicolon.
+     *
+     * What each form finds is the token that *follows* the body, which is not
+     * yet a reason to believe it continues the chain — so every form hands its
+     * find to continuation() for that verdict.
      */
     private function nextClause(File $phpcsFile, int $clausePtr): ?int
     {
@@ -436,12 +449,13 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             $closer = $tokens[$clausePtr]['scope_closer'];
 
             if ($tokens[$closer]['code'] !== T_CLOSE_CURLY_BRACKET) {
-                return $closer;
+                return $this->continuation($tokens, $closer);
             }
 
-            $next = $phpcsFile->findNext(Tokens::$emptyTokens, $closer + 1, null, true);
-
-            return $next === false ? null : $next;
+            return $this->continuation(
+                $tokens,
+                $phpcsFile->findNext(Tokens::$emptyTokens, $closer + 1, null, true)
+            );
         }
 
         if (isset($tokens[$clausePtr]['parenthesis_closer']) === false) {
@@ -467,9 +481,32 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             return null;
         }
 
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $bodyEnd + 1, null, true);
+        return $this->continuation(
+            $tokens,
+            $phpcsFile->findNext(Tokens::$emptyTokens, $bodyEnd + 1, null, true)
+        );
+    }
 
-        return $next === false ? null : $next;
+    /**
+     * The token after a clause's body read as the chain's next clause, or null
+     * when it is anything else — the end of the file, an unrelated statement, or
+     * a fresh `if` that only sits next to this one.
+     *
+     * Textual adjacency is not continuation. Two `if` statements written back to
+     * back are two constructs, each closed for extension on its own terms, and
+     * counting their branches together would report a chain nobody wrote.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function continuation(array $tokens, int|false $pointer): ?int
+    {
+        if ($pointer === false) {
+            return null;
+        }
+
+        return in_array($tokens[$pointer]['code'], self::CONTINUATION_KEYWORDS, true) === true
+            ? $pointer
+            : null;
     }
 
     /**

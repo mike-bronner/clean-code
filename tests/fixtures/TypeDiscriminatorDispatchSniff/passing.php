@@ -28,10 +28,13 @@ declare(strict_types=1);
  *   - crossVariableIf         the same property name on two different variables
  *   - switchOnTrue            `switch (true)`, whose subject is a literal
  *   - deepIndexSwitch         an index read two hops deep
+ *   - deepIndexIf             the same, in the if form
  *   - deepPropertySwitch      a property read two hops deep
  *   - deepPropertyIf          the same, in the if form
  *   - positionalIndexSwitch   a positional index rather than a named field
  *   - staticPropertySwitch    a static read, which belongs to the class
+ *   - adjacentBracedIfs       two braced constructs that only sit side by side
+ *   - adjacentBracelessIfs    the same adjacency, with brace-less bodies
  */
 
 interface Shape
@@ -316,5 +319,40 @@ final class NearMisses
             default:
                 return 'Unknown';
         }
+    }
+
+    /**
+     * Two separate constructs, one branch and then two, neither reaching the
+     * minimum on its own. Only reading the second `if` as a continuation of the
+     * first — which nothing in the source says it is — adds them up to three.
+     */
+    public function adjacentBracedIfs(object $shape): string
+    {
+        if ($shape->type === 'circle') {
+            return 'Circle';
+        }
+
+        if ($shape->type === 'square') {
+            return 'Square';
+        } elseif ($shape->type === 'rect') {
+            return 'Rect';
+        }
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same adjacency where no clause has a body to close: three one-branch
+     * constructs in a row, whose bodies end at their semicolons rather than at a
+     * brace. It is a second path through the clause walk, so it is a second way
+     * to read three unrelated statements as one chain.
+     */
+    public function adjacentBracelessIfs(object $shape): string
+    {
+        if ($shape->type === 'circle') return 'Circle';
+        if ($shape->type === 'square') return 'Square';
+        if ($shape->type === 'rect') return 'Rect';
+
+        return 'Unknown';
     }
 }

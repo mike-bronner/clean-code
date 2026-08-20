@@ -34,9 +34,12 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * passing.php pairs the compliant form — polymorphism — with one near-miss
- * method per exclusion rule. Every method there reaches the branch count and
- * looks discriminator-shaped; each breaks exactly one rule. Relaxing any single
- * rule therefore reddens this test rather than going unnoticed.
+ * method per exclusion rule. Each looks discriminator-shaped and breaks exactly
+ * one rule: most reach the branch count and fail a shape rule, while the last
+ * few fail the count itself — either on their own terms, or because the
+ * branches that would carry them over belong to a second construct that merely
+ * sits next to the first. Relaxing any single rule therefore reddens this test
+ * rather than going unnoticed.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'passing.php');
@@ -56,29 +59,31 @@ it('stays silent on every near-miss shape', function (int $line): void {
 
     expect(array_keys($file->getWarnings()))->not->toContain($line);
 })->with([
-    'plain-variable switch subject' => 55,
-    'plain-variable if discriminator' => 67,
-    'class constant as a case label' => 78,
-    'bare constant as a case label' => 90,
-    'variable as a case label' => 102,
-    'compound boolean condition' => 114,
-    'instanceof condition' => 125,
-    'range condition' => 136,
-    'not-identical condition' => 147,
-    'called discriminator' => 158,
-    'parenthesised condition' => 169,
-    'two-case switch' => 180,
-    'stacked pair below the threshold' => 192,
-    'two-branch if chain' => 203,
-    'match expression' => 212,
-    'same property on two variables' => 221,
-    'switch (true)' => 232,
-    'index read two hops deep, switch' => 247,
-    'index read two hops deep, if' => 262,
-    'property read two hops deep, switch' => 273,
-    'property read two hops deep, if' => 285,
-    'positional index' => 299,
-    'static property read' => 311,
+    'plain-variable switch subject' => 58,
+    'plain-variable if discriminator' => 70,
+    'class constant as a case label' => 81,
+    'bare constant as a case label' => 93,
+    'variable as a case label' => 105,
+    'compound boolean condition' => 117,
+    'instanceof condition' => 128,
+    'range condition' => 139,
+    'not-identical condition' => 150,
+    'called discriminator' => 161,
+    'parenthesised condition' => 172,
+    'two-case switch' => 183,
+    'stacked pair below the threshold' => 195,
+    'two-branch if chain' => 206,
+    'match expression' => 215,
+    'same property on two variables' => 224,
+    'switch (true)' => 235,
+    'index read two hops deep, switch' => 250,
+    'index read two hops deep, if' => 265,
+    'property read two hops deep, switch' => 276,
+    'property read two hops deep, if' => 288,
+    'positional index' => 302,
+    'static property read' => 314,
+    'two braced constructs merely adjacent' => 331,
+    'three brace-less constructs merely adjacent' => 352,
 ]);
 
 /**
@@ -206,7 +211,7 @@ it('warns once on every continuation spelling', function (): void {
  * below removes one of them while satisfying every other rule it can, so the
  * missing pointer is the only thing between the file and a report.
  *
- * Four of the six pin a specific guard, each confirmed by deleting that guard
+ * Five of the seven pin a specific guard, each confirmed by deleting that guard
  * and watching this test go red on that fixture alone:
  *
  *   truncated-switch.php      — the switch's own scope, which bounds the arm
@@ -214,6 +219,11 @@ it('warns once on every continuation spelling', function (): void {
  *                               scope_closer the tokenizer never assigned
  *   malformed-case.php        — one `case` arm's scope_opener, which bounds its
  *                               label, the same way
+ *   malformed-default.php     — the same pointer on a `default` arm. `default`
+ *                               carries no label to bound, so the guard is the
+ *                               only thing that stops an arm PHP cannot parse
+ *                               from being counted as the branch that carries
+ *                               the switch over the minimum
  *   truncated-braced.php      — the body a trailing `else` needs to be a branch
  *                               at all; without the check the dangling `else`
  *                               is counted, carrying a two-branch chain over
@@ -249,6 +259,7 @@ it('terminates silently on a file it cannot parse', function (string $fixture): 
 })->with([
     'malformed-subject.php',
     'malformed-case.php',
+    'malformed-default.php',
     'truncated-switch.php',
     'truncated-braced.php',
     'truncated-braceless.php',
