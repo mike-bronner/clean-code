@@ -405,6 +405,20 @@ in and what applies the `<properties>` configured there.
    `CleanCode.Testing.RequireTestFile` is the second shape — it resolves a
    companion test, so `tests/fixtures/RequireTestFileSniff/` holds `src/`,
    `app/` and `tests/` trees whose contents are the thing under test.
+
+   **Carry the shipped-install run over too.** The sweep is not only generic
+   coverage: through `tests/Contract/ShippedPackageSmokeTest.php` it is the only
+   place a sniff is executed by the real `vendor/bin/phpcs` against `rules.xml`.
+   Every other test drives PHP_CodeSniffer in process through `ConfigDouble`,
+   which supplies the registration Composer would have supplied — so a package
+   that never registered itself with the installed standards passes all of them,
+   `buildRuleset()`'s registration assertion included. Leaving a sniff out of the
+   datasets drops that run, so add it back in its own test file with
+   `installedSniffRun()`, asserting the staged in-scope path reports and both an
+   out-of-scope path and `passing.php` stay silent at status 0. Every path-scoped
+   sniff carries one; `tests/Standards/UnitTestExternalConcernsTest.php` is the
+   property-scoped shape and `tests/Standards/NoProceduralCodeTest.php` the
+   `rules.xml`-scoped one.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and

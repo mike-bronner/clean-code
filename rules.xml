@@ -1126,9 +1126,10 @@
         once in its declared namespace — and the two can contradict each other.
         Which suite a test *belongs* in is a judgement about its scope and its
         runtime behaviour, and stays with code review; the three
-        content-vs-directory heuristics are tracked separately (#148, #149,
-        #150), and this sniff deliberately reads no file content, so it does not
-        encroach on them.
+        content-vs-directory heuristics are carried separately (#148 by
+        CleanCode.Testing.UnitTestExternalConcerns below, #149 and #150 still
+        tracked), and this sniff deliberately reads no file content, so it does
+        not encroach on them.
 
         Custom rather than third-party, and this one genuinely overlaps.
         SlevomatCodingStandard.Files.TypeNameMatchesFileName does compare a
@@ -1190,71 +1191,64 @@
     -->
 
     <!--
-        Testing: Test Suites (#60), integration-suite content slice —
-        docs/standards/testing-test-suites.md.
+        Testing: Test Suites (#60), external-concerns-in-tests/Unit slice (#148)
+        — docs/standards/testing-test-suites.md.
 
-        The custom CleanCode.Testing.NoHttpFakesInIntegrationTests sniff (#150)
-        carries the second token-visible slice of the same Tier 3 standard. The
-        standard says integration tests are dedicated to requests that test
-        external dependencies over the internet, existing as the unfaked twin of
-        a feature test's HTTP-faked coverage — so an HTTP double installed
-        inside the integration suite contradicts the suite's own definition, and
-        installing one is token-visible. The sniff is picked up automatically via
-        the ./CleanCode/ruleset.xml ref above; this comment records that no
-        scoping is wanted here.
+        The custom CleanCode.Testing.UnitTestExternalConcerns sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the content half of
+        the same standard the TestSuiteNamespace block above carries the layout
+        half of, and the two are disjoint by construction: that one reads the
+        namespace and class declarations and never the file's contents, this one
+        reads only the contents and never the namespace.
 
-        It reports two shapes under their own codes: FakedHttpClient for
-        Http::fake(), Http::fakeSequence() and Http::preventStrayRequests(), and
-        MockedHttpClient for a createMock()/mock() call whose first argument
-        names GuzzleHttp\Client or a class under Illuminate\Http\Client.
+        A unit test concerns only the class under test. Whether it really does
+        is a judgement and stays with code review, but three of the ways a
+        Laravel test reaches past its subject are plain token facts, and those
+        are what report: a database trait (DatabaseTrait), a facade fake
+        (FacadeFake), and an HTTP-kernel request call on the test case
+        (HttpRequest). Each says the test exercises the database, the HTTP
+        layer, or another external concern, which is what tests/Feature/ is for.
 
-        SLEVOMAT/PHPCS EVALUATION. No existing PHPCS, Generic, Squiz or Slevomat
-        sniff covers this, and the two that come closest were run against
-        tests/fixtures/NoHttpFakesInIntegrationTestsSniff/failing.php, staged
-        under a tests/Integration directory, to confirm it:
-
-        - SlevomatCodingStandard.PHP.ForbiddenClasses, configured with all three
-          of GuzzleHttp\Client, Illuminate\Http\Client\Factory and
-          Illuminate\Support\Facades\Http, reported 3 of the 15 lines the
-          custom sniff reports (7, 13, 15) and missed the other 12. It speaks
-          about a class being *named*, not about a double being installed, so the
-          eight unqualified facade calls and the string-literal spellings escape
-          it entirely — and naming Illuminate\Support\Facades\Http at all then
-          forbids the real Http::get() an integration test is *supposed* to make.
-          It is also not path-aware, so it forbids the class in production code
-          too, and it reports errors.
-        - Generic.PHP.ForbiddenFunctions, configured with createMock and mock,
-          reported nothing at all on the same fixture: it matches global function
-          calls, not method or static calls.
-
-        Neither is scoped to a test suite, which is what this rule actually turns
-        on: the same Http::fake() call is correct in a feature test and wrong in
-        its integration twin.
+        Custom rather than third-party. No vendor sniff in the installed set
+        asks this question: the standards wired in here read a file's structure,
+        its naming or its complexity, and none of them reads a test's contents
+        against the suite directory holding it. The nearest neighbours are this
+        package's own — CleanCode.Testing.NoFirstPartyMocks and
+        CleanCode.Testing.NoReflectionAccess both flag a construct inside a test
+        — and neither is scoped by suite, which is the whole of this rule: the
+        same tokens are correct in tests/Feature/ and wrong in tests/Unit/.
 
         No <include-pattern>, deliberately, and for the same reason as the
-        RequireTestFile and TestSuiteNamespace blocks above: the sniff resolves
-        its own scope from the path it has to read anyway, through its
-        integrationPatterns property, which keeps the scope and the rule from
-        disagreeing. A project whose integration suite lives elsewhere retunes
-        that property instead of overriding this ruleset:
+        TestSuiteNamespace block above: the sniff resolves its own scope from
+        the path it has to read anyway, so its unitTestPath property is both the
+        scope and the anchor and the two cannot disagree. A project whose unit
+        tests live elsewhere retunes the property instead of overriding this
+        ruleset:
 
-            <rule ref="CleanCode.Testing.NoHttpFakesInIntegrationTests">
+            <rule ref="CleanCode.Testing.UnitTestExternalConcerns">
                 <properties>
-                    <property name="integrationPatterns" type="array">
-                        <element value="*/suites/e2e/*"/>
-                    </property>
+                    <property name="unitTestPath" value="app/Tests/Unit"/>
                 </properties>
             </rule>
 
-        Warnings, not errors, matching NoReflectionAccess, NoFirstPartyMocks and
-        the rest of the Testing standards. The sniff's six documented boundaries
-        have known false positives and negatives — a fake installed in a shared
-        base class is invisible, and an unqualified name is matched on its
-        trailing segment because one file's tokens cannot resolve an import — so
-        a report is a prompt to look rather than a proven defect and must not
-        fail a consumer's build. Detection only: removing a fake from an
-        integration test means either deleting coverage or moving the test to the
-        feature suite, and only the project says which, so there is no fixer and
+        The path is matched on whole segments, anchored on the test root closest
+        to the file — the CleanCode.Routes.ApiControllerNamespace precedent this
+        package follows throughout, and the reason a checkout living under an
+        unrelated tests/Unit/ directory does not drag the whole project into
+        scope.
+
+        Warnings, not errors, matching TestSuiteNamespace, RequireTestFile and
+        NoReflectionAccess. The rule reads a project's layout off a configurable
+        convention and matches names it cannot resolve to symbols, so a misread
+        must not fail a consumer's build. A flagged line stays suppressible with
+        an ordinary phpcs:ignore, which is part of the rule rather than a
+        workaround for it: $this->get(...) can be a genuine userland method on a
+        project's own test case.
+
+        Detection only: the fix is moving the test to tests/Feature/, or
+        rewriting it to stop reaching outside its subject, and neither is a
+        mechanical rewrite of the tokens on the line — so there is no fixer and
         no autofixed.php fixture.
     -->
 
