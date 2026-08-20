@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Indentation;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -92,9 +93,32 @@ class LogicalGroupingsSniff implements Sniff
     private array $lineStarts = [];
 
     /**
-     * The token stream $lineStarts describes: file, token count, and fixer loop.
+     * The token stream $lineStarts describes, as TokenStreams::key() builds it.
      */
-    private string $lineStartsKey = '';
+    private ?string $lineStartsKey = null;
+
+    /**
+     * How many times $lineStarts was built, and how many times the key guard
+     * answered a read from the index already built.
+     *
+     * The index exists to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/LogicalGroupingsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'lineStarts.builds' => 0,
+        'lineStarts.hits' => 0,
+    ];
 
     /**
      * @return array<int|string>
@@ -102,6 +126,18 @@ class LogicalGroupingsSniff implements Sniff
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
+    }
+
+    /**
+     * How many times the line-start index was built and how many times the key
+     * guard answered from the index already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -506,32 +542,13 @@ class LogicalGroupingsSniff implements Sniff
      * The index is keyed rather than rebuilt per call because process() runs
      * once per control structure: rebuilding it for every `if` in a file would
      * move the same quadratic cost up a level rather than remove it. The key
-     * is the one three sniffs in this package already use for a per-stream
-     * index — file, token count, fixer loop — but the three parts do not
-     * carry equal weight. The file separates two files. The count separates a
-     * retokenization that added or removed tokens, and separates two sources
-     * analysed as STDIN, which the file cannot because they share one name.
-     *
-     * The loop counter is the part worth being exact about, because the
-     * obvious reading of it is wrong. It looks like the part that keeps a
-     * stale index from surviving one phpcbf pass into the next —
-     * Fixer::fixFile() re-tokenizes and re-runs every sniff up to fifty times
-     * per file, and a fix elsewhere in the ruleset can move a line without
-     * changing how many tokens the file has. Nothing stale does survive, but
-     * the key is not what stops it: Fixer::fixFile() calls
-     * Ruleset::populateTokenListeners() before every pass, which constructs a
-     * new instance of every sniff. This object, and with it $lineStarts and
-     * $lineStartsKey, is discarded and rebuilt each pass, so no instance lives
-     * across two passes and no key from one loop is ever compared against a
-     * key from the next. Between passes the object lifecycle does the whole
-     * job; the counter is along for the ride. Dropping it from the key leaves
-     * every pass of the round-trip test behaving identically, which is what
-     * that test's docblock records.
-     *
-     * It stays because the key is character-for-character the one the three
-     * sibling sniffs use, and issue #343 tracks that shared idiom across all
-     * four sites at once; giving this one site a different key shape now would
-     * split the thing that issue is about.
+     * comes from TokenStreams::key(), the one implementation the four sniffs
+     * with a per-stream index in this package share; what it guarantees, and
+     * why identifying the File object beats describing it, is documented
+     * there. This site read the token count as what separates two sources
+     * analysed as STDIN, which is the invariant issue #343 disproved: two
+     * STDIN sources that tokenise to the same count collided, and this index
+     * answered the second analysis with the first one's pointers.
      *
      * A line the index has no entry for cannot arise — every token's own line
      * is recorded — and the fallback is the answer the old walk gave when it
@@ -540,11 +557,10 @@ class LogicalGroupingsSniff implements Sniff
     private function lineStart(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($phpcsFile->fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->lineStartsKey !== $key) {
+            $this->cacheCounts['lineStarts.builds']++;
             $this->lineStartsKey = $key;
             $this->lineStarts = [];
 
@@ -553,6 +569,8 @@ class LogicalGroupingsSniff implements Sniff
                 // line is the same one the backward walk used to land on.
                 $this->lineStarts[$token['line']] ??= $pointer;
             }
+        } else {
+            $this->cacheCounts['lineStarts.hits']++;
         }
 
         return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);

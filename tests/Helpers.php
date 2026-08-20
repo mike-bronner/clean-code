@@ -267,6 +267,45 @@ function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
 }
 
 /**
+ * The sniff instance a ruleset narrowed to one sniff code holds.
+ *
+ * buildRuleset() memoises the ruleset per sniff-code key, so this is the very
+ * instance analyzeStdinSource() and analyzeFixture() drive for that code — which
+ * is what lets a test read the counters a sniff keeps about its own per-stream
+ * caches around a run it made through those helpers.
+ */
+function sniffInstance(string $sniffCode): object
+{
+    [, $ruleset] = buildRuleset([$sniffCode]);
+
+    return $ruleset->sniffs[$ruleset->sniffCodes[$sniffCode]];
+}
+
+/**
+ * What each of a sniff's cache counters moved by between two readings.
+ *
+ * The counters are cumulative for the life of the sniff instance, and
+ * buildRuleset() hands every test in a file the same instance, so a total is
+ * the whole file's history rather than one run's. A delta around a single run
+ * is the only reading that describes that run.
+ *
+ * @param array<string, int> $before
+ * @param array<string, int> $after
+ *
+ * @return array<string, int>
+ */
+function cacheCountsDelta(array $before, array $after): array
+{
+    $counted = [];
+
+    foreach ($after as $counter => $count) {
+        $counted[$counter] = $count - $before[$counter];
+    }
+
+    return $counted;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, resolving the
  * fixture directory from the sniff code.
  *
