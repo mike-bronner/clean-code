@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\DeadCode;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -231,9 +232,9 @@ class UnusedFormalParameterSniff implements Sniff
      * The token stream self::$declarations and self::$declarationNamespace were
      * built from, so that both are discarded when the stream changes.
      *
-     * The same key CleanCode.Arrays.ArrayAccessors builds for its own map: the
-     * file, its token count and the fixer's loop counter together change
-     * whenever the pointers held here could mean something else.
+     * TokenStreams::key() — the one implementation the four sniffs with a
+     * per-stream index in this package share — changes whenever the pointers
+     * held here could mean something else.
      */
     private ?string $declarationsKey = null;
 
@@ -1157,9 +1158,7 @@ class UnusedFormalParameterSniff implements Sniff
     private function buildDeclarations(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($phpcsFile->fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->declarationsKey === $key) {
             $this->cacheCounts['declarations.hits']++;
