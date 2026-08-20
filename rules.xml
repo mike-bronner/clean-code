@@ -3035,4 +3035,42 @@
     <rule ref="Generic.Commenting.Fixme">
         <type>warning</type>
     </rule>
+    <!--
+        Pattern: SOLID (#5), Liskov Substitution slice (#131) —
+        docs/standards/pattern-solid.md.
+
+        The custom CleanCode.Pattern.ThrowOnlyMethodOverride sniff is picked up
+        automatically via the ./CleanCode/ruleset.xml ref above; this comment is
+        the only record of the decision, since no per-sniff registration is
+        needed. It warns on every method whose entire body is a single throw,
+        declared in a type that extends a parent or implements an interface —
+        refused bequest, the one slice of LSP a single file's tokens carry.
+        Detection only: the remedy is splitting a hierarchy or segregating an
+        interface, and which of those applies is a design call with no
+        mechanical rewrite.
+
+        The hierarchy test reads this file alone, deliberately. The parent's own
+        source is never consulted, so the sniff never asks whether the supertype
+        really declares the method: #131 fixes that boundary, and the signal is
+        the stub, not what it overrides.
+
+        Nothing existing covers it. No bundled PHPCS, Squiz or Generic sniff
+        compares a method body against its enclosing type's hierarchy, and
+        Slevomat's Classes sniffs speak about how members are declared, ordered
+        and typed rather than about what a body refuses to do. Slevomat's
+        Exceptions sniffs are about the throwables themselves — reference form,
+        capture, dead catch blocks — and none of them looks at where the throw
+        sits.
+
+        No <properties> are configured: the sniff has none. #131 asks it to
+        start strict, so no exclusion is offered for the shapes it deliberately
+        over-reports (a private or final stub, an abstract class's guarded
+        template method, a method no supertype declares). A consuming ruleset
+        that finds the noise unacceptable can <exclude> the sniff; narrowing it
+        in code needs real-world evidence this package does not have yet.
+
+        Warning severity is the sniff's own, and deliberate — no <type>
+        override. A report is a design prompt a reviewer may dismiss, so it must
+        not fail a consumer's build.
+    -->
 </ruleset>
