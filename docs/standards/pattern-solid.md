@@ -17,7 +17,7 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (core), two principles partially enforced today
+## Enforceability — Tier 3 (core), three principles partially enforced today
 
 The **core** of all five principles is architectural: whether a class has one
 reason to change, whether a hierarchy is behaviourally substitutable, whether a
@@ -31,17 +31,20 @@ the tier describes the standard's core, not the slices a rule may reach.
 below no longer says it is. **All five** principles turned out to carry a
 token-visible slice. Being precise about what that means today:
 
-- **Two are enforced now** — Single Responsibility, through seven shipped
-  size and coupling sniffs, and Dependency Inversion, through the shipped
-  `CleanCode.Classes.DisallowConstructorInstantiation`. Both are wired into the
-  master `rules.xml`.
-- **Three are accepted but not yet built** — Open-Closed
-  ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)), Liskov
-  Substitution ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)),
-  and Interface Segregation
+- **Three are enforced now** — Single Responsibility, through seven shipped
+  size and coupling sniffs; Dependency Inversion, through the shipped
+  `CleanCode.Classes.DisallowConstructorInstantiation`; and Liskov
+  Substitution, through the shipped `CleanCode.Pattern.ThrowOnlyMethodOverride`
+  ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)). All are
+  wired into the master `rules.xml`.
+- **Two are accepted but not yet built** — Open-Closed
+  ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)) and Liskov
+  Substitution ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131))
+  each have a focused sniff issue. An open issue is a plan, not enforcement;
+  until each ships, those two principles rest entirely on code review.
   ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) each have a
   focused sniff issue. An open issue is a plan, not enforcement; until each
-  ships, those three principles rest entirely on code review.
+  ships, those two principles rest entirely on code review.
 - **One candidate was rejected** — the specific Dependency Inversion heuristic
   of flagging a concrete type hint. It is rejected for named token-level facts,
   not a general appeal to semantics, and a different DIP slice is shipped in its
@@ -63,7 +66,7 @@ Outcome summary:
 | Single Responsibility | class size and coupling metrics | **accepted** | 7 shipped sniffs (#80, #83, #87, #93, #96, #98, #114) |
 | Open-Closed | `switch`/`if`-`elseif` dispatch on one type discriminator | **accepted** | [#324](https://github.com/mike-bronner/phpcs-rules/issues/324) |
 | Liskov Substitution | method body that is a single `throw` in a subtype | **accepted** | [#131](https://github.com/mike-bronner/phpcs-rules/issues/131) |
-| Interface Segregation | `interface` declaring more than N method signatures | **accepted** | [#132](https://github.com/mike-bronner/phpcs-rules/issues/132) |
+| Interface Segregation | `interface` declaring more than N method signatures | **accepted** | `CleanCode.Pattern.TooManyInterfaceMethods` ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) |
 | Dependency Inversion | type hint naming a `final`/concrete class | **rejected** (a *different* DIP slice is shipped) | [#72](https://github.com/mike-bronner/phpcs-rules/issues/72) / [#176](https://github.com/mike-bronner/phpcs-rules/issues/176) |
 
 ### Single Responsibility — accepted, already shipped
@@ -156,7 +159,7 @@ been polymorphism is a design call — some discriminator switches sit at a
 serialization boundary where polymorphism has nowhere to attach. The sniff is a
 warning-level prompt, and the judgement stays with review.
 
-### Liskov Substitution — accepted, focused sniff issue open
+### Liskov Substitution — accepted, already shipped
 
 **Heuristic evaluated:** a method whose entire body is a single `throw`
 statement, declared in a class that `extends` a parent or `implements` an
@@ -165,20 +168,34 @@ promises. Callers substituting the subtype break, which is what LSP forbids.
 
 **Construct checked:** `T_FUNCTION` with its `scope_opener`/`scope_closer`; the
 body qualifies when its first non-whitespace, non-comment token is `T_THROW` and
-that statement's `T_SEMICOLON` is the last token before the closer. The
-hierarchy test is `File::findExtendedClassName()` and
-`File::findImplementedInterfaceNames()`, both of which read the `T_EXTENDS` and
-`T_IMPLEMENTS` tokens of the declaration in this same file. The parent's own
-source is never needed: the signal is the stub, not what it overrides.
+the statement that token opens ends the body. The statement's end comes from
+`File::findEndOfStatement()` rather than from a scan for the next
+`T_SEMICOLON`, so a `throw` whose arguments carry a closure — semicolons and
+all — is still one statement. The hierarchy test is
+`File::findExtendedClassName()` and `File::findImplementedInterfaceNames()`,
+both of which read the `T_EXTENDS` and `T_IMPLEMENTS` tokens of the declaration
+in this same file. The parent's own source is never needed: the signal is the
+stub, not what it overrides.
 
-**Call: accepted.** Tracked as
-[#131](https://github.com/mike-bronner/phpcs-rules/issues/131).
+**Call: accepted.** Shipped as `CleanCode.Pattern.ThrowOnlyMethodOverride`
+under [#131](https://github.com/mike-bronner/phpcs-rules/issues/131),
+warning-level and detection-only, wired into `rules.xml` through the
+`./CleanCode/ruleset.xml` reference. It files under `Pattern/` beside
+`AvoidDuplicateCodeBlocks`, the other token-visible slice of a `Pattern:`
+standard.
+
+The sniff starts strict, as #131 asks. It offers no exclusion for the shapes it
+knowingly over-reports — a `private` or `final` stub, an abstract class's
+intentionally-guarded template method, and a method no supertype declares —
+because each is a warning a reviewer dismisses in a second, and narrowing any of
+them needs real-world noise this package has not yet seen. A consuming ruleset
+that disagrees can `<exclude>` the sniff outright.
 
 **What the heuristic does not cover:** true substitutability is behavioural — a
 subtype that narrows a precondition or widens a postcondition breaks LSP while
 implementing every method fully. Only the stub-out shape is token-visible.
 
-### Interface Segregation — accepted, focused sniff issue open
+### Interface Segregation — accepted, shipped
 
 **Heuristic evaluated:** an `interface` declaring more than a configurable
 number of method signatures is a countable fat-interface signal; the wider the
@@ -187,12 +204,40 @@ surface, the likelier some signatures do not apply to every implementer.
 **Construct checked:** `T_INTERFACE` with its `scope_opener`/`scope_closer`, and
 a count of the `T_FUNCTION` declarations that scope holds directly. Both are
 single-file reads. This is genuinely uncovered rather than a restatement of the
-SRP metrics above: `CleanCode.CodeSize.TooManyMethods` registers on `T_CLASS`
-only — PHPCS gives interfaces their own `T_INTERFACE` token — so no shipped
-method-count sniff ever sees an interface.
+SRP metrics above: PHPCS gives interfaces their own `T_INTERFACE` token, and
+none of the three class-oriented count sniffs registers it —
+`CleanCode.CodeSize.TooManyMethods` and `CleanCode.Classes.TooManyPublicMethods`
+register `T_CLASS` alone, and `CleanCode.Metrics.ExcessivePublicCount` registers
+`T_CLASS`, `T_ANON_CLASS` and `T_TRAIT` — so no sniff shipped before this one
+ever saw an interface.
 
-**Call: accepted.** Tracked as
-[#132](https://github.com/mike-bronner/phpcs-rules/issues/132).
+**Call: accepted, and shipped.** `CleanCode.Pattern.TooManyInterfaceMethods`
+([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) carries it,
+wired into the master `rules.xml` through the `./CleanCode/ruleset.xml`
+reference. It warns once on the interface declaration — the defect is the width
+of the whole contract, so it has no statement line of its own — and is
+detection-only.
+
+Its `maxMethods` property is a ceiling, not a target: an interface holding
+exactly that many signatures is compliant, and `maxMethods + 1` is reported.
+`rules.xml` sets it to 5, deliberately far below the caps the class-oriented
+metrics carry (25, 10 and 45), because an interface is a contract every
+implementer has to honour whole. A consuming ruleset can tune it:
+
+```xml
+<rule ref="CleanCode.Pattern.TooManyInterfaceMethods">
+    <properties>
+        <property name="maxMethods" value="8"/>
+    </properties>
+</rule>
+```
+
+Only the signatures the body declares are counted. An `extends` list sits ahead
+of the interface's opening brace and contributes nothing, so a parent's
+signatures are not counted against the child — the number reported is what the
+file being linted states, which is the only number a single-file sniff can
+stand behind. Constants and PHP 8.4 property hooks declare no `T_FUNCTION` and
+are not methods, so neither reaches the count.
 
 **What the heuristic does not cover:** a wide interface every implementer fully
 honours is not an ISP violation, and a two-method interface can violate it if
@@ -279,5 +324,7 @@ because every remedy is a design change rather than a mechanical rewrite. Each
 report is a prompt for the review conversation, not a verdict. (Severity varies
 by rule: the shipped size and coupling sniffs keep whatever severity their
 PHPMD-parity issue set, several of them error-level, while
-`DisallowConstructorInstantiation` and the three proposed sniffs are
-warning-level.)
+`DisallowConstructorInstantiation`, `TooManyInterfaceMethods` and the two
+proposed sniffs are warning-level.)
+`DisallowConstructorInstantiation` and `ThrowOnlyMethodOverride` are
+warning-level, as are the two proposed sniffs.)

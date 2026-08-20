@@ -17,8 +17,8 @@ use PHP_CodeSniffer\Util\Tokens;
  * internet, an integration test goes out to the real dependency. None of that
  * is recoverable from a file's tokens — it is a judgement about a test's scope
  * and its runtime behaviour — so the standard's core stays with code review,
- * and the three content-vs-directory heuristics are tracked separately (#148,
- * #149, #150).
+ * and the three content-vs-directory heuristics are carried separately: #148
+ * by CleanCode.Testing.UnitTestExternalConcerns, #149 and #150 still tracked.
  *
  * One slice *is* token-visible, and it is the one this sniff carries: a test
  * class states which suite it belongs to twice — once in the directory it sits
@@ -93,7 +93,9 @@ use PHP_CodeSniffer\Util\Tokens;
  *
  * Only the namespace and class declarations are read — never the file's
  * contents. Whether the *code* in a test belongs in the suite it sits in is a
- * different question, owned by #148, #149 and #150.
+ * different question, owned by #148, #149 and #150 — the first of which now
+ * ships as CleanCode.Testing.UnitTestExternalConcerns, which reads only the
+ * file's contents and never its namespace, so the two do not overlap.
  *
  * Fixtured in tests/fixtures/TestSuiteNamespaceSniff/ and covered by
  * tests/Standards/TestSuiteNamespaceTest.php.
