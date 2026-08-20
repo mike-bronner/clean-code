@@ -178,6 +178,29 @@ class ArrayAccessorsSniff implements Sniff
     private ?string $enclosureMapKey = null;
 
     /**
+     * How many times the maps were built, and how many times the key guard
+     * answered a read from the maps already built.
+     *
+     * The maps exist to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/ArrayAccessorsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'enclosureMap.builds' => 0,
+        'enclosureMap.hits' => 0,
+    ];
+
+    /**
      * Chain-root token (a T_VARIABLE, or the T_DOLLAR sigil a
      * variable-variable roots at) => the closer of the construct immediately
      * enclosing it. Absent when nothing encloses the token, which is what the
@@ -261,6 +284,18 @@ class ArrayAccessorsSniff implements Sniff
     public function register(): array
     {
         return [T_VARIABLE];
+    }
+
+    /**
+     * How many times the enclosure maps were built and how many times the key
+     * guard answered from the maps already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -949,9 +984,12 @@ class ArrayAccessorsSniff implements Sniff
         $key = TokenStreams::key($phpcsFile);
 
         if ($this->enclosureMapKey === $key) {
+            $this->cacheCounts['enclosureMap.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['enclosureMap.builds']++;
         $this->enclosureMapKey = $key;
         $this->innermostCloser = [];
         $this->parentCloser = [];

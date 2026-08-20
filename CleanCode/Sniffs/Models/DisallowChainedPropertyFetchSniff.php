@@ -132,6 +132,29 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     private array $roots = [];
 
     /**
+     * How many times the record was emptied for a new token stream, and how
+     * many times the key guard left it standing for the stream it describes.
+     *
+     * The record exists to absorb many root walks per token stream, and nothing
+     * a black-box test can observe tells "kept across the stream" from
+     * "emptied on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/DisallowChainedPropertyFetchTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'roots.builds' => 0,
+        'roots.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -140,6 +163,18 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             T_OBJECT_OPERATOR,
             T_NULLSAFE_OBJECT_OPERATOR,
         ];
+    }
+
+    /**
+     * How many times the walked-root record was emptied for a new stream and
+     * how many times the key guard left it standing, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -385,9 +420,12 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         $key = TokenStreams::key($phpcsFile);
 
         if ($this->rootsKey === $key) {
+            $this->cacheCounts['roots.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['roots.builds']++;
         $this->rootsKey = $key;
         $this->roots = [];
     }

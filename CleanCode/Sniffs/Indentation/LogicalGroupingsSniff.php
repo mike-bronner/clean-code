@@ -98,11 +98,46 @@ class LogicalGroupingsSniff implements Sniff
     private ?string $lineStartsKey = null;
 
     /**
+     * How many times $lineStarts was built, and how many times the key guard
+     * answered a read from the index already built.
+     *
+     * The index exists to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/LogicalGroupingsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'lineStarts.builds' => 0,
+        'lineStarts.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
+    }
+
+    /**
+     * How many times the line-start index was built and how many times the key
+     * guard answered from the index already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -525,6 +560,7 @@ class LogicalGroupingsSniff implements Sniff
         $key = TokenStreams::key($phpcsFile);
 
         if ($this->lineStartsKey !== $key) {
+            $this->cacheCounts['lineStarts.builds']++;
             $this->lineStartsKey = $key;
             $this->lineStarts = [];
 
@@ -533,6 +569,8 @@ class LogicalGroupingsSniff implements Sniff
                 // line is the same one the backward walk used to land on.
                 $this->lineStarts[$token['line']] ??= $pointer;
             }
+        } else {
+            $this->cacheCounts['lineStarts.hits']++;
         }
 
         return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);

@@ -734,3 +734,59 @@ it('keeps its line-start index from answering another STDIN analysis', function 
             ],
         ]);
 });
+
+/**
+ * The line-start index is built once for a token stream and read from for the
+ * rest of it, rather than rebuilt on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that rebuilt the index on every single
+ * read would report exactly the same violations, only slower — which is the
+ * O(n²) cost lineStart() exists to remove. Every analysis there also constructs
+ * its own DummyFile, so all three get their own identity from
+ * TokenStreams::key() and miss by design.
+ *
+ * Reuse is observable only from inside the sniff, so the sniff counts it, the
+ * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
+ * are pinned, and each rules out a different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the index at all would report one build and no hits. Each `if`
+ *   below reaches the index once, from indentOfLine() — reindent()'s read is on
+ *   the fixer path, which a phpcs run never takes — so n of them total n reads,
+ *   of which one builds and n-1 hit. The build is one the guard never had to
+ *   answer.
+ *
+ * Mutation-checked by forcing the `$this->lineStartsKey !== $key` guard true,
+ * so every read rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0
+ * against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
+ */
+it('builds its line-start index once per stream, not once per read', function (): void {
+    $sniff = sniffInstance(LOGICAL_GROUPINGS);
+
+    foreach ([2, 4, 8] as $size) {
+        $groups = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $groups .= "if (\n    \$alpha{$index}\n    && (\$beta{$index}\n"
+                . "    || \$gamma{$index})\n) {\n    \$one{$index} = 1;\n}\n\n";
+        }
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([LOGICAL_GROUPINGS], "<?php\n\n" . $groups);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe(2 * $size, "n={$size}: every group is still reported")
+            ->and($counted['lineStarts.builds'])->toBe(
+                1,
+                "n={$size}: the index is built once for the stream, not once per read"
+            )
+            ->and($counted['lineStarts.hits'])->toBe(
+                $size - 1,
+                "n={$size}: every read after the first answers from the index already built"
+            );
+    }
+});
