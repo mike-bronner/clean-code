@@ -1533,6 +1533,68 @@
     -->
 
     <!--
+        Pattern: SOLID (#5), partial enforcement — Interface Segregation
+        (#132) — docs/standards/pattern-solid.md.
+
+        The standard itself is Tier 3: whether *clients* are forced to depend
+        on methods they do not use is a cross-codebase judgement and stays with
+        code review. The one token-visible slice is the classic symptom — an
+        interface whose surface is wide enough that some signature is unlikely
+        to apply to every implementer — so the custom
+        CleanCode.Pattern.TooManyInterfaceMethods sniff counts the method
+        signatures an interface body declares. It is picked up automatically
+        via the ./CleanCode/ruleset.xml ref above; this block only pins the
+        threshold.
+
+        Nothing existing covers it, in this package or in either vendor
+        standard. The three shipped method- and member-count sniffs never see
+        an interface at all, because PHPCS gives one its own T_INTERFACE token
+        and none of them registers it: CleanCode.CodeSize.TooManyMethods (#80)
+        and CleanCode.Classes.TooManyPublicMethods (#83) register T_CLASS
+        alone, and CleanCode.Metrics.ExcessivePublicCount (#96) registers
+        T_CLASS, T_ANON_CLASS and T_TRAIT, holding interfaces out deliberately
+        to match PHPMD.
+
+        The vendor standards were run rather than reasoned about: PSR12, PEAR,
+        Squiz and SlevomatCodingStandard each report nothing whatsoever on
+        tests/fixtures/TooManyInterfaceMethodsSniff/failing.php, and Generic
+        reports only Generic.NamingConventions.InterfaceNameSuffix, which asks
+        what the interface is *called*, not how wide it is. Slevomat's own
+        interface sniffs are the same kind of question: SuperfluousInterfaceNaming
+        and RequireMultiLineMethodSignature constrain how an interface is
+        written, not how wide it is.
+
+        maxMethods is set here rather than left implicit, so a consumer reading
+        this file sees the value it is running under. Deleting this block would
+        not disable the sniff — the ./CleanCode/ruleset.xml ref picks it up
+        either way, and the shipped value equals the class default — so
+        tests/Standards/TooManyInterfaceMethodsTest.php reads both the parsed
+        <property> element and the value that lands on the sniff. Change the
+        value or drop the block and that test turns red, instead of the rule
+        being silently relaxed or its configuration silently lost.
+
+        The threshold of 5 is deliberately far below the class-oriented caps
+        those three sniffs carry (25, 10 and 45). An interface is a contract
+        every implementer has to honour whole, so the width at which a surface
+        becomes a segregation question is much lower than the size at which a
+        class becomes a size question.
+
+        Warning severity, and no <type> override: unlike the PHPMD-parity rules
+        raised to error above, this one has no phpmd run to keep in step with,
+        and a wide interface every implementer fully honours is not an ISP
+        violation. The report is an abstraction candidate the way the DRY
+        sniff's is, so it must not fail a consumer's build.
+
+        Detection only: splitting a contract means deciding which client needs
+        which signature, which is a design change rather than a mechanical
+        rewrite.
+    -->
+    <rule ref="CleanCode.Pattern.TooManyInterfaceMethods">
+        <properties>
+            <property name="maxMethods" value="5"/>
+        </properties>
+    </rule>
+      <!--
         Pattern: Repository (#6, #126) — docs/standards/pattern-repository.md.
 
         The custom CleanCode.Pattern.DisallowRepositoryClasses sniff carries the
