@@ -201,6 +201,61 @@ it('warns once on every continuation spelling', function (): void {
 });
 
 /**
+ * PHP_CodeSniffer tokenizes a file it cannot parse rather than refusing it, so
+ * every pointer this sniff reads off the scope map can be absent. Each fixture
+ * below removes one of them while satisfying every other rule it can, so the
+ * missing pointer is the only thing between the file and a report.
+ *
+ * Four of the six pin a specific guard, each confirmed by deleting that guard
+ * and watching this test go red on that fixture alone:
+ *
+ *   truncated-switch.php      — the switch's own scope, which bounds the arm
+ *                               walk; without the check the walk reads a
+ *                               scope_closer the tokenizer never assigned
+ *   malformed-case.php        — one `case` arm's scope_opener, which bounds its
+ *                               label, the same way
+ *   truncated-braced.php      — the body a trailing `else` needs to be a branch
+ *                               at all; without the check the dangling `else`
+ *                               is counted, carrying a two-branch chain over
+ *                               the minimum and reporting a file PHP rejects
+ *   truncated-braceless.php   — the end of a brace-less body; without the check
+ *                               the clause walk never terminates and this test
+ *                               hangs rather than fails
+ *
+ * The other two cover an outcome rather than a guard, and are here because the
+ * spellings they use are ones the sniff handles by name:
+ *
+ *   truncated-alternative.php — the alternative-syntax chain, whose clauses
+ *                               carry no scope once the last one is cut off
+ *   malformed-subject.php     — a switch subject that never closes. Its guard
+ *                               is deliberately belt-and-braces: PHPCS leaves
+ *                               parenthesis_closer present-but-null rather than
+ *                               absent, so removing the check degrades the
+ *                               subject read to an empty token list and this
+ *                               file stays silent either way. The guard says so
+ *                               up front instead of leaving the silence to
+ *                               pointer arithmetic; the fixture pins the
+ *                               outcome.
+ *
+ * The assertion is the pair (nothing reported, and the run finished at all): a
+ * walk that reads an unassigned pointer raises a PHP warning, which
+ * failOnWarning turns red, and one that never terminates hangs here.
+ */
+it('terminates silently on a file it cannot parse', function (string $fixture): void {
+    $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, $fixture);
+
+    expect($file->getWarnings())->toBe([])
+        ->and($file->getErrors())->toBe([]);
+})->with([
+    'malformed-subject.php',
+    'malformed-case.php',
+    'truncated-switch.php',
+    'truncated-braced.php',
+    'truncated-braceless.php',
+    'truncated-alternative.php',
+]);
+
+/**
  * threshold.php holds one two-branch `switch` and one two-branch `if` chain and
  * nothing else, so the property is the only thing that can change the outcome
  * between these two assertions. The default keeps both silent; lowering the

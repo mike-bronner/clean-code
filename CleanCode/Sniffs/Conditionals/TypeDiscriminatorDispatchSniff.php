@@ -220,6 +220,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
+        // Both pointers below are withheld by the tokenizer on a file it cannot
+        // parse. PHPCS leaves parenthesis_closer present-but-null rather than
+        // absent, so the first check states the requirement rather than being
+        // what enforces it; the scope check is what the arm walk depends on.
         if (isset($tokens[$stackPtr]['parenthesis_opener'], $tokens[$stackPtr]['parenthesis_closer']) === false) {
             return;
         }
@@ -282,9 +286,12 @@ class TypeDiscriminatorDispatchSniff implements Sniff
                 continue;
             }
 
-            // A `case` whose scope the tokenizer could not resolve — a truncated
-            // file is the reachable way there — has no readable label, so the
-            // whole switch fails closed rather than being counted short.
+            // A `case` whose scope the tokenizer could not resolve has no
+            // readable label, so the whole switch fails closed rather than
+            // being counted short. The route there is an arm whose colon is
+            // missing from a switch that still closes: truncating the file
+            // instead costs the switch its own scope, and the check above turns
+            // it away before any arm is read.
             if (isset($tokens[$pointer]['scope_opener']) === false) {
                 return null;
             }
@@ -369,9 +376,17 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             if ($code === T_ELSE) {
                 $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
+                // An `else` with nothing after it at all — a file truncated
+                // mid-clause is the reachable way there — has no body to be a
+                // branch of, so the whole chain fails closed rather than
+                // counting a branch that is not written yet.
+                if ($next === false) {
+                    return null;
+                }
+
                 // A spaced `else if`: the trailing `if` carries the condition
                 // and the scope, so hand the clause to it.
-                if ($next !== false && $tokens[$next]['code'] === T_IF) {
+                if ($tokens[$next]['code'] === T_IF) {
                     $pointer = $next;
 
                     continue;
