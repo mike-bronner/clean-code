@@ -159,6 +159,9 @@ warning-level prompt, and the judgement stays with review.
 
 #### The sniffed slice
 
+Spun out of this standard
+([#5](https://github.com/mike-bronner/phpcs-rules/issues/5)) and scoped by
+[#324](https://github.com/mike-bronner/phpcs-rules/issues/324),
 `CleanCode.Conditionals.TypeDiscriminatorDispatch` warns on a `switch`, or an
 `if`/`elseif` chain, that dispatches on one type-discriminator read across three
 or more literal branches.
@@ -190,7 +193,9 @@ it (`==` too); for `switch`, every `case` label must itself be a scalar literal,
 and one class constant or bare expression as a label disqualifies the whole
 switch. Toward `minimumBranches`, each `case` label counts on its own — stacked
 labels sharing one fallthrough body count once each — `default` counts as one
-wherever it sits, and a trailing `else` counts as one.
+wherever it sits, and a trailing `else` counts as one. Only branches of the same
+construct are counted: two `if` statements written back to back are two
+constructs, however alike they read, and their branches are never added up.
 
 Never flagged: a plain-variable subject (`switch ($type)`, `if ($type ===
 'circle')`, which `MappingArrayCandidate` already owns in its `if` form), any
