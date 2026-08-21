@@ -282,7 +282,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Standards/NoInternetTraversalTest.php' => [
         ['line' => 74, 'column' => 44],
-        ['line' => 392, 'column' => 15],
+        ['line' => 411, 'column' => 15],
+        ['line' => 463, 'column' => 14],
     ],
     'tests/Standards/NoProceduralCodeTest.php' => [
         ['line' => 142, 'column' => 57],

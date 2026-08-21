@@ -97,6 +97,9 @@ $expectedWarnings = static fn (): array => array_map(
         [24, 14],
         [25, 11],
         [26, 11],
+        [27, 12],
+        [30, 11],
+        [33, 17],
     ]
 );
 
@@ -159,6 +162,14 @@ it('is registered in the master ruleset', function (): void {
  *   string-literal precondition downstream already refuses the ellipsis — and is
  *   carried anyway so the shape is pinned for the whole rule rather than for the
  *   branch that happens to need the guard.
+ * - lines 67-85, six heredoc and nowdoc arguments the file states no single URL
+ *   for, one per guard on that branch: a local path, a body of several physical
+ *   lines (line 70, which is the split-literal boundary reached through a
+ *   heredoc), a body whose first line is blank (line 74, the same boundary with
+ *   the URL below the fold), a body that is empty (line 78), a heredoc
+ *   concatenated with a variable (line 80, the trailing-token guard), and a URL
+ *   under a `context:` label with a local path for the filename (line 83). Each
+ *   of the middle four reddens when the guard it names is removed.
  */
 it('produces no violations on the compliant fixture', function () use ($featureRun): void {
     $file = $featureRun('passing.php');
@@ -193,8 +204,8 @@ it('says nothing about source it cannot read to the end of', function () use ($f
 });
 
 /**
- * Every flagged shape, at its own line and column. The nineteen cover all three
- * detections and both halves of the case-insensitivity the sniff claims:
+ * Every flagged shape, at its own line and column. The twenty-two cover all
+ * three detections and both halves of the case-insensitivity the sniff claims:
  *
  * - lines 8-11, one call per watched network function.
  * - line 12, `\curl_init()` — the leading separator qualifies the global
@@ -227,6 +238,14 @@ it('says nothing about source it cannot read to the end of', function () use ($f
  *   shorter in passing.php. This line is what holds the two apart: the guard
  *   made to take a leading ellipsis alone, without requiring the closing
  *   parenthesis behind it, loses this warning.
+ * - lines 27, 30 and 33, the URL written as a heredoc and as a nowdoc, the last
+ *   of them behind a `filename:` label. PHP passes the same string a quoted
+ *   literal would, and this package's own CleanCode.Strings.MultilineStrings
+ *   rewrites a multi-line double-quoted string *into* this shape, so a project
+ *   following the standards is pushed toward it. All three lines are lost when
+ *   the heredoc branch is removed; line 27 alone is lost when the closing
+ *   marker's indentation is not stripped from the body, because the text then
+ *   opens with spaces instead of the scheme.
  */
 it('flags every violation at its own line and column', function () use (
     $featureRun,
@@ -286,7 +305,7 @@ it('inspects nothing outside a feature test', function () use ($featureRun): voi
         ->and($inRepo->getErrors())->toBe([])
         ->and($outsideSuite->getWarnings())->toBe([])
         ->and($outsideSuite->getErrors())->toBe([])
-        ->and($featureRun('failing.php')->getWarnings())->toHaveCount(19);
+        ->and($featureRun('failing.php')->getWarnings())->toHaveCount(22);
 });
 
 /**
@@ -351,7 +370,7 @@ it('honours inline suppression', function () use ($featureRun): void {
 it('reports detection-only warnings', function () use ($featureRun): void {
     $file = $featureRun('failing.php');
 
-    expect($file->getWarningCount())->toBe(19)
+    expect($file->getWarningCount())->toBe(22)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
@@ -401,6 +420,61 @@ it('accounts for every string token PHPCS defines', function (): void {
     sort($accounted);
 
     expect($accounted)->toBe($family);
+});
+
+/**
+ * The same holding, for the heredoc family. HEREDOC_OPENERS and HEREDOC_BODIES
+ * carry two members each, and PHP_CodeSniffer's Tokens::$heredocTokens carries
+ * six — the two openers, the two bodies, and the two closing tokens the sniff
+ * reaches through the opener's own scope_closer rather than by name. Comparing
+ * the four accounted-for members against the family minus its closers is what
+ * says the split is exhaustive: a seventh member in a later PHP_CodeSniffer
+ * lands on neither side of it and reddens here.
+ *
+ * This matters more than the arithmetic suggests. The gap it guards is the one
+ * this sniff shipped with — STRING_TOKENS is exactly Tokens::$stringTokens,
+ * which excludes T_HEREDOC and T_NOWDOC, so a heredoc URL went unread — and it
+ * is the third time this repository has paid for a token list omitting the
+ * heredoc family (PR #222, PR #264).
+ */
+it('accounts for every heredoc token PHPCS defines', function (): void {
+    $path = cleanCodeRoot() . '/CleanCode/Sniffs/Testing/NoInternetTraversalSniff.php';
+    $source = (string) file_get_contents($path);
+    $accounted = [];
+
+    foreach (['HEREDOC_OPENERS', 'HEREDOC_BODIES'] as $constant) {
+        $declaration = strpos($source, 'private const ' . $constant . ' = [');
+
+        expect($declaration)->not->toBeFalse($constant . ' is still declared under that name');
+
+        $opening = (int) $declaration;
+        $closing = (int) strpos($source, '];', $opening);
+
+        preg_match_all('/^\s+(T_[A-Z_0-9]+),$/m', substr($source, $opening, $closing - $opening), $entries);
+
+        $accounted = array_merge($accounted, $entries[1]);
+    }
+
+    $closers = ['T_END_HEREDOC', 'T_END_NOWDOC'];
+
+    // A member arrives as an int for a native token and as a PHPCS_-prefixed
+    // string for a backfilled one, exactly as the string-token test above reads
+    // Tokens::$stringTokens.
+    $whole = array_map(
+        static fn (int|string $code): string => is_int($code) === true
+            ? (string) token_name($code)
+            : (string) preg_replace('/^PHPCS_/', '', $code),
+        array_values(Tokens::$heredocTokens)
+    );
+
+    $family = array_values(array_diff($whole, $closers));
+
+    sort($family);
+    sort($accounted);
+
+    expect($accounted)->toBe($family)
+        ->and(array_intersect($closers, $whole))
+        ->toHaveCount(2, 'the closing tokens the scope_closer stands in for are still the two named here');
 });
 
 /**
@@ -472,7 +546,7 @@ it('reports the violation end to end through the installed package', function ()
     );
     $passing = installedSniffRun(NO_INTERNET_TRAVERSAL, $featurePath('passing.php'));
 
-    expect(array_column($staged['messages'], 'source'))->toHaveCount(19)
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(22)
         ->each->toBe(NO_INTERNET_TRAVERSAL_WARNING)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
         ->and($staged['status'])->toBe(1)

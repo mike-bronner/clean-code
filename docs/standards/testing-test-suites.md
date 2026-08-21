@@ -123,8 +123,9 @@ under a single `Found` code, naming the primitive that matched:
 - `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
   each one exists to open a connection, so the call alone is the violation and
   no argument is read beyond whether the line calls the function at all;
-- `file_get_contents()` whose filename argument is one whole string literal
-  whose text begins `http://` or `https://` (either case) — the function is
+- `file_get_contents()` whose filename argument is one whole string literal —
+  quoted, or written as a heredoc or a nowdoc — whose text begins `http://` or
+  `https://` (either case) — the function is
   otherwise ordinary, so the URL is what makes it a request. The filename is the
   first argument when the call passes it positionally and the argument labelled
   `filename:` when the call names its arguments, wherever in the list it stands;
@@ -161,7 +162,9 @@ Eight boundaries come with it, and none is a defect to be fixed later:
   recognised; the two idiomatic spellings agree, since `'http://…'` and
   `"http://…"` hold identical characters between their delimiters;
 - a URL literal split across physical lines is tokenized one token per line, and
-  only a whole literal is read;
+  only a whole literal is read — the one boundary a heredoc shares rather than
+  escapes, since a one-line heredoc body is a whole literal and a body of
+  several lines is not;
 - `fsockopen()` and `stream_socket_client()` also address a `unix://` or
   `udg://` socket, which never leaves the machine, and are reported all the same
   — the standard names the two calls outright, and a raw socket opened by hand is

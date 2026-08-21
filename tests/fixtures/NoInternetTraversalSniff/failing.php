@@ -24,3 +24,12 @@ $labelled = file_get_contents(filename: 'https://api.example.test/orders');
 $reordered = file_get_contents(offset: 0, filename: 'https://api.example.test/orders');
 $nested = file_get_contents(offset: filesize(filename: 'local.json'), filename: 'https://api.example.test/orders');
 $spread = curl_init(...$arguments);
+$heredoc = file_get_contents(<<<URL
+    https://api.example.test/orders
+    URL);
+$nowdoc = file_get_contents(<<<'URL'
+    http://api.example.test/orders
+    URL);
+$heredocNamed = file_get_contents(offset: 0, filename: <<<URL
+    https://api.example.test/orders
+    URL);

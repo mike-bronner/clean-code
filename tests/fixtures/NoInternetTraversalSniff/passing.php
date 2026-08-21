@@ -58,3 +58,28 @@ $send = curl_exec(...);
 $connect = fsockopen(...);
 $stream = stream_socket_client(...);
 $read = file_get_contents(...);
+
+// Heredoc and nowdoc arguments the file states no single URL for. The first
+// reads a local path; the second and third are bodies of several physical
+// lines, tokenized one token per line exactly as a split quoted literal is;
+// the fourth has no body at all; the fifth is the head of an expression; the
+// sixth labels a different parameter and names a local path for the filename.
+$heredocLocal = file_get_contents(<<<PATH
+    fixtures/orders.json
+    PATH);
+$heredocSplit = file_get_contents(<<<URL
+    https://api.example.test/orders
+    ?page=1
+    URL);
+$heredocLeading = file_get_contents(<<<URL
+
+    https://api.example.test/orders
+    URL);
+$heredocEmpty = file_get_contents(<<<URL
+    URL);
+$heredocJoined = file_get_contents(<<<URL
+    https://api.example.test/
+    URL . $path);
+$heredocOtherParameter = file_get_contents(context: <<<URL
+    https://api.example.test/orders
+    URL, filename: 'stub.json');

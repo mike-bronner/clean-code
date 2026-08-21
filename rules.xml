@@ -1264,7 +1264,8 @@
         whether a request really leaves the machine is a runtime property, the
         raw primitives that can only traverse it are written in the file —
         curl_init(), curl_exec(), fsockopen(), stream_socket_client(), a
-        file_get_contents() whose literal URL names http:// or https://, and a
+        file_get_contents() whose literal URL — quoted, heredoc or nowdoc —
+        names http:// or https://, and a
         direct new of GuzzleHttp\Client. The sanctioned route to a third-party
         API here is the Http facade with Http::fake(), which is deliberately not
         a watched primitive.

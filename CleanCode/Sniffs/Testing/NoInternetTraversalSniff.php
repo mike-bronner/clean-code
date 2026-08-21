@@ -44,7 +44,8 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  *   What is read of the argument list is only whether the line calls the
  *   function at all: `curl_init(...)` names it and calls nothing.
  * - a call to `file_get_contents()` whose filename argument is a string
- *   literal whose text begins `http://` or `https://`. The function itself is
+ *   literal — quoted, or a heredoc or nowdoc — whose text begins `http://` or
+ *   `https://`. The function itself is
  *   ordinary, so here the URL is what makes it a network read. The filename is
  *   the first argument when the call passes it positionally and the argument
  *   labelled `filename:` when the call names its arguments, so the two
@@ -111,7 +112,9 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  *   delimiters, so neither is silently treated differently from the other.
  * - **A URL split across physical lines (false negative).** PHP_CodeSniffer
  *   tokenizes a literal containing a newline into one token per line, and only
- *   a whole literal is read.
+ *   a whole literal is read. This is the one boundary a heredoc shares rather
+ *   than escapes: a heredoc's body is always at least one line, so a *one-line*
+ *   body is a whole literal and is read, while a body of several lines is not.
  * - **A local transport through a socket primitive (false positive, kept).**
  *   `fsockopen()` and `stream_socket_client()` also address a `unix://` or
  *   `udg://` socket, which never leaves the machine, and both are reported all
@@ -199,6 +202,47 @@ class NoInternetTraversalSniff implements Sniff
     private const STRING_TOKENS = [
         T_CONSTANT_ENCAPSED_STRING,
         T_DOUBLE_QUOTED_STRING,
+    ];
+
+    /**
+     * The tokens a heredoc or nowdoc opens with. PHP_CodeSniffer gives the
+     * construct three parts — an opener, one body token per physical line, and
+     * a closer — so the opener is the token an argument starts with and the
+     * body is where the text is.
+     *
+     * A heredoc is a string literal, and PHP reads `file_get_contents(<<<EOT …)`
+     * exactly as it reads the quoted spelling of the same URL. It is a separate
+     * constant from STRING_TOKENS because PHP_CodeSniffer groups it separately
+     * — Tokens::$stringTokens holds the quoted spellings only — and because the
+     * text is read out of a different token than the one the argument starts
+     * with. This package's own CleanCode.Strings.MultilineStrings rewrites a
+     * multi-line double-quoted string *into* a heredoc, so the shape is one a
+     * conforming project is pushed toward rather than an exotic one.
+     *
+     * @var array<int, int|string>
+     */
+    private const HEREDOC_OPENERS = [
+        T_START_HEREDOC,
+        T_START_NOWDOC,
+    ];
+
+    /**
+     * The tokens a heredoc or nowdoc body arrives as — the text between the
+     * opener and the closer, one token per physical line. A nowdoc interpolates
+     * nothing and a heredoc may, exactly as a single- and a double-quoted
+     * literal differ, and the scheme is read off leading characters that are
+     * literal text in both.
+     *
+     * HEREDOC_OPENERS, this constant and the two closing tokens together are
+     * the whole of PHP_CodeSniffer's Tokens::$heredocTokens grouping, which
+     * `accounts for every heredoc token PHPCS defines` in
+     * tests/Standards/NoInternetTraversalTest.php pins at run time.
+     *
+     * @var array<int, int|string>
+     */
+    private const HEREDOC_BODIES = [
+        T_HEREDOC,
+        T_NOWDOC,
     ];
 
     /**
@@ -418,25 +462,11 @@ class NoInternetTraversalSniff implements Sniff
      *   the head of `'https://…' . $path` is a whole literal, but the argument
      *   is an expression.
      *
-     * The token-type check between them is a precondition rather than a
-     * discriminator, and this says so outright rather than implying coverage the
-     * fixtures do not have: no fixture can redden when it is removed, because
-     * the scheme test downstream already rejects everything a non-literal
-     * argument could produce — a token outside Tokens::$stringTokens that stands
-     * alone as a whole argument cannot carry `http://` in the text inner()
-     * returns. It stays because inner() is documented as taking a complete
-     * literal, and the token type is what says this is one. Its membership is
-     * pinned instead, against PHPCS's own register, by `accounts for every
-     * string token PHPCS defines`.
-     *
-     * The second check is also what establishes StringLiteral::inner()'s stated
-     * precondition, which is why no separate isComplete() call stands here: one
-     * would be a branch nothing could ever take. PHP_CodeSniffer tokenizes a
-     * literal holding a newline one token per physical line, so a fragment of
-     * one always has a sibling fragment after it, and a sibling fragment is
-     * neither the closing parenthesis nor a comma. Reaching inner() therefore
-     * means the argument was a single token, and a single-token literal is a
-     * whole one.
+     * Both spellings of a literal PHP accepts here are read, and wholeLiteral()
+     * is the one place that says which: a quoted one, and a heredoc or nowdoc.
+     * The second is not a curiosity — this package's own
+     * CleanCode.Strings.MultilineStrings rewrites a multi-line double-quoted
+     * string into a heredoc, so a conforming project is pushed toward it.
      */
     private function readsNetworkUrl(File $phpcsFile, int $stackPtr): bool
     {
@@ -454,25 +484,130 @@ class NoInternetTraversalSniff implements Sniff
             return false;
         }
 
-        if (in_array($tokens[$urlPtr]['code'], self::STRING_TOKENS, true) === false) {
-            return false;
+        $url = $this->wholeLiteral($phpcsFile, $urlPtr, $closePtr);
+
+        return $url !== null && $this->namesNetworkScheme($url);
+    }
+
+    /**
+     * The text of the argument starting at $urlPtr when that argument is one
+     * whole string literal, null when it is anything else.
+     *
+     * Two spellings of a literal reach here, and each is read out of a
+     * different token: a quoted one carries its text in the token the argument
+     * starts with, while a heredoc or nowdoc carries it in the body token
+     * between its opener and its closer. Either way the answer is the text PHP
+     * itself would pass, so `'https://…'` and its heredoc spelling are read the
+     * same way — which is what keeps
+     * CleanCode.Strings.MultilineStrings rewriting one into the other from
+     * silently changing what this sniff sees.
+     *
+     * The token-type test is a precondition rather than a discriminator on the
+     * quoted branch, and this says so outright rather than implying coverage
+     * the fixtures do not have: the scheme test downstream already rejects
+     * everything a non-literal argument standing alone could produce. It stays
+     * because StringLiteral::inner() is documented as taking a complete
+     * literal, and the token type is what says this is one. Its membership is
+     * pinned instead, against PHP_CodeSniffer's own register, by `accounts for
+     * every string token PHPCS defines`.
+     */
+    private function wholeLiteral(File $phpcsFile, int $urlPtr, int $closePtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        if (in_array($tokens[$urlPtr]['code'], self::HEREDOC_OPENERS, true) === true) {
+            return $this->wholeHeredoc($phpcsFile, $urlPtr, $closePtr);
         }
 
+        if (in_array($tokens[$urlPtr]['code'], self::STRING_TOKENS, true) === false) {
+            return null;
+        }
+
+        return $this->endsArgument($phpcsFile, $urlPtr, $closePtr) === true
+            ? StringLiteral::inner($tokens[$urlPtr]['content'])
+            : null;
+    }
+
+    /**
+     * The text of the heredoc or nowdoc opening at $openerPtr, null when the
+     * construct is not one whole literal standing as the argument.
+     *
+     * Two things have to hold, and each rules out a shape the file does not
+     * state one value for:
+     *
+     * - the closer stands exactly two tokens past the opener, which is the one
+     *   comparison for three shapes at once. A body spanning several physical
+     *   lines arrives as one token per line — the same tokenizer behaviour that
+     *   keeps a split quoted literal out — an empty body puts the closer
+     *   immediately after the opener with no text between them, and a closer
+     *   PHP_CodeSniffer never resolved is a null that equals no pointer, so an
+     *   unterminated heredoc in a half-typed file says nothing;
+     * - the closer ends the argument: the next token closes the call or starts
+     *   the next argument, so `<<<EOT … EOT . $path` is an expression rather
+     *   than a whole literal, exactly as its quoted equivalent is.
+     *
+     * The HEREDOC_BODIES test between them is a precondition rather than a
+     * discriminator, and this says so outright rather than implying coverage the
+     * fixtures do not have: no input can redden its removal. PHP_CodeSniffer
+     * gives a heredoc exactly one token per physical body line whatever the line
+     * holds — an interpolated `$url` on its own line is still one T_HEREDOC —
+     * so a single token standing between an opener and its closer is a body
+     * token by construction. It stays because reading text out of a token is
+     * only meaningful when the token holds text. Its membership is pinned
+     * instead, against PHP_CodeSniffer's own register, by `accounts for every
+     * heredoc token PHPCS defines`.
+     *
+     * The text is the body with its line break dropped and the closing marker's
+     * own indentation removed, which is PHP 7.3's rule for an indented closing
+     * marker: PHP strips that prefix from every body line, so the value the
+     * call really receives is the unindented one. PHP_CodeSniffer keeps the
+     * indentation in the token content, so reading it raw would miss the scheme
+     * on every heredoc written inside a method body.
+     */
+    private function wholeHeredoc(File $phpcsFile, int $openerPtr, int $closePtr): ?string
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closerPtr = $tokens[$openerPtr]['scope_closer'] ?? null;
+
+        if ($closerPtr !== ($openerPtr + 2)) {
+            return null;
+        }
+
+        $bodyIsText = in_array($tokens[$openerPtr + 1]['code'], self::HEREDOC_BODIES, true);
+
+        if ($bodyIsText === false || $this->endsArgument($phpcsFile, $closerPtr, $closePtr) === false) {
+            return null;
+        }
+
+        $marker = $tokens[$closerPtr]['content'];
+        $indent = substr($marker, 0, strspn($marker, " \t"));
+        $body = rtrim($tokens[$openerPtr + 1]['content'], "\r\n");
+
+        return $indent !== '' && str_starts_with($body, $indent)
+            ? substr($body, strlen($indent))
+            : $body;
+    }
+
+    /**
+     * Whether the literal ending at $endPtr is the whole of the argument it
+     * stands in: the next token closes the call or starts the next argument.
+     *
+     * This is what keeps a concatenation out. The head of `'https://…' . $path`
+     * is a whole literal, but the argument is an expression, and the file
+     * states no single value for it.
+     */
+    private function endsArgument(File $phpcsFile, int $endPtr, int $closePtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
         $afterPtr = $phpcsFile->findNext(
             Tokens::$emptyTokens,
-            ($urlPtr + 1),
+            ($endPtr + 1),
             ($closePtr + 1),
             true
         );
 
-        $endsArgument = $afterPtr === $closePtr
+        return $afterPtr === $closePtr
             || ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_COMMA);
-
-        if ($endsArgument === false) {
-            return false;
-        }
-
-        return $this->namesNetworkScheme(StringLiteral::inner($tokens[$urlPtr]['content']));
     }
 
     /**
