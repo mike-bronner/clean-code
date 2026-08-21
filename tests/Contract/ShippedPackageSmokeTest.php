@@ -30,7 +30,7 @@
  * Squiz.PHP.Eval and VariableAnalysis.* but did not author them, and their own
  * suites cover their own shipping.
  *
- * The five path-scoped custom sniffs are not in those datasets at all —
+ * The six path-scoped custom sniffs are not in those datasets at all —
  * scoping is decided from the file's real location, whether by
  * PHP_CodeSniffer's own patterns or by the sniff's own path property, so they
  * cannot be driven from tests/fixtures/ in place. Each carries the same
@@ -38,7 +38,8 @@
  * tests/Standards/DisallowExternalPersistenceCallsTest.php,
  * tests/Standards/NoProceduralCodeTest.php,
  * tests/Standards/DisallowChainedPropertyFetchTest.php,
- * tests/Standards/DisallowNonResourceRoutesTest.php and
+ * tests/Standards/DisallowNonResourceRoutesTest.php,
+ * tests/Standards/UnitTestExternalConcernsTest.php and
  * tests/Standards/NoInternetTraversalTest.php.
  *
  * ---

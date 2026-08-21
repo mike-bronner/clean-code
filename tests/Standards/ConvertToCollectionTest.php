@@ -65,9 +65,9 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 83 are native calls kept on purpose. The reason is a single package-level
+ * All 87 are native calls kept on purpose. The reason is a single package-level
  * fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 83 times across 50
+ * docs/standards/arrays-convert-to-collection.md rather than 87 times across 51
  * files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 18 arrived with the sniffs that landed after #312 and are
+ * The remaining 22 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -118,7 +118,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 967, 'column' => 16],
+        ['line' => 1038, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
@@ -156,11 +156,19 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 116, 'column' => 16],
         ['line' => 117, 'column' => 13],
     ],
+    'CleanCode/Sniffs/Pattern/DisallowRepositoryClassesSniff.php' => [
+        ['line' => 254, 'column' => 21],
+    ],
     'CleanCode/Sniffs/Routes/ApiControllerNamespaceSniff.php' => [
         ['line' => 171, 'column' => 20],
     ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
+    ],
+    'CleanCode/Sniffs/Testing/NoHttpFakesInIntegrationTestsSniff.php' => [
+        ['line' => 532, 'column' => 21],
+        ['line' => 536, 'column' => 31],
+        ['line' => 573, 'column' => 44],
     ],
     'CleanCode/Sniffs/Testing/NoReflectionAccessSniff.php' => [
         ['line' => 278, 'column' => 44],
@@ -169,14 +177,18 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 274, 'column' => 49],
     ],
     'CleanCode/Sniffs/Testing/TestSuiteNamespaceSniff.php' => [
-        ['line' => 336, 'column' => 20],
+        ['line' => 338, 'column' => 20],
+    ],
+    'CleanCode/Sniffs/Testing/UnitTestExternalConcernsSniff.php' => [
+        ['line' => 611, 'column' => 16],
+        ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 146, 'column' => 27],
+        ['line' => 147, 'column' => 27],
     ],
     'tests/Helpers.php' => [
-        ['line' => 573, 'column' => 66],
-        ['line' => 742, 'column' => 36],
+        ['line' => 612, 'column' => 66],
+        ['line' => 781, 'column' => 36],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -189,10 +201,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 205, 'column' => 15],
+        ['line' => 218, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
-        ['line' => 268, 'column' => 17],
+        ['line' => 278, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
         ['line' => 511, 'column' => 22],
@@ -233,6 +245,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/DisallowNonResourceRoutesTest.php' => [
         ['line' => 61, 'column' => 44],
     ],
+    'tests/Standards/DisallowRepositoryClassesTest.php' => [
+        ['line' => 295, 'column' => 24],
+        ['line' => 320, 'column' => 28],
+        ['line' => 326, 'column' => 19],
+    ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 62, 'column' => 42],
     ],
@@ -259,6 +276,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/MultiLineStatementIndentTest.php' => [
         ['line' => 445, 'column' => 28],
         ['line' => 458, 'column' => 28],
+    ],
+    'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
+        ['line' => 65, 'column' => 44],
     ],
     'tests/Standards/NoInternetTraversalTest.php' => [
         ['line' => 74, 'column' => 44],

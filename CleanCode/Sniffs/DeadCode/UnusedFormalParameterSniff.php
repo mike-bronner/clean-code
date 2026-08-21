@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\DeadCode;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -231,9 +232,9 @@ class UnusedFormalParameterSniff implements Sniff
      * The token stream self::$declarations and self::$declarationNamespace were
      * built from, so that both are discarded when the stream changes.
      *
-     * The same key CleanCode.Arrays.ArrayAccessors builds for its own map: the
-     * file, its token count and the fixer's loop counter together change
-     * whenever the pointers held here could mean something else.
+     * TokenStreams::key() — the one implementation the four sniffs with a
+     * per-stream index in this package share — changes whenever the pointers
+     * held here could mean something else.
      */
     private ?string $declarationsKey = null;
 
@@ -269,6 +270,49 @@ class UnusedFormalParameterSniff implements Sniff
     private array $traitNames = [];
 
     /**
+     * How many times each of the three indexes above was built, and how many
+     * times its guard answered from what was already built.
+     *
+     * The scale tests in tests/Standards/UnusedFormalParameterTest.php read
+     * these instead of timing the sniff: "built once per file" is what the
+     * memoization claims, and a count states it directly, where a wall-clock
+     * ratio only states it as far as a shared runner's jitter allows.
+     *
+     * Every increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the count intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in that file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'declarations.builds' => 0,
+        'declarations.hits' => 0,
+        'methodNames.builds' => 0,
+        'methodNames.hits' => 0,
+        'traitNames.builds' => 0,
+        'traitNames.hits' => 0,
+    ];
+
+    /**
+     * The same counts for methodNames() and traitNames(), split by the ancestor
+     * pointer each read asked about, which is the granularity "once per
+     * ancestor" is stated at.
+     *
+     * A pointer means something only within one token stream, so these are
+     * cleared with the indexes themselves in buildDeclarations() — two files
+     * of the same shape hold their classes at the same pointers, and without
+     * the clearing one file's counts would be read as another's.
+     *
+     * @var array<string, array<int, array{builds: int, hits: int}>>
+     */
+    private array $cacheCountsByClass = [
+        'methodNames' => [],
+        'traitNames' => [],
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -301,6 +345,29 @@ class UnusedFormalParameterSniff implements Sniff
         foreach ($phpcsFile->getMethodParameters($stackPtr) as $parameter) {
             $this->checkParameter($phpcsFile, $stackPtr, $parameter, $reads);
         }
+    }
+
+    /**
+     * How many times each index was built and how many times its guard
+     * answered, cumulative for the life of this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
+    }
+
+    /**
+     * The same counts for methodNames() and traitNames(), per ancestor pointer,
+     * covering the token stream the indexes currently describe — they are
+     * cleared whenever those indexes are.
+     *
+     * @return array<string, array<int, array{builds: int, hits: int}>>
+     */
+    public function cacheCountsByClass(): array
+    {
+        return $this->cacheCountsByClass;
     }
 
     /**
@@ -940,8 +1007,12 @@ class UnusedFormalParameterSniff implements Sniff
         $this->buildDeclarations($phpcsFile);
 
         if (isset($this->traitNames[$classPtr]) === true) {
+            $this->countCacheRead('traitNames', $classPtr, 'hits');
+
             return $this->traitNames[$classPtr];
         }
+
+        $this->countCacheRead('traitNames', $classPtr, 'builds');
 
         return $this->traitNames[$classPtr] = $this->qualifiedNames(
             $phpcsFile,
@@ -1087,19 +1158,21 @@ class UnusedFormalParameterSniff implements Sniff
     private function buildDeclarations(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($phpcsFile->fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->declarationsKey === $key) {
+            $this->cacheCounts['declarations.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['declarations.builds']++;
         $this->declarationsKey = $key;
         $this->declarations = [];
         $this->declarationNamespace = [];
         $this->methodNames = [];
         $this->traitNames = [];
+        $this->cacheCountsByClass = ['methodNames' => [], 'traitNames' => []];
 
         $targets = array_merge([T_NAMESPACE], self::CLASS_LIKE);
         $namespace = '';
@@ -1119,6 +1192,22 @@ class UnusedFormalParameterSniff implements Sniff
 
             $pointer = $phpcsFile->findNext($targets, $pointer + 1);
         }
+    }
+
+    /**
+     * Records one read of a per-ancestor index, as a total and against the
+     * ancestor it asked about.
+     *
+     * Called from inside the guard branch it describes, so the two counts and
+     * the guard's own outcome cannot drift apart.
+     */
+    private function countCacheRead(string $index, int $classPtr, string $outcome): void
+    {
+        $this->cacheCounts[$index . '.' . $outcome]++;
+
+        $counts = $this->cacheCountsByClass[$index][$classPtr] ?? ['builds' => 0, 'hits' => 0];
+        $counts[$outcome]++;
+        $this->cacheCountsByClass[$index][$classPtr] = $counts;
     }
 
     /**
@@ -1186,9 +1275,12 @@ class UnusedFormalParameterSniff implements Sniff
         $this->buildDeclarations($phpcsFile);
 
         if (isset($this->methodNames[$classPtr]) === true) {
+            $this->countCacheRead('methodNames', $classPtr, 'hits');
+
             return $this->methodNames[$classPtr];
         }
 
+        $this->countCacheRead('methodNames', $classPtr, 'builds');
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$classPtr]['scope_opener'] ?? null;
         $closer = $tokens[$classPtr]['scope_closer'] ?? null;

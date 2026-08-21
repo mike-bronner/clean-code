@@ -888,3 +888,118 @@ it('reports detection-only violations', function (): void {
     expect($file->getErrorCount())->toBe(47)
         ->and($file->getFixableCount())->toBe(0);
 });
+
+/**
+ * The enclosure map this sniff builds once per token stream must not answer one
+ * analysis with another analysis's pointers (#343).
+ *
+ * The map used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one map.
+ *
+ * The two sources here tokenise to 25 tokens each — `isset` and `strlen` are
+ * one token apiece — and differ in exactly what the map records: A's read sits
+ * inside an existence check, which the standard exempts, while B's sits inside
+ * an ordinary call, which it does not. Under the old key B was measured against
+ * A's map, inherited the exemption, and its line-3 violation was never
+ * reported. That is the assertion below: B owes two violations, not the one A
+ * owes.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires A's single violation back, which a sniff that had
+ * simply stopped caching would also give — but a sniff whose map leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its enclosure map from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        $one = isset($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        $one = strlen($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $first = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+    $second = analyzeStdinSource([ARRAY_ACCESSORS], $sourceB);
+    $third = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 3, 'column' => 15, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            3 => [sprintf(ARRAY_ACCESSORS_READ, '$alpha')],
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($third->getErrors()))->toBe([
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ]);
+});
+
+/**
+ * The enclosure map is built once for a token stream and read from for the rest
+ * of it, rather than rebuilt on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that rebuilt the map on every single
+ * read would report exactly the same violations, only slower — which is the
+ * O(n²) cost buildEnclosureMap() exists to remove. Every analysis there also
+ * constructs its own DummyFile, so all three get their own identity from
+ * TokenStreams::key() and miss by design.
+ *
+ * Reuse is observable only from inside the sniff, so the sniff counts it, the
+ * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
+ * are pinned, and each rules out a different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - 2n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the map at all would report one build and no hits. Each read
+ *   below reaches the map twice — once from enclosureVerdict(), once from
+ *   isInsideExistenceCheck() — so n reads total 2n, of which one builds and
+ *   2n-1 hit. The build is one the guard never had to answer.
+ *
+ * Mutation-checked by deleting the `$this->enclosureMapKey === $key` guard, so
+ * every read rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 4 builds / 0 hits against the 1 / 3 asserted; n=4 reads 8 / 0
+ * against 1 / 7, and n=8 reads 16 / 0 against 1 / 15.
+ */
+it('builds its enclosure map once per stream, not once per read', function (): void {
+    $sniff = sniffInstance(ARRAY_ACCESSORS);
+
+    foreach ([2, 4, 8] as $size) {
+        $reads = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $reads .= "\$one{$index} = \$alpha{$index}['beta'];\n";
+        }
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([ARRAY_ACCESSORS], "<?php\n\n" . $reads);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe($size, "n={$size}: every read is still reported")
+            ->and($counted['enclosureMap.builds'])->toBe(
+                1,
+                "n={$size}: the map is built once for the stream, not once per read"
+            )
+            ->and($counted['enclosureMap.hits'])->toBe(
+                (2 * $size) - 1,
+                "n={$size}: every read after the first answers from the map already built"
+            );
+    }
+});

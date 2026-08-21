@@ -25,11 +25,13 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * spelled out in the file that calls them, and their presence in a feature test
  * is the signal (#149).
  *
- * This is the second slice of #60 to be enforced, and it deliberately does not
- * overlap the first. CleanCode.Testing.TestSuiteNamespace reads a test's
+ * This is the third slice of #60 to be enforced, and it deliberately overlaps
+ * none of the others. CleanCode.Testing.TestSuiteNamespace reads a test's
  * *declarations* — its namespace against its directory — and no file content at
- * all; this sniff reads only content, and takes the directory as given. The
- * sibling slices for the other two suites stay separate (#148, #150).
+ * all; this sniff reads only content, and takes the directory as given.
+ * CleanCode.Testing.UnitTestExternalConcerns (#148) and
+ * CleanCode.Testing.NoHttpFakesInIntegrationTests (#150) read content too, each
+ * of its own suite and no other.
  *
  * ## What is flagged
  *

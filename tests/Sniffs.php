@@ -106,20 +106,30 @@ const SWEPT_SNIFFS = [
  * instead, fixtures staged under a real `routes` directory, plus the
  * shipped-binary run in both directions that the sweep gives up on its behalf.
  *
- * Deliberately absent for exactly that reason too:
- * CleanCode.Testing.NoInternetTraversal, whose default featureTestPatterns gate
- * wants a `tests/Feature` pair that tests/fixtures/NoInternetTraversalSniff/
- * does not have. The sweep configures nothing, so a property-scoped sniff cannot
- * be pointed at its own fixtures there, and its failing fixture would report
- * nothing. tests/Standards/NoInternetTraversalTest.php carries the whole floor,
- * fixtures staged under a real feature-suite directory, plus the same
- * shipped-binary run in both directions.
+ * CleanCode.Testing.UnitTestExternalConcerns is absent for the same reason and
+ * is the second sniff of that shape: its default unitTestPath is `tests/Unit/`,
+ * and tests/fixtures/UnitTestExternalConcernsSniff/ carries no `Unit` segment,
+ * so the sweep would drive failing.php against a path the sniff never opens.
+ * The sweep configures nothing, so it cannot point a property-scoped sniff at
+ * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
+ * carries the whole floor instead: the two flat fixtures driven under a scope
+ * pointed at their own directory, the shipped scope exercised by a nested
+ * tests/Unit/ tree beside them, and the shipped-binary run in both directions
+ * that the sweep gives up on its behalf.
+ *
+ * CleanCode.Testing.NoInternetTraversal is the third of that shape: its default
+ * featureTestPatterns gate wants a `tests/Feature` pair that
+ * tests/fixtures/NoInternetTraversalSniff/ does not have, so its failing fixture
+ * would report nothing under the sweep. tests/Standards/NoInternetTraversalTest.php
+ * carries the whole floor, fixtures staged under a real feature-suite directory,
+ * plus the same shipped-binary run in both directions.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.ClearCode.ActionSingleEntryPoint',
     'CleanCode.ClearCode.JunkDrawerNamespace',
+    'CleanCode.ClearCode.SectionComment',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
@@ -133,6 +143,9 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.ActionMethodReturn',
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
+    'CleanCode.Pattern.DisallowRepositoryClasses',
+    'CleanCode.Pattern.ThrowOnlyMethodOverride',
+    'CleanCode.Pattern.TooManyInterfaceMethods',
     'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
     'CleanCode.Testing.TestSuiteNamespace',
