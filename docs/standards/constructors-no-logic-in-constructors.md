@@ -30,9 +30,12 @@ sniff, wired into the master `rules.xml` via the CleanCode standard
   allowed forms, reporting at the statement's first token as
   `CleanCode.Constructors.NoLogic.LogicFound`. Allowed:
   - a **property assignment** — a statement beginning with `$this->…` and
-    carrying a plain `=` operator at its top level whose target is a direct
-    property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
-    `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
+    carrying a plain `=` operator at its top level whose target — everything
+    left of that `=` — neither calls, writes, nor invokes (`$this->foo = …;`,
+    `$this->arr[] = …;`, `$this->cfg['k'] = …;`). Only the *opening* of the
+    target is pinned to `$this->`; the accesses in it are never counted, so a
+    chain of any depth is accepted (`$this->inner->value = …;`) — see **Known
+    boundaries** below. The right-hand side is not inspected, so defaulting
     with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
   - a **`parent::__construct(…)` call** — delegating to the parent constructor
     is assignment, not logic. The statement has to be *exactly* that call: a
@@ -114,6 +117,15 @@ A few intentional edges, decided rather than accidental:
 - **A free `function __construct()`** (a function at namespace scope, not a
   class method) is **not** a constructor and is never inspected — the sniff
   guards on the declaration living inside an object-oriented container.
+- **A multi-hop assignment target** (`$this->inner->value = …;`,
+  `$this->a->b->c = …;`) is **compliant here**. The target scan rejects tokens —
+  calls, writes, invoking keywords — never shapes, so it never counts the
+  accesses in a chain. Assigning through a collaborator that way is still a
+  defect; it is just a different standard's, reported by
+  `CleanCode.Models.DisallowChainedPropertyFetch` for
+  [Models: Relationship Properties](models-relationship-properties.md), which
+  carries no constructor carve-out. Duplicating the rule here would only double
+  the report on every path that sniff covers.
 - **List-destructuring straight into properties** (`[$this->a, $this->b] = $pair;`)
   is **flagged**: the statement begins with `[`, not `$this->`, so it does not
   match the property-assignment form. Uncommon in constructors and treated as

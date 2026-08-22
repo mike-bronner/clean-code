@@ -333,3 +333,31 @@ final class ReadingAssignmentTarget
         $this->items[[1 => $this->a][1]] = $value;
     }
 }
+
+/**
+ * A multi-hop assignment target, which this sniff accepts.
+ *
+ * The target scan rejects tokens — calls, writes, invoking keywords — never
+ * shapes, so it never counts the accesses in a chain: once the opening
+ * `$this->` is established, a chain of any depth reaches the depth-0 `=`
+ * untouched. Reaching through a collaborator is still a defect, but
+ * CleanCode.Models.DisallowChainedPropertyFetch owns it (Models: Relationship
+ * Properties) and reports it with no constructor carve-out, so this sniff
+ * deliberately stays silent rather than doubling the report.
+ *
+ * Both depths are here because they fail differently under a target scan that
+ * counted hops: one rejecting the second hop reports line 360 and line 361,
+ * while one allowing exactly two still reports line 361 alone.
+ */
+final class MultiHopAssignmentTarget
+{
+    private object $inner;
+
+    private object $a;
+
+    public function __construct(object $inner)
+    {
+        $this->inner->value = $inner;
+        $this->a->b->c = $inner;
+    }
+}

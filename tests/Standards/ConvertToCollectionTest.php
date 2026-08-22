@@ -281,11 +281,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 65, 'column' => 44],
     ],
     'tests/Standards/NoLogicTest.php' => [
-        ['line' => 437, 'column' => 15],
-        ['line' => 508, 'column' => 15],
-        ['line' => 743, 'column' => 20],
-        ['line' => 779, 'column' => 15],
-        ['line' => 783, 'column' => 10],
+        ['line' => 455, 'column' => 15],
+        ['line' => 526, 'column' => 15],
+        ['line' => 761, 'column' => 20],
+        ['line' => 797, 'column' => 15],
+        ['line' => 801, 'column' => 10],
     ],
     'tests/Standards/NoProceduralCodeTest.php' => [
         ['line' => 142, 'column' => 57],

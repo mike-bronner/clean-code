@@ -167,6 +167,11 @@
  *     passing.php reddens on 147, 154, 155 and 301, the closure, arrow function
  *     and anonymous class held on a right-hand side, and the right-hand-side
  *     interpolation that really does hold a call
+ *   - count the accesses in the assignment target and reject the second hop —
+ *     passing.php reddens on 360 and 361, and "leaves a multi-hop assignment
+ *     target to the chained-fetch sniff" reddens with it. Allowing exactly two
+ *     hops instead reddens 361 alone, which is why both depths are in the
+ *     fixture
  */
 
 declare(strict_types=1);
@@ -177,6 +182,16 @@ use PHP_CodeSniffer\Util\Tokens;
 const NO_LOGIC = 'CleanCode.Constructors.NoLogic';
 
 const NO_LOGIC_FOUND = NO_LOGIC . '.LogicFound';
+
+/**
+ * The sibling sniff this one defers a multi-hop assignment target to. Spelled
+ * here rather than read from DisallowChainedPropertyFetchTest.php: a constant
+ * that file declares is only defined once PHPUnit has loaded it, and nothing
+ * orders these two suites.
+ */
+const NO_LOGIC_CHAINED = 'CleanCode.Models.DisallowChainedPropertyFetch';
+
+const NO_LOGIC_CHAINED_ERROR = NO_LOGIC_CHAINED . '.Found';
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -193,8 +208,11 @@ it('is registered in the master ruleset', function (): void {
  * every near-miss shape the sniff must stay silent on: a file-scope
  * `function __construct()`, a `__constructor()` method, an ordinary method full
  * of logic, an abstract and an interface constructor with no body, a trait
- * constructor, and logic held inside a closure, an arrow function and an
- * anonymous class on an assignment's right-hand side.
+ * constructor, logic held inside a closure, an arrow function and an anonymous
+ * class on an assignment's right-hand side, and a multi-hop assignment target,
+ * which the target scan accepts because it rejects tokens rather than shapes —
+ * see "leaves a multi-hop assignment target to the chained-fetch sniff" below,
+ * which pins both halves of that deferral.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(NO_LOGIC, 'passing.php');
@@ -961,6 +979,33 @@ it('leaves a reading assignment target and an invoking right-hand side alone', f
         ->not->toContain(238)  // "\${key}", the dollar escaped
         ->not->toContain(239)  // "$key \${literal}", interpolated *and* escaped
         ->not->toContain(301); // "{$this->key()}" on the right-hand side
+});
+
+/**
+ * A multi-hop assignment target, pinned from both sides.
+ *
+ * The target scan rejects tokens — calls, writes, invoking keywords — never
+ * shapes, so it never counts the accesses in a chain: this sniff is silent on
+ * `$this->inner->value = …` and `$this->a->b->c = …` alike. That is the
+ * behaviour the sniff's own docblock now describes, and the first half below
+ * holds it: a scan that counted hops and rejected the second reddens on 360
+ * and 361, one that allowed exactly two reddens on 361 alone.
+ *
+ * The second half is what keeps the silence honest rather than a hole. The
+ * docblock claims the shape is covered by
+ * `CleanCode.Models.DisallowChainedPropertyFetch` under Models: Relationship
+ * Properties, so that claim is asserted rather than stated: the same two lines
+ * report `NO_LOGIC_CHAINED_ERROR` when the composed ruleset runs. That sniff is
+ * test-path-excluded in `rules.xml`, so the fixture is staged outside the
+ * repository first — processed where it lives, it would report nothing and the
+ * assertion would prove nothing.
+ */
+it('leaves a multi-hop assignment target to the chained-fetch sniff', function (): void {
+    $staged = stageFixtureOutsideTests(fixturePath('NoLogicSniff', 'passing.php'));
+    $sources = allViolationSourcesByLine(analyzeWithSniffs([NO_LOGIC, NO_LOGIC_CHAINED], $staged));
+
+    expect($sources[360] ?? [])->toBe([NO_LOGIC_CHAINED_ERROR])  // $this->inner->value
+        ->and($sources[361] ?? [])->toBe([NO_LOGIC_CHAINED_ERROR]); // $this->a->b->c
 });
 
 /**

@@ -20,10 +20,17 @@ use PHP_CodeSniffer\Util\Tokens;
  * flags each statement that is not one of the two allowed forms:
  *
  * - a **property assignment** — a statement that begins with `$this->…` and has
- *   a plain `=` assignment operator at its top level whose target is a direct
- *   property chain on `$this` (`$this->foo = …;`, `$this->arr[] = …;`,
- *   `$this->cfg['k'] = …;`). The right-hand side is not inspected, so defaulting
- *   with `??` or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
+ *   a plain `=` assignment operator at its top level whose target — everything
+ *   left of that `=` — neither calls, writes, nor invokes (`$this->foo = …;`,
+ *   `$this->arr[] = …;`, `$this->cfg['k'] = …;`). Only the *opening* of the
+ *   target is pinned to `$this->`; the accesses in it are never counted, so a
+ *   chain of any depth is accepted (`$this->inner->value = …;`). Reaching
+ *   through a collaborator that way is a defect, but a different standard's:
+ *   `CleanCode.Models.DisallowChainedPropertyFetch` reports it for "Models:
+ *   Relationship Properties", with no constructor carve-out, so restating the
+ *   rule here would only double the report on every path that sniff covers.
+ *   The right-hand side is not inspected at all either, so defaulting with `??`
+ *   or a ternary (`$this->foo = $foo ?? 0;`) stays compliant.
  * - a **`parent::__construct(…)` call** — delegating to the parent
  *   constructor is assignment, not logic. The statement has to be *exactly*
  *   that call: a real argument list whose closing parenthesis is the last thing
@@ -550,7 +557,11 @@ class NoLogicSniff implements Sniff
     /**
      * A statement is a property assignment when it begins with `$this`, accesses
      * a property via `->`, and carries a plain `=` operator at bracket depth 0
-     * whose target is a direct property chain on `$this`.
+     * whose target neither calls, writes, nor invokes.
+     *
+     * Only the opening `$this->` is checked here. What follows it is left to
+     * hasPlainAssignmentTarget(), which rejects tokens rather than shapes and
+     * so accepts a chain of any depth — see its docblock.
      */
     private function isPropertyAssignment(File $phpcsFile, int $start, int $end): bool
     {
@@ -571,8 +582,19 @@ class NoLogicSniff implements Sniff
 
     /**
      * Whether the statement carries a plain `=` operator at bracket depth 0
-     * whose target — everything to its left — is a direct property chain on
-     * `$this` with no call.
+     * whose target — everything to its left — neither calls, writes, nor
+     * invokes.
+     *
+     * The scan rejects *tokens*, never shapes: it never counts the accesses in
+     * the target, so once the caller has established the opening `$this->`, a
+     * chain of any depth reaches the depth-0 `=` untouched
+     * (`$this->inner->value = …`, `$this->a->b->c = …`). That shape reaches
+     * through a collaborator rather than assigning this object's own state,
+     * which is a defect — but it belongs to the "Models: Relationship
+     * Properties" standard, where
+     * `CleanCode.Models.DisallowChainedPropertyFetch` reports it already, with
+     * no constructor carve-out. Rejecting it here too would only double the
+     * report on every path that sniff covers. passing.php pins the silence.
      *
      * The scan runs left-to-right and stops at that first depth-0 `=`, so the
      * right-hand side is never inspected (a call or `??`/ternary default there
