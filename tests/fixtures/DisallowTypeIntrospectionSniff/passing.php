@@ -157,6 +157,33 @@ final class Reporter
     }
 
     /**
+     * A name of two or more qualifying segments is read as one name, which is
+     * what lets the keyword in front of it be found however long the name is.
+     * The walk over the segments is the same walk `byRootQualifiedConstructorCall()`
+     * ends after one step, run to its end instead.
+     *
+     * Three positions, because the walk decides three different answers here:
+     * the two constructor calls are `new` reaching a class in another namespace
+     * (the keyword sits before the whole name, not before its last segment),
+     * and the plain call is that namespace's own function of the name, which
+     * bare-call resolution never reaches. A walk that stopped at the last
+     * segment would read all three as the global function and report every one
+     * of them.
+     */
+    public function byMultiSegmentQualifiedName(object $value): string
+    {
+        if (new \App\Vendor\get_class($value)) {
+            return 'thing';
+        }
+
+        if (\App\Vendor\get_class($value) === 'thing') {
+            return 'named';
+        }
+
+        return new \App\Vendor\gettype($value) ? 'thing' : 'other';
+    }
+
+    /**
      * A constant sharing an introspection function's name is not a call.
      */
     public function byConstant(): string
