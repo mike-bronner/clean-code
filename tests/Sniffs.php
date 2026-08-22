@@ -36,6 +36,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Conditionals.DisallowListAssignmentInCondition',
     'CleanCode.Conditionals.DisallowNestedTernary',
     'CleanCode.Conditionals.OneConditionPerLine',
+    'CleanCode.Constructors.NoLogic',
     'CleanCode.ControlStructures.DisallowCountInLoopExpression',
     'CleanCode.ControlStructures.DisallowExitExpression',
     'CleanCode.Controversial.Superglobals',
@@ -62,11 +63,13 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.LongVariable',
     'CleanCode.Naming.ModelNamingConventions',
+    'CleanCode.Naming.RedundantNamespaceSuffix',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Naming.ShortVariable',
     'CleanCode.Operators.BinaryOperatorSpacing',
     'CleanCode.Operators.BooleanOperatorSpacing',
+    'CleanCode.Operators.ManipulationOperatorPlacement',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
@@ -116,16 +119,25 @@ const SWEPT_SNIFFS = [
  * pointed at their own directory, the shipped scope exercised by a nested
  * tests/Unit/ tree beside them, and the shipped-binary run in both directions
  * that the sweep gives up on its behalf.
+ *
+ * CleanCode.Testing.NoInternetTraversal is the third of that shape: its default
+ * featureTestPatterns gate wants a `tests/Feature` pair that
+ * tests/fixtures/NoInternetTraversalSniff/ does not have, so its failing fixture
+ * would report nothing under the sweep. tests/Standards/NoInternetTraversalTest.php
+ * carries the whole floor, fixtures staged under a real feature-suite directory,
+ * plus the same shipped-binary run in both directions.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.ClearCode.ActionSingleEntryPoint',
     'CleanCode.ClearCode.JunkDrawerNamespace',
+    'CleanCode.ClearCode.SectionComment',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
     'CleanCode.Conditionals.MappingArrayCandidate',
+    'CleanCode.Conditionals.TypeDiscriminatorDispatch',
     'CleanCode.Constructors.PrimaryConstructorDelegation',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Controllers.NoCustomActions',
@@ -135,9 +147,9 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.ActionMethodReturn',
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
-    'CleanCode.Pattern.TooManyInterfaceMethods',
-    'CleanCode.Pattern.ThrowOnlyMethodOverride',
     'CleanCode.Pattern.DisallowRepositoryClasses',
+    'CleanCode.Pattern.ThrowOnlyMethodOverride',
+    'CleanCode.Pattern.TooManyInterfaceMethods',
     'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
     'CleanCode.Testing.TestSuiteNamespace',
@@ -158,6 +170,7 @@ const AUTOFIXABLE_SNIFFS = [
     'CleanCode.Methods.NoNullArguments',
     'CleanCode.Operators.BinaryOperatorSpacing',
     'CleanCode.Operators.BooleanOperatorSpacing',
+    'CleanCode.Operators.ManipulationOperatorPlacement',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',

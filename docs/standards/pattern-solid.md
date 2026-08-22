@@ -17,7 +17,7 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (core), three principles partially enforced today
+## Enforceability — Tier 3 (core), five principles partially enforced today
 
 The **core** of all five principles is architectural: whether a class has one
 reason to change, whether a hierarchy is behaviourally substitutable, whether a
@@ -31,20 +31,16 @@ the tier describes the standard's core, not the slices a rule may reach.
 below no longer says it is. **All five** principles turned out to carry a
 token-visible slice. Being precise about what that means today:
 
-- **Three are enforced now** — Single Responsibility, through seven shipped
-  size and coupling sniffs; Dependency Inversion, through the shipped
-  `CleanCode.Classes.DisallowConstructorInstantiation`; and Liskov
-  Substitution, through the shipped `CleanCode.Pattern.ThrowOnlyMethodOverride`
-  ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)). All are
+- **All five are enforced now** — Single Responsibility, through seven shipped
+  size and coupling sniffs; Dependency Inversion, through
+  `CleanCode.Classes.DisallowConstructorInstantiation`; Liskov Substitution,
+  through `CleanCode.Pattern.ThrowOnlyMethodOverride`
+  ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)); Interface
+  Segregation, through `CleanCode.Pattern.TooManyInterfaceMethods`
+  ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)); and
+  Open-Closed, through `CleanCode.Conditionals.TypeDiscriminatorDispatch`
+  ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)). All are
   wired into the master `rules.xml`.
-- **Two are accepted but not yet built** — Open-Closed
-  ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)) and Liskov
-  Substitution ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131))
-  each have a focused sniff issue. An open issue is a plan, not enforcement;
-  until each ships, those two principles rest entirely on code review.
-  ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) each have a
-  focused sniff issue. An open issue is a plan, not enforcement; until each
-  ships, those two principles rest entirely on code review.
 - **One candidate was rejected** — the specific Dependency Inversion heuristic
   of flagging a concrete type hint. It is rejected for named token-level facts,
   not a general appeal to semantics, and a different DIP slice is shipped in its
@@ -64,7 +60,7 @@ Outcome summary:
 | Principle | Candidate heuristic evaluated | Call | Where it lives |
 |---|---|---|---|
 | Single Responsibility | class size and coupling metrics | **accepted** | 7 shipped sniffs (#80, #83, #87, #93, #96, #98, #114) |
-| Open-Closed | `switch`/`if`-`elseif` dispatch on one type discriminator | **accepted** | [#324](https://github.com/mike-bronner/phpcs-rules/issues/324) |
+| Open-Closed | `switch`/`if`-`elseif` dispatch on one type discriminator | **accepted** | shipped sniff `CleanCode.Conditionals.TypeDiscriminatorDispatch` ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)) |
 | Liskov Substitution | method body that is a single `throw` in a subtype | **accepted** | [#131](https://github.com/mike-bronner/phpcs-rules/issues/131) |
 | Interface Segregation | `interface` declaring more than N method signatures | **accepted** | `CleanCode.Pattern.TooManyInterfaceMethods` ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) |
 | Dependency Inversion | type hint naming a `final`/concrete class | **rejected** (a *different* DIP slice is shipped) | [#72](https://github.com/mike-bronner/phpcs-rules/issues/72) / [#176](https://github.com/mike-bronner/phpcs-rules/issues/176) |
@@ -107,7 +103,7 @@ duplicate rule, not a new check.
 two responsibilities, and a large one can hold exactly one. The metrics point at
 candidates; the reason-to-change judgement stays with review.
 
-### Open-Closed — accepted, focused sniff issue opened
+### Open-Closed — accepted, already shipped
 
 **Heuristic evaluated:** a `switch` statement, or an `if`/`elseif` chain, that
 dispatches on the **same type-discriminator read** across three or more literal
@@ -148,16 +144,80 @@ adjacent and neither claims this slice:
   its own exclusion table, and those property and index reads are precisely the
   discriminator this heuristic keys on.
 
-The slice is therefore real and unclaimed, and it is tracked as
-[#324](https://github.com/mike-bronner/phpcs-rules/issues/324), which references
-this issue the same way
-[#131](https://github.com/mike-bronner/phpcs-rules/issues/131) and
-[#132](https://github.com/mike-bronner/phpcs-rules/issues/132) do.
+The slice was therefore real and unclaimed, and it now ships as the sniff below
+([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)). The overlap
+with `AvoidConditionals` is **deliberate**: that sniff counts a branch, this one
+names a pattern, and `MappingArrayCandidate` set the precedent for an overlap of
+that kind.
 
 **What the heuristic does not cover:** whether a given dispatch *should* have
 been polymorphism is a design call — some discriminator switches sit at a
 serialization boundary where polymorphism has nowhere to attach. The sniff is a
 warning-level prompt, and the judgement stays with review.
+
+#### The sniffed slice
+
+Spun out of this standard
+([#5](https://github.com/mike-bronner/phpcs-rules/issues/5)) and scoped by
+[#324](https://github.com/mike-bronner/phpcs-rules/issues/324),
+`CleanCode.Conditionals.TypeDiscriminatorDispatch` warns on a `switch`, or an
+`if`/`elseif` chain, that dispatches on one type-discriminator read across three
+or more literal branches.
+
+```php
+// The shape: a new shape type means editing this method.
+switch ($shape->type) {
+    case 'circle': return M_PI * $shape->radius ** 2;
+    case 'square': return $shape->side ** 2;
+    case 'rect':   return $shape->width * $shape->height;
+}
+```
+
+| | |
+|---|---|
+| Registers on | `T_SWITCH`, `T_IF` |
+| Codes | `.SwitchDispatch` at the `switch` keyword, `.IfChain` at the leading `if` — one warning per construct, never one per arm |
+| Severity | **warning**, not error — a dispatch at a serialization boundary has nowhere to attach polymorphism |
+| Fixer | none. The remedy is a type hierarchy or a map plus every call site rewritten, which is a design change rather than a mechanical one |
+| Property | `minimumBranches`, default `3` |
+
+A construct qualifies only when the subject is a **discriminator read** — a
+variable plus exactly one property or index hop (`$shape->type`,
+`$shape?->type`, `$row['type']`) — and every branch dispatches on that same
+read, compared token for token including the base variable's own name, so
+`$shape->type` and `$model->type` are never one chain. For the `if` form each
+condition must be `<discriminator> === <literal>` or the literal-first mirror of
+it (`==` too); for `switch`, every `case` label must itself be a scalar literal,
+and one class constant or bare expression as a label disqualifies the whole
+switch. Toward `minimumBranches`, each `case` label counts on its own — stacked
+labels sharing one fallthrough body count once each — `default` counts as one
+wherever it sits, and a trailing `else` counts as one. Only branches of the same
+construct are counted: two `if` statements written back to back are two
+constructs, however alike they read, and their branches are never added up. A
+chain also stops where PHP stops it — a clause whose brace-less body writes an
+`if` of its own hands every following `elseif` and `else` to that nested `if`,
+which is the binding PHP itself uses, so those branches belong to the nested
+chain rather than to the outer one.
+
+Never flagged: a plain-variable subject (`switch ($type)`, `if ($type ===
+'circle')`, which `MappingArrayCandidate` already owns in its `if` form), any
+non-literal or compound branch condition (`instanceof`, ranges, `!==`, calls,
+`&&`/`||`), `switch (true)`, a read more than one hop deep
+(`$row['meta']['type']`, `$a->b->type`), and `match` — the sniff never registers
+on it, because `match` is the construct `MappingArrayCandidate` and
+`AvoidConditionals` both recommend as the *replacement*, and flagging it would
+have the ruleset argue with itself.
+
+Raise the threshold from a consuming ruleset where three branches read as
+ordinary:
+
+```xml
+<rule ref="CleanCode.Conditionals.TypeDiscriminatorDispatch">
+    <properties>
+        <property name="minimumBranches" value="5"/>
+    </properties>
+</rule>
+```
 
 ### Liskov Substitution — accepted, already shipped
 
@@ -324,7 +384,6 @@ because every remedy is a design change rather than a mechanical rewrite. Each
 report is a prompt for the review conversation, not a verdict. (Severity varies
 by rule: the shipped size and coupling sniffs keep whatever severity their
 PHPMD-parity issue set, several of them error-level, while
-`DisallowConstructorInstantiation`, `TooManyInterfaceMethods` and the two
-proposed sniffs are warning-level.)
-`DisallowConstructorInstantiation` and `ThrowOnlyMethodOverride` are
-warning-level, as are the two proposed sniffs.)
+`DisallowConstructorInstantiation`, `ThrowOnlyMethodOverride`,
+`TooManyInterfaceMethods` and `TypeDiscriminatorDispatch` are
+warning-level.)

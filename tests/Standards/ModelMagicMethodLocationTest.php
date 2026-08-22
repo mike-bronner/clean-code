@@ -332,8 +332,15 @@ it('reads a group import past its function and constant members', function (): v
  * that standard exists to say a class like it encapsulates nothing. The rule is
  * right about this file, so the honest fix is to give the sniff classes state,
  * not to exempt them; that is a package-wide refactor and belongs to its own
- * issue. The assertion stays exact — one named source, nothing else — so it
+ * issue. The assertion stays exact — every source named, nothing else — so it
  * still reddens on any *other* drift, which is the reason it was written.
+ *
+ * A second exception joined it with #159: CleanCode.ClearCode.SectionComment
+ * warns on the eight standalone comments in this file that explain *why*
+ * rather than labelling a block. The token stream cannot separate the two,
+ * which is why that rule is advisory, and rewriting this package's explanatory
+ * comments is out of scope for #159 — so the warnings are recorded here like
+ * any other sniff's output rather than special-cased away.
  */
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
@@ -341,5 +348,15 @@ it('passes the standard it belongs to', function (): void {
         cleanCodeRoot() . '/CleanCode/Sniffs/Models/ModelMagicMethodLocationSniff.php'
     );
 
-    expect(array_column($report, 'source'))->toBe(['CleanCode.Classes.RequireProperties.MissingProperty']);
+    expect(array_column($report, 'source'))->toBe([
+        'CleanCode.Classes.RequireProperties.MissingProperty',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+        'CleanCode.ClearCode.SectionComment.Found',
+    ]);
 });

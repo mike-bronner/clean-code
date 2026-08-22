@@ -239,6 +239,34 @@
     -->
 
     <!--
+        Classes: Class Naming (#27) — a type's name must not repeat the folder
+        it is filed under: App\Services\BillingService says "service" twice, and
+        the standard's fix is App\Services\Billing plus a `use … as
+        BillingService` alias wherever the fuller name reads better. See
+        docs/standards/classes-class-naming.md.
+
+        No bundled or third-party sniff derives a naming rule from the
+        namespace. Slevomat's five Superfluous*Naming sniffs are the closest,
+        and each compares a name against one hardcoded word for a *type kind*
+        (SuperfluousInterfaceNaming rejects the literal `Interface` suffix,
+        SuperfluousExceptionNaming the literal `Exception`, and so on); none of
+        them reads the enclosing namespace, so none can say that `Service`
+        is redundant under App\Services but fine under App\Billing. That is
+        measured rather than asserted: "measures the Slevomat naming sniffs as
+        unaffected by the namespace" in
+        tests/Standards/RedundantNamespaceSuffixTest.php runs the five sniffs
+        over one fixture holding identical declarations under two namespaces and
+        pins their answer as the same in both, so a release that started reading
+        the namespace reddens the suite instead of leaving this paragraph stale.
+        Squiz.Classes.ValidClassName and PSR1's naming sniffs check casing only.
+        Hence the custom sniff CleanCode.Naming.RedundantNamespaceSuffix,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above, like
+        every other CleanCode sniff. Reporting-only: renaming a type means
+        rewriting every reference to it across the project, which is not a
+        single-file fixer's decision to make.
+    -->
+
+    <!--
         Methods: Type Hints (#70) — every function-like declaration must carry
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;
@@ -696,8 +724,8 @@
         CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
         sniffs and 46 in the suite — is a native call kept on purpose. The
         pinned set has since grown with the sniffs that landed after that
-        review: 83 warnings in 50 files, 27 in the shipped sniffs and 56 in the
-        suite. The reason is one package-level fact rather than 83 separate
+        review: 94 warnings in 56 files, 33 in the shipped sniffs and 61 in the
+        suite. The reason is one package-level fact rather than 94 separate
         judgements: this package is a PHP_CodeSniffer standard,
         illuminate/collections is absent from its composer.json by design, and
         adding it to require so a linter could call collect() would put
@@ -714,7 +742,7 @@
         array literal. The other two are only counted, which a Collection
         satisfies through Countable, so for those two the package-level fact is
         the whole reason rather than a reinforcement of the site's own usage.
-        The 18 sites added since #312 are pinned on the package-level fact
+        The 29 sites added since #312 are pinned on the package-level fact
         alone; they have not been walked one at a time the way that PR walked
         the first 65, so the per-site tally stays scoped to that set.
 
@@ -1250,6 +1278,62 @@
         rewriting it to stop reaching outside its subject, and neither is a
         mechanical rewrite of the tokens on the line — so there is no fixer and
         no autofixed.php fixture.
+    -->
+
+    <!--
+        Testing: Test Suites (#60), feature-suite content slice —
+        docs/standards/testing-test-suites.md.
+
+        The custom CleanCode.Testing.NoInternetTraversal sniff (#149) is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the third slice of #60
+        to be enforced, and the second that reads a test's *content*: the
+        standard says a feature test does not traverse the internet, and while
+        whether a request really leaves the machine is a runtime property, the
+        raw primitives that can only traverse it are written in the file —
+        curl_init(), curl_exec(), fsockopen(), stream_socket_client(), a
+        file_get_contents() whose literal URL — quoted, heredoc or nowdoc —
+        names http:// or https://, and a
+        direct new of GuzzleHttp\Client. The sanctioned route to a third-party
+        API here is the Http facade with Http::fake(), which is deliberately not
+        a watched primitive.
+
+        It does not overlap TestSuiteNamespace above, which reads a test's
+        declarations and no content at all, nor UnitTestExternalConcerns above,
+        which reads the unit suite, nor NoHttpFakesInIntegrationTests (#150),
+        which reads the integration suite. Each of the three content slices
+        watches its own suite and no other.
+
+        Custom rather than third-party. Generic.PHP.ForbiddenFunctions is the
+        near neighbour: it maps a forbidden function to a replacement and reports
+        everywhere. It cannot carry this rule for three reasons — it has no
+        notion of a suite, so it would flag an integration test, which is exactly
+        where the standard says these calls belong; it matches on the name alone,
+        so file_get_contents() would report on every local read; and it speaks
+        about functions only, so the Guzzle instantiation is outside it entirely.
+
+        No <include-pattern>, deliberately, and for the same reason as the
+        TestSuiteNamespace block above: the sniff resolves its own scope from the
+        path it has to read anyway, so its property is both the scope and the
+        anchor and the two cannot disagree. A project whose feature suite lives
+        elsewhere retunes featureTestPatterns instead of overriding this ruleset:
+
+            <rule ref="CleanCode.Testing.NoInternetTraversal">
+                <properties>
+                    <property name="featureTestPatterns" type="array">
+                        <element value="*/spec/Acceptance/*"/>
+                    </property>
+                </properties>
+            </rule>
+
+        Warnings, not errors, matching TestSuiteNamespace and the rest of the
+        Testing standards. The rule reads a project's suite layout off a
+        configurable convention and cannot prove it guessed right, and a
+        primitive is a strong signal rather than proof a request left the
+        machine, so a misread must not fail a consumer's build. Detection only:
+        replacing a real request with a fake means writing the fake — what to
+        return, and for which URLs — which is not recoverable from the call being
+        replaced, so there is no fixer and no autofixed.php fixture.
     -->
 
     <!--
