@@ -319,6 +319,202 @@ it('stays linear as groupings nest', function (): void {
 });
 
 /**
+ * Builds the same-line-stacked shape both tests below drive, and returns the
+ * source alongside the column of every condition the sniff is owed for it.
+ *
+ * One physical line carries the whole condition: $leading plain conditions,
+ * then $stacked group openers written one after another. Every group but the
+ * last has the next group's condition glued to its own opening parenthesis, so
+ * each contributes exactly one violation, and every one of them is owed the
+ * same twelve spaces — the openers all share the `if` line, whose indent is
+ * eight. The columns are recorded while the line is assembled rather than
+ * recomputed from a formula, because the width of a segment changes with the
+ * number of digits in its level.
+ *
+ * $opener is what turns the same file into its own control: `&& (` opens a
+ * grouping at every level, `&& check(` opens a call at every level, and a call
+ * is skipped whole by the walk that collects groupings. The two files are
+ * otherwise identical — same token count, same parenthesis depth — so the
+ * tokenizer's own cost, which is superlinear in that depth, sits on both sides
+ * of the ratio and cancels.
+ *
+ * @return array{0: string, 1: array<int, int>}
+ */
+$stackedGroupings = function (string $opener, int $leading, int $stacked): array {
+    $lines = ['<?php', '', 'final class Stacked', '{', '    public function run(): bool', '    {'];
+    $line = '        if (';
+
+    for ($lead = 1; $lead <= $leading; $lead++) {
+        $line .= '$this->p' . $lead . ' && ';
+    }
+
+    $columns = [];
+
+    for ($level = 1; $level <= $stacked; $level++) {
+        // Every level past the first is the glued first condition of the group
+        // the level before it opened, and is reported where it starts.
+        if ($level > 1) {
+            $columns[] = (strlen($line) + 1);
+        }
+
+        $line .= '$this->a' . $level . ' ' . $opener;
+    }
+
+    $lines[] = $line;
+    $lines[] = str_repeat(' ', 12) . '$this->first';
+    $lines[] = str_repeat(' ', 12) . '&& $this->second';
+    $lines[] = str_repeat(' ', 8) . str_repeat(')', $stacked) . ') {';
+    $lines[] = '            return true;';
+    $lines[] = '        }';
+    $lines[] = '';
+    $lines[] = '        return false;';
+    $lines[] = '    }';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return [implode("\n", $lines), $columns];
+};
+
+/**
+ * Stacking cost has to stay linear in the number of groups sharing a line.
+ *
+ * The test above nests one opener per line, which is a different axis: it
+ * measures the walks *through* a group's contents, and those were made linear
+ * by jumping past each nested region. The two walks along a physical *line* —
+ * the one reading a line's indent and the one rewriting it — were untouched by
+ * that, because neither walks through a group at all. Each stepped back one
+ * token at a time to the start of its line, so a line carrying n stacked
+ * openers paid one walk per group over an ever-growing prefix of that single
+ * line: quadratic, on an axis the test above cannot see.
+ *
+ * The ratio is what is asserted, for the same reason as above — a budget in
+ * seconds is meaningless across machines. The two implementations sit an order
+ * of magnitude either side of the threshold: 5.34x for the per-call backward
+ * walk against 1.02x for the indexed lookup (0.4224s/0.0791s against
+ * 0.0742s/0.0730s, measured in-process here on the same run of this test
+ * against each implementation).
+ *
+ * The 2,000 leading conditions are not decoration. The nesting depth is what
+ * caps this shape — PHP_CodeSniffer records the full parenthesis nesting on
+ * every token inside it, so a stack much past a thousand exhausts PHP's
+ * default memory limit while the file is still being tokenized — and at a
+ * depth of 600 the quadratic walk alone is only about 2.3x the control, too
+ * narrow to separate from noise. Every one of the 600 walks crosses the whole
+ * leading run, which puts the cost back on the axis being measured without
+ * touching the depth. Cheap for the control, which tokenizes that run once.
+ *
+ * The violations and the diagnostic are asserted alongside the timings for two
+ * different reasons. A walk that gave up early would be fast and silent, so the
+ * 599 tuples are what stop the ratio passing vacuously, and the control's empty
+ * set is what proves it does no grouping work at all. The message is the half
+ * that catches the other cheap way to be fast: an implementation that capped
+ * how far back it scanned would still report every one of these lines, at the
+ * right column, and would read the indent off whichever token it stopped on —
+ * so only the expected-indent figure in the rendered message tells a correct
+ * line start from a truncated one.
+ */
+it('stays linear as group openers stack on one line', function () use ($stackedGroupings): void {
+    [$groupedSource, $reported] = $stackedGroupings('&& (', 2000, 600);
+    [$controlSource] = $stackedGroupings('&& check(', 2000, 600);
+
+    buildRuleset([LOGICAL_GROUPINGS]);
+
+    $measure = function (string $name, string $source): array {
+        $fixture = stageGeneratedFixture($name, $source);
+        $started = hrtime(true);
+        $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
+
+        return [
+            ((hrtime(true) - $started) / 1e9),
+            violationTuples($file),
+            violationMessagesByLine($file->getErrors()),
+        ];
+    };
+
+    [$grouped, $groupedViolations, $groupedMessages] = $measure('stacked-groupings.php', $groupedSource);
+    [$skipped, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
+
+    $expected = array_map(
+        static fn (int $column): array => [
+            'line' => 7,
+            'column' => $column,
+            'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
+        ],
+        $reported
+    );
+
+    expect($groupedViolations)->toBe($expected)
+        ->and($skippedViolations)->toBe([])
+        ->and(array_values(array_unique($groupedMessages[7])))->toBe([
+            'The first condition of a parenthesized group must start on its own line,'
+            . ' indented one level deeper than its enclosing condition; expected 12 spaces',
+        ])
+        ->and($grouped)->toBeLessThan(($skipped * 2));
+});
+
+/**
+ * The same shape, fixed, through PHP_CodeSniffer's real multi-pass fixer.
+ *
+ * The test above reads the sniff in one pass. This one drives the indexed line
+ * start through the real fixer instead, because the index describes a token
+ * stream and Fixer::fixFile() replaces that stream up to fifty times per file.
+ * This shape needs one pass per level: breaking the stack apart puts each
+ * group's opener on a line of its own, which is what gives the group inside it
+ * a deeper level to be measured against on the pass after. Six levels, so six
+ * fixing passes, and then a seventh that finds nothing and ends the loop —
+ * seven tokenizations, seven streams, measured rather than assumed. Small
+ * enough to converge well inside the fifty-pass ceiling and large enough for
+ * the cascade to happen. It is the count the timing test cannot borrow: 600
+ * levels would want 600 passes and the fixer would give up.
+ *
+ * Both halves of the round trip are asserted. The output is compared in full,
+ * so a line start read off a scan cut short before it reaches the start of its
+ * line writes a wrong level here; and the fixed source is analyzed again, so
+ * the output has to be genuinely compliant rather than merely different from
+ * the input.
+ *
+ * What it does not pin is which parts of the index's key are load-bearing.
+ * Dropping the fixer's loop counter from the key leaves the whole suite green,
+ * and no multi-pass fixture could redden it: Fixer::fixFile() rebuilds every
+ * sniff before each pass, so the index this test drives through seven passes
+ * is a fresh, empty one seven times over and no key from one loop is ever
+ * compared against a key from the next. What keeps this round trip honest
+ * across passes is that object lifecycle, not the key. See lineStart()'s
+ * docblock.
+ */
+it('reindents a stack of same-line openers through the multi-pass fixer', function () use ($stackedGroupings): void {
+    [$source] = $stackedGroupings('&& (', 0, 6);
+    $file = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('stacked-fixable.php', $source));
+    $fixed = autofixedContents($file);
+    $refixed = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('stacked-fixed.php', $fixed));
+
+    expect($fixed)->toBe(<<<'PHP'
+    <?php
+
+    final class Stacked
+    {
+        public function run(): bool
+        {
+            if ($this->a1 && (
+                $this->a2 && (
+                    $this->a3 && (
+                        $this->a4 && (
+                            $this->a5 && (
+                                $this->a6 && (
+                                    $this->first
+                                    && $this->second
+            ))))))) {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    PHP)->and(violationTuples($refixed))->toBe([]);
+});
+
+/**
  * A nested region whose closer PHP_CodeSniffer never recorded stops every walk
  * in the class, not just the two that already stopped.
  *
@@ -451,4 +647,146 @@ it('moves the reported condition lines and nothing else', function (): void {
     expect(array_map(static fn (int $index): int => ($index + 1), $changed))->toBe(
         array_column(violationTuples(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')), 'line')
     );
+});
+
+/**
+ * The line-start index this sniff builds once per token stream must not answer
+ * one analysis with another analysis's pointers (#343).
+ *
+ * The index used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one index.
+ *
+ * The two sources here tokenise to 36 tokens each: the two `!` tokens sit in
+ * front of the measured group in A and behind it in B, which holds the counts
+ * equal while moving every pointer from the group onwards two places. Under the
+ * old key, B's `&& (` line was measured from A's pointer for that line — two
+ * tokens further along, past the `&&` and onto the `(` — and the diagnostic
+ * claimed `expected 11 spaces` for a group that is owed 8. All three expected
+ * indents are distinct (12 for A, 8 for B, 11 for the stale answer), so no
+ * assertion below can be satisfied by the wrong stream's value.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its own answer back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose index leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its line-start index from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        if (
+        !!$alpha
+                && ($beta
+                || $gamma)
+        ) {
+            $one = 1;
+        }
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        if (
+        $alpha
+            && ($beta
+            || $gamma)
+        ) {
+            $one = !!1;
+        }
+
+        PHP;
+
+    $first = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceA);
+    $second = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceB);
+    $third = analyzeStdinSource([LOGICAL_GROUPINGS], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 5, 'column' => 9, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+            ['line' => 6, 'column' => 5, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            5 => [
+                'The first condition of a parenthesized group must start on its own line, '
+                    . 'indented one level deeper than its enclosing condition; expected 8 spaces',
+            ],
+            6 => [
+                "Condition in a parenthesized group must align with the group's first "
+                    . 'condition; expected 8 spaces, found 4',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([
+            ['line' => 5, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
+            ['line' => 6, 'column' => 9, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
+        ])
+        ->and(violationMessagesByLine($third->getErrors()))->toBe([
+            5 => [
+                'The first condition of a parenthesized group must start on its own line, '
+                    . 'indented one level deeper than its enclosing condition; expected 12 spaces',
+            ],
+            6 => [
+                "Condition in a parenthesized group must align with the group's first "
+                    . 'condition; expected 12 spaces, found 8',
+            ],
+        ]);
+});
+
+/**
+ * The line-start index is built once for a token stream and read from for the
+ * rest of it, rather than rebuilt on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that rebuilt the index on every single
+ * read would report exactly the same violations, only slower — which is the
+ * O(n²) cost lineStart() exists to remove. Every analysis there also constructs
+ * its own DummyFile, so all three get their own identity from
+ * TokenStreams::key() and miss by design.
+ *
+ * Reuse is observable only from inside the sniff, so the sniff counts it, the
+ * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
+ * are pinned, and each rules out a different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the index at all would report one build and no hits. Each `if`
+ *   below reaches the index once, from indentOfLine() — reindent()'s read is on
+ *   the fixer path, which a phpcs run never takes — so n of them total n reads,
+ *   of which one builds and n-1 hit. The build is one the guard never had to
+ *   answer.
+ *
+ * Mutation-checked by forcing the `$this->lineStartsKey !== $key` guard true,
+ * so every read rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0
+ * against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
+ */
+it('builds its line-start index once per stream, not once per read', function (): void {
+    $sniff = sniffInstance(LOGICAL_GROUPINGS);
+
+    foreach ([2, 4, 8] as $size) {
+        $groups = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $groups .= "if (\n    \$alpha{$index}\n    && (\$beta{$index}\n"
+                . "    || \$gamma{$index})\n) {\n    \$one{$index} = 1;\n}\n\n";
+        }
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([LOGICAL_GROUPINGS], "<?php\n\n" . $groups);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe(2 * $size, "n={$size}: every group is still reported")
+            ->and($counted['lineStarts.builds'])->toBe(
+                1,
+                "n={$size}: the index is built once for the stream, not once per read"
+            )
+            ->and($counted['lineStarts.hits'])->toBe(
+                $size - 1,
+                "n={$size}: every read after the first answers from the index already built"
+            );
+    }
 });

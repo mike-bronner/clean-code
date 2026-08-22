@@ -14,9 +14,13 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Sniffs\WhiteSpace\PassiveOperatorSpacingSniff;
+use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\DummyFile;
+use PHP_CodeSniffer\Files\FileList;
+use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Standards\Squiz\Sniffs\WhiteSpace\OperatorSpacingSniff;
@@ -128,6 +132,49 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
 }
 
 /**
+ * Tokenises a fixture without running a single sniff over it.
+ *
+ * The helper classes under CleanCode/Helpers/ read the token stream and report
+ * on it rather than adding violations, so their tests need a parsed file and
+ * nothing else. Driving them through a sniff instead would only be able to
+ * observe them through that sniff's own filtering.
+ */
+function parseFixture(string $directory, string $fixture): LocalFile
+{
+    [$config, $ruleset] = buildRuleset();
+
+    $file = new LocalFile(fixturePath($directory, $fixture), $ruleset, $config);
+    $file->parse();
+
+    return $file;
+}
+
+/**
+ * Every T_STRING in a parsed file whose content starts with $prefix, mapped to
+ * FunctionCalls' verdict for each of its occurrences in source order.
+ *
+ * A name can appear more than once — an imported one shows up in its own `use`
+ * statement as well as at the call site — so the verdicts are a list rather
+ * than a single value, and a test pins every occurrence.
+ *
+ * @return array<string, array<int, bool>>
+ */
+function globalFunctionCallVerdicts(LocalFile $file, string $prefix): array
+{
+    $verdicts = [];
+
+    foreach ($file->getTokens() as $pointer => $token) {
+        if ($token['code'] !== T_STRING || str_starts_with($token['content'], $prefix) === false) {
+            continue;
+        }
+
+        $verdicts[$token['content']][] = FunctionCalls::isGlobalFunctionCall($file, $pointer);
+    }
+
+    return $verdicts;
+}
+
+/**
  * Processes a file through the whole master ruleset, every sniff active.
  */
 function analyzeWithMasterRuleset(string $path): LocalFile
@@ -217,6 +264,45 @@ function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
     $file->process();
 
     return $file;
+}
+
+/**
+ * The sniff instance a ruleset narrowed to one sniff code holds.
+ *
+ * buildRuleset() memoises the ruleset per sniff-code key, so this is the very
+ * instance analyzeStdinSource() and analyzeFixture() drive for that code — which
+ * is what lets a test read the counters a sniff keeps about its own per-stream
+ * caches around a run it made through those helpers.
+ */
+function sniffInstance(string $sniffCode): object
+{
+    [, $ruleset] = buildRuleset([$sniffCode]);
+
+    return $ruleset->sniffs[$ruleset->sniffCodes[$sniffCode]];
+}
+
+/**
+ * What each of a sniff's cache counters moved by between two readings.
+ *
+ * The counters are cumulative for the life of the sniff instance, and
+ * buildRuleset() hands every test in a file the same instance, so a total is
+ * the whole file's history rather than one run's. A delta around a single run
+ * is the only reading that describes that run.
+ *
+ * @param array<string, int> $before
+ * @param array<string, int> $after
+ *
+ * @return array<string, int>
+ */
+function cacheCountsDelta(array $before, array $after): array
+{
+    $counted = [];
+
+    foreach ($after as $counter => $count) {
+        $counted[$counter] = $count - $before[$counter];
+    }
+
+    return $counted;
 }
 
 /**
@@ -350,6 +436,45 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
 }
 
 /**
+ * Processes a file through the master ruleset with the named message codes'
+ * `<exclude>`s lifted — the shipped configuration minus only the excludes under
+ * test.
+ *
+ * The control half of CONTRIBUTING.md's "pin both halves" rule for excludes.
+ * PHPCS implements `<exclude name="Foo.Bar.Baz"/>` by setting that code's
+ * severity to 0 (Ruleset::processRule()), so restoring the default severity of
+ * 5 is precisely "the same ruleset without that exclude" — and it keeps the
+ * rule's configured `<properties>` live, which rebuilding the rule from XML
+ * here would not: a transcript of rules.xml's properties drifts the moment
+ * rules.xml changes, and a control run under different properties says nothing
+ * about the exclude.
+ *
+ * A code that rules.xml does not actually exclude fails closed rather than
+ * quietly passing: raising the severity of a code already reporting at 5
+ * changes nothing, so the paired "silent through rules.xml" assertion is what
+ * reddens.
+ *
+ * Always builds a fresh ruleset, so lifted excludes can never leak into a later
+ * test through buildRuleset()'s memoisation.
+ *
+ * @param array<int, string> $sniffCodes    Sniffs to narrow the run to.
+ * @param array<int, string> $excludedCodes Message codes whose exclude is lifted.
+ */
+function analyzeWithoutExcludes(array $sniffCodes, array $excludedCodes, string $path): LocalFile
+{
+    [$config, $ruleset] = buildRuleset($sniffCodes, true);
+
+    foreach ($excludedCodes as $code) {
+        $ruleset->ruleset[$code]['severity'] = 5;
+    }
+
+    $file = new LocalFile($path, $ruleset, $config);
+    $file->process();
+
+    return $file;
+}
+
+/**
  * Processes a fixture through a *consumer* ruleset — one that references
  * rules.xml and then overrides a sniff's properties in XML, exactly as a
  * consuming project's own ruleset does.
@@ -362,7 +487,13 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
  * passes every callback-driven test and still dies with an uncaught TypeError
  * the moment a real consumer configures it. Only this route exercises that.
  *
- * @param array<string, string> $properties Property name => value, as written in XML.
+ * An array value is written out as a `type="array"` property with one
+ * `<element>` per entry — the spelling PHPCS documents for a list property, and
+ * a different parse path from the scalar `value=""` attribute above. A sniff
+ * with an `array` property type needs that route specifically: the attribute
+ * form hands over a string and dies with the same TypeError described above.
+ *
+ * @param array<string, string|array<string>> $properties Property name => value, as written in XML.
  */
 function analyzeWithConfiguredRuleset(
     string $sniffCode,
@@ -372,7 +503,19 @@ function analyzeWithConfiguredRuleset(
     $lines = [];
 
     foreach ($properties as $name => $value) {
-        $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+        if (is_array($value) === false) {
+            $lines[] = '            <property name="' . $name . '" value="' . $value . '"/>';
+
+            continue;
+        }
+
+        $lines[] = '            <property name="' . $name . '" type="array">';
+
+        foreach ($value as $element) {
+            $lines[] = '                <element value="' . $element . '"/>';
+        }
+
+        $lines[] = '            </property>';
     }
 
     $standard = sys_get_temp_dir() . '/' . uniqid('cleancode-ruleset-', true) . '.xml';
@@ -1157,6 +1300,146 @@ function nestedChainFixture(int $depth): array
 }
 
 /**
+ * Source for one callable holding a left-associative chain of $links short
+ * ternaries — `$a ?: $a ?: $a …` — which needs no parentheses and is ordinary
+ * valid PHP.
+ *
+ * Generated rather than committed for the same reason as nestedChainFixture():
+ * the length is the whole point, and it is what the NPath sniff's linearity test
+ * measures against. Each link is a place the sniff has to find the end of an
+ * else-branch, so a scan that runs to the end of the statement every time makes
+ * the walk quadratic in $links.
+ */
+function ternaryChainFixture(int $links): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function chainedTernaries($a)', '{'];
+    $lines[] = '    $value = $a' . str_repeat(' ?: $a', $links) . ';';
+    $lines[] = '';
+    $lines[] = '    return $value;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Source for one callable holding $branches sequential independent `if`s.
+ *
+ * NPath multiplies statements in sequence and each of these is worth 2, so the
+ * measurement is 2 ** $branches — which passes PHP_INT_MAX at 63 branches from
+ * a few kilobytes of entirely ordinary code. That is what the NPath sniff's
+ * saturation test drives, and generating it keeps the arithmetic legible where
+ * sixty-odd committed fixture blocks would not be.
+ */
+function sequentialBranchFixture(int $branches): string
+{
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'function manyBranches(int $a): int', '{'];
+
+    for ($branch = 0; $branch < $branches; $branch++) {
+        $lines[] = '    if ($a === ' . $branch . ') {';
+        $lines[] = '        $a++;';
+        $lines[] = '    }';
+        $lines[] = '';
+    }
+
+    $lines[] = '    return $a;';
+    $lines[] = '}';
+    $lines[] = '';
+
+    return implode("\n", $lines);
+}
+
+/**
+ * Collapses CleanCode.Metrics.NPathComplexity's messages into `callable name =>
+ * measured NPath`, which is what every measurement assertion above reads.
+ *
+ * The counterpart of measuredComplexities() for the cyclomatic sniff, and named
+ * apart from it because the two parse different messages: this one keys on the
+ * bare callable name, that one on the declaration phrase the message names.
+ *
+ * The value is parsed back out of the message because the message is the only
+ * place the sniff publishes it. Anchoring on the name as well as the number
+ * means a measurement landing on the wrong callable cannot satisfy an
+ * expectation meant for another.
+ *
+ * @return array<string, int>
+ */
+function measuredNPathComplexities(LocalFile $file): array
+{
+    $measured = [];
+
+    foreach (violationMessages($file) as $message) {
+        $matched = preg_match(
+            '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
+            $message,
+            $matches
+        );
+
+        if ($matched === 1) {
+            $measured[$matches[1]] = (int) $matches[2];
+        }
+    }
+
+    return $measured;
+}
+
+/**
+ * Analyses a class written as a source string — the whole of it, without a PHP
+ * open tag — and hands back the parsed file, for a test that reads tokens
+ * rather than violations. See tests/Support/ParameterDeclarationTest.php.
+ */
+function parameterDeclarationFile(string $source): File
+{
+    return analyzeStdinSource(
+        ['CleanCode.Metrics.TooManyFields'],
+        "<?php\n\ndeclare(strict_types=1);\n\n" . $source . "\n"
+    );
+}
+
+/**
+ * The pointer to the $occurrence'th T_VARIABLE written as $name, counting from
+ * one.
+ *
+ * Throws rather than returning false when there is no such occurrence, so a
+ * source edited out from under an expectation cannot leave it silently
+ * asserting against token 0.
+ */
+function parameterDeclarationPointer(File $file, string $name, int $occurrence = 1): int
+{
+    $seen = 0;
+
+    foreach ($file->getTokens() as $ptr => $token) {
+        if ($token['code'] !== T_VARIABLE || $token['content'] !== $name) {
+            continue;
+        }
+
+        $seen++;
+
+        if ($seen === $occurrence) {
+            return $ptr;
+        }
+    }
+
+    throw new RuntimeException($name . ' is written fewer than ' . $occurrence . ' times in the analysed source');
+}
+
+/**
+ * Both answers for one occurrence of $name, as
+ * [isPlainParameter, isPromotedParameter].
+ *
+ * @return array<int, bool>
+ */
+function parameterDeclarationAnswers(File $file, string $name, int $occurrence = 1): array
+{
+    $ptr = parameterDeclarationPointer($file, $name, $occurrence);
+
+    return [
+        ParameterDeclaration::isPlainParameter($file, $ptr),
+        ParameterDeclaration::isPromotedParameter($file, $ptr),
+    ];
+}
+
+/**
  * The set CleanCode.WhiteSpace.PassiveOperatorSpacing uses to decide a `+`/`-`
  * is a unary sign, read off the real class through reflection so the divergence
  * tests compare live behaviour rather than a transcription of it.
@@ -1235,4 +1518,61 @@ function tokenNamesInConstant(string $path, string $constant, array $sniffCodes)
     }
 
     return $names;
+}
+
+/**
+ * Processes every file in a directory through a ruleset narrowed to the given
+ * sniff codes, as one PHPCS run over that directory.
+ *
+ * Every other helper here drives a single LocalFile, which is the whole of what
+ * a per-file sniff can see. CleanCode.Metrics.DepthOfInheritance is the one
+ * sniff whose answer depends on the *set* of files being analysed — it resolves
+ * a class's parents against PHPCS's own FileList — so a fixture directory, not
+ * a fixture file, is the unit its behaviour has to be asserted against.
+ *
+ * The config is built with the directory as its path argument, exactly as
+ * `phpcs <directory>` does, because $config->files is what FileList expands and
+ * what the sniff reads. Never memoised: the path argument is part of what makes
+ * a run, so two directories must not share a config.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array<string, LocalFile> The processed files, keyed by basename.
+ */
+function analyzeFileset(array $sniffCodes, string $directory): array
+{
+    // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
+    // installed paths have to be restored before the rules.xml parse.
+    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml', $directory]);
+    $config->cache = false;
+
+    restoreInstalledPaths();
+
+    $ruleset = new Ruleset($config);
+
+    if ($sniffCodes !== []) {
+        $isolated = [];
+
+        foreach ($sniffCodes as $code) {
+            $class = $ruleset->sniffCodes[$code];
+            $isolated[$class] = $ruleset->sniffs[$class];
+        }
+
+        $ruleset->sniffs = $isolated;
+        $ruleset->populateTokenListeners();
+    }
+
+    $list = new FileList($config, $ruleset);
+    $files = [];
+
+    for ($list->rewind(); $list->valid() === true; $list->next()) {
+        $path = $list->key();
+        $file = new LocalFile($path, $ruleset, $config);
+        $file->process();
+        $files[basename($path)] = $file;
+    }
+
+    ksort($files);
+
+    return $files;
 }

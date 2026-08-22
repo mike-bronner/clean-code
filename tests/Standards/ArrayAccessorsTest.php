@@ -25,6 +25,16 @@ use PHP_CodeSniffer\Files\LocalFile;
 const ARRAY_ACCESSORS = 'CleanCode.Arrays.ArrayAccessors';
 
 /**
+ * The DirectArrayAccess diagnostic with the chain root left open, so an
+ * assertion can name the variable a violation is *about* rather than only the
+ * line and column it lands on. Which root a shared line reports on is the whole
+ * question in the nested-`foreach` cases, where a read and a write target can
+ * sit on one line and a count alone cannot tell them apart.
+ */
+const ARRAY_ACCESSORS_READ = 'Direct array element access on %1$s is not allowed; use data_get(%1$s, ...) '
+    . 'so a missing element falls back instead of erroring';
+
+/**
  * A staggered/staircase file of $size reads, each one construct deeper than the
  * read before it, all sharing one right-nested chain (#292):
  *
@@ -204,8 +214,16 @@ it('flags every violation at its own line with the expected code', function (): 
         125 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         143 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         159 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        174 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        177 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        181 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        185 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        207 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        213 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        242 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        248 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        272 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        273 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        293 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        296 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
     ]);
 });
 
@@ -453,14 +471,14 @@ it('grows linearly across each doubling of a staggered staircase', function () u
  * reached at all.
  *
  * Line 88 is the sharpest of them, and the one the other cases do not reach: a
- * `foreach` header holding a second `foreach`, so the `as` that decides the
- * outer header sits *inside* the construct the walk steps out of. Roots on
- * either side of it are then enclosed by the same construct, and the step out
- * of it genuinely cannot be answered once for both -- $rows before it reports,
- * $outer after it does not. Answering that step statically either way drops one
- * of the two. The third read in that method ($trailing, line 100) is the far
- * side of the same `as` reached through the same constructs, and the fixture
- * says why it is silent.
+ * `foreach` header holding a second `foreach`, so a nested `as` sits in the
+ * outer header's span ahead of the outer header's own. The header is decided by
+ * its own -- the `as` at its own parenthesis depth -- which puts every root in
+ * the closure on the subject side of it. $rows (line 88) and $trailing (line
+ * 100) are both that subject and both report; $inner (line 89) is the nested
+ * header's own target and $outer (line 101) the outer header's, so neither
+ * does. Comparing against the nested `as` instead dropped $trailing as a write
+ * target, which is the false negative #314 fixes.
  *
  * Line 118 covers the other question the walk answers per read: an existence
  * check two constructs out rather than one. The exemption is the whole chain of
@@ -468,11 +486,11 @@ it('grows linearly across each doubling of a staggered staircase', function () u
  * once per opener rather than once per read must not narrow it.
  *
  * The count is asserted alongside the columns because half of what is pinned
- * here is silence: three reads in this fixture are deliberately unreported, and
+ * here is silence: two reads in this fixture are deliberately unreported, and
  * only the count fails when one of them starts reporting.
  *
  * Every expected line and column here was taken from the hop-by-hop walk before
- * it was touched, not from the amortised one's own output.
+ * it was touched, except line 100 -- the one verdict #314 deliberately reverses.
  */
 it('decides a staggered staircase exactly as the hop-by-hop walk did', function (): void {
     $errors = analyzeFixture(ARRAY_ACCESSORS, 'staggered-nesting.php')->getErrors();
@@ -482,6 +500,7 @@ it('decides a staggered staircase exactly as the hop-by-hop walk did', function 
         58 => [31, 60],
         70 => [44, 85],
         88 => [26],
+        100 => [24],
         124 => [25, 52],
     ];
 
@@ -489,7 +508,7 @@ it('decides a staggered staircase exactly as the hop-by-hop walk did', function 
         expect(array_keys($errors[$line]))->toBe($columns, "line {$line} columns");
     }
 
-    expect(array_sum(array_map('count', $errors)))->toBe(13, 'no read gained or lost');
+    expect(array_sum(array_map('count', $errors)))->toBe(14, 'no read gained or lost');
 });
 
 /**
@@ -622,7 +641,7 @@ it('flags computed indexes inside write targets', function (): void {
  * - 109/112/118, a closure and a static closure whose bodies carry `return
  *   ...;` — the `;` that bounded the search before.
  * - 125, an anonymous class with a whole method body in the offset.
- * - 174/177, the dynamic-member column, whose offset sits in a brace.
+ * - 293/296, the dynamic-member column, whose offset sits in a brace.
  *
  * Counts are asserted alongside columns so the write half stays pinned:
  * flagging `$target`/`$order` too would report twice and fail here.
@@ -632,13 +651,112 @@ it('flags offsets spanning braces and statements', function (): void {
 
     $columnsByLine = [
         106 => 61, 109 => 72, 112 => 79, 115 => 44, 116 => 48,
-        117 => 55, 118 => 59, 125 => 32, 174 => 62, 177 => 73,
+        117 => 55, 118 => 59, 125 => 32, 293 => 62, 296 => 73,
     ];
 
     foreach ($columnsByLine as $line => $column) {
         expect($errors[$line])->toHaveCount(1, "line {$line} reports once")
             ->and(array_key_first($errors[$line]))->toBe($column, "line {$line} column");
     }
+});
+
+/**
+ * A `foreach` header's subject can hold a scope, and a scope can hold a
+ * `foreach` of its own — so a nested `as` sits in the header's span alongside
+ * the header's own. Only the header's own splits its subject from its target,
+ * and it is identified by depth: the innermost parentheses enclosing it are the
+ * header's own, which no nested candidate's are (#314).
+ *
+ * Every root is pinned by the message it carries rather than by a count, since
+ * the failure this guards against is one root being decided as another: an
+ * aggregate that happened to total the same would not show it.
+ *
+ * failing.php:175 is the issue's own shape, a closure in the header's subject:
+ *
+ * - 181, $rows — the header's subject, before the nested `as`. Reports.
+ * - 185, $trailing — still the header's subject, after the nested `as` and
+ *   before the header's own. Matching the first `as` in the span compared it
+ *   against the nested one, took it for the header's write target, and dropped
+ *   it. Reports.
+ * - $inner (line 182) is the nested header's own target and $outer (line 186)
+ *   the outer header's, so the method reports on those two lines and no other.
+ */
+it('reports a read past a nested foreach clause in a closure', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(ARRAY_ACCESSORS, 'failing.php')->getErrors());
+
+    expect($messages[181] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$rows')])
+        ->and($messages[185] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$trailing')])
+        ->and(array_intersect_key($messages, array_flip(range(175, 199))))
+        ->toHaveKeys([181, 185])
+        ->toHaveCount(2, 'no other line in the method reports');
+});
+
+/**
+ * The same shape with the nested `foreach` in an anonymous class' method rather
+ * than a closure (failing.php:201). Depth is what the lookup reads, so the kind
+ * of scope holding the nested `foreach` cannot matter — a closure-only check
+ * would pass the case above and fail this one.
+ *
+ * - 207, $anonRows — the header's subject before the nested `as`. Reports.
+ * - 213, $anonTrailing — the header's subject after it. Reports.
+ * - $anonInner (line 210) and $anonOuter (line 215) are the two headers' own
+ *   targets, so the method reports on those two lines and no other.
+ */
+it('reports a read past a nested foreach clause in an anonymous class', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(ARRAY_ACCESSORS, 'failing.php')->getErrors());
+
+    expect($messages[207] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$anonRows')])
+        ->and($messages[213] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$anonTrailing')])
+        ->and(array_intersect_key($messages, array_flip(range(201, 228))))
+        ->toHaveKeys([207, 213])
+        ->toHaveCount(2, 'no other line in the method reports');
+});
+
+/**
+ * Two nested `foreach` headers side by side at the same depth, in two closures
+ * handed to one call in the header's subject (failing.php:230). The lookup
+ * passes over every candidate that is not at the header's own depth, not only
+ * the first one it meets: stopping after one skip would settle the header on
+ * the second sibling's `as` and drop $secondTrailing.
+ *
+ * - 242, $firstTrailing — past the first sibling's `as`. Reports.
+ * - 248, $secondTrailing — past the second sibling's `as`. Reports.
+ * - $firstInner (line 239), $secondInner (line 245) and $siblingOuter (line
+ *   250) are targets, so the method reports on those two lines and no other.
+ */
+it('reports reads past sibling nested foreach clauses', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(ARRAY_ACCESSORS, 'failing.php')->getErrors());
+
+    expect($messages[242] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$firstTrailing')])
+        ->and($messages[248] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$secondTrailing')])
+        ->and(array_intersect_key($messages, array_flip(range(230, 263))))
+        ->toHaveKeys([242, 248])
+        ->toHaveCount(2, 'no other line in the method reports');
+});
+
+/**
+ * The trap that tells a depth match from "take the last `as` in the span": a
+ * nested `foreach` in the header's *target* clause, so its `as` comes after the
+ * header's own rather than before it (failing.php:266). Settling the header on
+ * the last candidate answers it with the nested `as`, which puts $trapTarget —
+ * the header's own write target — on the subject side and reports it as a read.
+ *
+ * - 272, $trapRows — the header's subject. Reports.
+ * - 273, $trapOffset — read to build the target's offset, which is a read
+ *   however deep in a write target it sits. Reports.
+ * - $trapTarget (line 272) and $trapInner (line 273) are the two headers' own
+ *   targets. Both share a line with a read, so each line is pinned to the one
+ *   message naming the read: a second message on either line is the target
+ *   being reported.
+ */
+it('does not report a foreach target whose offset holds a nested foreach clause', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(ARRAY_ACCESSORS, 'failing.php')->getErrors());
+
+    expect($messages[272] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$trapRows')])
+        ->and($messages[273] ?? [])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$trapOffset')])
+        ->and(array_intersect_key($messages, array_flip(range(266, 285))))
+        ->toHaveKeys([272, 273])
+        ->toHaveCount(2, 'no other line in the method reports');
 });
 
 /**
@@ -767,6 +885,121 @@ it('does not report a file ending on a bare variable', function (): void {
 it('reports detection-only violations', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(39)
+    expect($file->getErrorCount())->toBe(47)
         ->and($file->getFixableCount())->toBe(0);
+});
+
+/**
+ * The enclosure map this sniff builds once per token stream must not answer one
+ * analysis with another analysis's pointers (#343).
+ *
+ * The map used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one map.
+ *
+ * The two sources here tokenise to 25 tokens each — `isset` and `strlen` are
+ * one token apiece — and differ in exactly what the map records: A's read sits
+ * inside an existence check, which the standard exempts, while B's sits inside
+ * an ordinary call, which it does not. Under the old key B was measured against
+ * A's map, inherited the exemption, and its line-3 violation was never
+ * reported. That is the assertion below: B owes two violations, not the one A
+ * owes.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires A's single violation back, which a sniff that had
+ * simply stopped caching would also give — but a sniff whose map leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its enclosure map from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        $one = isset($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        $one = strlen($alpha['beta']);
+        $two = $gamma['delta'];
+
+        PHP;
+
+    $first = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+    $second = analyzeStdinSource([ARRAY_ACCESSORS], $sourceB);
+    $third = analyzeStdinSource([ARRAY_ACCESSORS], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 3, 'column' => 15, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            3 => [sprintf(ARRAY_ACCESSORS_READ, '$alpha')],
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([
+            ['line' => 4, 'column' => 8, 'source' => ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        ])
+        ->and(violationMessagesByLine($third->getErrors()))->toBe([
+            4 => [sprintf(ARRAY_ACCESSORS_READ, '$gamma')],
+        ]);
+});
+
+/**
+ * The enclosure map is built once for a token stream and read from for the rest
+ * of it, rather than rebuilt on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that rebuilt the map on every single
+ * read would report exactly the same violations, only slower — which is the
+ * O(n²) cost buildEnclosureMap() exists to remove. Every analysis there also
+ * constructs its own DummyFile, so all three get their own identity from
+ * TokenStreams::key() and miss by design.
+ *
+ * Reuse is observable only from inside the sniff, so the sniff counts it, the
+ * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
+ * are pinned, and each rules out a different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - 2n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the map at all would report one build and no hits. Each read
+ *   below reaches the map twice — once from enclosureVerdict(), once from
+ *   isInsideExistenceCheck() — so n reads total 2n, of which one builds and
+ *   2n-1 hit. The build is one the guard never had to answer.
+ *
+ * Mutation-checked by deleting the `$this->enclosureMapKey === $key` guard, so
+ * every read rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 4 builds / 0 hits against the 1 / 3 asserted; n=4 reads 8 / 0
+ * against 1 / 7, and n=8 reads 16 / 0 against 1 / 15.
+ */
+it('builds its enclosure map once per stream, not once per read', function (): void {
+    $sniff = sniffInstance(ARRAY_ACCESSORS);
+
+    foreach ([2, 4, 8] as $size) {
+        $reads = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $reads .= "\$one{$index} = \$alpha{$index}['beta'];\n";
+        }
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([ARRAY_ACCESSORS], "<?php\n\n" . $reads);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe($size, "n={$size}: every read is still reported")
+            ->and($counted['enclosureMap.builds'])->toBe(
+                1,
+                "n={$size}: the map is built once for the stream, not once per read"
+            )
+            ->and($counted['enclosureMap.hits'])->toBe(
+                (2 * $size) - 1,
+                "n={$size}: every read after the first answers from the map already built"
+            );
+    }
 });

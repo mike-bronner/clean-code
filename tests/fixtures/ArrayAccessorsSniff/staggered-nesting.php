@@ -71,15 +71,15 @@ class ArrayAccessorsStaggeredNesting
         }
     }
 
-    // The one staggered step no structure can answer once for every read: a
-    // `foreach` header whose first `as` sits *inside* the construct the walk
-    // steps out of, because a second `foreach` is nested in the header.
+    // A `foreach` header holding a second `foreach`, nested inside the outer
+    // header's own subject. Two `as` tokens then sit in the outer header's
+    // span, and the outer header's own is the second of them -- the one at
+    // the header's own parenthesis depth, not the first one in the span.
     //
     // $rows is before that `as` and $outer is after it, and both walk out
-    // through constructs enclosed by the same header -- so the step out of
-    // those constructs decides one way for one root and the other way for the
-    // other. $rows reports; $outer is the header's own target and does not.
-    // A compressed step that answered this one statically would drop $rows.
+    // through constructs enclosed by the same header. $rows is part of the
+    // header's subject and reports; $outer is the header's own target and
+    // does not. A step that answered this one statically would drop $rows.
     public function decidesStaggeredRootsAgainstANestedForeachClause(
         array $rows,
         array $inner,
@@ -89,14 +89,14 @@ class ArrayAccessorsStaggeredNesting
             foreach ($row as $inner['each']) {
             }
 
-            // $trailing is the far side of that `as`, reached through the same
-            // constructs $rows is reached through. The hop-by-hop walk answers
-            // it as the outer header's target and drops it -- the nested `as`
-            // is the first one the header's search finds, and the walk compares
-            // against it. Pinned as the walk's own answer, unchanged by the
-            // step being compressed, not as an endorsement of it: it is the
-            // same T_AS search either way, and #292 is about how many steps the
-            // walk takes, not about which `as` it finds.
+            // $trailing sits past the *nested* header's `as` and before the
+            // outer header's own, so it belongs to the outer header's subject
+            // and reports: the nested `as` names the nested header's target
+            // and decides nothing for a root outside that header. Comparing
+            // $trailing against the first `as` in the span instead took it for
+            // the outer header's write target and dropped it -- the false
+            // negative #314 fixes. Matching the `as` at the header's own
+            // parenthesis depth is what keeps this read reportable.
             $ignored = $trailing['after'];
         }) as $outer['value']) {
         }
