@@ -74,6 +74,14 @@ run, so the cost is one extra read and tokenize per file in the run — once, no
 once per file processed. Run in parallel, each worker process builds its own
 copy.
 
+The map is read from disk, and a sniff is handed a token stream. Those are the
+same bytes for a plain `phpcs` run and not for a `phpcbf` one: the fixer works
+in memory and writes at the end, so from its second loop on the stream holds
+lines the saved file does not. `--stdin-path` opens the same gap for an editor
+linting an unsaved buffer. Since a class looked up at a line the map does not
+hold it at is simply not found — and its parent then goes unreported — the file
+being linted is re-read from its own stream whenever the two differ.
+
 Both halves of the answer — the child counts and the fully qualified name of
 the class being reported on — come from the same `token_get_all()` pass.
 Resolving the subject's name from PHP_CodeSniffer's token stream while the

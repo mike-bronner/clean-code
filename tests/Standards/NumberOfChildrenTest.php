@@ -438,9 +438,8 @@ it('indexes a packed line of declarations once, not once per declaration', funct
  * This characterises PHP_CodeSniffer rather than the sniff, and it is worth
  * saying which way that cuts. It fails if an upgrade moves the construction into
  * valid() or key(), which is exactly what would put the second read back without
- * a line of this package changing. It cannot fail for runFiles() going back to
- * foreach: nothing observable outside that method separates the two walks, which
- * is why the fix carries this and not a test of its own output.
+ * a line of this package changing. It does not fail for the walk itself going
+ * back to foreach — the test below it is what holds the walk to keys.
  */
 it('leaves a run\'s file list unbuilt when it is walked by key', function (): void {
     $project = stageProjectOutsideTests(['Base.php' => "<?php\n\nclass Base\n{\n}\n"]);
@@ -468,6 +467,136 @@ it('leaves a run\'s file list unbuilt when it is walked by key', function (): vo
 
     expect($built($byKey))->toBe([$project => null]);
     expect($built($byValue)[$project])->toBeInstanceOf(PHP_CodeSniffer\Files\LocalFile::class);
+});
+
+/**
+ * The walk over the run's file list asks it for keys and never for values, and
+ * this holds it there.
+ *
+ * The list is handed in rather than made inside the walk, so a list that
+ * records being asked for a value can be given to it. That is the only way the
+ * two walks differ from outside: the value a foreach pulls is a LocalFile whose
+ * constructor reads the whole file, and it is then discarded — a second read of
+ * every file in the run, on top of the one scanFile() does for itself — while
+ * everything the walk returns stays byte-identical either way.
+ *
+ * The same list is walked again by value at the end, and that is the control:
+ * without it, a recorder that never records would look exactly like a walk that
+ * never asks.
+ */
+it('takes a run\'s file list by key, building no file for any of it', function (): void {
+    $project = stageProjectOutsideTests(['Base.php' => "<?php\n\nclass Base\n{\n}\n"]);
+    [$config, $ruleset] = buildRuleset([NUMBER_OF_CHILDREN], true);
+    $config->files = [dirname($project)];
+
+    $listed = new class ($config, $ruleset) extends PHP_CodeSniffer\Files\FileList {
+        /**
+         * How many times the list has been asked for the file it is on.
+         */
+        public int $built = 0;
+
+        #[ReturnTypeWillChange]
+        public function current()
+        {
+            $this->built++;
+
+            return parent::current();
+        }
+    };
+
+    $sniff = $ruleset->sniffs[$ruleset->sniffCodes[NUMBER_OF_CHILDREN]];
+    $walk = new ReflectionMethod($sniff, 'listedPaths');
+    $walk->setAccessible(true);
+
+    expect($walk->invoke($sniff, $listed))->toBe([$project]);
+    expect($listed->built)->toBe(0);
+
+    foreach ($listed as $ignored) {
+        expect($ignored)->toBeInstanceOf(PHP_CodeSniffer\Files\LocalFile::class);
+    }
+
+    expect($listed->built)->toBe(1);
+});
+
+/**
+ * phpcbf fixes in memory: it applies a loop's fixes to the token stream,
+ * re-runs every sniff against the result, and writes to disk only once the
+ * loops settle. So from the second loop on, the stream this sniff is handed
+ * holds lines that the file on disk does not — and the inheritance map was read
+ * from disk.
+ *
+ * Any fixable sniff in the same ruleset that adds or removes a line above a
+ * class moves that class's declaration line. The ruleset's own BlankLines does
+ * exactly that, which is what this stages: three blank lines sit above Base,
+ * the fixer collapses them to one, and Base's declaration moves from line 5 to
+ * line 3. Looked up at its new line in a map still holding it at its old one,
+ * the class is not found and its fifteen children go unreported — phpcbf
+ * finishes saying the file is clean, and `phpcs` over the file phpcbf just
+ * wrote reports it immediately.
+ *
+ * The count is asserted, not just the violation: five of Base's children are
+ * declared in Base.php itself and ten in the file beside it, so re-reading the
+ * moved file has to take its first reading's five back out before adding them
+ * again. Counting them twice reads as twenty and dropping them reads as ten;
+ * only fifteen is the file read exactly once.
+ *
+ * The Fixer driven here is the one phpcbf drives, and the errors asserted are
+ * the last loop's: File::process() clears them at the start of every pass.
+ */
+it('reports a parent whose declaration line a fixer loop has moved', function (): void {
+    $children = static fn (int $from, int $to): string => implode("\n\n", array_map(
+        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+        range($from, $to)
+    ));
+    $project = stageProjectOutsideTests([
+        'Base.php' => "<?php\n\n\n\nclass Base\n{\n}\n\n" . $children(1, 5) . "\n",
+        'Children.php' => "<?php\n\n" . $children(6, 15) . "\n",
+    ]);
+    [$config, $ruleset] = buildRuleset([NUMBER_OF_CHILDREN, 'CleanCode.WhiteSpace.BlankLines'], true);
+    $config->files = [dirname($project)];
+
+    $file = new PHP_CodeSniffer\Files\LocalFile($project, $ruleset, $config);
+    $file->process();
+
+    expect(violationSourcesByLine($file->getErrors())[5] ?? [])->toBe([NUMBER_OF_CHILDREN_ERROR]);
+
+    $file->fixer->fixFile();
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([3 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationMessagesByLine($file->getErrors())[3][0])->toContain('has 15 children');
+});
+
+/**
+ * The other way the stream and the disk hold different bytes, and the one an
+ * editor opens: `phpcs --stdin --stdin-path=…` — or the `phpcs_input_file:`
+ * marker — lints a buffer under the real file's path. Every integration that
+ * lints as you type does this, and an unsaved buffer is not what is on disk.
+ *
+ * Here the buffer carries two lines the saved file does not, so Base sits on
+ * line 5 in the buffer and line 3 on disk. The run is the directory either way,
+ * so the ten children in the file beside it are counted either way: the only
+ * thing that decides whether Base is found at all is which of the two sources
+ * the sniff resolves it against.
+ */
+it('resolves the subject against the buffer when the run lints one under a real path', function (): void {
+    $children = static fn (int $from, int $to): string => implode("\n\n", array_map(
+        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+        range($from, $to)
+    ));
+    $project = stageProjectOutsideTests([
+        'Base.php' => "<?php\n\nclass Base\n{\n}\n\n" . $children(1, 5) . "\n",
+        'Children.php' => "<?php\n\n" . $children(6, 15) . "\n",
+    ]);
+    [$config, $ruleset] = buildRuleset([NUMBER_OF_CHILDREN], true);
+    $config->files = [dirname($project)];
+    $config->stdinPath = $project;
+
+    $buffer = "<?php\n\n// an edit that is not saved yet\n\nclass Base\n{\n}\n\n" . $children(1, 5) . "\n";
+    $file = new PHP_CodeSniffer\Files\DummyFile($buffer, $ruleset, $config);
+    $file->process();
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([5 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationMessagesByLine($file->getErrors())[5][0])->toContain('has 15 children');
 });
 
 /**

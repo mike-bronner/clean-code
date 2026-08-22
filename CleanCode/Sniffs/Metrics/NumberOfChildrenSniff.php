@@ -39,6 +39,16 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * --parallel each worker process builds its own copy, because each is a
  * separate process with its own instance of this sniff.
  *
+ * ## The map is read from disk, and the sniff is handed a token stream
+ *
+ * Those are the same bytes for a plain `phpcs` run, and not for a phpcbf one:
+ * the fixer works in memory and writes at the end, so from its second loop on,
+ * the stream holds lines the file on disk does not. `--stdin-path` opens the
+ * same gap for an editor linting an unsaved buffer. A subject looked up at a
+ * line the map does not hold it at is simply not found, and a parent over the
+ * threshold then goes unreported — so the file under test is re-read from its
+ * own stream whenever the two differ. See refreshFile().
+ *
  * ## Running phpcs on one file reports nothing, and that is parity
  *
  * Point phpcs at a single file and the run contains one file, so only the
@@ -243,11 +253,51 @@ class NumberOfChildrenSniff implements Sniff
     private array $declarations = [];
 
     /**
+     * The `extends` edges each scanned file contributed to $childCounts, keyed
+     * by file path, then by lower-cased fully qualified parent name, to the
+     * number of children that file declares for it.
+     *
+     * Kept so that a file can be read a second time without its first reading
+     * being counted twice: $childCounts is one total per parent, with nothing
+     * in it recording which file each child came from, so a re-read has to be
+     * able to take its own earlier contribution back out. See refreshFile().
+     *
+     * @var array<string, array<string, int>>
+     */
+    private array $edges = [];
+
+    /**
+     * The digest of the source each scanned file was read from, keyed by file
+     * path, so that a file whose source has not changed is not read again.
+     *
+     * md5 for identity, not for security: it is comparing two strings this
+     * process already holds, and the alternative is keeping every file's whole
+     * source in memory for the length of the run.
+     *
+     * @var array<string, string>
+     */
+    private array $digests = [];
+
+    /**
      * The run the two maps above describe, so a second run through the same
      * sniff instance rebuilds them rather than answering from the first one's
      * codebase. Null until the first scan.
      */
     private ?string $scannedRun = null;
+
+    /**
+     * The token stream the file under test was last checked against, so the
+     * check is paid once per stream rather than once per class declaration in
+     * it.
+     *
+     * Keyed like $ordinalsKey, and for the same reason: the file, its token
+     * count, and the fixer's loop counter, because phpcbf re-tokenises and
+     * re-runs every sniff against the same File object once another sniff has
+     * fixed something.
+     *
+     * @var string|null
+     */
+    private ?string $refreshedStream = null;
 
     /**
      * The token stream $ordinals was built from, so that it is discarded when
@@ -309,6 +359,7 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $this->scanRun($phpcsFile, $path);
+        $this->refreshFile($phpcsFile, $path);
 
         $line = $phpcsFile->getTokens()[$stackPtr]['line'];
         $candidates = $this->declarations[$this->realPath($path)][$line][strtolower($name)] ?? [];
@@ -447,11 +498,136 @@ class NumberOfChildrenSniff implements Sniff
 
         $this->childCounts = [];
         $this->declarations = [];
+        $this->edges = [];
+        $this->digests = [];
+        $this->refreshedStream = null;
         $this->scannedRun = $run;
 
         foreach ($this->runFiles($phpcsFile, $roots, $path) as $file) {
             $this->scanFile($file);
         }
+    }
+
+    /**
+     * Reads the file under test again when the token stream PHP_CodeSniffer is
+     * processing is no longer the source the run's scan read for it.
+     *
+     * scanRun() reads every file of the run from disk, and process() looks its
+     * subject up by the line the stream puts the `class` keyword on. The two
+     * agree only while the stream and the disk hold the same bytes, and there
+     * are two ordinary ways they do not:
+     *
+     * - **phpcbf.** The fixer applies its fixes in memory and re-runs every
+     *   sniff against the fixed stream, writing to disk only at the end. Any
+     *   fixable sniff in the same ruleset that adds or removes a line above a
+     *   class — the master ruleset's own DeclareStrictTypes inserts one —
+     *   moves that class's declaration line for every later loop. Looked up at
+     *   its new line against a map still holding its old one, the class is not
+     *   found, and a parent over the threshold goes unreported: phpcbf tells
+     *   the user the file is clean while `phpcs` on the same fixed file
+     *   reports it.
+     * - **`--stdin-path`.** The editor integrations that lint a buffer hand
+     *   PHP_CodeSniffer the buffer's contents under the real file's path, and
+     *   an unsaved buffer is not what is on disk.
+     *
+     * So the stream is what the sniff answers from: its source is rebuilt from
+     * the tokens, and the file is re-read from *that* whenever it differs from
+     * what was scanned. The earlier reading's edges are taken back out first —
+     * $childCounts holds one total per parent, so a re-read that only added
+     * would count this file's children twice.
+     *
+     * Only the file being linted is re-read. The rest of the run keeps the
+     * counts the scan read for it, which a fix cannot move: a count is keyed by
+     * a parent's name, and moving one would take a fixer that renames a class
+     * or rewrites an `extends` clause.
+     *
+     * Two guards keep this off the hot path, and neither changes what the sniff
+     * reports — no test below distinguishes them, because nothing outside this
+     * method can. They are here for their cost and are described as such.
+     *
+     * The stream key skips a stream already checked, so the work is done once
+     * per file rather than once per class declaration in it — which is the
+     * shape declarationOrdinal() was rewritten to stop paying. The digest then
+     * skips the re-read itself in the ordinary case, a `phpcs` run over
+     * unedited files, where the stream and the scan hold the same bytes:
+     * rebuilding the source string and hashing it costs no tokenizer pass,
+     * where re-reading unconditionally would tokenize every file of the run a
+     * second time.
+     */
+    private function refreshFile(File $phpcsFile, string $path): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $key = $path . '|' . count($tokens) . '|' . ($phpcsFile->fixer->loops ?? 0);
+
+        if ($this->refreshedStream === $key) {
+            return;
+        }
+
+        $this->refreshedStream = $key;
+        $resolved = $this->realPath($path);
+        $source = $this->streamSource($tokens);
+        $digest = md5($source);
+
+        if (($this->digests[$resolved] ?? null) === $digest) {
+            return;
+        }
+
+        $this->forget($resolved);
+        $this->declarations[$resolved] = [];
+        $this->digests[$resolved] = $digest;
+
+        $this->parse($source, $resolved);
+    }
+
+    /**
+     * The source a token stream was tokenized from.
+     *
+     * The concatenated token contents are the file, byte for byte: it is how
+     * PHP_CodeSniffer's own Fixer reconstructs what it writes back to disk, and
+     * this reads the stream exactly as Fixer::startFile() does — original
+     * content first, because a tab expanded by --tab-width leaves the expansion
+     * in `content` and the tab itself in `orig_content`.
+     *
+     * The tokens are read rather than Fixer::getContents(), which is the same
+     * string only between loops. Within one, a fix another sniff has already
+     * staged is in the fixer's contents and not yet in the stream, and it is
+     * the stream that process() takes its line numbers from.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function streamSource(array $tokens): string
+    {
+        $source = '';
+
+        foreach ($tokens as $token) {
+            $source .= (string) ($token['orig_content'] ?? $token['content']);
+        }
+
+        return $source;
+    }
+
+    /**
+     * Takes one file's reading back out of the run's maps, leaving the run as
+     * though the file had never been read.
+     *
+     * A parent left with no children at all is dropped rather than kept at
+     * zero, which is the state a run that never saw the file would be in.
+     */
+    private function forget(string $path): void
+    {
+        foreach (($this->edges[$path] ?? []) as $parent => $count) {
+            $remaining = (($this->childCounts[$parent] ?? 0) - $count);
+
+            if ($remaining > 0) {
+                $this->childCounts[$parent] = $remaining;
+
+                continue;
+            }
+
+            unset($this->childCounts[$parent]);
+        }
+
+        unset($this->edges[$path], $this->declarations[$path], $this->digests[$path]);
     }
 
     /**
@@ -482,15 +658,6 @@ class NumberOfChildrenSniff implements Sniff
      * Paths are de-duplicated by their resolved form, so appearing in both is
      * not counted twice.
      *
-     * The list is walked by key() rather than with foreach, because only the
-     * paths are wanted. foreach asks an iterator for its current *value* on
-     * every step whether or not the loop body uses it, and FileList::current()
-     * builds a LocalFile for the path — which reads the whole file from disk in
-     * its constructor. Every one of those objects would be discarded here, after
-     * a read this class then repeats for itself in scanFile(): two reads of
-     * every file in the run where one is wanted. valid() and key() consult the
-     * underlying array directly and construct nothing.
-     *
      * @param array<int, string> $roots
      *
      * @return array<int, string>
@@ -503,13 +670,41 @@ class NumberOfChildrenSniff implements Sniff
             return $files;
         }
 
-        $listed = new FileList($phpcsFile->config, $phpcsFile->ruleset);
+        return array_merge(
+            $files,
+            $this->listedPaths(new FileList($phpcsFile->config, $phpcsFile->ruleset))
+        );
+    }
+
+    /**
+     * The paths a run's file list holds, taken without building a file for any
+     * of them.
+     *
+     * The list is walked by key() rather than with foreach, because only the
+     * paths are wanted. foreach asks an iterator for its current *value* on
+     * every step whether or not the loop body uses it, and FileList::current()
+     * builds a LocalFile for the path — which reads the whole file from disk in
+     * its constructor. Every one of those objects would be discarded here, after
+     * a read this class then repeats for itself in scanFile(): two reads of
+     * every file in the run where one is wanted. valid() and key() consult the
+     * underlying array directly and construct nothing.
+     *
+     * The walk is its own method, taking the list rather than making it, so
+     * that a test can hand it a list that records what it is asked for and
+     * hold this to asking for keys only — which is the whole of the fix, and
+     * is otherwise invisible from outside.
+     *
+     * @return array<int, string>
+     */
+    private function listedPaths(FileList $listed): array
+    {
+        $paths = [];
 
         for ($listed->rewind(); $listed->valid() === true; $listed->next()) {
-            $files[] = (string) $listed->key();
+            $paths[] = (string) $listed->key();
         }
 
-        return $files;
+        return $paths;
     }
 
     /**
@@ -534,6 +729,7 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $this->declarations[$resolved] = [];
+        $this->digests[$resolved] = md5($source);
 
         $this->parse($source, $resolved);
     }
@@ -718,7 +914,8 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $resolved = $this->resolve($parent, $namespace, $aliases);
-        $this->childCounts[$resolved] = ($this->childCounts[$resolved] ?? 0) + 1;
+        $this->childCounts[$resolved] = (($this->childCounts[$resolved] ?? 0) + 1);
+        $this->edges[$path][$resolved] = (($this->edges[$path][$resolved] ?? 0) + 1);
     }
 
     /**
