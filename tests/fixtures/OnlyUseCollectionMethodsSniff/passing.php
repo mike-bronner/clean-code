@@ -476,3 +476,21 @@ function aVariadicParameterShadowsAnOuterCollection(): callable
 
     return fn (Collection ...$items): int => count($items);
 }
+
+// A qualifier in front of a name changes which symbol the name reaches, never
+// what the construct is — so `new \Count(…)` is the instantiation its bare
+// spelling is, and the class it names has nothing to do with PHP's count().
+// A preceder check that reads only the token before the *name* sees the
+// separator, not the `new` behind it, and reports a legal instantiation as a
+// generic call — then rewrites it to `new $rows->count()`, which does not
+// parse. Both spellings of the qualifier are pinned, because the relative form
+// hides the keyword one token further back again.
+function aQualifiedInstantiationIsNotAGenericCall(Collection $rows): object
+{
+    return new \Count($rows);
+}
+
+function aRelativeQualifiedInstantiationIsNotAGenericCall(Collection $rows): object
+{
+    return new namespace\Count($rows);
+}

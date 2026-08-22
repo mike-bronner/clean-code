@@ -62,6 +62,20 @@ never rewritten. A method merely spelled like one of the mapped functions
 (`$aggregator->count($collection)`) is userland code for the same reason and is
 treated the same way.
 
+A call made through a callable *expression* has no name to look up at all, so it
+is treated the same way for the same reason — an immediately-invoked closure
+`(function (&$x) { … })($collection)`, an indexed callable
+`$callbacks['key']($collection)`, a returned closure
+`($factory->getMutator())($collection)`, a dynamic method
+`$handler->{$name}($collection)`, or a constructor with no resolvable name
+(`new class ($collection) { … }`, `new self($collection)`,
+`new static($collection)`). Each may declare `&$items` and rebind the receiver,
+and none of them can be shown not to, so each costs the variable its proven type.
+
+The rule behind all of these is that the *unreadable* case is the unsafe one:
+a callee the sniff cannot resolve is exactly the callee whose parameters it
+cannot check.
+
 A bare class name is resolved through the file's `use` imports first, so the
 alias never decides on its own: `use Illuminate\Support\Collection as Coll`
 makes `Coll::make($rows)` a Collection, and `use Illuminate\Support\Arr as
@@ -254,6 +268,7 @@ where the sniff reports, and the entries marked **fixable** are cases where
 |---|---|---|---|
 | A chain whose last method is missing from `TERMINAL_METHODS` | yes | **no** | A spurious report on `count($c->newMethod())`. The list is a hand-curated mirror of a framework API, so it drifts; the fixer does not consult it, and declines the call because the method is absent from the chainable list too. |
 | A receiver handed bare to another call that may take it by reference (`preg_match('/x/', $s, $c)`, a userland `&$target`) | yes | **no** | A spurious report after the callee has replaced the value. Neither a userland signature nor PHP's by-reference builtins are knowable from the tokens. |
+| A receiver handed bare to a call through a callable expression (`(function (&$x) { … })($c)`, `$callbacks['key']($c)`, `($factory->getMutator())($c)`, `$handler->{$name}($c)`, `new class ($c) { … }`) | yes | **no** | The same spurious report, for a stricter reason: the callee has no name to resolve, so it cannot even be matched against the by-value functions this sniff maps. |
 | A Collection stored in a property or returned from a method | no | — | Silent; see above. |
 
 Both reported-but-unfixable rows are deliberate **severity collapses**: the sniff

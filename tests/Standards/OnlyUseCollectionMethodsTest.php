@@ -169,6 +169,13 @@ it('flags every violation at its own line with the expected code', function (): 
         279 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         287 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         297 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        316 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        325 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        335 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        344 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        359 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        370 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        377 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -240,6 +247,13 @@ it('names the Collection method that replaces each generic function', function (
         279 => 'count() => count()',
         287 => 'count() => count()',
         297 => 'count() => count()',
+        316 => 'count() => count()',
+        325 => 'count() => count()',
+        335 => 'count() => count()',
+        344 => 'count() => count()',
+        359 => 'count() => count()',
+        370 => 'count() => count()',
+        377 => 'count() => count()',
     ]);
 });
 
@@ -290,11 +304,22 @@ it('names the Collection method that replaces each generic function', function (
  *
  * A variadic parameter appears in none of this: `Collection ...$items` binds an
  * array, so it is not reported at all and is pinned in passing.php instead.
+ *
+ * Lines 316, 325, 335, 344, 359, 370 and 377 are the same fail-closed rule
+ * applied to the *callee* rather than the receiver, one line per member of
+ * CALLABLE_EXPRESSION_ENDERS: an IIFE, an indexed callable, a returned closure,
+ * a dynamic method name, and the `new class`/`new self`/`new static`
+ * constructors. None of them carries a name the sniff can resolve, so none can
+ * be shown to take its argument by value, and each may rebind the receiver
+ * through a `&$parameter` before the `count()` below it runs. They are asserted
+ * as reported-but-unfixable, and they are asserted individually because the
+ * admission set is hand-written: any one member dropped from it silently
+ * restores the rewrite for that shape alone, which no total would show.
  */
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(47)
+    expect($file->getErrorCount())->toBe(54)
         ->and(violationFixableLines($file->getErrors()))
         ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 236]);
 });

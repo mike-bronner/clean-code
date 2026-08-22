@@ -296,3 +296,84 @@ function unionHintedArrowParametersAreNotProvable(): callable
 {
     return fn (Collection|array $mixed): int => count($mixed);
 }
+
+// A call made through a callable *expression* has no name for the sniff to look
+// up, so nothing proves its parameters are by value — and a parameter declared
+// `&$x` rebinds the caller's variable. Each shape below is one member of
+// CALLABLE_EXPRESSION_ENDERS, and each must be reported (the generic function is
+// still the wrong call) and never rewritten (the receiver may no longer be a
+// Collection by then). Read as "matched no known callee shape, so it must be
+// safe", every one of these is rewritten into a runtime fatal.
+//
+// An immediately-invoked closure: the token before the argument list is the `)`
+// closing the closure itself.
+function anImmediatelyInvokedClosureMayRebindItsArgument(Collection $data): int
+{
+    (function (&$x): void {
+        $x = 'not a collection anymore';
+    })($data);
+
+    return count($data);
+}
+
+// A closure reached through an array index: the token before the argument list
+// is the `]` closing the subscript.
+function anIndexedCallableMayRebindItsArgument(Collection $data, array $callbacks): int
+{
+    $callbacks['key']($data);
+
+    return count($data);
+}
+
+// A closure returned by a method call, then invoked: the `)` here closes the
+// *producing* call rather than a closure literal, so a check that recognised
+// only the literal form still misses it.
+function aReturnedClosureMayRebindItsArgument(Collection $data, object $factory): int
+{
+    ($factory->getMutator())($data);
+
+    return count($data);
+}
+
+// A method named at runtime: the token before the argument list is the `}`
+// closing the dynamic name.
+function aDynamicMethodNameMayRebindItsArgument(Collection $data, object $handler, string $name): int
+{
+    $handler->{$name}($data);
+
+    return count($data);
+}
+
+// A constructor is a call like any other and may declare `&$items`. An
+// anonymous class has no name token at all, so it is the shape that proves the
+// admission set is read rather than the callee resolved.
+function anAnonymousClassConstructorMayRebindItsArgument(Collection $data): int
+{
+    new class ($data) {
+        public function __construct(mixed &$items)
+        {
+            $items = 'not a collection anymore';
+        }
+    };
+
+    return count($data);
+}
+
+// `self` and `static` name the class being instantiated in place of a T_STRING,
+// so each needs its own entry and its own line here.
+class LateStaticConstructorsMayRebindTheirArguments
+{
+    public function viaSelf(Collection $data): int
+    {
+        new self($data);
+
+        return count($data);
+    }
+
+    public function viaStatic(Collection $data): int
+    {
+        new static($data);
+
+        return count($data);
+    }
+}

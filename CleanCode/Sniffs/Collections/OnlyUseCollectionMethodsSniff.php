@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Collections;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -255,15 +256,30 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     ];
 
     /**
-     * Tokens that, when directly preceding the function name, mean this is not
-     * a global function call (method call, static call, declaration, …).
+     * The tokens that can end a callable expression or name a class being
+     * instantiated, and so mean the parenthesis after them opens an argument
+     * list whose callee this sniff cannot read.
+     *
+     * A parenthesis is a call exactly when what precedes it produces a value or
+     * references a class; everything else in front of one — an operator, a
+     * separator, a control-structure or declaration keyword, a language
+     * construct — opens a grouping, a condition, or a parameter list, none of
+     * which can rebind a caller's variable. T_STRING and T_VARIABLE are absent
+     * deliberately: those two the caller *can* read, and it identifies them
+     * itself rather than giving up here.
+     *
+     * Constructors count. `new class($c)`, `new static($c)` and `new self($c)`
+     * all reach a `__construct()` free to declare `&$items`, and none of them
+     * carries a class name this sniff could resolve. A plain `new Foo($c)` needs
+     * no entry — its name is a T_STRING the caller already reads.
      */
-    private const NON_FUNCTION_CALL_PRECEDERS = [
-        T_DOUBLE_COLON,
-        T_FUNCTION,
-        T_NEW,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_OBJECT_OPERATOR,
+    private const CALLABLE_EXPRESSION_ENDERS = [
+        T_ANON_CLASS,
+        T_CLOSE_CURLY_BRACKET,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SQUARE_BRACKET,
+        T_SELF,
+        T_STATIC,
     ];
 
     /**
@@ -276,23 +292,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * @var array<string, string>
      */
     private array $importAliases = [];
-
-    /**
-     * The lower-cased local names the file's `use function` imports bind, as
-     * name => imported short name. An unqualified call to one of these is the
-     * imported function, not the builtin it shadows: `use function
-     * App\Support\countDistinctTags as count;` makes a bare `count($c)` a call
-     * to `countDistinctTags()`, so rewriting it to `$c->count()` would silently
-     * change the answer. A fully-qualified `\count()` is unaffected — the
-     * leading separator pins it to the global function.
-     *
-     * The map is read wherever an unqualified name is taken for the global
-     * function of that name: the reported call itself, the `collect()` origin,
-     * and the by-value exemption that decides whether an argument escapes.
-     *
-     * @var array<string, string>
-     */
-    private array $functionImports = [];
 
     /**
      * Variables handed bare to a call the sniff cannot prove takes them by
@@ -354,7 +353,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // Order matters: the alias map decides what counts as a Collection type
         // hint, which the arrow-function table records, which the variable map
         // consults.
-        [$this->importAliases, $this->functionImports] = $this->mapImports($phpcsFile);
+        $this->importAliases = $this->mapImports($phpcsFile);
         $this->arrowFunctions = $this->mapArrowFunctions($phpcsFile);
         $this->escapedVariables = $this->mapEscapedVariables($phpcsFile);
 
@@ -421,19 +420,19 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * Coll` makes `Coll::make()` a Collection, and `use …\Arr as
      * RowCollection` stops `RowCollection::wrap()` looking like one.
      *
-     * Function imports decide what counts as a *builtin*: an unqualified name a
-     * `use function` import has bound is that function, not the global one it
-     * shadows, so the sniff must leave it alone.
+     * Only class imports are collected. A `use function` import decides what
+     * counts as a *builtin* instead, and that question belongs to
+     * FunctionCalls::isGlobalFunctionCall(), which resolves it per namespace
+     * block rather than per file. Binding a function import into the class map
+     * here would make its name answer the Collection question too.
      *
-     * @return array{0: array<string, string>, 1: array<string, string>}
-     *     the class aliases and the function imports, both keyed by lower-cased
+     * @return array<string, string> the class aliases, keyed by lower-cased
      *     local name
      */
     private function mapImports(File $phpcsFile): array
     {
         $tokens = $phpcsFile->getTokens();
         $classes = [];
-        $functions = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
             if ($tokens[$ptr]['code'] !== T_USE) {
@@ -447,19 +446,16 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            $names = [];
-            $this->collectImportAliases($phpcsFile, ($ptr + 1), ($end - 1), $names);
-
-            if ($kind === 'function') {
-                $functions = array_merge($functions, $names);
-            } else {
+            if ($kind === 'class') {
+                $names = [];
+                $this->collectImportAliases($phpcsFile, ($ptr + 1), ($end - 1), $names);
                 $classes = array_merge($classes, $names);
             }
 
             $ptr = $end;
         }
 
-        return [$classes, $functions];
+        return $classes;
     }
 
     /**
@@ -962,14 +958,34 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * their arguments by value, which is what keeps `count($c)` from escaping
      * its own receiver. A shadowed or method call merely spelled like one of
      * the seventeen is userland code, and escapes like any other call.
+     *
+     * "Provably" is the whole of it, so an unreadable callee answers false. A
+     * call made through a callable *expression* — an IIFE `(function (&$x) {…})
+     * ($c)`, an indexed callable `$callbacks['key']($c)`, a returned closure
+     * `($factory->getMutator())($c)`, a dynamic method `$o->{$name}($c)` — has
+     * no name to look up, so nothing here can show its parameters are by value.
+     * Answering true for those on the grounds that they matched no known shape
+     * let the fixer rewrite a receiver a reference parameter had already
+     * rebound, turning working code into a runtime fatal.
      */
     private function isByValueCallOpener(File $phpcsFile, int $ptr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
-        if ($callee === false || in_array($tokens[$callee]['code'], [T_STRING, T_VARIABLE], true) === false) {
+        if ($callee === false) {
             return true;
+        }
+
+        if (in_array($tokens[$callee]['code'], [T_STRING, T_VARIABLE], true) === false) {
+            // Neither a name nor a variable in front of the parenthesis. Either
+            // it opens no call at all — a grouping, a condition, a declaration's
+            // parameter list, a language construct — or it calls a callable this
+            // sniff cannot name. Only the first is provably by value, so the
+            // answer is the admission set, never the fallthrough: a callee whose
+            // parameters cannot be read is exactly the one that may declare
+            // `&$items`.
+            return in_array($tokens[$callee]['code'], self::CALLABLE_EXPRESSION_ENDERS, true) === false;
         }
 
         // A declaration's parameter list, not a call: its variables are the
@@ -988,7 +1004,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // method of the same name, is userland code free to declare `&$items`
         // and rebind the caller's variable — so it escapes like any other call.
         return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
-            && $this->isGlobalFunctionCall($phpcsFile, $callee) === true;
+            && FunctionCalls::isGlobalFunctionCall($phpcsFile, $callee) === true;
     }
 
     /**
@@ -1171,7 +1187,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            if ($this->isGlobalFunctionCall($phpcsFile, $ptr) === false) {
+            if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $ptr) === false) {
                 continue;
             }
 
@@ -1492,13 +1508,15 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         if ($tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
             // The global collect() helper — a namespaced collect() is a
             // different function entirely, and so is one the file imported
-            // under that name. isGlobalFunctionCall() settles both: a
+            // under that name. FunctionCalls::isGlobalFunctionCall() settles
+            // both, and settles them the same way for every other bare name
+            // this sniff reads, which is the point of routing through it: a
             // `use function …\makeArray as collect;` import makes a bare
             // collect() return whatever that function returns, which is not a
             // Collection this sniff may report on, let alone rewrite.
             $isHelper = $name['short'] === 'collect'
                 && $name['qualified'] === false
-                && $this->isGlobalFunctionCall($phpcsFile, $name['end']) === true;
+                && FunctionCalls::isGlobalFunctionCall($phpcsFile, $name['end']) === true;
 
             return $isHelper === true ? $tokens[$next]['parenthesis_closer'] : null;
         }
@@ -1850,36 +1868,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     /**
-     * Whether the T_STRING at $stackPtr is a call to a global function rather
-     * than a method call, a static call, a declaration, or a function the file
-     * imported under that name.
-     */
-    private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-
-        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
-            // A leading "\" still resolves to the global function; a preceding
-            // name segment (App\count, namespace\count) does not. A qualified
-            // name can never be a declaration, so the reference marker below
-            // does not apply to it.
-            $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
-
-            return $beforeSeparator === false
-                || in_array($tokens[$beforeSeparator]['code'], [T_NAMESPACE, T_STRING], true) === false;
-        }
-
-        $prev = $this->pastReferenceMarker($phpcsFile, $prev);
-
-        if ($prev !== false && in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true) {
-            return false;
-        }
-
-        return $this->isUnshadowedName($phpcsFile, $stackPtr);
-    }
-
-    /**
      * The token governing a name, given the one directly before it: the token
      * whose type says whether the name is a call, a declaration, an
      * instantiation or a method.
@@ -1890,11 +1878,12 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * (`$mask & count()`) is harmless: what precedes an operator there is an
      * operand, never one of the keywords the callers test for.
      *
-     * Both callers need this, and both were missing it — isGlobalFunctionCall()
-     * read `function &count($items)` as a call and let `phpcbf` rewrite the
-     * declaration into `function &$items->count()`, which does not parse, and
-     * isByValueCallOpener() read a by-reference declaration's parameter list as
-     * call arguments and marked the parameters escaped.
+     * isByValueCallOpener() was missing it, and read a by-reference
+     * declaration's parameter list as call arguments, marking the parameters
+     * escaped. The same gap over the call question — `function &count($items)`
+     * read as a call, which let `phpcbf` rewrite the declaration into
+     * `function &$items->count()` — is now FunctionCalls's to answer, and its
+     * own isReturnByReferenceMarker() answers it.
      */
     private function pastReferenceMarker(File $phpcsFile, int|false $previous): int|false
     {
@@ -1903,19 +1892,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         return $phpcsFile->findPrevious(Tokens::$emptyTokens, ($previous - 1), null, true);
-    }
-
-    /**
-     * Whether the unqualified name at $stackPtr still refers to the global
-     * function of that name. A `use function … as count;` import rebinds the
-     * name for the whole file, so a bare `count($c)` calls the import — and
-     * rewriting it to `$c->count()` would change the answer without so much as
-     * a warning. Only unqualified names can be shadowed this way; the caller
-     * has already resolved the fully-qualified form.
-     */
-    private function isUnshadowedName(File $phpcsFile, int $stackPtr): bool
-    {
-        return isset($this->functionImports[strtolower($phpcsFile->getTokens()[$stackPtr]['content'])]) === false;
     }
 
     /**
