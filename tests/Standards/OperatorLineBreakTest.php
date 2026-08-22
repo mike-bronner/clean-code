@@ -73,11 +73,43 @@ it('reports a dangling non-boolean operator in a multi-condition', function (): 
         analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php')->getErrors()
     );
 
-    expect(array_keys($byLine))->toBe([9, 19, 29]);
+    expect(array_keys($byLine))->toBe([9, 19, 29, 42, 45]);
 
     foreach ($byLine as $sources) {
         expect($sources)->toBe([OPERATOR_LINE_BREAK . '.OperatorAtLineEnd']);
     }
+});
+
+/**
+ * The boolean half of the same boundary, which is this sniff's alone. A
+ * for-loop's init and increment clauses sit inside the condition's parentheses,
+ * so the deferral used to hand every operator in them to
+ * CleanCode.Conditionals.OneConditionPerLine — which confines every check it
+ * makes to the clause between the two semicolons and so never reported them.
+ * The violation evaporated. Support\ConditionOperatorOwnership now scopes the
+ * deferral to that same clause, and this pins the result where it is visible:
+ * a dangling `&&` in the init clause and a dangling `||` in the increment one,
+ * both reported here.
+ *
+ * The condition clause is the discriminator on the other side — the `||` of
+ * deferred-conditional.php, which this sniff must still stand down on, or the
+ * same wrap is reported twice.
+ */
+it('reports a dangling boolean outside the clause it defers', function (): void {
+    $reported = violationSourcesByLine(
+        analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php')->getErrors()
+    );
+    $deferred = analyzeFixture(OPERATOR_LINE_BREAK, 'deferred-conditional.php');
+
+    expect(array_keys($reported))->toContain(42, 45)
+        ->and($deferred->getErrors())->toBe([]);
+
+    // Both lines are genuinely a boolean-terminated wrap inside a for header's
+    // init and increment clauses, so a fixture edit cannot make this vacuous.
+    $source = file(fixturePath(sniffFixtureDirectory(OPERATOR_LINE_BREAK), 'reported-conditional.php'));
+
+    expect(trim($source[41]))->toBe('$ready = $isActive &&')
+        ->and(trim($source[44]))->toBe('$ready = $ready ||');
 });
 
 it('reports violations that are not auto-fixable', function (): void {

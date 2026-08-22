@@ -120,7 +120,14 @@ it('reports the expected violations', function (
     // the fixture to dodge the warnings would hide the most visible
     // consequence of adding those sniffs to the master ruleset.
     'compliant class produces no errors' => ['compliant.php', [], [21 => 1, 25 => 2]],
-    'compliant abstract class produces zero violations' => ['compliant-abstract.php', [], []],
+    // Same call again, for the same reason. compliant-abstract.php raises no
+    // error, and its one warning is line 13's `apply(): string` —
+    // ActionMethodReturn (#172) reads `apply` as an action verb and a declared
+    // `string` as a value handed back. Recorded rather than renamed away: the
+    // fixture is PSR-12 clean, and "clean PSR-12 code" and "free of
+    // command-query blur" are two different claims, which is exactly what this
+    // row now says.
+    'compliant abstract class produces no errors' => ['compliant-abstract.php', [], [13 => 1]],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
     'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1, 6 => 1], [1 => 1]],
     // The four opening-tag fixtures below are additionally pinned by source in
