@@ -1,0 +1,138 @@
+<?php
+
+/**
+ * Tests the custom CleanCode.WhiteSpace.PassiveOperatorSpacing sniff
+ * (Operators: Passive, #64). Fixtures live in
+ * tests/fixtures/PassiveOperatorSpacingSniff/ and follow the three-fixture
+ * contract: passing.php is clean, failing.php carries every violation code,
+ * and autofixed.php is phpcbf's output for failing.php.
+ *
+ * The sniff is isolated from the rest of the master ruleset (loaded, then
+ * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
+ * sibling standards land in rules.xml. What the sniff does *alongside* the
+ * rest of the ruleset — the part that decides whether phpcbf converges — is
+ * pinned separately by tests/Ruleset/OperatorsPassiveTest.php.
+ */
+
+declare(strict_types=1);
+
+const PASSIVE_OPERATOR_SPACING = 'CleanCode.WhiteSpace.PassiveOperatorSpacing';
+
+it('is registered in the master ruleset', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes)->toHaveKey(PASSIVE_OPERATOR_SPACING);
+});
+
+it('produces no violations on the compliant fixture', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The per-line contract: an exact source-per-line map rather than a count, so
+ * a violation that moves, doubles or changes code fails the assertion.
+ *
+ * Line 13 carries two Execution reports because an interpolated command is
+ * several tokens, so the leading and trailing trims are separate fixes. Lines
+ * 24 and 25 carry two reports each — the `@` and the sign it suppresses are
+ * both spaced, and both are this standard's operators.
+ */
+it('flags every violation at its own line with the expected code', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        9 => [PASSIVE_OPERATOR_SPACING . '.Identity'],
+        10 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
+        11 => [PASSIVE_OPERATOR_SPACING . '.ErrorControl'],
+        12 => [PASSIVE_OPERATOR_SPACING . '.Execution'],
+        13 => [
+            PASSIVE_OPERATOR_SPACING . '.Execution',
+            PASSIVE_OPERATOR_SPACING . '.Execution',
+        ],
+        14 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
+        15 => [PASSIVE_OPERATOR_SPACING . '.Identity'],
+        24 => [
+            PASSIVE_OPERATOR_SPACING . '.ErrorControl',
+            PASSIVE_OPERATOR_SPACING . '.Negation',
+        ],
+        25 => [
+            PASSIVE_OPERATOR_SPACING . '.ErrorControl',
+            PASSIVE_OPERATOR_SPACING . '.Identity',
+        ],
+        35 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
+        38 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
+    ]);
+});
+
+it('marks every violation fixable', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
+
+    expect($file->getErrorCount())->toBe(14)
+        ->and($file->getFixableCount())->toBe($file->getErrorCount());
+});
+
+it('auto-fixes the failing fixture to exactly the recorded output', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
+
+    expect(autofixedContents($file))->toBe(
+        file_get_contents(__DIR__ . '/../fixtures/PassiveOperatorSpacingSniff/autofixed.php')
+    );
+});
+
+/**
+ * Signs that open a statement (line 35) and a PHP block (line 38) are the two
+ * contexts this standard reclaimed from the binary-operator sniff, so they get
+ * their own assertion rather than only riding along in the map above: if
+ * CleanCode.Operators.BinaryOperatorSpacing stops ceding them, this sniff must
+ * still be the one reporting them.
+ */
+it('owns a sign that opens a statement or a PHP block', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
+    $sources = violationSourcesByLine($file->getErrors());
+
+    expect($sources[35])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation'])
+        ->and($sources[38])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation']);
+});
+
+/**
+ * The guard exists to stop the fixer changing what the code means: `- -$a`
+ * would fuse into the pre-decrement `--$a`. It is deliberately
+ * direction-matched — `- ++$a` fuses into nothing and *is* reported (line 14
+ * of the failing fixture) — so this asserts the narrow half stays narrow.
+ */
+it('leaves a same-direction sign pair untouched', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'guarded.php');
+    $path = __DIR__ . '/../fixtures/PassiveOperatorSpacingSniff/guarded.php';
+
+    // Silence *and* byte-identity: the guard withholds the fix as well as the
+    // report, so a guard that only stopped reporting would still fail here.
+    expect($file->getErrorCount())->toBe(0)
+        ->and(autofixedContents($file))->toBe(file_get_contents($path));
+});
+
+/**
+ * The direction-matched half of the same guard. `- ++$number` fuses into
+ * nothing, so it is reported and fixed like any other spaced sign — broadening
+ * the guard to all four sign tokens would silently drop these two.
+ */
+it('still reports a cross-direction sign pair', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
+    $sources = violationSourcesByLine($file->getErrors());
+
+    expect($sources[14])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation'])
+        ->and($sources[15])->toBe([PASSIVE_OPERATOR_SPACING . '.Identity']);
+});
+
+/**
+ * A spaced *binary* `+`/`-` is required by the binary-operator standard (#35).
+ * If this sniff ever reported one, the two standards would contradict each
+ * other and no source file could satisfy both.
+ */
+it('never reports a binary sign', function (): void {
+    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'passing.php');
+
+    expect($file->getErrorCount())->toBe(0);
+});

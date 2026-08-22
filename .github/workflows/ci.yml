@@ -3,7 +3,30 @@ name: CI
 on:
   push:
     branches: [main]
+
+  # #293: the `types` list below is explicit for auditability — it matches
+  # GitHub's existing default for `pull_request`, so this change does NOT
+  # itself fix the missed-`synchronize`-trigger anomaly (recurred: PR #240,
+  # PR #291). Root cause remains unconfirmed and external to this file.
+  # checked for #293: no concurrency group and no paths/paths-ignore filter exist in this file — ruled out by direct inspection of this file only, not by delivery-log evidence.
   pull_request:
+    types: [opened, synchronize, reopened]
+
+  # #293: manual fallback, so a run missed by a dropped `pull_request` delivery
+  # can be started by hand. GitHub only exposes `workflow_dispatch` after the
+  # definition reaches the default branch, so it is not invokable from this
+  # PR's own branch — see the PR description for the deferred verification.
+  #
+  # #308 verification, performed 2026-08-16 against `main` HEAD 50c488d. Findings only — no trigger, job, or step below was changed.
+  # #308 precondition: PR #307 merged into `main` at 2026-08-13T20:31:19Z, and `workflow_dispatch:` was confirmed present on `main` HEAD 50c488d by reading the file at that ref.
+  # #308 test subject, chosen by `gh pr list -R mike-bronner/phpcs-rules --state open --json number,headRefName,headRefOid --limit 1`: PR #330, branch chore/308-verify-the-ci-workflow_dispatch-trigger, headRefOid 3b300889c9d181b2bb1a8f7620d61359231e5601 — this issue's own PR, the newest open PR at query time (2026-08-16T17:46:02Z).
+  # #308 dispatch: `gh workflow run ci.yml -R mike-bronner/phpcs-rules --ref chore/308-verify-the-ci-workflow_dispatch-trigger` exited 0. GitHub accepts a non-`main` ref for a workflow whose definition lives on `main`.
+  # #308 run: exactly one run matched `event=workflow_dispatch` at head_sha 3b30088 — id 31962592865, created 2026-08-16T17:46:13Z (1s after the 17:46:12Z dispatch; first observed by polling at 17:46:23Z), later read as status completed / conclusion success, with `updated_at` 2026-08-16T17:47:15Z. No second matching run appeared.
+  # #308 that run's API object does associate it with the PR (`pull_requests[0].number` = 330), and `GET commits/3b30088/check-runs` lists two check runs both named `test` — 95202753960 from the dispatched run, 95202708945 from the `pull_request` run 31962576433.
+  # #308 check list: `gh pr checks 330 -R mike-bronner/phpcs-rules --json name,link,state,startedAt` returned ONE `test` entry, whose `link` carries run id 31962576433 — the `pull_request` run, not the dispatched one. Re-run after both runs completed, with the PR head reconfirmed still at 3b30088 (no intervening push), it returned the same single entry; `statusCheckRollup` reported the same one entry and run id.
+  # #308 conclusion: the dispatched run 31962592865 did not appear in PR #330's check list, so `workflow_dispatch` did not restore the PR-level signal that #293 describes as missing. The recovery story for #293 therefore remains open. This issue records that result only; it does not attempt to fix it.
+  # #308 not exercised: the actual #293 situation, in which no `pull_request` run exists at the head SHA. A `pull_request` run was already present here, so this observation cannot show whether a dispatched run surfaces in the check list when it is the only run at that SHA.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +35,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
@@ -31,5 +54,5 @@ jobs:
       - name: Self-lint (PSR-12)
         run: composer lint
 
-      - name: Sniff unit tests
+      - name: Sniff test suite (Pest)
         run: composer test

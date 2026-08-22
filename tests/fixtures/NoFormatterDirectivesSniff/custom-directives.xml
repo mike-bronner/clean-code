@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="NoFormatterDirectivesCustomDirectives"
+         xsi:noNamespaceSchemaLocation="../../../vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Configures NoFormatterDirectives the way a consuming project's ruleset does — a real &lt;property type="array"&gt; holding &lt;element&gt; nodes, parsed by PHPCS's own ruleset reader. The sniff is referenced by file path so the standard needs no installed_paths entry; PHPCS still derives the CleanCode.CodeStyle.NoFormatterDirectives code from that path.</description>
+
+    <rule ref="../../../CleanCode/Sniffs/CodeStyle/NoFormatterDirectivesSniff.php">
+        <properties>
+            <property name="directives" type="array">
+                <!-- Keyless, and shouted: a configured marker is matched
+                     case-insensitively, exactly as a shipped one is. -->
+                <element value="@FMT:OFF"/>
+                <!-- Keyed, so the key-ignoring half of the reader is covered.
+                     Its value is one of the near-miss spellings passing.php
+                     carries, which the shipped list leaves alone. -->
+                <element key="prettier" value="formatter:off"/>
+            </property>
+        </properties>
+    </rule>
+</ruleset>
