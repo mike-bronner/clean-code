@@ -65,9 +65,9 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 94 are native calls kept on purpose. The reason is a single package-level
+ * All 98 are native calls kept on purpose. The reason is a single package-level
  * fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 94 times across 56
+ * docs/standards/arrays-convert-to-collection.md rather than 98 times across 56
  * files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 29 arrived with the sniffs that landed after #312 and are
+ * The remaining 33 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -201,7 +201,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 213, 'column' => 15],
+        ['line' => 212, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -282,6 +282,13 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
         ['line' => 65, 'column' => 44],
+    ],
+    'tests/Standards/NoLogicTest.php' => [
+        ['line' => 455, 'column' => 15],
+        ['line' => 526, 'column' => 15],
+        ['line' => 761, 'column' => 20],
+        ['line' => 797, 'column' => 15],
+        ['line' => 801, 'column' => 10],
     ],
     'tests/Standards/NoProceduralCodeTest.php' => [
         ['line' => 142, 'column' => 57],
