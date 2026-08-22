@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Constructors;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -95,6 +96,21 @@ use PHP_CodeSniffer\Util\Tokens;
  *   anonymous class declared in the body runs on its own terms —
  *   `func_get_args()` inside a closure reads the *closure's* arguments — so
  *   every nested declaration scope is jumped rather than walked into.
+ * - **Re-bound names.** PHP scopes a variable to the whole function, so a
+ *   `foreach` target, a `catch` variable, a `static` local, and a `global`
+ *   import each replace what a name means from where they are written on. A
+ *   parameter's name is read as the parameter until the first of those re-binds
+ *   it, and as the new binding after it ({@see self::rebindingEnd()}). An
+ *   assignment re-binds nothing: `$mode = $mode ?? self::AUTO;` overwrites the
+ *   parameter's value while the variable stays the parameter.
+ * - **A name that is not PHP's own function.** Whether a predicate or an
+ *   argument reader is the global function it reads as is
+ *   {@see FunctionCalls::isGlobalFunctionCall()}'s answer — the package's one
+ *   implementation of that test, which rules out a member, a declaration, an
+ *   instantiation, an attribute, a qualified name, and a name a `use function`
+ *   import redirects elsewhere. First-class callable syntax is ruled out beside
+ *   it ({@see self::isFirstClassCallable()}): `func_get_args(...)` builds a
+ *   Closure and reads no argument list where it is written.
  * - **Named-argument predicate calls.** `is_a(object: $source, class: $c)`
  *   addresses its subject by name rather than by position, and resolving that
  *   needs a per-predicate table of parameter names. Staying silent costs a
@@ -203,31 +219,6 @@ class DisallowCombinedConstructorSniff implements Sniff
      * @var array<int, string>
      */
     private const ARGUMENT_READERS = ['func_get_args', 'func_num_args'];
-
-    /**
-     * Tokens that mean the following T_STRING names a member or a class rather
-     * than a plain function, so it is not the global function it resembles.
-     *
-     * `T_FUNCTION` is deliberately absent, unlike the sibling
-     * DisallowDebugFunctionsSniff's list: that sniff registers on every
-     * T_STRING in a file, while this one only ever reaches a name inside a
-     * constructor body whose nested declarations {@see self::process()} jumps at
-     * the declaration keyword, before the declared name. A `T_FUNCTION` entry
-     * here could never be read. `T_BITWISE_AND` (`function &is_string()`) is
-     * absent for the same reason.
-     *
-     * A namespace separator is not in the list either, because it does not
-     * answer the question on its own: `\is_string()` is the global function,
-     * while `App\is_string()` is not — see {@see self::isQualifiedName()}.
-     *
-     * @var array<int, int|string>
-     */
-    private const NAME_QUALIFIERS = [
-        T_DOUBLE_COLON,
-        T_NEW,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_OBJECT_OPERATOR,
-    ];
 
     /**
      * Tokens that open a group holding a sub-expression: a call's or a
@@ -410,6 +401,15 @@ class DisallowCombinedConstructorSniff implements Sniff
                 continue;
             }
 
+            $rebinding = $this->rebindingEnd($phpcsFile, $pointer, $closer);
+
+            if ($rebinding !== null) {
+                $parameters = array_diff_key($parameters, $this->boundNames($phpcsFile, $pointer, $rebinding));
+                $pointer = $rebinding;
+
+                continue;
+            }
+
             if ($code === T_STRING && $this->isArgumentReader($phpcsFile, $pointer)) {
                 $this->reportArgumentReader($phpcsFile, $pointer, $closer);
 
@@ -448,6 +448,123 @@ class DisallowCombinedConstructorSniff implements Sniff
         return in_array($token['code'], self::NESTED_DECLARATIONS, true) || $anonymousClassBody
             ? (int) $token['scope_closer']
             : null;
+    }
+
+    /**
+     * Where the re-binding introduced at this token ends, or null when the
+     * token introduces none.
+     *
+     * PHP scopes a variable to the whole function, so a name a body re-binds
+     * stops being the parameter from that point on — including after the
+     * construct that re-bound it, since none of them opens a scope of its own.
+     * Four constructs bind a name inside a function body, and this is all of
+     * them ("Variable scope" in the PHP manual, read against the constructs a
+     * constructor body can hold): a `foreach` target, a `catch` variable, a
+     * `static` local, and a `global` import. A closure's parameters and `use`
+     * list, an arrow function's parameters and a named function's are the fifth
+     * and are already out of reach — {@see self::declarationSkip()} jumps every
+     * nested declaration whole, at its keyword.
+     *
+     * An *assignment* is deliberately not one of them. `$mode = $mode ?? self::AUTO;`
+     * overwrites the parameter's value while the variable stays the parameter,
+     * and branching on it afterwards is still branching on the mode the caller
+     * supplied — reading a normalized flag as a different variable would silence
+     * the commonest spelling of the very thing this sniff reports.
+     *
+     * The region each construct binds in holds names and nothing else — a
+     * `foreach`'s targets, a `catch`'s exception variable, the constant
+     * expression a `static` local is initialized to — so the walk resumes past
+     * the whole of it rather than reading it.
+     */
+    private function rebindingEnd(File $phpcsFile, int $pointer, int $closer): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $code = $tokens[$pointer]['code'];
+
+        if ($code === T_AS) {
+            return $this->foreachHeaderEnd($phpcsFile, $pointer);
+        }
+
+        if ($code === T_CATCH) {
+            return isset($tokens[$pointer]['parenthesis_closer'])
+                ? (int) $tokens[$pointer]['parenthesis_closer']
+                : null;
+        }
+
+        if ($code !== T_GLOBAL && !($code === T_STATIC && $this->declaresLocals($phpcsFile, $pointer))) {
+            return null;
+        }
+
+        $semicolon = $phpcsFile->findNext(T_SEMICOLON, $pointer + 1, $closer);
+
+        return $semicolon === false ? null : (int) $semicolon;
+    }
+
+    /**
+     * Where the `foreach` header holding this token ends, or null when no
+     * `foreach` header holds it.
+     *
+     * The enclosing pairs are read inward-out and only a pair PHP_CodeSniffer
+     * attributes to a `T_FOREACH` answers, exactly as {@see self::branchOwner()}
+     * reads a condition's owner. No such pair means the `as` belongs to
+     * something that is not a loop — a trait adaptation (`use A as B;`), which
+     * a class body holds rather than a constructor's, or an aliasing `use`
+     * statement at file scope.
+     *
+     * A `foreach` is a statement, so its header can be nested in no other
+     * parenthesis pair of the same declaration, and the walk jumps every nested
+     * declaration whole ({@see self::declarationSkip()}). Reading the pairs
+     * inward-out is therefore consistency with the rest of the file rather than
+     * a case any fixture can tell apart — recorded as observed, not asserted.
+     */
+    private function foreachHeaderEnd(File $phpcsFile, int $pointer): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $openers = array_keys($tokens[$pointer]['nested_parenthesis'] ?? []);
+
+        foreach (array_reverse($openers) as $opener) {
+            $owner = $tokens[$opener]['parenthesis_owner'] ?? null;
+
+            if ($owner !== null && $tokens[$owner]['code'] === T_FOREACH) {
+                return (int) $tokens[$owner]['parenthesis_closer'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether the `static` at this pointer declares local variables —
+     * `static $seen = [];` — rather than naming the late-static-bound class
+     * (`static::make()`, `new static()`) or marking a closure
+     * (`static function () { … }`, `static fn () => …`).
+     *
+     * The declaration is the one spelling whose next token is a variable.
+     */
+    private function declaresLocals(File $phpcsFile, int $pointer): bool
+    {
+        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+        return $next !== false && $phpcsFile->getTokens()[$next]['code'] === T_VARIABLE;
+    }
+
+    /**
+     * The names bound between $from and $to, as a set keyed by name.
+     *
+     * @return array<string, true>
+     */
+    private function boundNames(File $phpcsFile, int $from, int $to): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $names = [];
+
+        for ($pointer = $from + 1; $pointer < $to; $pointer++) {
+            if ($tokens[$pointer]['code'] === T_VARIABLE) {
+                $names[$tokens[$pointer]['content']] = true;
+            }
+        }
+
+        return $names;
     }
 
     /**
@@ -715,7 +832,11 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     /**
      * Whether the parenthesis at $opener is the call parenthesis of one of the
-     * type predicates, called as the global function it reads as.
+     * type predicates, called as PHP's own global function.
+     *
+     * Resolving the name is {@see FunctionCalls::isGlobalFunctionCall()}'s job
+     * rather than this sniff's, exactly as it is for the argument readers —
+     * see {@see self::isArgumentReader()}.
      */
     private function isTypePredicate(File $phpcsFile, int $opener): bool
     {
@@ -725,7 +846,7 @@ class DisallowCombinedConstructorSniff implements Sniff
         return $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
-            && $this->isPlainFunctionCall($phpcsFile, $callee);
+            && FunctionCalls::isGlobalFunctionCall($phpcsFile, $callee);
     }
 
     /**
@@ -773,62 +894,74 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
-     * Whether a T_STRING names one of the argument-list readers, called as the
-     * global function rather than as a member of something.
+     * Whether a T_STRING names one of the argument-list readers, actually
+     * called as PHP's own global function.
+     *
+     * Whether a name resolves to the global function is
+     * {@see FunctionCalls::isGlobalFunctionCall()}'s answer rather than this
+     * sniff's. That helper is the repo's one implementation of the test, and
+     * every sniff that flags a global function call routes through it
+     * (CONTRIBUTING.md, "The shared helpers") so a shape fixed there is fixed
+     * here: it tells a real call apart from a member (`->`, `?->`, `::`), a
+     * declaration, an instantiation, an attribute name, a name qualified into
+     * another namespace, and a bare name a `use function` import redirects
+     * elsewhere.
+     *
+     * The helper stops at the opening parenthesis, and a first-class callable
+     * is spelled with the same tokens up to it — see
+     * {@see self::isFirstClassCallable()}.
      */
     private function isArgumentReader(File $phpcsFile, int $pointer): bool
     {
-        $tokens = $phpcsFile->getTokens();
-
-        if (!in_array(strtolower($tokens[$pointer]['content']), self::ARGUMENT_READERS, true)) {
+        if (!in_array(strtolower($phpcsFile->getTokens()[$pointer]['content']), self::ARGUMENT_READERS, true)) {
             return false;
         }
 
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
-
-        return $next !== false
-            && $tokens[$next]['code'] === T_OPEN_PARENTHESIS
-            && $this->isPlainFunctionCall($phpcsFile, $pointer);
-    }
-
-    /**
-     * Whether this name is the global function it reads as, rather than
-     * something that merely shares its spelling — a member (`->`, `?->`, `::`),
-     * an instantiation (`new`), or a name in another namespace.
-     */
-    private function isPlainFunctionCall(File $phpcsFile, int $pointer): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
-
-        if ($previous === false) {
-            return true;
-        }
-
-        if (in_array($tokens[$previous]['code'], self::NAME_QUALIFIERS, true)) {
+        if (!FunctionCalls::isGlobalFunctionCall($phpcsFile, $pointer)) {
             return false;
         }
 
-        return $tokens[$previous]['code'] !== T_NS_SEPARATOR || !$this->isQualifiedName($phpcsFile, $previous);
+        // The helper has already established that this is the call's own
+        // opening parenthesis.
+        $opener = (int) $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+        return !$this->isFirstClassCallable($phpcsFile, $opener);
     }
 
     /**
-     * Whether the separator at this pointer makes the name behind it a
-     * *qualified* one — `App\Utils\is_string()`, `namespace\func_get_args()` —
-     * rather than the fully-qualified spelling of a global function,
-     * `\is_string()`.
+     * Whether the parentheses opening at $opener spell PHP 8.1 first-class
+     * callable syntax — `func_get_args(...)` — rather than a call.
      *
-     * A qualified name resolves outside the global namespace, so it is never
-     * the global function this sniff reads. The same test the sibling
-     * DisallowDebugFunctionsSniff applies, so the two agree on what counts as a
-     * global call.
+     * The two are the same tokens up to the opening parenthesis, so a test that
+     * stops there reads `f(...)` as a call to `f`. It is not one: it builds a
+     * Closure and calls nothing, so the constructor's own argument list is
+     * never read where the reference is written, and no mode switch has
+     * happened there. The idiom is the sibling UnusedFormalParameterSniff's and
+     * DisallowCountInLoopExpressionSniff's, ported rather than re-derived.
+     *
+     * The literal `...` has to be the whole list. A spread of a real argument —
+     * `f(...$arguments)` — puts a variable after the ellipsis instead of the
+     * closer, and that is a call like any other, so the token after the
+     * ellipsis is checked for the closing parenthesis rather than the ellipsis
+     * being taken alone.
+     *
+     * Only the argument readers ask this. A first-class callable to a type
+     * predicate — `is_string(...)` — holds no argument for a subject test to
+     * read, so {@see self::isBareFirstArgument()} rejects it whatever this
+     * method would answer.
      */
-    private function isQualifiedName(File $phpcsFile, int $separator): bool
+    private function isFirstClassCallable(File $phpcsFile, int $opener): bool
     {
-        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $separator - 1, null, true);
+        $tokens = $phpcsFile->getTokens();
+        $ellipsis = $phpcsFile->findNext(Tokens::$emptyTokens, $opener + 1, null, true);
 
-        return $before !== false
-            && in_array($phpcsFile->getTokens()[$before]['code'], [T_STRING, T_NAMESPACE], true);
+        if ($ellipsis === false || $tokens[$ellipsis]['code'] !== T_ELLIPSIS) {
+            return false;
+        }
+
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $ellipsis + 1, null, true);
+
+        return $after !== false && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     /**

@@ -61,15 +61,19 @@
  *     a time, since the widened subject reaches its own `instanceof`: the
  *     unwrapped subject's test — shapes 47; the widened subject's — shapes 48
  *     (both grouped `instanceof` subjects stop being recognised)
- *   - drop the member/static/`new` qualifier check on a name — passing 6; and
- *     one entry at a time, so no entry rides on a sibling: `T_OBJECT_OPERATOR`
- *     alone — passing 3; `T_DOUBLE_COLON` alone — passing 1; `T_NEW` alone —
- *     passing 1; `T_NULLSAFE_OBJECT_OPERATOR` alone — passing 1
- *   - stop reading a namespace separator — passing 2 (`App\Utils\func_get_args()`
- *     and `App\Validation\is_string()` are taken for the global functions)
- *   - treat every separator as qualifying, rather than only one with a name
- *     segment in front of it — shapes 48 (`\is_string()` and `\func_num_args()`
- *     stop being the global functions they are)
+ *   - stop routing a name through `FunctionCalls::isGlobalFunctionCall()`,
+ *     taking every matching spelling for the global function — passing 8, and
+ *     the import-redirect test below reddens; on the predicate callee alone —
+ *     passing 4, same test; on the argument reader alone — passing 4. The
+ *     helper is the package's one implementation of that question
+ *     (CONTRIBUTING.md, "The shared helpers"), so the cases it answers —
+ *     members, declarations, instantiations, attributes, qualified names, and
+ *     a `use function` redirect — are pinned in tests/Helpers/FunctionCallsTest.php
+ *     rather than restated here; passing.php's member and static calls named
+ *     like a predicate or an argument reader are what the counts above move on
+ *   - stop ruling out first-class callable syntax on an argument reader —
+ *     no fixture moves, and the first-class-callable test below reddens
+ *     (`func_get_args(...)` builds a Closure and reads no argument list)
  *   - read the enclosing parentheses outermost-first rather than inside-out —
  *     failing 3, shapes 42 (every predicate applied directly to a parameter
  *     stops being recognised)
@@ -99,7 +103,7 @@
  *     (the property read and the subscripted array start reporting)
  *
  * Comment tolerance — every adjacency test skips `Tokens::$emptyTokens` rather
- * than `T_WHITESPACE` alone. Fourteen of the sixteen flip a verdict when
+ * than `T_WHITESPACE` alone. Seventeen of the eighteen flip a verdict when
  * reverted to `T_WHITESPACE`, and each is pinned separately:
  *
  *   - the `instanceof` lookahead — shapes 49 (false negative)
@@ -109,8 +113,15 @@
  *   - the bare-first-argument lookback and lookahead — shapes 49 each (false
  *     negatives: the comment-wrapped subject stops being the first argument)
  *   - the argument-reader lookahead — shapes 49 (false negative)
- *   - the name-qualifier lookback — passing 2 (false positives: the member
- *     calls named `is_a` and `func_num_args` are read as the global functions)
+ *   - the argument reader's re-find of its own opening parenthesis, and both
+ *     halves of the first-class-callable test — the ellipsis lookahead and the
+ *     lookahead behind it — redden the first-class-callable test below, one
+ *     spelling each (`func_get_args/* … *\/(...)`, `func_num_args(/* … *\/...)`,
+ *     `func_num_args(.../* … *\/)`): a comment anywhere in the syntax makes it
+ *     read as a call again
+ *   - the `static`-declaration lookahead — reddens the re-binding test below
+ *     (`static /* … *\/ $legacy = false;` stops being read as a declaration, so
+ *     the local never displaces the parameter)
  *   - the elvis lookahead — passing 1 (false positive: the elvis default is
  *     read as a branch)
  *   - the chain-head lookback — passing 2, and its `else` step-back —
@@ -126,15 +137,12 @@
  *   - the `throw` lookahead — passing 1 (false positive: a guard whose `throw`
  *     is introduced by a comment stops being a guard)
  *
- * The two that no comment can reach are recorded as observed rather than
+ * The one that no comment can reach is recorded as observed rather than
  * assumed:
  *
- *   - the qualified-name lookback, because PHP rejects a comment inside a
- *     qualified name outright (`App /* … *\/ \is_string()` is a parse error),
- *     so no fixture can spell the case
  *   - the brace-less branch-end lookahead, because `findEndOfStatement()` is
  *     itself comment-tolerant and returns the same token whichever token it is
- *     handed. Both keep the skip for consistency with the other thirteen
+ *     handed. It keeps the skip for consistency with the other seventeen
  *
  * Guard clauses:
  *
@@ -166,6 +174,28 @@
  *   - ignore ternary nesting when reading a ternary's two sides — passing 1
  *     (the elvis default inside a guard's surviving side is read as the
  *     guard's own second path)
+ *
+ * Re-bound names — a `foreach` target, a `catch` variable, a `static` local,
+ * and a `global` import each stop a parameter's name from being the parameter
+ * from that point on. No fixture moves on any of these, since none of the three
+ * on disk re-binds a parameter name; each is pinned by the re-binding test
+ * below instead, one construct at a time so no leg rides on a sibling:
+ *
+ *   - drop the guard entirely — the test reddens with the four shadowed uses
+ *     reported
+ *   - drop the `foreach` leg alone, the `catch` leg alone, the `global` leg
+ *     alone, or the `static` leg alone — the test reddens on that construct's
+ *     shadowed use
+ *   - stop asking whether a `static` declares locals, so `static::resolve()`,
+ *     `new static()` and `static function` are read as declarations too — the
+ *     test reddens the other way, losing the three late-static-binding
+ *     reports the walk would otherwise skip to the next `;` past
+ *   - read the `foreach` header from any enclosing pair rather than one PHP
+ *     tokenizes as a `T_FOREACH`'s own: nothing moves, and no fixture can
+ *     move it — a `foreach` is a statement, so its header nests in no other
+ *     pair of the same declaration, and every nested declaration is jumped
+ *     whole. Recorded as observed, like the lookahead above that no comment
+ *     can reach
  *
  * Where an expression ends:
  *
@@ -552,4 +582,163 @@ it('reads a dynamic member name\'s closing brace as the name it ends', function 
 
     expect($file->getWarningCount())->toBe(0)
         ->and($file->getErrorCount())->toBe(0);
+});
+
+/**
+ * Three shapes the sniff must stay silent on are driven through inline sources
+ * rather than through the fixtures, for the same reason the two readings of a
+ * closing brace above are: the fixture counts anchor the mutation table at the
+ * top of this file, so a new reporting site in shapes.php would move every
+ * number in it. One of the three could not live in a shared fixture at all —
+ * a `use function` import binds for the whole file, so importing a predicate
+ * name into passing.php would silence every sibling case spelled with that same
+ * name, and each of those cases would then pass for the wrong reason.
+ *
+ * Each source carries the silent shape *and* its reporting counterpart, so a
+ * guard that stops working and a detection that stops firing both redden it.
+ */
+it('reads a name a use-function import redirects as the imported function', function (): void {
+    $source = <<<'PHP'
+<?php
+
+namespace App\Domain;
+
+use function App\Validation\is_callable;
+
+class ImportedPredicateName
+{
+    public function __construct(mixed $source)
+    {
+        if (is_callable($source)) {
+            $this->transport = new Mailer();
+        } else {
+            $this->transport = new NullLogger();
+        }
+
+        if (is_array($source)) {
+            $this->rows = $source;
+        } else {
+            $this->rows = [];
+        }
+    }
+}
+PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 17, 'column' => 22, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+    ]);
+});
+
+it('reads a first-class callable to an argument reader as no call at all', function (): void {
+    $source = <<<'PHP'
+<?php
+
+class FirstClassCallableArgumentReader
+{
+    public function __construct()
+    {
+        $this->reader = func_get_args(...);
+        $this->counter = func_num_args(/* not a call either */...);
+        $this->spread = func_num_args(.../* nor is this one */);
+        $this->named = func_get_args/* still not a call */(...);
+        $this->arguments = func_get_args();
+    }
+}
+PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 11, 'column' => 28, 'source' => COMBINED_CONSTRUCTOR . '.ArgumentCount'],
+    ]);
+});
+
+it('stops reading a parameter\'s name once the body re-binds it', function (): void {
+    $source = <<<'PHP'
+<?php
+
+class ForeachTarget
+{
+    public function __construct(bool $legacy, array $items)
+    {
+        $this->rows = ($legacy ? $items : []);
+
+        foreach ($items as $legacy) {
+            if ($legacy) {
+                $this->rows[] = $legacy;
+            }
+        }
+    }
+}
+
+class CatchVariable
+{
+    public function __construct(bool $legacy)
+    {
+        if ($legacy) {
+            $this->mode = 'legacy';
+        }
+
+        try {
+            $this->boot();
+        } catch (\RuntimeException $legacy) {
+            if ($legacy) {
+                $this->mode = 'failed';
+            }
+        }
+    }
+}
+
+class StaticLocal
+{
+    public function __construct(bool $legacy)
+    {
+        if ($legacy) {
+            $this->mode = 'legacy';
+        }
+
+        static /* still a declaration */ $legacy = false;
+
+        $this->seen = $legacy ? 1 : 0;
+    }
+}
+
+class LateStaticBinding
+{
+    public function __construct(bool $legacy)
+    {
+        $this->mode = static::resolve($legacy ? 1 : 0);
+        $this->clone = new static($legacy ? true : false);
+        $this->makers = [static function (): int { return 1; }, $legacy ? 1 : 0];
+    }
+}
+
+class GlobalImport
+{
+    public function __construct(bool $legacy)
+    {
+        if ($legacy) {
+            $this->mode = 'legacy';
+        }
+
+        global $legacy;
+
+        $this->seen = $legacy ? 1 : 0;
+    }
+}
+PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 7, 'column' => 24, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 21, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 39, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 53, 'column' => 39, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 54, 'column' => 35, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 55, 'column' => 65, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 63, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+    ]);
 });

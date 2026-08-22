@@ -170,6 +170,26 @@ Deliberately silent on:
   *body* of an anonymous class is exempt: the arguments in
   `new class ($legacy ? … : …) {}` are evaluated by the constructor that writes
   them, so a mode signal there still reports.
+- **Re-bound names** — PHP scopes a variable to the whole function, so a
+  `foreach` target, a `catch` variable, a `static` local, and a `global` import
+  each replace what a name means from where they are written on. A parameter's
+  name is read as the parameter until the first of those re-binds it, and as
+  the new binding after it: in a constructor taking `bool $legacy`,
+  `foreach ($rows as $legacy)` reports nothing on the loop variable, while a
+  branch on `$legacy` written *above* the loop still reports. An assignment is
+  not a re-binding — `$mode = $mode ?? self::AUTO;` overwrites the parameter's
+  value while the variable stays the parameter, so a branch on it afterwards
+  reports as before.
+- **A predicate or argument reader that is not PHP's own function** — the name
+  has to resolve to the global function it reads as, which
+  `MikeBronner\CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()`
+  answers for every sniff in this package. A member call (`$this->is_a(…)`), an
+  instantiation, a name qualified into another namespace
+  (`App\Utils\func_get_args()`), and a bare name that a
+  `use function App\Validation\is_string;` import redirects elsewhere all name
+  somebody else's function, and stay silent. So does PHP 8.1 first-class
+  callable syntax: `func_get_args(...)` builds a `Closure` and reads no argument
+  list where it is written.
 - **Named-argument predicate calls** — `is_a(object: $source, class: $c)`
   addresses its subject by name rather than by position. Resolving that needs a
   per-predicate table of parameter names, so the sniff stays silent: a missed
