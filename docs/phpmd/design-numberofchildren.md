@@ -154,7 +154,13 @@ not read off phpmd.org, and each is pinned by a fixture:
 - **Direct children only.** A grandchild counts toward its own parent, never
   toward the class above it.
 - **Anonymous classes are not children.** `new class extends Base {}` leaves
-  `Base`'s count untouched, in PHPMD and here.
+  `Base`'s count untouched, in PHPMD and here, and an attribute between the two
+  words — `new #[Marker] class` — changes nothing in either, measured the same
+  way. `new readonly class` is silent here too, but PHPMD gives no answer to
+  match on it: PDepend 2.16.2 cannot parse that spelling and ends the file with
+  an unexpected-token error. A *named* `readonly class` is an ordinary child in
+  both, counted like any other;
+  `tests/fixtures/NumberOfChildrenSniff/readonly/` pins that half.
 - **Abstract classes are subjects.** An abstract parent is the normal shape for
   this smell, and PHPMD reports it.
 - **Parents resolve fully qualified.** A child in another namespace reaching its

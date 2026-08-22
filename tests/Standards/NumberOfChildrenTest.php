@@ -85,8 +85,14 @@ it('quotes the count and the threshold the way PHPMD does', function (): void {
 /**
  * The silent half of the boundary pair, and the near-miss shapes with it:
  * fourteen real children, sixteen interface implementors, a grandchild, an
- * interface extending an interface, and sixteen anonymous subclasses. None of
- * them is a direct named child, and a live PHPMD run reports on none of them.
+ * interface extending an interface, and anonymous subclasses in all three
+ * spellings — `new class`, `new readonly class`, and an attribute between the
+ * two. None of them is a direct named child.
+ *
+ * A live PHPMD run reports on none of them either, apart from
+ * `new readonly class`: PDepend 2.16.2 cannot parse that spelling at all, so
+ * PHPMD has no verdict on it to match. Silence is what the rule means for an
+ * anonymous class, whichever way it is written.
  */
 it('stays silent one child below the threshold, and on every near miss', function (): void {
     $file = analyzeFixture(NUMBER_OF_CHILDREN, 'passing.php');
@@ -107,6 +113,44 @@ it('treats the threshold as inclusive', function (): void {
 
     expect(violationSourcesByLine($reported->getErrors()))->toBe([12 => [NUMBER_OF_CHILDREN_ERROR]]);
     expect($silent->getErrors())->toBe([]);
+});
+
+/**
+ * Silence on its own proves nothing, so the anonymous near misses are read back
+ * at a threshold of one, where every class with a child of its own reports.
+ * Two do: Base with its fourteen, and Child1 with the grandchild under it. The
+ * three anonymous bases do not, and each of them carries fifteen anonymous
+ * subclasses — the shipped threshold exactly, one base per spelling.
+ *
+ * `readonly` and an attribute both sit between `new` and `class`, so for those
+ * two spellings the token in front of the declaration is not `new` and the
+ * anonymous check misses it. Both are dropped a step later instead, for
+ * declaring no name. This holds the outcome, which is the same for all three,
+ * rather than the route each takes to it.
+ */
+it('counts no anonymous class as a child, however the declaration is spelled', function (): void {
+    $file = analyzeFixtureWithProperty(NUMBER_OF_CHILDREN, 'passing.php', 'minimum', '1');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([
+        12 => [NUMBER_OF_CHILDREN_ERROR],
+        16 => [NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect(violationMessagesByLine($file->getErrors())[12][0])->toContain('has 14 children');
+});
+
+/**
+ * The other half of that pair. `readonly` in front of a *named* class declares
+ * an ordinary child, and a live PHPMD run counts it as one.
+ *
+ * Reading the modifier as the mark of an anonymous class — the shortest way to
+ * make the case above pass — drops all fifteen children here and leaves the
+ * file silent, so the two cases cannot both be satisfied by one wrong answer.
+ */
+it('counts a named readonly class as the child it is', function (): void {
+    $file = analyzeFixture(NUMBER_OF_CHILDREN, 'readonly/Named.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe([17 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationMessagesByLine($file->getErrors())[17][0])->toContain('has 15 children');
 });
 
 /**

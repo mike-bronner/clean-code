@@ -222,3 +222,122 @@ final class ConstantReader
         return AnonymousBase::class;
     }
 }
+
+/**
+ * `new readonly class` puts the modifier between the two tokens, so the token
+ * before the declaration is not `new`. It is an anonymous class all the same,
+ * and contributes no child.
+ *
+ * PHPMD 2.15.0 gives no answer to match on this one spelling: PDepend 2.16.2
+ * cannot parse it, and ends the file with "Unexpected token: class" instead of
+ * a report. Measured, not assumed.
+ *
+ * Fifteen is the shipped threshold exactly, so a spelling that got through
+ * would report here.
+ */
+readonly class ReadonlyAnonymousBase
+{
+}
+
+final class ReadonlyAnonymousFactory
+{
+    /**
+     * @return array<int, object>
+     */
+    public function make(): array
+    {
+        $instances = [];
+
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+        $instances[] = new readonly class extends ReadonlyAnonymousBase {
+        };
+
+        return $instances;
+    }
+}
+
+#[\Attribute]
+final class Marker
+{
+}
+
+/**
+ * An attribute between `new` and `class` moves the declaration another token
+ * further from the `new`, and the token before it is the attribute's closing
+ * bracket rather than a keyword. A live PHPMD 2.15.0 run parses this spelling
+ * and reports nothing for it. Fifteen again, for the same reason.
+ */
+class AttributedAnonymousBase
+{
+}
+
+final class AttributedAnonymousFactory
+{
+    /**
+     * @return array<int, object>
+     */
+    public function make(): array
+    {
+        $instances = [];
+
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+        $instances[] = new #[Marker] class extends AttributedAnonymousBase {
+        };
+
+        return $instances;
+    }
+}
