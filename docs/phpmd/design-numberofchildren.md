@@ -174,6 +174,17 @@ not read off phpmd.org, and each is pinned by a fixture:
   opens a brace without the plain `{` token every other opening brace carries,
   so both shapes are counted; `tests/fixtures/NumberOfChildrenSniff/interpolation/`
   pins each of them.
+- **A body opens at its brace, not at its keyword.** An anonymous class's
+  constructor-argument list is written between the two, and it can carry braces
+  of its own — a closure, a `match`, an interpolated string. A body read as open
+  from the keyword sits at the depth those braces return to, so the argument
+  list's own closing brace closes it before it ever opened, and the trait `use`
+  inside the real body then reads as an import. The declaration therefore waits
+  at the parenthesis depth its keyword sat at, and the first brace reached at
+  that depth is its body's.
+  `tests/fixtures/NumberOfChildrenSniff/anonymous/` pins each construct, the two
+  spellings that hide `new` behind `readonly` or an attribute, and one anonymous
+  class nested in another's argument list.
 - **A short name is not unique within a file.** Braced `namespace` blocks let one
   file declare two different classes called `Foo`, even on one line, so a
   declaration is identified by the line it sits on and by the order it is written

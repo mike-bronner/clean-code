@@ -39,6 +39,8 @@ const NUMBER_OF_CHILDREN_INTERPOLATION = __DIR__ . '/../fixtures/NumberOfChildre
 
 const NUMBER_OF_CHILDREN_NAMESPACES = __DIR__ . '/../fixtures/NumberOfChildrenSniff/namespaces';
 
+const NUMBER_OF_CHILDREN_ANONYMOUS = __DIR__ . '/../fixtures/NumberOfChildrenSniff/anonymous';
+
 it('resolves through the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -62,7 +64,9 @@ it('ships PHPMD\'s own default threshold', function (): void {
 it('reports a parent that has reached the threshold, on its declaration line', function (): void {
     $file = analyzeFixture(NUMBER_OF_CHILDREN, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([11 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 11, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
 });
 
 /**
@@ -97,7 +101,7 @@ it('quotes the count and the threshold the way PHPMD does', function (): void {
 it('stays silent one child below the threshold, and on every near miss', function (): void {
     $file = analyzeFixture(NUMBER_OF_CHILDREN, 'passing.php');
 
-    expect($file->getErrors())->toBe([]);
+    expect(violationTuples($file))->toBe([]);
 });
 
 /**
@@ -111,8 +115,10 @@ it('treats the threshold as inclusive', function (): void {
     $reported = analyzeFixtureWithProperty(NUMBER_OF_CHILDREN, 'passing.php', 'minimum', '14');
     $silent = analyzeFixtureWithProperty(NUMBER_OF_CHILDREN, 'passing.php', 'minimum', '15');
 
-    expect(violationSourcesByLine($reported->getErrors()))->toBe([12 => [NUMBER_OF_CHILDREN_ERROR]]);
-    expect($silent->getErrors())->toBe([]);
+    expect(violationTuples($reported))->toBe([
+        ['line' => 12, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect(violationTuples($silent))->toBe([]);
 });
 
 /**
@@ -131,9 +137,9 @@ it('treats the threshold as inclusive', function (): void {
 it('counts no anonymous class as a child, however the declaration is spelled', function (): void {
     $file = analyzeFixtureWithProperty(NUMBER_OF_CHILDREN, 'passing.php', 'minimum', '1');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        12 => [NUMBER_OF_CHILDREN_ERROR],
-        16 => [NUMBER_OF_CHILDREN_ERROR],
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => 16, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
     ]);
     expect(violationMessagesByLine($file->getErrors())[12][0])->toContain('has 14 children');
 });
@@ -149,7 +155,9 @@ it('counts no anonymous class as a child, however the declaration is spelled', f
 it('counts a named readonly class as the child it is', function (): void {
     $file = analyzeFixture(NUMBER_OF_CHILDREN, 'readonly/Named.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([17 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 17, 'column' => 19, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($file->getErrors())[17][0])->toContain('has 15 children');
 });
 
@@ -169,7 +177,9 @@ it('counts children declared in other files of the run', function (): void {
         NUMBER_OF_CHILDREN_BASE
     );
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([12 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($file->getErrors())[12][0])->toContain('has 15 children');
 });
 
@@ -205,7 +215,7 @@ it('counts each spelling of the parent name, and only its own share', function (
     );
 
     expect(violationMessagesByLine($reported->getErrors())[12][0])->toContain("has {$total} children");
-    expect($silent->getErrors())->toBe([]);
+    expect(violationTuples($silent))->toBe([]);
 })->with([
     'own file only' => [[NUMBER_OF_CHILDREN_BASE], 5],
     'plain import' => [[NUMBER_OF_CHILDREN_BASE, NUMBER_OF_CHILDREN_PROJECT . '/nested/Imported.php'], 9],
@@ -236,9 +246,9 @@ it('resolves a group import\'s alias to its own fully qualified target', functio
     );
     $messages = violationMessagesByLine($file->getErrors());
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        12 => [NUMBER_OF_CHILDREN_ERROR],
-        16 => [NUMBER_OF_CHILDREN_ERROR],
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => 16, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
     ]);
     expect($messages[12][0])->toContain('The class Base has 15 children');
     expect($messages[16][0])->toContain('The class Same1 has 1 children');
@@ -277,9 +287,66 @@ it('keeps a trait use written after an interpolated string out of the import map
         $lowered
     );
 
-    expect(violationSourcesByLine($bare->getErrors()))->toBe([]);
-    expect(violationSourcesByLine($anchor->getErrors()))->toBe([90 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($bare))->toBe([]);
+    expect(violationTuples($anchor))->toBe([
+        ['line' => 90, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
 });
+
+/**
+ * An anonymous class declared where no other class-like body is open — at the
+ * top level, or inside a function or closure — with a brace-balanced construct
+ * in its *constructor-argument list*: a closure, a `match`, an interpolated
+ * string. Each of the three is a pair of braces written before the anonymous
+ * class's own body brace is ever reached, and each nets back to the depth the
+ * declaration sat at.
+ *
+ * A parse that records the class body at the `class` keyword rather than at the
+ * brace that opens it therefore closes that body on the argument list's own
+ * closing brace, three tokens before the real body opens. The `use Ghost;`
+ * inside the real body then reads as a namespace import, binds the trait's short
+ * name to the global class of that name, and the `extends Ghost` below it is
+ * counted against Bare.php's Ghost — which has no children at all.
+ *
+ * One file per construct, each run against Bare.php alone, so a fix that handles
+ * one of the three and not the others is caught rather than carried. The
+ * spelling file's own anchor pair is reported at the same lowered threshold: the
+ * silence on Bare.php is about resolution, not about an inert run.
+ */
+it('keeps a trait use inside an anonymous class body out of the import map', function (
+    string $spelling,
+    array $anchors
+): void {
+    $paths = [NUMBER_OF_CHILDREN_ANONYMOUS . '/Bare.php', NUMBER_OF_CHILDREN_ANONYMOUS . '/' . $spelling];
+    $lowered = static function (object $sniff): void {
+        $sniff->minimum = 1;
+    };
+    $bare = analyzeProjectFixture(NUMBER_OF_CHILDREN, $paths, $paths[0], $lowered);
+    $spelled = analyzeProjectFixture(NUMBER_OF_CHILDREN, $paths, $paths[1], $lowered);
+
+    expect(violationTuples($bare))->toBe([]);
+    expect(violationTuples($spelled))->toBe($anchors);
+})->with([
+    'closure argument' => ['Closure.php', [
+        ['line' => 25, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+    'match argument' => ['Matched.php', [
+        ['line' => 20, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+    'interpolated argument' => ['Interpolated.php', [
+        ['line' => 20, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+    'readonly spelling' => ['Readonly.php', [
+        ['line' => 26, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+    'attributed spelling' => ['Attributed.php', [
+        ['line' => 22, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+    'nested anonymous classes' => ['Nested.php', [
+        ['line' => 29, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => 37, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]],
+]);
 
 /**
  * Braced namespace blocks let one file declare two different classes under the
@@ -305,11 +372,13 @@ it('tells two same-named classes in different namespace blocks apart', function 
         $sniff->minimum = 2;
     });
 
-    expect(violationSourcesByLine($overThree->getErrors()))->toBe([17 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($overThree))->toBe([
+        ['line' => 17, 'column' => 5, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($overThree->getErrors())[17][0])->toContain('has 3 children');
-    expect(violationSourcesByLine($overTwo->getErrors()))->toBe([
-        17 => [NUMBER_OF_CHILDREN_ERROR],
-        35 => [NUMBER_OF_CHILDREN_ERROR],
+    expect(violationTuples($overTwo))->toBe([
+        ['line' => 17, 'column' => 5, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => 35, 'column' => 5, 'source' => NUMBER_OF_CHILDREN_ERROR],
     ]);
     expect(violationMessagesByLine($overTwo->getErrors())[17][0])->toContain('has 3 children');
     expect(violationMessagesByLine($overTwo->getErrors())[35][0])->toContain('has 2 children');
@@ -336,10 +405,13 @@ it('tells two same-named classes on one line apart', function (): void {
         $sniff->minimum = 2;
     });
 
-    expect(violationSourcesByLine($overThree->getErrors()))->toBe([13 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($overThree))->toBe([
+        ['line' => 13, 'column' => 68, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($overThree->getErrors())[13][0])->toContain('has 3 children');
-    expect(violationSourcesByLine($overTwo->getErrors()))->toBe([
-        13 => [NUMBER_OF_CHILDREN_ERROR, NUMBER_OF_CHILDREN_ERROR],
+    expect(violationTuples($overTwo))->toBe([
+        ['line' => 13, 'column' => 68, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => 13, 'column' => 219, 'source' => NUMBER_OF_CHILDREN_ERROR],
     ]);
     expect(violationMessagesByLine($overTwo->getErrors())[13][0])->toContain('has 3 children');
     expect(violationMessagesByLine($overTwo->getErrors())[13][1])->toContain('has 2 children');
@@ -602,11 +674,16 @@ it('reports a parent whose declaration line a fixer loop has moved', function ()
     $file = new PHP_CodeSniffer\Files\LocalFile($project, $ruleset, $config);
     $file->process();
 
-    expect(violationSourcesByLine($file->getErrors())[5] ?? [])->toBe([NUMBER_OF_CHILDREN_ERROR]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => 'CleanCode.WhiteSpace.BlankLines.ConsecutiveBlankLines'],
+        ['line' => 5, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
 
     $file->fixer->fixFile();
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([3 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(violationTuples($file))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($file->getErrors())[3][0])->toContain('has 15 children');
 });
 
@@ -639,7 +716,9 @@ it('resolves the subject against the buffer when the run lints one under a real 
     $file = new PHP_CodeSniffer\Files\DummyFile($buffer, $ruleset, $config);
     $file->process();
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([5 => [NUMBER_OF_CHILDREN_ERROR]]);
+    expect(tuplesFromMessages($file->getErrors()))->toBe([
+        ['line' => 5, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
     expect(violationMessagesByLine($file->getErrors())[5][0])->toContain('has 15 children');
 });
 
@@ -680,7 +759,7 @@ it('sees only the file in hand when the run has no project paths', function (): 
         $sniff->minimum = 5;
     });
 
-    expect($default->getErrors())->toBe([]);
+    expect(violationTuples($default))->toBe([]);
     expect(violationMessagesByLine($lowered->getErrors())[12][0])->toContain('has 5 children');
 });
 
@@ -694,5 +773,5 @@ it('says nothing about piped input', function (): void {
         . implode("\n", array_map(static fn (int $i): string => "class Child{$i} extends Base {}", range(1, 15)));
     $file = analyzeStdinSource([NUMBER_OF_CHILDREN], $source);
 
-    expect($file->getErrors())->toBe([]);
+    expect(tuplesFromMessages($file->getErrors()))->toBe([]);
 });

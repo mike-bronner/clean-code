@@ -120,6 +120,12 @@ use PHP_CodeSniffer\Sniffs\Sniff;
  * unbalance the depth. Both openers are counted — see
  * INTERPOLATION_OPEN_TOKENS — and interpolation/ fixtures pin each shape.
  *
+ * The other half of the same job is knowing *which* brace opens a class-like
+ * body. An anonymous class's constructor-argument list sits between the
+ * declaration keyword and the body, and can hold braces of its own, so a body
+ * recorded at the keyword is closed by the argument list rather than by itself.
+ * See trackBrace(), pinned by the anonymous/ fixtures.
+ *
  * A file the sniff cannot read contributes nothing rather than aborting the
  * run. That direction is deliberate: a missing file can only lower a count, and
  * a count that is too low stays silent, where one that is too high accuses a
@@ -744,13 +750,15 @@ class NumberOfChildrenSniff implements Sniff
         $namespace = '';
         $aliases = [];
         $bodies = [];
+        $awaiting = [];
         $depth = 0;
+        $parentheses = 0;
 
         for ($index = 0; $index < count($tokens); $index++) {
             $token = $tokens[$index];
 
             if (is_array($token) === false) {
-                $depth = $this->trackBrace($token, $depth, $bodies);
+                $depth = $this->trackBrace($token, $depth, $bodies, $awaiting, $parentheses);
 
                 continue;
             }
@@ -788,7 +796,12 @@ class NumberOfChildrenSniff implements Sniff
                 continue;
             }
 
-            $bodies[] = $depth;
+            // The body is recorded when the brace that opens it is reached, not
+            // here: everything between this keyword and that brace — an
+            // anonymous class's constructor arguments above all — can hold
+            // braces of its own. Recording the body now would let one of those
+            // close it before it opened. See trackBrace().
+            $awaiting[] = $parentheses;
 
             // Interfaces, traits, enums, and anonymous classes have bodies that
             // have to be tracked, but none of the four declares a name this
@@ -802,17 +815,58 @@ class NumberOfChildrenSniff implements Sniff
     }
 
     /**
-     * The brace depth after $brace, with any class-like body it closes popped
-     * off $bodies.
+     * The brace depth after $brace, opening the body of any class-like
+     * declaration $awaiting it and popping any body the brace closes off
+     * $bodies.
      *
-     * A class-like body is recorded at the depth its declaration sat at, so it
-     * is closed by the brace that returns the walk to that depth.
+     * A class-like body is recorded at the depth it opens at, so it is closed by
+     * the brace that returns the walk to that depth.
+     *
+     * *Which* brace opens it is the whole of what $awaiting and $parentheses are
+     * for. A declaration's header can carry braces that are not its body's:
+     * `new class (fn () => …)`, `new class (match (…) { … })`, and
+     * `new class ("{$value}")` each write a balanced pair inside the constructor
+     * argument list, before the body brace. Recorded at the keyword instead, the
+     * body sits at the depth those braces return to, and the argument list's own
+     * closing brace pops it — leaving the real body untracked and a trait `use`
+     * inside it reading as a namespace import, which misdirects a later
+     * `extends` onto a class in another namespace entirely.
+     *
+     * Every one of those braces is inside the argument list's parentheses, and
+     * the body brace is the first one that is not: a header carries no bare
+     * brace of its own outside them. So the declaration waits at the parenthesis
+     * depth its keyword sat at, and the first brace reached at that same depth
+     * is its body's. Nesting holds — an anonymous class inside another's
+     * argument list waits one parenthesis deeper and is served first.
      *
      * @param array<int, int> $bodies
+     * @param array<int, int> $awaiting
      */
-    private function trackBrace(string $brace, int $depth, array &$bodies): int
-    {
+    private function trackBrace(
+        string $brace,
+        int $depth,
+        array &$bodies,
+        array &$awaiting,
+        int &$parentheses
+    ): int {
+        if ($brace === '(') {
+            $parentheses++;
+
+            return $depth;
+        }
+
+        if ($brace === ')') {
+            $parentheses--;
+
+            return $depth;
+        }
+
         if ($brace === '{') {
+            if ($awaiting !== [] && end($awaiting) === $parentheses) {
+                array_pop($awaiting);
+                $bodies[] = $depth;
+            }
+
             return ($depth + 1);
         }
 
