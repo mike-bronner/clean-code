@@ -33,9 +33,19 @@ use PHP_CodeSniffer\Util\Tokens;
  *   whole scope rather than from the failing binding onwards.
  * - **The fixer only rewrites a receiver the tokens prove outright** (see
  *   isFixable()). Where the sniff has inferred a type rather than proved one —
- *   through TERMINAL_METHODS, or across a call that may take the variable by
- *   reference — the finding is reported and left alone. An inference good
- *   enough for a warning is not good enough to rewrite source.
+ *   through TERMINAL_METHODS, across a call that may take the variable by
+ *   reference, or from a declaration that only *permits* a Collection
+ *   (`Collection|array`, `?Collection`) — the finding is reported and left
+ *   alone. An inference good enough for a warning is not good enough to
+ *   rewrite source.
+ *
+ * The second rule is the one that needs guarding at every step, because a
+ * variable is otherwise a laundering step between them: whatever the first rule
+ * was willing to assume becomes, once it has a name, something the fixer treats
+ * as proven. So a tracked name carries the strength of its binding as well as
+ * the fact of it, and every reader says which of the two questions it is
+ * asking. A variadic parameter is outside both rules — `Collection ...$items`
+ * binds an array, so it is not a Collection to report on in the first place.
  */
 class OnlyUseCollectionMethodsSniff implements Sniff
 {
@@ -315,7 +325,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * the last one. Rebuilt at the top of each process() call, because PHPCS
      * reuses one sniff instance for the whole run.
      *
-     * @var array<int, array{start: int, end: int, parameters: array<string, bool>}>
+     * @var array<int, array{
+     *     start: int,
+     *     end: int,
+     *     parameters: array<string, array{reportable: bool, provable: bool}>
+     * }>
      */
     private array $arrowFunctions = [];
 
@@ -355,11 +369,17 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * An arrow function auto-captures the enclosing scope, so a name it does
      * *not* declare is the enclosing scope's — but a parameter it declares is a
      * new binding that shadows the outer name, in an arrow function exactly as
-     * in a closure. Both directions are recorded here (`false` for a parameter
-     * that is not a Collection), because a parameter shadowing an enclosing
-     * Collection has to stop the outward lookup rather than fall through it.
+     * in a closure. Both directions are recorded here — a parameter that is not
+     * a Collection is present with both polarities false, not absent — because a
+     * parameter shadowing an enclosing Collection has to stop the outward
+     * lookup rather than fall through it. A variadic parameter is exactly that
+     * case: it shadows the outer name and binds an array.
      *
-     * @return array<int, array{start: int, end: int, parameters: array<string, bool>}>
+     * @return array<int, array{
+     *     start: int,
+     *     end: int,
+     *     parameters: array<string, array{reportable: bool, provable: bool}>
+     * }>
      */
     private function mapArrowFunctions(File $phpcsFile): array
     {
@@ -380,7 +400,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             $parameters = [];
 
             foreach ($phpcsFile->getMethodParameters($ptr) as $parameter) {
-                $parameters[$parameter['name']] = $this->isCollectionHint($parameter['type_hint']);
+                $parameters[$parameter['name']] = $this->hintBinding($parameter);
             }
 
             $arrowFunctions[] = [
@@ -554,6 +574,15 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      *   would leave `$c = [1, 2]; count($c); $c = collect([1, 2]);` flagging —
      *   and rewriting — a call that operates on the array.
      *
+     * The map is a set with a strength attached, and both parts are read:
+     * **presence** means the name holds a Collection as far as reporting is
+     * concerned, and the **value** says whether it holds one for certain. A
+     * name tracked `false` — a `Collection|array` parameter, or one assigned
+     * from an expression only the fail-open walk accepts — is reported and
+     * never rewritten. Without that second bit a variable is a laundering
+     * step: whatever reporting was willing to assume becomes something the
+     * fixer treats as proven.
+     *
      * @return array<int, array<string, bool>>
      */
     private function mapCollectionVariables(File $phpcsFile): array
@@ -664,7 +693,14 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return;
         }
 
-        $variables[$scope][$name] = true;
+        // The name inherits the *strength* of the expression that assigned it,
+        // not merely the fact that one did. isCollectionExpression() above
+        // fails open, so it admits `$rows = $c->someMacro();` — right for
+        // reporting, and no proof at all for the fixer. Recording only the
+        // fail-open answer here is what let a variable launder it: the same
+        // `count($c->someMacro())` the fixer declines inline was rewritten once
+        // it went through a variable.
+        $variables[$scope][$name] = $this->isProvableCollection($phpcsFile, ($ptr + 1), ($end - 1), $variables);
     }
 
     /**
@@ -982,10 +1018,58 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     private function addTypeHintedParameters(File $phpcsFile, int $functionPtr, array &$variables): void
     {
         foreach ($phpcsFile->getMethodParameters($functionPtr) as $parameter) {
-            if ($this->isCollectionHint($parameter['type_hint']) === true) {
-                $variables[$functionPtr][$parameter['name']] = true;
+            $binding = $this->hintBinding($parameter);
+
+            if ($binding['reportable'] === true) {
+                $variables[$functionPtr][$parameter['name']] = $binding['provable'];
             }
         }
+    }
+
+    /**
+     * What a parameter's declaration proves about the value it binds, in the
+     * two polarities the sniff reads separately.
+     *
+     * `reportable` fails open: a hint the value *can* satisfy as a Collection
+     * is enough, because an over-eager suspicion costs a spurious error.
+     * `provable` fails closed: only a hint the value must satisfy as a
+     * Collection qualifies, because an over-eager proof costs a rewrite into a
+     * runtime fatal. `Collection|array $c` is the shape that separates them —
+     * `count($c)` is worth reporting and must never be rewritten, since
+     * `$c->count()` fatals the moment an array is passed.
+     *
+     * A **variadic** parameter satisfies neither. `Collection ...$items` binds
+     * an *array of* Collections, never a Collection, so `count($items)` is
+     * correct code: reporting it is a false positive and rewriting it is a
+     * fatal. PHPCS reports this in `variable_length`, which the hint string
+     * alone cannot show.
+     *
+     * @param array<string, mixed> $parameter one of getMethodParameters()' entries
+     *
+     * @return array{reportable: bool, provable: bool}
+     */
+    private function hintBinding(array $parameter): array
+    {
+        $notACollection = ['reportable' => false, 'provable' => false];
+
+        // Both keys are set for every parameter getMethodParameters() returns,
+        // so they are read outright. A `?? false` here would be a safety guard
+        // with a fail-open default: were the key ever to go missing, a variadic
+        // parameter would silently become a rewritable Collection again.
+        if ($parameter['variable_length'] === true) {
+            return $notACollection;
+        }
+
+        $hint = $parameter['type_hint'];
+
+        if ($hint === '') {
+            return $notACollection;
+        }
+
+        return [
+            'reportable' => $this->isCollectionHint($hint),
+            'provable' => $this->isProvableCollectionHint($hint),
+        ];
     }
 
     /**
@@ -1007,6 +1091,58 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         return false;
+    }
+
+    /**
+     * Whether $hint proves the value *is* a Collection, whatever branch of the
+     * declaration it took — the fail-closed counterpart of isCollectionHint().
+     *
+     * The two connectors are read as what they mean, not folded together as
+     * isCollectionHint() may fold them:
+     *
+     * - A **union** is a choice, so every member has to be a Collection.
+     *   `Collection|EloquentCollection` proves one; `Collection|array` does not.
+     * - An **intersection** is a conjunction, so one Collection member is
+     *   enough — `Collection&Countable` is a Collection that is also Countable.
+     * - **Nullable** — `?Collection`, or a `null` member — proves nothing, the
+     *   value may be null.
+     *
+     * A hint mixing both connectors is not read at all. PHP only permits them
+     * together as DNF (`(A&B)|C`), whose parentheses this flat split cannot
+     * honour, and guessing at one is how the fail-closed side would fail open.
+     */
+    private function isProvableCollectionHint(string $hint): bool
+    {
+        if ($hint === '' || str_starts_with($hint, '?') === true) {
+            return false;
+        }
+
+        $isUnion = str_contains($hint, '|');
+        $isIntersection = str_contains($hint, '&');
+
+        if ($isUnion === true && $isIntersection === true) {
+            return false;
+        }
+
+        $members = explode($isIntersection === true ? '&' : '|', $hint);
+
+        foreach ($members as $member) {
+            $isCollection = $this->isCollectionClass(
+                $this->shortName($member),
+                str_contains($member, '\\') === false
+            );
+
+            // A union needs every member; an intersection needs only one.
+            if ($isIntersection === true && $isCollection === true) {
+                return true;
+            }
+
+            if ($isIntersection === false && $isCollection === false) {
+                return false;
+            }
+        }
+
+        return $isIntersection === false;
     }
 
     /**
@@ -1142,7 +1278,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return false;
         }
 
-        $ptr = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables);
+        $ptr = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables, true);
 
         if ($ptr === null) {
             return false;
@@ -1264,7 +1400,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return false;
         }
 
-        $ptr = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables);
+        $ptr = $this->collectionOriginEnd($phpcsFile, $first, $end, $variables, false);
 
         if ($ptr === null) {
             return false;
@@ -1316,14 +1452,26 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * The last token of the Collection-producing head of an expression, or null
      * when the expression does not provably start with one.
      *
+     * Both walks share this resolver, so it carries the polarity they differ
+     * on: only a variable's binding is read two ways, and $provable says which
+     * way. It has no default on purpose — a call site that forgets it does not
+     * compile, rather than quietly taking the fail-open reading into the
+     * fixer. Every other origin here (`collect()`, a factory call, `new`)
+     * proves a Collection outright and reads the same under both.
+     *
      * @param array<int, array<string, bool>> $variables
      */
-    private function collectionOriginEnd(File $phpcsFile, int $ptr, int $end, array $variables): ?int
-    {
+    private function collectionOriginEnd(
+        File $phpcsFile,
+        int $ptr,
+        int $end,
+        array $variables,
+        bool $provable
+    ): ?int {
         $tokens = $phpcsFile->getTokens();
 
         if ($tokens[$ptr]['code'] === T_VARIABLE) {
-            return $this->isCollectionVariable($phpcsFile, $ptr, $variables) === true ? $ptr : null;
+            return $this->isCollectionVariable($phpcsFile, $ptr, $variables, $provable) === true ? $ptr : null;
         }
 
         if ($tokens[$ptr]['code'] === T_NEW) {
@@ -1566,26 +1714,33 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      *
      * @param array<int, array<string, bool>> $variables
      */
-    private function isCollectionVariable(File $phpcsFile, int $ptr, array $variables): bool
+    private function isCollectionVariable(File $phpcsFile, int $ptr, array $variables, bool $provable): bool
     {
         $name = $phpcsFile->getTokens()[$ptr]['content'];
-        $binding = $this->arrowParameterBinding($ptr, $name);
+        $binding = $this->arrowParameterBinding($ptr, $name, $provable);
 
         if ($binding !== null) {
             return $binding;
         }
 
-        return isset($variables[$this->scopeOf($phpcsFile, $ptr)][$name]) === true;
+        // Presence says the name is a Collection as far as reporting is
+        // concerned; the value says whether it is one for certain. A name
+        // tracked only on the fail-open reading is reported and never fixed.
+        $tracked = $variables[$this->scopeOf($phpcsFile, $ptr)][$name] ?? null;
+
+        return $tracked !== null && ($provable === false || $tracked === true);
     }
 
     /**
      * Whether the innermost arrow function enclosing $ptr that declares $name
-     * declares it as a Collection, or null when no enclosing arrow function
-     * declares it at all — in which case the name is captured from outside.
+     * declares it as a Collection, under the polarity $provable selects, or
+     * null when no enclosing arrow function declares it at all — in which case
+     * the name is captured from outside.
      */
-    private function arrowParameterBinding(int $ptr, string $name): ?bool
+    private function arrowParameterBinding(int $ptr, string $name, bool $provable): ?bool
     {
         $binding = null;
+        $polarity = $provable === true ? 'provable' : 'reportable';
 
         // Built in T_FN order, so a later match is nested inside an earlier one
         // and the last one to declare the name is the innermost.
@@ -1594,7 +1749,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            $binding = $arrowFunction['parameters'][$name] ?? $binding;
+            $binding = isset($arrowFunction['parameters'][$name]) === true
+                ? $arrowFunction['parameters'][$name][$polarity]
+                : $binding;
         }
 
         return $binding;

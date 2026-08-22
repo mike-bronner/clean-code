@@ -164,6 +164,11 @@ it('flags every violation at its own line with the expected code', function (): 
         223 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         231 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         236 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        259 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        266 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        279 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        287 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        297 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -230,6 +235,11 @@ it('names the Collection method that replaces each generic function', function (
         223 => 'count() => count()',
         231 => 'count() => count()',
         236 => 'count() => count()',
+        259 => 'count() => count()',
+        266 => 'count() => count()',
+        279 => 'count() => count()',
+        287 => 'count() => count()',
+        297 => 'count() => count()',
     ]);
 });
 
@@ -260,13 +270,33 @@ it('names the Collection method that replaces each generic function', function (
  * Lines 121-122 are the same collapse applied to by-reference mutation: the
  * receiver was handed bare to a call that may carry a `&$parameter`, so it is
  * proven at its assignment but not at the call site. Reported, never rewritten.
+ *
+ * The same polarity runs through what a *declaration* proves, which is the
+ * other half of the list above:
+ *
+ * - Line 231 (`Collection|ArrayObject`) and line 259 (`Collection|array`) are
+ *   unions, so the receiver holds one member or the other. Reported, because a
+ *   Collection is among them; unfixable, because the rest are not. Line 266's
+ *   `?Collection` is the same choice with null as the other member.
+ * - Line 236 (`Collection&Countable`) is an intersection, so the receiver is
+ *   every member at once. One Collection member proves it, and it stays
+ *   fixable — this is the line that fails if unions and intersections are ever
+ *   read as the same connector again.
+ * - Lines 279 and 287 are one expression written two ways: assigned to a
+ *   variable first, then inline. Both chain through a method neither list
+ *   knows, so both are reported and neither is fixable. They are asserted as a
+ *   pair because a variable used to launder the fail-open reading into the
+ *   fixer — 287 declined while 279, the same call, was rewritten.
+ *
+ * A variadic parameter appears in none of this: `Collection ...$items` binds an
+ * array, so it is not reported at all and is pinned in passing.php instead.
  */
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(42)
+    expect($file->getErrorCount())->toBe(47)
         ->and(violationFixableLines($file->getErrors()))
-        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 231, 236]);
+        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 236]);
 });
 
 /**

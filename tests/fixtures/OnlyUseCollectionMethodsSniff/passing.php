@@ -447,3 +447,32 @@ function declarationsNamedAfterAMappedFunctionAreNotCalls(array $rows): int
 
     return $items->count();
 }
+
+// A variadic parameter binds an *array of* the hinted type, never one value of
+// it, so `Collection ...$items` is an array and count($items) is the correct
+// way to ask how many Collections arrived. Reading the hint alone says
+// "Collection" and reports it; the pin is that nothing here is reported at
+// all, because a report is also what makes the fixer write $items->count() and
+// fatal on an array. PHPCS carries this in the parameter's variable_length key.
+function variadicCollectionParametersAreArrays(Collection ...$items): int
+{
+    return count($items);
+}
+
+// The same, one link further out: an arrow function's parameters are mapped
+// separately from every other declaration's, so the variadic case has to be
+// answered twice or it is answered only where the last fix happened to look.
+function variadicArrowParametersAreArrays(): callable
+{
+    return fn (Collection ...$items): int => count($items);
+}
+
+// A variadic parameter still *binds* the name. Without that, the name would
+// fall through to the Collection of the same name outside and be reported here
+// on the strength of a binding this scope replaced.
+function aVariadicParameterShadowsAnOuterCollection(): callable
+{
+    $items = collect([1, 2]);
+
+    return fn (Collection ...$items): int => count($items);
+}

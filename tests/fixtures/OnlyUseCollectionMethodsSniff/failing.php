@@ -246,3 +246,53 @@ function &declaresAByReferenceParameterSharingAFileScopeName($ledger)
 {
     return $ledger;
 }
+
+// Below: reported, never rewritten. Each one is a value the hint or the
+// expression says *may* be a Collection, which is the whole of what reporting
+// asks and none of what the fixer needs. Line 231's union is the same shape.
+
+// A union is a choice, so a member that is not a Collection is a value the
+// receiver can hold. `count($mixed)` is right for an array and the rewrite
+// fatals on one, so the hint reports and proves nothing.
+function unionWithANonCollectionMemberIsNotProvable(Collection|array $mixed): int
+{
+    return count($mixed);
+}
+
+// Null is the same choice written shorter. `?Collection` reports, because a
+// Collection is one of the things it holds, and proves nothing.
+function nullableCollectionsAreNotProvable(?Collection $maybe): int
+{
+    return count($maybe);
+}
+
+// A variable is not a laundering step. The assignment is read by the fail-open
+// walk, which assumes an unknown method left a Collection standing — right for
+// reporting, no proof at all for the fixer. count($rows) below and the same
+// call written inline are the identical expression, so they get the identical
+// verdict: reported, unfixable. Before the strength was recorded alongside the
+// name, going through the variable turned the assumption into a rewrite.
+function anUnknownMethodDoesNotBecomeProvableThroughAVariable(Collection $ledger): int
+{
+    $rows = $ledger->toRowsArray();
+
+    return count($rows);
+}
+
+// The inline half of the pair above, which was already declining the fix. It
+// is here so the two verdicts sit in one file: if a change ever lets the
+// variable launder again, only one of these two lines moves.
+function theSameUnknownMethodInline(Collection $ledger): int
+{
+    return count($ledger->toRowsArray());
+}
+
+// An arrow function's parameters are mapped apart from every other
+// declaration's, so the reported-versus-proven split has to be answered there
+// too. A union-hinted arrow parameter is the shape that tells the two answers
+// apart: reported like line 259, and unfixable for the same reason. Read under
+// the reporting polarity alone, this line would be rewritten.
+function unionHintedArrowParametersAreNotProvable(): callable
+{
+    return fn (Collection|array $mixed): int => count($mixed);
+}

@@ -40,7 +40,8 @@ is one of:
   (`Collection`, `EloquentCollection`, `OrderCollection`, …);
 - a parameter type-hinted as such a class — a union or intersection hint is
   split apart first, so `Collection|ArrayObject` and `Collection&Countable` both
-  count;
+  count. A **variadic** parameter never does: `Collection ...$items` binds an
+  *array of* Collections, so `count($items)` is the right way to count them;
 - a variable *unconditionally* assigned any of the above — tracked per function
   scope, and only when **every** binding of that name in the scope proved a
   Collection. Any other binding of it — a reassignment, `foreach`, `catch`,
@@ -156,6 +157,23 @@ in the chain is a method whose Collection return is contractual:
 count($c->filter($fn));        // auto-fixed to $c->filter($fn)->count()
 count($c->chunk(2));           // reported, not auto-fixed
 count($c?->filter($fn));       // reported, not auto-fixed
+```
+
+A **declaration** is read the same two ways. A union is a choice, so it proves a
+Collection only when every member is one: `Collection|array` and `?Collection`
+are reported and never rewritten, because `$c->count()` fatals the moment the
+other member turns up. An intersection is a conjunction, so a single Collection
+member proves it and `Collection&Countable` stays fixable.
+
+A variable carries the *strength* of what it was assigned, not merely the fact
+that it was assigned something. An expression only the report accepts — a chain
+through a method neither list knows — makes the variable reportable and no more,
+so these two lines get the same verdict rather than different ones:
+
+```php
+count($c->someMacro());        // reported, not auto-fixed
+$rows = $c->someMacro();
+count($rows);                  // reported, not auto-fixed
 ```
 
 The two lists behind that answer opposite questions and fail in opposite
