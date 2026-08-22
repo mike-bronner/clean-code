@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -31,9 +32,10 @@ use PHP_CodeSniffer\Util\Tokens;
  * predicate reports a type, it does not choose behaviour based on one.
  *
  * A function body bounds the search — any function body, whether it opened with
- * `function`, a closure, or `fn`. Introspection inside one decides that body's
- * *return value*, so it is a predicate, even when the body is itself written as
- * an argument inside some enclosing branch's condition:
+ * `function`, a closure, `fn`, or a PHP 8.4 property hook. Introspection inside
+ * one decides that body's *return value*, so it is a predicate, even when the
+ * body is itself written as an argument inside some enclosing branch's
+ * condition:
  *
  * - `if (array_filter($rows, fn ($r) => $r instanceof Failure))`
  * - `if (array_filter($rows, function ($r) { return $r instanceof Failure; }))`
@@ -119,19 +121,24 @@ class DisallowTypeIntrospectionSniff implements Sniff
     ];
 
     /**
-     * Every token that declares a body whose result is that body's own return
-     * value — the complete set, not a sample.
+     * Every token that declares a body PHP_CodeSniffer gives a scope of its
+     * own, and whose result is that body's own return value.
      *
-     * PHP has exactly three: `function` (a named function or a method, whether
-     * declared at file scope, in a named class, or in an anonymous one),
-     * `function () {}` (a closure), and `fn () =>` (an arrow function). A
+     * Three tokens carry a scope: `function` (a named function or a method,
+     * whether declared at file scope, in a named class, or in an anonymous
+     * one), `function () {}` (a closure), and `fn () =>` (an arrow function). A
      * `static` prefix changes neither token, and an abstract or interface
-     * method declares no body at all — {@see functionScopes()} drops it for
-     * having no scope, so the enumeration needs no case for it.
+     * method declares no body at all — {@see buildFunctionBodies()} drops it
+     * for having no scope, so the enumeration needs no case for it.
+     *
+     * A PHP 8.4 property hook declares such a body too and is deliberately
+     * absent here: the tokenizer opens no scope for one, so it cannot be found
+     * by a token code at all. {@see hookBodies()} is what adds it, and the two
+     * together are the complete set.
      *
      * Enumerating the whole set is the point: an introspection check is a
      * *predicate* whenever the nearest thing its value flows into is a return,
-     * and that is true of all three equally. Listing only the two callback
+     * and that is true of every body equally. Listing only the two callback
      * forms made the sniff flag the third — a method body written inline as an
      * argument — which is what this list being complete now prevents.
      */
@@ -155,52 +162,81 @@ class DisallowTypeIntrospectionSniff implements Sniff
     ];
 
     /**
-     * Path of the file {@see $shadowedNames} was computed for, or null before
-     * the first computation. PHPCS finishes one file before starting the next,
-     * so remembering only the most recent answer keeps the file scan to once
-     * per file without retaining every file's answer for a whole run.
-     */
-    private ?string $shadowedNamesFile = null;
-
-    /**
-     * The introspection function names the file at {@see $shadowedNamesFile}
-     * shadows.
+     * The token stream every index below was built from, so a stream they do
+     * not describe is never answered from. The indexes hold pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * sniffs with a per-stream index in this package share — is what tells that
+     * stream from every other, including the next `phpcbf` pass over the same
+     * file. A file name does not: two sources analysed as STDIN report the same
+     * name, and issue #343 is the reproduction of what that costs.
      *
-     * @var array<int, string>
+     * One key covers all three indexes because they describe one stream between
+     * them. A key apiece bought nothing but three chances for the guards to
+     * disagree.
      */
-    private array $shadowedNames = [];
+    private ?string $indexKey = null;
 
     /**
-     * Path of the file {@see $functionScopes} was computed for, or null before
-     * the first computation. Memoised for the same reason as
-     * {@see $shadowedNamesFile}: one file is finished before the next begins.
-     */
-    private ?string $functionScopesFile = null;
-
-    /**
-     * Every function-like body in the file at {@see $functionScopesFile}, keyed
-     * by declaration pointer and ordered innermost-first (see
-     * {@see functionScopes()} for why that order).
+     * How many times the indexes were built, and how many times the key guard
+     * answered a read from the indexes already built.
      *
-     * @var array<int, array{start: int, end: int}>
-     */
-    private array $functionScopes = [];
-
-    /**
-     * Path of the file {@see $ternaryDecisions} was computed for, or null
-     * before the first computation. Memoised for the same reason as
-     * {@see $shadowedNamesFile}: one file is finished before the next begins.
-     */
-    private ?string $ternaryDecisionsFile = null;
-
-    /**
-     * Where a forward scan from each token of the file at
-     * {@see $ternaryDecisionsFile} resolves, keyed by token pointer (see
-     * {@see ternaryDecisions()}).
+     * The indexes exist to absorb many reads per token stream into one pass,
+     * and nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/DisallowTypeIntrospectionTest.php pins both numbers.
      *
-     * @var array<int, int>
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance and are read as a delta
+     * around a single run.
+     *
+     * @var array<string, int>
      */
-    private array $ternaryDecisions = [];
+    private array $cacheCounts = [
+        'indexes.builds' => 0,
+        'indexes.hits' => 0,
+    ];
+
+    /**
+     * The introspection function names the indexed stream shadows, or null
+     * when that question has not been asked of this stream.
+     *
+     * Each index below is built the first time it is read rather than with the
+     * others, because a file that asks one question of the sniff often asks
+     * only that one: a file with no ternary anywhere never pays for
+     * {@see $ternaryDecisions}, and one with no unqualified call never pays for
+     * the scan behind this.
+     *
+     * @var array<int, string>|null
+     */
+    private ?array $shadowedNames = null;
+
+    /**
+     * Every function-like body in the indexed stream: the pointer that opens
+     * the body mapped to the pointer that closes it, ordered by opener
+     * ascending (see {@see buildFunctionBodies()}).
+     *
+     * @var array<int, int>|null
+     */
+    private ?array $functionBodies = null;
+
+    /**
+     * Each token of the indexed stream that sits inside a function-like body,
+     * mapped to the opener of the innermost body holding it (see
+     * {@see buildEnclosingBodies()}). A token in no body has no entry.
+     *
+     * @var array<int, int>|null
+     */
+    private ?array $enclosingBodies = null;
+
+    /**
+     * Where a forward scan from each token of the indexed stream resolves,
+     * keyed by token pointer (see {@see buildTernaryDecisions()}).
+     *
+     * @var array<int, int>|null
+     */
+    private ?array $ternaryDecisions = null;
 
     /**
      * @return array<int|string>
@@ -208,6 +244,18 @@ class DisallowTypeIntrospectionSniff implements Sniff
     public function register(): array
     {
         return [T_INSTANCEOF, T_STRING];
+    }
+
+    /**
+     * How many times the per-stream indexes were built and how many times the
+     * key guard answered from the indexes already built, cumulative for the
+     * life of this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -315,9 +363,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
         // An unqualified name falls back to the global function only when the
         // file does not resolve it to one of its own.
+        $this->index($phpcsFile);
+        $this->shadowedNames ??= $this->buildShadowedNames($phpcsFile);
+
         return in_array(
             strtolower($tokens[$stackPtr]['content']),
-            $this->shadowedNames($phpcsFile),
+            $this->shadowedNames,
             true
         ) === false;
     }
@@ -396,12 +447,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
      *
      * @return array<int, string>
      */
-    private function shadowedNames(File $phpcsFile): array
+    private function buildShadowedNames(File $phpcsFile): array
     {
-        if ($this->shadowedNamesFile === $phpcsFile->getFilename()) {
-            return $this->shadowedNames;
-        }
-
         $tokens = $phpcsFile->getTokens();
         $names = [];
 
@@ -423,10 +470,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
             }
         }
 
-        $this->shadowedNamesFile = $phpcsFile->getFilename();
-        $this->shadowedNames = array_values(array_intersect($names, self::INTROSPECTION_FUNCTIONS));
-
-        return $this->shadowedNames;
+        return array_values(array_intersect($names, self::INTROSPECTION_FUNCTIONS));
     }
 
     /**
@@ -542,41 +586,75 @@ class DisallowTypeIntrospectionSniff implements Sniff
     }
 
     /**
-     * Returns the pointer of the innermost function-like declaration whose body
-     * contains $stackPtr, or null when the token sits in no function body.
+     * Returns the extent of the innermost function-like body containing
+     * $stackPtr — the pointer that opens it and the pointer that closes it — or
+     * null when the token sits in no such body.
      *
      * This is the one place the sniff decides what "the same scope" means, and
      * every branch check below is confined by its answer. Resolving it against
-     * the whole of {@see FUNCTION_LIKE} rather than a chosen subset is what
-     * makes the confinement general: a body is a body regardless of the keyword
-     * that opened it, so a method written inline as an argument bounds the
+     * every body the file has rather than a chosen subset is what makes the
+     * confinement general: a body is a body regardless of what opened it, so a
+     * method written inline as an argument, and a property hook, bound the
      * search exactly as a closure or an arrow function does.
      *
-     * Bodies nest properly — they never partially overlap — so of the bodies
-     * containing the token, the one that starts last is the innermost. The
-     * index is stored in descending start order, which makes the first match
-     * that innermost one and lets the common case (a token inside the nearest
-     * declaration) return after a step or two.
+     * The answer is a table lookup rather than a search. Scanning a list of
+     * bodies per token was linear in the number of bodies the file declares,
+     * and a class of K sibling methods each holding one check paid that K
+     * times over — quadratic in K, on the ordinary shape of a large dispatcher
+     * or facade. {@see buildEnclosingBodies()} resolves every token in one
+     * pass instead.
+     *
+     * @return array{start: int, end: int}|null
      */
-    private function enclosingFunctionScope(File $phpcsFile, int $stackPtr): ?int
+    private function enclosingFunctionScope(File $phpcsFile, int $stackPtr): ?array
     {
-        foreach ($this->functionScopes($phpcsFile) as $declaration => $scope) {
-            if ($scope['start'] < $stackPtr && $stackPtr < $scope['end']) {
-                return $declaration;
-            }
-        }
+        $this->index($phpcsFile);
+        $this->functionBodies ??= $this->buildFunctionBodies($phpcsFile);
+        $this->enclosingBodies ??= $this->buildEnclosingBodies($phpcsFile, $this->functionBodies);
+        $start = $this->enclosingBodies[$stackPtr] ?? null;
 
-        return null;
+        return $start === null
+            ? null
+            : ['start' => $start, 'end' => $this->functionBodies[$start]];
     }
 
     /**
-     * Every function-like body in the file, keyed by declaration pointer and
-     * ordered by start position descending.
+     * Discards every index that describes another token stream, so what is
+     * read after this call either describes the stream being processed or has
+     * not been built yet.
      *
-     * Built in one forward pass per file and memoised, so resolving the
-     * enclosing scope never re-walks the token stream: the old backward token
-     * scan repeated that walk for every introspection token in the file, which
-     * on a large file with many checks cost more than tokenising it.
+     * One key covers every index because they describe one stream between
+     * them, and each is still built only when it is first read: what the key
+     * decides is which stream the indexes may describe, not which of them
+     * exists.
+     */
+    private function index(File $phpcsFile): void
+    {
+        $key = TokenStreams::key($phpcsFile);
+
+        if ($this->indexKey === $key) {
+            $this->cacheCounts['indexes.hits']++;
+
+            return;
+        }
+
+        $this->cacheCounts['indexes.builds']++;
+        $this->indexKey = $key;
+        $this->shadowedNames = null;
+        $this->functionBodies = null;
+        $this->enclosingBodies = null;
+        $this->ternaryDecisions = null;
+    }
+
+    /**
+     * Every function-like body in the file: its opening pointer mapped to its
+     * closing one, ordered by opener ascending.
+     *
+     * Two kinds of body are collected, because PHP_CodeSniffer describes them
+     * differently. A declaration in {@see FUNCTION_LIKE} carries its own scope
+     * pointers and is read straight off the token. A PHP 8.4 property hook
+     * carries none at all — the tokenizer opens no scope for one — so
+     * {@see hookBodies()} reads its extent off the braces instead.
      *
      * A declaration whose scope PHPCS could not resolve is omitted rather than
      * assumed to enclose anything — an abstract or interface method (which has
@@ -584,36 +662,154 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * with a parse error PHPCS reports itself. Omitting it keeps a token that
      * follows from being read as living inside a body that never opened.
      *
-     * @return array<int, array{start: int, end: int}>
+     * @return array<int, int>
      */
-    private function functionScopes(File $phpcsFile): array
+    private function buildFunctionBodies(File $phpcsFile): array
     {
-        if ($this->functionScopesFile === $phpcsFile->getFilename()) {
-            return $this->functionScopes;
-        }
-
         $tokens = $phpcsFile->getTokens();
-        $scopes = [];
+        $bodies = [];
 
         for ($i = 0; $i < $phpcsFile->numTokens; $i++) {
-            if (in_array($tokens[$i]['code'], self::FUNCTION_LIKE, true) === false) {
+            if (in_array($tokens[$i]['code'], self::FUNCTION_LIKE, true)) {
+                $opener = $tokens[$i]['scope_opener'] ?? null;
+                $closer = $tokens[$i]['scope_closer'] ?? null;
+
+                if ($opener !== null && $closer !== null) {
+                    $bodies[$opener] = $closer;
+                }
+
                 continue;
             }
 
-            $opener = $tokens[$i]['scope_opener'] ?? null;
-            $closer = $tokens[$i]['scope_closer'] ?? null;
-
-            if ($opener === null || $closer === null) {
-                continue;
+            if ($this->isHookList($phpcsFile, $i)) {
+                $bodies += $this->hookBodies($phpcsFile, $i);
             }
-
-            $scopes[$i] = ['start' => $opener, 'end' => $closer];
         }
 
-        $this->functionScopesFile = $phpcsFile->getFilename();
-        $this->functionScopes = array_reverse($scopes, true);
+        ksort($bodies);
 
-        return $this->functionScopes;
+        return $bodies;
+    }
+
+    /**
+     * True when the brace at $stackPtr opens the hook list of a PHP 8.4
+     * property declaration.
+     *
+     * The tokenizer gives a hook no scope and its enclosing property no
+     * condition, so a hook list is recognised by where its brace sits rather
+     * than by any token of its own: directly inside a class-like body, with no
+     * scope of its own. Nothing else in PHP puts a brace there except a
+     * trait-adaptation block (`use A, B { … }`), which declares no body — it
+     * holds `insteadof` and `as` clauses — so {@see hookBodies()} finds nothing
+     * in one and no case is needed for it.
+     */
+    private function isHookList(File $phpcsFile, int $stackPtr): bool
+    {
+        $token = $phpcsFile->getTokens()[$stackPtr];
+
+        if ($token['code'] !== T_OPEN_CURLY_BRACKET) {
+            return false;
+        }
+
+        if (isset($token['bracket_closer']) === false || isset($token['scope_opener'])) {
+            return false;
+        }
+
+        $conditions = $token['conditions'];
+
+        return $conditions !== [] && in_array(end($conditions), self::OO_SCOPES, true);
+    }
+
+    /**
+     * The bodies the hook list opening at $listPtr declares: each hook's own
+     * body, mapped from its opening pointer to its closing one.
+     *
+     * A hook is written in one of two forms, and both bound a body the same
+     * way a closure or an arrow function does — what is written inside decides
+     * what reading or writing the property yields:
+     *
+     * - `get { … }` — the body is the block, `{` to `}`.
+     * - `get => …;` — the body is the expression, `=>` to `;`.
+     *
+     * The walk steps over balanced groups whole, so neither a `=>` inside a
+     * hook parameter's array default nor a brace inside an already-collected
+     * body is read as opening another one. A form the walk cannot resolve —
+     * an arrow hook with no `;`, a brace PHPCS never saw closed — ends the walk
+     * rather than being guessed at: only malformed source reaches that, and
+     * PHPCS reports the parse error itself.
+     *
+     * @return array<int, int>
+     */
+    private function hookBodies(File $phpcsFile, int $listPtr): array
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$listPtr]['bracket_closer'];
+        $bodies = [];
+        $i = ($listPtr + 1);
+
+        while ($i < $closer) {
+            $code = $tokens[$i]['code'];
+
+            if ($code === T_DOUBLE_ARROW || $code === T_OPEN_CURLY_BRACKET) {
+                $end = $code === T_DOUBLE_ARROW
+                    ? $phpcsFile->findNext(T_SEMICOLON, ($i + 1), $closer)
+                    : ($tokens[$i]['bracket_closer'] ?? false);
+
+                if ($end === false) {
+                    break;
+                }
+
+                $bodies[$i] = $end;
+                $i = ($end + 1);
+
+                continue;
+            }
+
+            $i = ($this->skipGroupForward($tokens, $i) + 1);
+        }
+
+        return $bodies;
+    }
+
+    /**
+     * Each token that sits inside a function-like body, mapped to the opener of
+     * the innermost body holding it. A token in no body is absent.
+     *
+     * Resolved in one pass, with the bodies still open at each position held on
+     * a stack: bodies nest properly — they never partially overlap — so the one
+     * on top of the stack is always the innermost, and each body is pushed and
+     * popped exactly once. That is what makes the whole file cost one pass
+     * regardless of how many bodies it declares, where asking each token to
+     * search the list of bodies cost the length of that list every time.
+     *
+     * A body's own opening and closing pointers are not inside it, which is the
+     * containment the branch checks below are written against: a condition
+     * opening a body is the caller's, not the body's.
+     *
+     * @param array<int, int> $bodies
+     *
+     * @return array<int, int>
+     */
+    private function buildEnclosingBodies(File $phpcsFile, array $bodies): array
+    {
+        $enclosing = [];
+        $open = [];
+
+        for ($i = 0; $i < $phpcsFile->numTokens; $i++) {
+            while ($open !== [] && $bodies[end($open)] <= $i) {
+                array_pop($open);
+            }
+
+            if ($open !== []) {
+                $enclosing[$i] = end($open);
+            }
+
+            if (isset($bodies[$i])) {
+                $open[] = $i;
+            }
+        }
+
+        return $enclosing;
     }
 
     /**
@@ -634,14 +830,14 @@ class DisallowTypeIntrospectionSniff implements Sniff
     private function isInsideAConditionParenthesis(
         File $phpcsFile,
         int $stackPtr,
-        ?int $scope
+        ?array $scope
     ): bool {
         $tokens = $phpcsFile->getTokens();
 
         foreach (array_keys($tokens[$stackPtr]['nested_parenthesis'] ?? []) as $opener) {
             if (
                 $scope !== null
-                && $opener < $scope
+                && $opener < $scope['start']
             ) {
                 continue;
             }
@@ -672,11 +868,13 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * resolved position rather than to the walk, which is the same answer: a
      * walk stopped at the cap resolves nowhere before it.
      */
-    private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?int $scope): bool
+    private function isATernaryCondition(File $phpcsFile, int $stackPtr, ?array $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $limit = $scope === null ? $phpcsFile->numTokens : $tokens[$scope]['scope_closer'];
-        $decision = $this->ternaryDecisions($phpcsFile)[$stackPtr + 1] ?? $phpcsFile->numTokens;
+        $limit = $scope === null ? $phpcsFile->numTokens : $scope['end'];
+        $this->index($phpcsFile);
+        $this->ternaryDecisions ??= $this->buildTernaryDecisions($phpcsFile);
+        $decision = $this->ternaryDecisions[$stackPtr + 1] ?? $phpcsFile->numTokens;
 
         return $decision < $limit
             && $tokens[$decision]['code'] === T_INLINE_THEN;
@@ -707,12 +905,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
      *
      * @return array<int, int>
      */
-    private function ternaryDecisions(File $phpcsFile): array
+    private function buildTernaryDecisions(File $phpcsFile): array
     {
-        if ($this->ternaryDecisionsFile === $phpcsFile->getFilename()) {
-            return $this->ternaryDecisions;
-        }
-
         $tokens = $phpcsFile->getTokens();
         $decisions = [];
 
@@ -728,9 +922,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
             $continuation = ($this->skipGroupForward($tokens, $i) + 1);
             $decisions[$i] = $decisions[$continuation] ?? $phpcsFile->numTokens;
         }
-
-        $this->ternaryDecisionsFile = $phpcsFile->getFilename();
-        $this->ternaryDecisions = $decisions;
 
         return $decisions;
     }
@@ -753,7 +944,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
         File $phpcsFile,
         int $stackPtr,
         int $matchPtr,
-        ?int $scope
+        ?array $scope
     ): bool {
         $tokens = $phpcsFile->getTokens();
         $scopeOpener = $tokens[$matchPtr]['scope_opener'] ?? null;
@@ -764,7 +955,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
         if (
             $scope !== null
-            && $scope > $scopeOpener
+            && $scope['start'] > $scopeOpener
         ) {
             return false;
         }
@@ -794,13 +985,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * statement boundary.
      *
      * An enclosing function-like scope floors that walk: a `case` further back
-     * than that body's own declaration labels the caller's branch, not the
-     * token's.
+     * than that body's own opening labels the caller's branch, not the token's.
      */
-    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr, ?int $scope): bool
+    private function isASwitchCaseCondition(File $phpcsFile, int $stackPtr, ?array $scope): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $floor = $scope ?? 0;
+        $floor = $scope === null ? 0 : $scope['start'];
 
         for ($i = ($stackPtr - 1); $i > $floor; $i--) {
             $code = $tokens[$i]['code'];

@@ -200,6 +200,42 @@ it('still flags a branch inside that same function body', function (): void {
 });
 
 /**
+ * Every violation in property-hooks.php: a branch written inside a PHP 8.4
+ * property hook's own body.
+ *
+ * The silences in that fixture matter as much as the reports and are pinned by
+ * the same assertion being exact: a hook predicate stays silent even where the
+ * property is declared inside an enclosing branch condition, which is the
+ * false-positive class this fixture exists for. PHP_CodeSniffer gives a hook no
+ * scope pointers at all, so a bound resolved from declaration tokens alone
+ * measured the hook's own predicate against the condition around the property.
+ */
+const TYPE_INTROSPECTION_HOOK_VIOLATIONS = [
+    [51, 30],   // if inside a block get hook
+    [60, 29],   // ternary inside an arrow get hook
+    [66, 30],   // match arm inside a block get hook
+    [75, 35],   // switch case label inside a block get hook
+    [91, 42],   // ternary inside a set hook's body, past its parameter list
+    [145, 20],  // a plain if in a method, after every hook has closed
+];
+
+it('confines a branch check to the property hook body it is written in', function (): void {
+    $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'property-hooks.php');
+
+    $expected = array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => TYPE_INTROSPECTION_INSTANCEOF,
+        ],
+        TYPE_INTROSPECTION_HOOK_VIOLATIONS
+    );
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
  * A `use function` import rebinds the bare name, so the call reaches the
  * imported function rather than the global one. The controls keep the test from
  * passing vacuously: a name this file does not import, and a root-qualified
@@ -330,6 +366,153 @@ it('stays linear on long boolean chains of checks', function (): void {
         ->and($elapsed)->toBeLessThan(2.0);
 });
 
+/**
+ * Every check in a class of many sibling method bodies resolves against its own
+ * body, whichever of them it is written in.
+ *
+ * The scope of a token used to be found by scanning the list of the file's
+ * bodies, which is linear in how many the file declares: a class of K sibling
+ * methods each holding one check paid that scan K times over. The lookup that
+ * replaced it is a table read, so the answer no longer depends on how many
+ * bodies precede or follow the one asked about. Both ends of the class are
+ * pinned here because the scan's cost — and any error in the walk that replaced
+ * it — falls hardest on the first-declared method, which the old order reached
+ * last.
+ *
+ * There is no timing cap on this one, unlike the boolean-chain test above.
+ * Measured on the shipped ruleset narrowed to this sniff, a class of 4000
+ * sibling methods costs 1.84s with the scan and 1.60s with the lookup: the
+ * quadratic term is real but too small at any file size that fits in memory to
+ * separate from noise, and a cap tight enough to fail the scan would fail on a
+ * slow runner too. What the assertion below pins is the answer, which is the
+ * part a rewrite can get wrong.
+ */
+it('resolves the scope of a check in every one of many sibling bodies', function (): void {
+    $methods = 50;
+    $lines = ['<?php', '', 'declare(strict_types=1);', '', 'final class Dispatcher', '{'];
+    $expected = [];
+
+    for ($method = 0; $method < $methods; $method++) {
+        $lines[] = "    public function decide{$method}(object \$value, array \$rows): string";
+        $lines[] = '    {';
+
+        // The predicate is silent and the branch is reported, so each body owes
+        // exactly one violation: a scope resolved from a neighbour's body would
+        // swap which of the two the sniff reports.
+        $lines[] = '        if (array_filter($rows, fn (object $row): bool => $row instanceof Thing)) {';
+        $lines[] = "            return 'rows';";
+        $lines[] = '        }';
+        $lines[] = '';
+        $expected[] = ['line' => count($lines) + 1, 'column' => 20, 'source' => TYPE_INTROSPECTION_INSTANCEOF];
+        $lines[] = '        if ($value instanceof Thing) {';
+        $lines[] = "            return 'value';";
+        $lines[] = '        }';
+        $lines[] = '';
+        $lines[] = "        return 'none';";
+        $lines[] = '    }';
+        $lines[] = '';
+    }
+
+    $lines = array_merge($lines, ['}', '']);
+    $fixture = stageGeneratedFixture('sibling-bodies.php', implode("\n", $lines));
+    $file = analyzeWithSniffs([TYPE_INTROSPECTION_SNIFF], $fixture);
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The indexes this sniff builds once per token stream must not answer one
+ * analysis with another analysis's pointers (#343).
+ *
+ * They used to be keyed by file name. Two sources analysed as STDIN report the
+ * same name, and a single `Ruleset` reused across several analyses — which is
+ * what buildRuleset()'s memoisation gives every call below — hands them one
+ * sniff instance and one set of indexes.
+ *
+ * The two sources differ in exactly what the shadowed-name index records: A
+ * imports `get_class` from another namespace, so its bare call reaches that
+ * import and is silent; B imports a name that shadows nothing, so its call
+ * reaches the global function and is reported. Under the old key B was measured
+ * against A's index, inherited the import, and its violation went unreported.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires A's silence back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose indexes leaked between
+ * streams would then measure A against B's, and report A's call.
+ */
+it('keeps its indexes from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        use function Vendor\get_class;
+
+        $label = get_class($value) ? 'one' : 'two';
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        use function Vendor\str_repeat;
+
+        $label = get_class($value) ? 'one' : 'two';
+
+        PHP;
+
+    $first = analyzeStdinSource([TYPE_INTROSPECTION_SNIFF], $sourceA);
+    $second = analyzeStdinSource([TYPE_INTROSPECTION_SNIFF], $sourceB);
+    $third = analyzeStdinSource([TYPE_INTROSPECTION_SNIFF], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($first->getErrors()))->toBe([])
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 5, 'column' => 10, 'source' => TYPE_INTROSPECTION_FUNCTION],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
+});
+
+/**
+ * The indexes are built once for a token stream and read from for the rest of
+ * it, rather than rebuilt on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that rebuilt every index on every
+ * single read would report exactly the same violations, only slower. These
+ * counters are what tell the two apart.
+ *
+ * Each check below reaches the key guard three times — once resolving the bare
+ * name against the file's imports, once resolving the enclosing scope, once
+ * resolving the ternary — so n checks make 3n reads, of which one builds and
+ * 3n-1 hit.
+ */
+it('builds its indexes once per stream, not once per read', function (): void {
+    $sniff = sniffInstance(TYPE_INTROSPECTION_SNIFF);
+
+    foreach ([2, 4, 8] as $checks) {
+        $source = "<?php\n\n";
+
+        for ($check = 0; $check < $checks; $check++) {
+            $source .= "\$label{$check} = get_class(\$value) ? 'one' : 'two';\n";
+        }
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([TYPE_INTROSPECTION_SNIFF], $source);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe($checks, "n={$checks}: every check is still reported")
+            ->and($counted['indexes.builds'])->toBe(
+                1,
+                "n={$checks}: the indexes are built once for the stream, not once per read"
+            )
+            ->and($counted['indexes.hits'])->toBe(
+                (3 * $checks) - 1,
+                "n={$checks}: every read after the first answers from the indexes already built"
+            );
+    }
+});
+
 it('reports every violation as non-fixable', function (string $fixture): void {
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, $fixture);
 
@@ -339,6 +522,7 @@ it('reports every violation as non-fixable', function (string $fixture): void {
     'failing.php',
     'function-scope-branches.php',
     'introspection-functions.php',
+    'property-hooks.php',
     'shadowed-by-declaration.php',
     'shadowed-by-import.php',
 ]);
