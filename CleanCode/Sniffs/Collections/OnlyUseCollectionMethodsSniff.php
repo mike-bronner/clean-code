@@ -1278,6 +1278,10 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * `count($c->random())` is declined because `random` is not on it, not
      * because chains are declined wholesale.
      *
+     * isCommentFree() answers the last condition, and it is about the argument's
+     * spelling rather than its type: the rewrite is assembled from the raw
+     * tokens, so a comment inside the argument travels into it.
+     *
      * @param array<int, array{0: int, 1: int}> $arguments
      * @param array{0: int, 1: int}             $collectionArgument
      * @param array<int, array<string, bool>>   $variables
@@ -1291,8 +1295,33 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     ): bool {
         return in_array($function, self::FIXABLE_FUNCTIONS, true) === true
             && count($arguments) === 1
+            && $this->isCommentFree($phpcsFile, $collectionArgument[0], $collectionArgument[1])
             && $this->isProvableCollection($phpcsFile, $collectionArgument[0], $collectionArgument[1], $variables)
             && $this->isUnescapedReceiver($phpcsFile, $collectionArgument[0], $collectionArgument[1]);
+    }
+
+    /**
+     * Whether the argument spanning [$start, $end] carries no comment.
+     *
+     * report() builds the replacement out of the argument's own token string,
+     * so a comment written inside the call travels into it. A trailing line
+     * comment is the shape that corrupts: trim() takes away the newline that
+     * *terminates* the comment and leaves the marker itself, so the appended
+     * `->count()` — and every original token after it, the statement's own
+     * semicolon included — lands inside a comment that never closes, and
+     * `phpcbf` turns source that parsed into source that does not.
+     *
+     * A block comment would survive that journey intact, so this declines more
+     * calls than the defect strictly requires. That is the intended trade. The
+     * fixer's contract is that its output parses, and one rule covering every
+     * comment shape holds that contract without anyone having to reason about
+     * where in an argument a comment may sit and what the surrounding rewrite
+     * does to it — the reasoning that produced the defect. Detection is
+     * untouched: a commented call is still reported, only never rewritten.
+     */
+    private function isCommentFree(File $phpcsFile, int $start, int $end): bool
+    {
+        return $phpcsFile->findNext(Tokens::$commentTokens, $start, ($end + 1)) === false;
     }
 
     /**

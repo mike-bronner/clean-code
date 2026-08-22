@@ -405,3 +405,27 @@ function aConditionParenBeforeAGroupedExpressionIsNotACallee(Collection $data): 
 
     return $data->count();
 }
+
+// A comment written inside a fixable call travels into the replacement, because
+// the rewrite is assembled from the argument's own token string. A trailing line
+// comment is the shape that corrupts: trimming the argument takes away the
+// newline that *ends* the comment and leaves its `//` marker, so the appended
+// `->count()` and every token after it — this statement's own semicolon
+// included — would land inside a comment that never closes, and the file would
+// stop parsing. Reported like any other call, never [x].
+function aTrailingLineCommentInTheArgumentDeclinesTheRewrite(Collection $data): int
+{
+    return count(
+        $data // the collection being counted
+    );
+}
+
+// A block comment would survive that same journey intact, so this line is
+// declined by the general rule rather than by a shape of its own. One rule for
+// every comment is what holds the fixer's "output parses" contract without
+// anyone reasoning about where in an argument a comment may sit — the reasoning
+// the trailing-comment defect came out of.
+function aBlockCommentInTheArgumentDeclinesTheRewriteToo(Collection $data): int
+{
+    return count($data /* the collection being counted */);
+}

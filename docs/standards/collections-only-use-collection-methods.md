@@ -220,6 +220,26 @@ fixer cannot make:
   `$c->keys()` a Collection. Staying in Collection-land is the point of the
   standard, but whether the caller can take one is a code-review question.
 
+One constraint is about the call's *spelling* rather than its meaning: a call
+whose argument carries a **comment** is reported and never rewritten.
+
+```php
+count(
+    $c // the collection being counted
+);                             // reported, not auto-fixed
+count($c /* the collection */); // reported, not auto-fixed either
+```
+
+The replacement is built out of the argument's own tokens, so a comment inside
+the call travels into it, and a trailing line comment ends up swallowing the
+`->count()` appended after it — along with the statement's own semicolon — into
+a comment that never closes. A block comment would survive that intact, so the
+rule declines more calls than the defect strictly requires. That is deliberate:
+the fixer's contract is that its output parses, and one rule covering every
+comment shape holds that contract without anyone having to reason about where in
+an argument a comment may sit. Move the comment out of the call and the fix is
+offered again.
+
 ## Existing sniffs evaluated first
 
 No bundled PHPCS or Slevomat sniff matches this standard:
@@ -269,6 +289,7 @@ where the sniff reports, and the entries marked **fixable** are cases where
 | A chain whose last method is missing from `TERMINAL_METHODS` | yes | **no** | A spurious report on `count($c->newMethod())`. The list is a hand-curated mirror of a framework API, so it drifts; the fixer does not consult it, and declines the call because the method is absent from the chainable list too. |
 | A receiver handed bare to another call that may take it by reference (`preg_match('/x/', $s, $c)`, a userland `&$target`) | yes | **no** | A spurious report after the callee has replaced the value. Neither a userland signature nor PHP's by-reference builtins are knowable from the tokens. |
 | A receiver handed bare to a call through a callable expression (`(function (&$x) { … })($c)`, `$callbacks['key']($c)`, `($factory->getMutator())($c)`, `$handler->{$name}($c)`, `new class ($c) { … }`) | yes | **no** | The same spurious report, for a stricter reason: the callee has no name to resolve, so it cannot even be matched against the by-value functions this sniff maps. |
+| A comment written inside the call (`count($c /* … */)`, or a trailing `// …` on the argument's line) | yes | **no** | The rewrite is assembled from the argument's own tokens, so a comment travels into it and a trailing line comment swallows what follows. Declined for every comment shape, not only the one that breaks. |
 | A Collection stored in a property or returned from a method | no | — | Silent; see above. |
 
 Both reported-but-unfixable rows are deliberate **severity collapses**: the sniff

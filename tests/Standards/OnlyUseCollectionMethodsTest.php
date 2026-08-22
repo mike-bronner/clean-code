@@ -178,6 +178,8 @@ it('flags every violation at its own line with the expected code', function (): 
         377 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         396 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         406 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        418 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        430 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -258,6 +260,8 @@ it('names the Collection method that replaces each generic function', function (
         377 => 'count() => count()',
         396 => 'count() => count()',
         406 => 'count() => count()',
+        418 => 'count() => count()',
+        430 => 'count() => count()',
     ]);
 });
 
@@ -333,7 +337,7 @@ it('names the Collection method that replaces each generic function', function (
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(56)
+    expect($file->getErrorCount())->toBe(58)
         ->and(violationFixableLines($file->getErrors()))
         ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 236, 396, 406]);
 });
@@ -459,4 +463,61 @@ it('says nothing about an unterminated call, and still reports the line above it
         ->and(allViolationSourcesByLine($file))
         ->toBe([6 => [ONLY_USE_COLLECTION_METHODS . '.Found']])
         ->and(violationFixableLines($file->getErrors()))->toBe([6]);
+});
+
+/**
+ * The rewrite is assembled from the argument's own token string, so a comment
+ * written inside the call travels into it. A trailing line comment is the shape
+ * that corrupts: trimming the argument takes away the newline that *ends* the
+ * comment and leaves its `//` marker, so the appended `->count()` and every
+ * token after it — the statement's own semicolon included — landed inside a
+ * comment that never closed. `phpcbf` turned source that parsed into source
+ * that did not.
+ *
+ * Three things are asserted together, because each one alone survives a
+ * different regression:
+ *
+ * - Both lines are still **reported**. Declining a fix must not become silence,
+ *   and a gate written into the reporting path instead of the fixing one would
+ *   pass every other assertion here.
+ * - Both are declined by the **fixer**, and the two lines come back from it
+ *   byte for byte.
+ * - The fixer's output over the whole fixture **parses**. This is the one that
+ *   fails on the original defect, and the reason it is worth a subprocess: the
+ *   corrupted output tokenises perfectly well — as a comment — so the contract
+ *   sweep's tokenizer assertion cannot see it, and neither can any assertion
+ *   that only reads the fixed string.
+ *
+ * Line 430's block comment would have survived the rewrite intact. It is
+ * declined by the same rule rather than by a shape of its own, and asserted
+ * here so that narrowing the rule to `//` alone shows up as a failure instead
+ * of as a silent widening of what the fixer will touch.
+ */
+it('declines to rewrite a call whose argument carries a comment', function (): void {
+    $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
+    $errors = $file->getErrors();
+    $fixed = autofixedContents($file);
+    $path = tempnam(sys_get_temp_dir(), 'only-use-collection-methods-');
+
+    // A parse check that could not write its input would otherwise pass on an
+    // empty file, which php -l calls clean.
+    if ($path === false) {
+        throw new RuntimeException('could not write the fixed source out for the parse check');
+    }
+
+    file_put_contents($path, $fixed);
+
+    try {
+        [$lint, , $status] = runOutsidePackage(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($path));
+    } finally {
+        unlink($path);
+    }
+
+    expect(violationMessagesByLine($errors))->toHaveKeys([418, 430])
+        ->and(violationFixableLines($errors))->not->toContain(418)
+        ->and(violationFixableLines($errors))->not->toContain(430)
+        ->and($fixed)->toContain('        $data // the collection being counted')
+        ->and($fixed)->toContain('return count($data /* the collection being counted */);')
+        ->and($lint)->toContain('No syntax errors detected')
+        ->and($status)->toBe(0);
 });
