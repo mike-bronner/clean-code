@@ -31,6 +31,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
+    'CleanCode.CodeStyle.NoFormatterDirectives',
     'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.DisallowListAssignmentInCondition',
@@ -40,23 +41,28 @@ const SWEPT_SNIFFS = [
     'CleanCode.ControlStructures.DisallowExitExpression',
     'CleanCode.Controversial.Superglobals',
     'CleanCode.DeadCode.UnusedFormalParameter',
+    'CleanCode.DeadCode.UnusedPrivateElements',
     'CleanCode.Debug.DisallowDebugFunctions',
     'CleanCode.Functions.DisallowBooleanArgumentFlag',
     'CleanCode.Functions.ExcessiveMethodLength',
     'CleanCode.Functions.ExcessiveParameterList',
     'CleanCode.Indentation.LogicalGroupings',
     'CleanCode.Livewire.ComponentMarkup',
+    'CleanCode.Methods.DeclaredParameters',
     'CleanCode.Methods.NoNullArguments',
     'CleanCode.Metrics.CouplingBetweenObjects',
     'CleanCode.Metrics.CyclomaticComplexity',
+    'CleanCode.Metrics.DepthOfInheritance',
     'CleanCode.Metrics.ExcessiveClassComplexity',
     'CleanCode.Metrics.ExcessivePublicCount',
     'CleanCode.Metrics.MethodNestingLevel',
+    'CleanCode.Metrics.NPathComplexity',
     'CleanCode.Metrics.TooManyFields',
-    'CleanCode.Methods.DeclaredParameters',
+    'CleanCode.Models.MemberOrdering',
     'CleanCode.Naming.BooleanGetMethodName',
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.LongVariable',
+    'CleanCode.Naming.ModelNamingConventions',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Naming.ShortVariable',
@@ -65,6 +71,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
+    'CleanCode.Routes.DisallowClosureRoutes',
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',
     'CleanCode.Strings.MultilineStrings',
@@ -89,21 +96,55 @@ const SWEPT_SNIFFS = [
 
 /**
  * Every sniff wired into rules.xml that reports warnings.
+ *
+ * Deliberately absent, alongside CleanCode.Models.DisallowExternalPersistenceCalls
+ * and CleanCode.Models.DisallowChainedPropertyFetch:
+ * CleanCode.Routes.DisallowNonResourceRoutes, whose default routeFilePatterns
+ * gate cannot match the fixture directory the contract fixes for it
+ * (tests/fixtures/DisallowNonResourceRoutesSniff/ holds no `routes` segment), so
+ * the sweep would drive its failing fixture against a path the sniff ignores.
+ * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
+ * instead, fixtures staged under a real `routes` directory, plus the
+ * shipped-binary run in both directions that the sweep gives up on its behalf.
+ *
+ * CleanCode.Testing.UnitTestExternalConcerns is absent for the same reason and
+ * is the second sniff of that shape: its default unitTestPath is `tests/Unit/`,
+ * and tests/fixtures/UnitTestExternalConcernsSniff/ carries no `Unit` segment,
+ * so the sweep would drive failing.php against a path the sniff never opens.
+ * The sweep configures nothing, so it cannot point a property-scoped sniff at
+ * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
+ * carries the whole floor instead: the two flat fixtures driven under a scope
+ * pointed at their own directory, the shipped scope exercised by a nested
+ * tests/Unit/ tree beside them, and the shipped-binary run in both directions
+ * that the sweep gives up on its behalf.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
+    'CleanCode.ClearCode.ActionSingleEntryPoint',
+    'CleanCode.ClearCode.JunkDrawerNamespace',
+    'CleanCode.ClearCode.SectionComment',
+    'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
-    'CleanCode.Controllers.ManualModelResolution',
-    'CleanCode.Constructors.PrimaryConstructorDelegation',
     'CleanCode.Conditionals.CombinableConditions',
     'CleanCode.Conditionals.MappingArrayCandidate',
+    'CleanCode.Constructors.PrimaryConstructorDelegation',
+    'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Controllers.NoCustomActions',
     'CleanCode.Models.DisallowAlwaysOnEagerLoading',
+    'CleanCode.Models.ModelMagicMethodLocation',
     'CleanCode.Models.RequireLazyLoadingPrevention',
+    'CleanCode.Naming.ActionMethodReturn',
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
+    'CleanCode.Pattern.DisallowRepositoryClasses',
+    'CleanCode.Pattern.ThrowOnlyMethodOverride',
+    'CleanCode.Pattern.TooManyInterfaceMethods',
+    'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
+    'CleanCode.Testing.TestSuiteNamespace',
+    'Generic.Commenting.Fixme',
+    'Generic.Commenting.Todo',
 ];
 
 /**

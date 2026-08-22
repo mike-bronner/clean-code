@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Indentation;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -84,11 +85,59 @@ class LogicalGroupingsSniff implements Sniff
     ];
 
     /**
+     * Physical line number => pointer to the first token recorded on that line,
+     * for the token stream named by $lineStartsKey.
+     *
+     * @var array<int, int>
+     */
+    private array $lineStarts = [];
+
+    /**
+     * The token stream $lineStarts describes, as TokenStreams::key() builds it.
+     */
+    private ?string $lineStartsKey = null;
+
+    /**
+     * How many times $lineStarts was built, and how many times the key guard
+     * answered a read from the index already built.
+     *
+     * The index exists to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/LogicalGroupingsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'lineStarts.builds' => 0,
+        'lineStarts.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
+    }
+
+    /**
+     * How many times the line-start index was built and how many times the key
+     * guard answered from the index already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -477,19 +526,69 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
+     * The pointer to the first token recorded on the given token's line, read
+     * from an index built once per token stream.
+     *
+     * Both callers used to find it by stepping backwards one token at a time
+     * until the line changed. That is fine once, but each group of a condition
+     * is checked in its own right, so a line carrying n stacked group openers
+     * paid a walk for each of them over an ever-growing prefix of that one
+     * line: n walks of 1, 2, … n tokens, quadratic in the number of groups on
+     * the line. The one-opener-per-line shape was already made linear by giving
+     * every walk in this class a way to jump past a nested region, but that
+     * change never reached here, because these two walks are along a physical
+     * line rather than through a group's contents.
+     *
+     * The index is keyed rather than rebuilt per call because process() runs
+     * once per control structure: rebuilding it for every `if` in a file would
+     * move the same quadratic cost up a level rather than remove it. The key
+     * comes from TokenStreams::key(), the one implementation the four sniffs
+     * with a per-stream index in this package share; what it guarantees, and
+     * why identifying the File object beats describing it, is documented
+     * there. This site read the token count as what separates two sources
+     * analysed as STDIN, which is the invariant issue #343 disproved: two
+     * STDIN sources that tokenise to the same count collided, and this index
+     * answered the second analysis with the first one's pointers.
+     *
+     * A line the index has no entry for cannot arise — every token's own line
+     * is recorded — and the fallback is the answer the old walk gave when it
+     * could not move: the token itself, treated as its line's first.
+     */
+    private function lineStart(File $phpcsFile, int $stackPtr): int
+    {
+        $tokens = $phpcsFile->getTokens();
+        $key = TokenStreams::key($phpcsFile);
+
+        if ($this->lineStartsKey !== $key) {
+            $this->cacheCounts['lineStarts.builds']++;
+            $this->lineStartsKey = $key;
+            $this->lineStarts = [];
+
+            foreach ($tokens as $pointer => $token) {
+                // Token lines never decrease, so the first pointer seen for a
+                // line is the same one the backward walk used to land on.
+                $this->lineStarts[$token['line']] ??= $pointer;
+            }
+        } else {
+            $this->cacheCounts['lineStarts.hits']++;
+        }
+
+        return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);
+    }
+
+    /**
      * The indentation (leading-space count) of the line the given token sits on.
      */
     private function indentOfLine(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
         $line = $tokens[$stackPtr]['line'];
-        $first = $stackPtr;
 
-        while ($first > 0 && $tokens[($first - 1)]['line'] === $line) {
-            $first--;
-        }
-
-        for ($i = $first; $tokens[$i]['line'] === $line; $i++) {
+        for (
+            $i = $this->lineStart($phpcsFile, $stackPtr);
+            isset($tokens[$i]) === true && $tokens[$i]['line'] === $line;
+            $i++
+        ) {
             if ($tokens[$i]['code'] !== T_WHITESPACE) {
                 return $tokens[$i]['column'] - 1;
             }
@@ -505,13 +604,7 @@ class LogicalGroupingsSniff implements Sniff
     private function reindent(File $phpcsFile, int $pointer, int $expected): void
     {
         $tokens = $phpcsFile->getTokens();
-        $line = $tokens[$pointer]['line'];
-        $first = $pointer;
-
-        while ($first > 0 && $tokens[($first - 1)]['line'] === $line) {
-            $first--;
-        }
-
+        $first = $this->lineStart($phpcsFile, $pointer);
         $padding = str_repeat(' ', $expected);
 
         if ($tokens[$first]['code'] !== T_WHITESPACE) {

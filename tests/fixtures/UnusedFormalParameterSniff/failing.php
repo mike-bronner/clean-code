@@ -523,3 +523,36 @@ function __get(string $unusedAZ): void
 {
     echo 'x';
 }
+
+// A parent importing a trait by its qualified name, where the qualifier
+// spells a class this file also declares. Collecting every T_STRING of the
+// `use` reads `\...\Carrier` as naming two ancestors, the qualifier and the
+// trait, and the qualifier resolves here to Fixtures — which declares
+// carried(), so the child's own carried() reads as an override and its dead
+// parameter goes unreported. Only the last segment names the type. PHPMD
+// reports $unusedBA on the same 2.15.0 run as the rest of this file.
+// Appended last so the lines above it keep their numbers.
+trait Carrier
+{
+}
+
+class Fixtures
+{
+    public function carried(string $unusedBA): void
+    {
+        echo 'x';
+    }
+}
+
+class QualifiedCarrierHost
+{
+    use \MikeBronner\CleanCode\Tests\Fixtures\UnusedFormalParameter\Carrier;
+}
+
+class QualifiedCarrierChild extends QualifiedCarrierHost
+{
+    public function carried(string $unusedBB): void
+    {
+        echo 'x';
+    }
+}
