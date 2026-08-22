@@ -187,8 +187,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 146, 'column' => 27],
     ],
     'tests/Helpers.php' => [
-        ['line' => 612, 'column' => 66],
-        ['line' => 781, 'column' => 36],
+        ['line' => 641, 'column' => 66],
+        ['line' => 810, 'column' => 36],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -201,8 +201,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 210, 'column' => 15],
-        ['line' => 211, 'column' => 15],
+        ['line' => 212, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -234,6 +233,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/DisallowClosureRoutesTest.php' => [
         ['line' => 109, 'column' => 18],
         ['line' => 187, 'column' => 17],
+    ],
+    'tests/Standards/DisallowCombinedConstructorTest.php' => [
+        ['line' => 473, 'column' => 27],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
         ['line' => 110, 'column' => 17],

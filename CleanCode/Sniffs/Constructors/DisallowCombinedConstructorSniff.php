@@ -274,6 +274,11 @@ class DisallowCombinedConstructorSniff implements Sniff
      * and an array `=>` is a `T_DOUBLE_ARROW` the assignment collection already
      * carries.
      *
+     * `T_CLOSE_CURLY_BRACKET` is admitted for a block's brace alone, and is the
+     * one entry membership does not settle: the same token also ends a dynamic
+     * member name, whose next token opens that call's own argument list.
+     * {@see self::closesBlock()} separates the two.
+     *
      * @var array<int, int|string>
      */
     private const GROUPING_PRECEDERS = [
@@ -647,13 +652,47 @@ class DisallowCombinedConstructorSniff implements Sniff
      * re-listed here. A spelling missing from it therefore ends the read and
      * costs a missed warning, never a wrong one — the same trade this sniff
      * already makes on a named-argument predicate call.
+     *
+     * One admitted spelling is not positive on its own, so it is asked a second
+     * question: {@see self::closesBlock()}.
      */
     private function opensGrouping(File $phpcsFile, int $opener): bool
     {
+        $tokens = $phpcsFile->getTokens();
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
-        return $before !== false
-            && isset($this->groupingPreceders()[$phpcsFile->getTokens()[$before]['code']]);
+        if ($before === false || !isset($this->groupingPreceders()[$tokens[$before]['code']])) {
+            return false;
+        }
+
+        return $tokens[$before]['code'] !== T_CLOSE_CURLY_BRACKET
+            || $this->closesBlock($phpcsFile, $before);
+    }
+
+    /**
+     * Whether the `}` at $pointer closes a block, rather than a curly-brace
+     * name segment.
+     *
+     * `T_CLOSE_CURLY_BRACKET` is the one admitted preceder PHP spells two ways.
+     * It ends an ordinary block — and the statement with it, so an expression
+     * may start after it — but it also ends a dynamic member name, where the
+     * very next token is *that call's own* argument list: `$this->{$name}(…)`,
+     * `self::{$name}(…)`, `$obj?->{$name}(…)`. Reading the second as a grouping
+     * reports the parameter handed to the call as the subject of a test on what
+     * the call returns.
+     *
+     * PHP_CodeSniffer tells them apart on the closer itself: every block-bearing
+     * construct — `if`/`elseif`/`else`, `try`/`catch`/`finally`, `do`, `switch`,
+     * `for`/`foreach`/`while`, a function, closure, class, anonymous class,
+     * trait, interface, enum, `match` and a `namespace` block — gives its
+     * closing brace a `scope_condition`, and a name segment's brace carries
+     * none. A bare `{ … }` block carries none either, so it ends the read: the
+     * same positive test the rest of this lookback makes, costing a missed
+     * warning rather than a wrong one.
+     */
+    private function closesBlock(File $phpcsFile, int $pointer): bool
+    {
+        return isset($phpcsFile->getTokens()[$pointer]['scope_condition']);
     }
 
     /**

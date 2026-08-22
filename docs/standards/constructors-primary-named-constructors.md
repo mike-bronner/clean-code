@@ -124,7 +124,9 @@ test: `is_string(($value))` and `($value) instanceof Mailer` report exactly as
 the unwrapped spellings do, however many pairs are wrapped around the
 parameter. A call's argument list is not such a grouping, so
 `resolve($value) instanceof Mailer` tests what the call returns and stays
-silent, like every other derived value above.
+silent, like every other derived value above — and so does a call reached
+through a dynamic member name (`$this->{$name}($value) instanceof Mailer`),
+whose braces end the name rather than a block.
 
 **Warning severity, not error.** Branching in a constructor is a design smell,
 not always a defect; the sniff points at split-into-named-constructors

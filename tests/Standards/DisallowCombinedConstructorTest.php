@@ -500,3 +500,56 @@ it('scans a long if chain in linear time', function (): void {
     expect($file->getWarningCount())->toBe($size, 'every link condition is still reported')
         ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
 });
+
+/**
+ * `T_CLOSE_CURLY_BRACKET` is the one grouping preceder PHP spells two ways, and
+ * both readings are pinned here rather than in the fixtures: the fixture counts
+ * anchor the mutation table above, so a new reporting site in shapes.php would
+ * move every number in it. These two sources are driven through the same sniff
+ * instance instead, one per reading, and each was mutation-checked on its own:
+ *
+ *   - dropping `T_CLOSE_CURLY_BRACKET` from the grouping preceders reddens the
+ *     first (0 warnings rather than 1 — the grouped subject behind a block's
+ *     brace stops being widened)
+ *   - admitting that brace whatever it closes, rather than a block alone,
+ *     reddens the second (3 warnings rather than 0 — each dynamic member name's
+ *     braces are read as a block's, so the parameter handed to the call is
+ *     reported as the subject of the `instanceof` behind it)
+ *
+ * The predicate spelling in the second source stays silent under both, since
+ * the bare-first-argument test rejects a nested call's result independently of
+ * this lookback.
+ */
+it('reads a block\'s closing brace as a grouping preceder', function (): void {
+    $source = "<?php\n\nclass BlockBraceBeforeGroupedSubject\n{\n"
+        . "    public function __construct(mixed \$source)\n    {\n"
+        . "        if (\$this->ready) { \$this->prepare(); }\n"
+        . "        (\$source) instanceof Mailer\n"
+        . "            ? \$this->transport = new Mailer()\n"
+        . "            : \$this->transport = new NullLogger();\n    }\n}\n";
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 8, 'column' => 10, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
+    ]);
+});
+
+it('reads a dynamic member name\'s closing brace as the name it ends', function (): void {
+    $source = "<?php\n\nclass DynamicNameCallResultInstanceofSubject\n{\n"
+        . "    public function __construct(mixed \$source, string \$name)\n    {\n"
+        . "        if (\$this->{'resolve'}(\$source) instanceof Mailer) {\n"
+        . "            \$this->transport = new Mailer();\n"
+        . "        } elseif (self::{'resolve'}(\$source) instanceof NullLogger) {\n"
+        . "            \$this->transport = new NullLogger();\n"
+        . "        } elseif (\$this?->{\$name}(\$source) instanceof Mailer) {\n"
+        . "            \$this->transport = new Mailer();\n"
+        . "        } elseif (is_string(\$this->{\$name}(\$source))) {\n"
+        . "            \$this->transport = new NullLogger();\n"
+        . "        }\n    }\n}\n";
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect($file->getWarningCount())->toBe(0)
+        ->and($file->getErrorCount())->toBe(0);
+});
