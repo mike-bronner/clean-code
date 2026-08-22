@@ -38,6 +38,9 @@ declare(strict_types=1);
  *   - nestedBracelessIf       a nested `if`, which the continuations bind to
  *   - nestedBracedIf          the same nesting, with the nested clauses braced
  *   - nestedLoopIf            the same nesting, one brace-less loop further in
+ *   - nestedTwoLoopsIf        the same nesting, two brace-less loops in
+ *   - bracelessLoopMismatch   a clause the reported body span runs past, whose
+ *                             discriminator disqualifies the whole chain
  */
 
 interface Shape
@@ -417,6 +420,56 @@ final class NearMisses
                     return 'Square';
                 elseif ($shape->type === 'rect')
                     return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The nested `if` two brace-less loops in rather than one. The boundary a
+     * body span is validated against is whichever comes first in that body, at
+     * whatever depth it is written, so nesting the `if` deeper does not hide it
+     * and these continuations still bind inward.
+     *
+     * @param array<int, int> $sides
+     * @param array<int, int> $rows
+     */
+    public function nestedTwoLoopsIf(object $shape, array $sides, array $rows, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side)
+                foreach ($rows as $row)
+                    if ($flag)
+                        return 'Round';
+                    elseif ($shape->type === 'square')
+                        return 'Square';
+                    elseif ($shape->type === 'rect')
+                        return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The overrunning body span's other face. The clause the span runs past
+     * reads a *different* discriminator, so it disqualifies the whole chain —
+     * and only a walk that visits the clause can find that out. Swallowed into
+     * the body it is never compared, and the three clauses that do share
+     * `$shape->type` get reported as a chain PHP never runs as one.
+     *
+     * @param array<int, int> $sides
+     */
+    public function bracelessLoopMismatch(object $shape, object $model, array $sides, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side)
+                while ($flag) {
+                    return 'Round';
+                }
+        elseif ($model->kind === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+        elseif ($shape->type === 'triangle')
+            return 'Triangle';
 
         return 'Unknown';
     }

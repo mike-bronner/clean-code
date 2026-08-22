@@ -9,9 +9,11 @@ declare(strict_types=1);
  * literal branches to qualify, so each carries exactly one warning — at the
  * `switch` keyword or at the leading `if`, never once per arm.
  *
- * The ten cover both constructs against both discriminator shapes, the counting
- * rules that a naive implementation gets wrong, and the two brace-less bodies
- * that hold an `if` the chain's own continuations do *not* bind to:
+ * The twelve cover both constructs against both discriminator shapes, the
+ * counting rules that a naive implementation gets wrong, the two brace-less
+ * bodies that hold an `if` the chain's own continuations do *not* bind to, and
+ * the two whose reported statement span runs past a continuation that is the
+ * chain's own:
  *
  *   - switchOnProperty    switch, object-property discriminator
  *   - switchOnIndex       switch, array-index discriminator
@@ -30,6 +32,12 @@ declare(strict_types=1);
  *                         holding an `if`. The loop's braces close that `if`, so
  *                         the two `elseif`s after it are this chain's own
  *   - closureBody         the same, where the `if` sits inside a closure
+ *   - bracelessLoopAroundBraced
+ *                         a brace-less loop around a braced one, which the
+ *                         reported body span runs straight past
+ *   - bracelessLoopAroundSwitch
+ *                         the same overrun, with a `switch` as the construct
+ *                         the span steps over
  */
 
 final class Dispatchers
@@ -170,6 +178,55 @@ final class Dispatchers
 
                 return 2;
             })();
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * A brace-less clause whose body is a brace-less loop around a braced one.
+     * PHPCS reports where a *statement* ends, the braced loop is stepped over
+     * whole, and no `elseif` ends a statement — so the reported span runs past
+     * this chain's own second clause and stops inside the third. Validating that
+     * span is what hands the second clause back; without it the chain reads two
+     * branches and goes silent.
+     *
+     * @param array<int, int> $sides
+     */
+    public function bracelessLoopAroundBraced(object $shape, array $sides, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side)
+                while ($flag) {
+                    return 'Round';
+                }
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same overrun with a `switch` as the construct the span steps over.
+     * Any construct its own braces seal reaches it, at any nesting depth, so the
+     * span is validated by looking for the boundary rather than for the
+     * construct that hid it.
+     *
+     * @param array<int, int> $sides
+     */
+    public function bracelessLoopAroundSwitch(object $shape, array $sides): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side)
+                switch ($side) {
+                    case 1:
+                        return 'One';
+                }
         elseif ($shape->type === 'square')
             return 'Square';
         elseif ($shape->type === 'rect')

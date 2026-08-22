@@ -443,10 +443,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      * yet a reason to believe it continues the chain — so every form hands its
      * find to continuation() for that verdict.
      *
-     * A brace-less body that writes an `if` of its own ends the walk instead.
-     * PHP binds a dangling `elseif` or `else` to the nearest `if` still open,
-     * which is that nested one — never the clause it is the body of — so the
-     * continuation after such a body is never this clause's to take.
+     * The brace-less form is the one PHPCS answers with a *statement* boundary
+     * rather than a clause boundary, and the two part company in both
+     * directions, so the span it reports is validated rather than trusted. See
+     * chainBoundary().
      */
     private function nextClause(File $phpcsFile, int $clausePtr): ?int
     {
@@ -488,13 +488,14 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             return null;
         }
 
-        // findEndOfStatement() is not chain-aware: handed a nested `if`, it
-        // stops at the end of that `if`'s own first clause rather than at the
-        // end of its chain, so the token after the body it reports is the
-        // nested chain's next clause. That clause belongs to the nested `if` —
-        // see the note above — so the walk ends here rather than claiming it.
-        if ($this->opensNestedIf($phpcsFile, $bodyStart, $bodyEnd) === true) {
-            return null;
+        $boundary = $this->chainBoundary($phpcsFile, $bodyStart, $bodyEnd);
+
+        if ($boundary !== null) {
+            // A nested `if` owns every continuation written after it, so the
+            // walk ends rather than claiming one; a continuation keyword inside
+            // the reported span is this clause's own, reached only because the
+            // span overran the body that precedes it.
+            return $tokens[$boundary]['code'] === T_IF ? null : $boundary;
         }
 
         return $this->continuation(
@@ -504,21 +505,47 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     }
 
     /**
-     * Whether an `if` is written at statement level between the two pointers.
+     * The first chain boundary written at statement level between the two
+     * pointers, or null when the range holds none.
+     *
+     * The range is what findEndOfStatement() reports for a brace-less body, and
+     * it is a *statement* boundary, which is not the same question. Two kinds of
+     * clause boundary can sit inside it, and both are found by asking where the
+     * first one is:
+     *
+     * - a nested `if`, because findEndOfStatement() is not chain-aware. Handed
+     *   one, it stops at the end of that `if`'s own first clause, so the token
+     *   after the range is the nested chain's next clause. PHP binds a dangling
+     *   `elseif` or `else` to the nearest `if` still open — that nested one,
+     *   never the clause it is the body of — so it is never this clause's to
+     *   take, and the caller ends the walk.
+     * - this clause's own `elseif` or `else`, because neither keyword ends a
+     *   statement. A body holding any construct findEndOfStatement() steps over
+     *   whole — a brace-less loop around a braced one, at any nesting depth —
+     *   leaves the scan running through this clause's continuation and into the
+     *   statement after it, so the range overshoots. The body really ended at
+     *   that keyword, and the caller continues the chain from it.
      *
      * Anything that opens a scope of its own inside the range — a closure, an
      * arrow function's braces, an anonymous class, a braced loop — is skipped
-     * whole. An `if` written in there is closed by that scope before the body
-     * ends, so it can take no continuation that follows the body, and reading
-     * it as one would end a chain that really does continue.
+     * whole. A boundary written in there is closed by that scope before the body
+     * ends, so it can neither take a continuation that follows the body nor be
+     * one, and reading it as either would misread a chain that really does
+     * continue.
+     *
+     * The two boundary tests come *before* that skip, because an `if` owns the
+     * scope it opens and alternative-syntax `elseif`/`else` own theirs: skipping
+     * first would step over the very tokens being looked for.
      */
-    private function opensNestedIf(File $phpcsFile, int $from, int $to): bool
+    private function chainBoundary(File $phpcsFile, int $from, int $to): ?int
     {
         $tokens = $phpcsFile->getTokens();
 
         for ($pointer = $from; $pointer <= $to; $pointer++) {
-            if ($tokens[$pointer]['code'] === T_IF) {
-                return true;
+            $code = $tokens[$pointer]['code'];
+
+            if ($code === T_IF || in_array($code, self::CONTINUATION_KEYWORDS, true) === true) {
+                return $pointer;
             }
 
             if (isset($tokens[$pointer]['scope_closer']) === false) {
@@ -537,7 +564,7 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
