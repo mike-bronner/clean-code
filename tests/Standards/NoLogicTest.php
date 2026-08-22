@@ -94,6 +94,23 @@
  *     "flags a call hidden in every interpolatable string token" reddens
  *   - add a token list to the sniff without an entry in NO_LOGIC_ENUMERATIONS —
  *     "claims every hand-enumerated token list in the sniff" reddens
+ *   - append an attribute name no token carries to GROUP_CLOSER_KEYS —
+ *     "carries only group-closer attributes the tokeniser emits" reddens, and
+ *     nothing else does. Run with 'bogus_closer'; killed
+ *   - empty GROUP_CLOSER_KEYS — the same test reddens on its non-empty
+ *     assertion, alongside the fixture and package-source tests the emptied
+ *     jump breaks
+ *   - drop a single entry from GROUP_CLOSER_KEYS — measured one at a time:
+ *     `bracket_closer` reddens "flags every non-assignment statement once, at
+ *     its first token" and the membership check below it; `scope_closer`
+ *     reddens the membership check alone, no report moving; `parenthesis_closer`
+ *     reddens nothing, the one equivalent mutation of the three. Which key
+ *     carries a report is the sniff's own docblock subject
+ *   - rename an entry of GROUP_CLOSER_KEYS — a renamed key is carried by no
+ *     token, so "carries only group-closer attributes the tokeniser emits"
+ *     reddens for all three, and whatever the dropped spelling also reddens
+ *     comes with it: `bracket_closer` three tests, `scope_closer` two,
+ *     `parenthesis_closer` this one alone
  *   - remove a probe from any probe set — "probes every member of every
  *     hand-enumerated token list" reddens for the list that set covers
  *   - stop consuming continuation clauses — failing.php gains 26, 28, 49, 51,
@@ -717,7 +734,10 @@ const NO_LOGIC_ENUMERATIONS = [
  * GROUP_CLOSER_KEYS is the one array constant that holds token *attribute*
  * names rather than token types. It is named explicitly so that it stays the
  * only one: a second such list would fail here and have to be accounted for.
- * Its own members are pinned by the test below it.
+ * Its own members get the same per-member treatment two tests below, in
+ * "carries only group-closer attributes the tokeniser emits" — a probe set of
+ * `T_…` constants cannot reach an attribute name, so the guard is a separate
+ * test rather than another NO_LOGIC_ENUMERATIONS entry.
  */
 it('claims every hand-enumerated token list in the sniff', function (): void {
     $tokenValues = array_filter(
@@ -767,8 +787,28 @@ it('probes every member of every hand-enumerated token list', function (
 ));
 
 /**
+ * The corpus both group-closer tests read: every group-opening shape an
+ * assignment can carry — a closure in an argument list, a `match`, an anonymous
+ * class, an arrow function, and a `for` header.
+ *
+ * @var callable(): string
+ */
+$groupCloserProbeSource = static function (): string {
+    return "<?php\nclass CloserProbe { private array \$items; private \$other;\n"
+        . "public function __construct(\$value) {\n"
+        . "\$this->items = array_map(function (\$i) { \$x = \$i; return \$x; }, [1, 2]);\n"
+        . "\$this->other = match (\$value) { default => 1 };\n"
+        . "\$this->anon = new class { public function m() { \$y = 1; return \$y; } };\n"
+        . "\$this->fn = fn (\$i) => \$i;\n"
+        . "for (\$i = 0; \$i < 1; \$i++) { \$this->items[] = \$i; }\n} }\n";
+};
+
+/**
  * GROUP_CLOSER_KEYS carries two attributes that change no reported line today —
- * measured, by dropping each and running this suite. They are kept because each
+ * measured, by dropping each and running this suite. Dropping `scope_closer`
+ * does redden this test, on the membership check below rather than on any
+ * report; the sniff's own docblock records which key carries a line.
+ * They are kept because each
  * is the attribute its own kind of token carries, and the redundancy belongs to
  * PHPCS's tokeniser rather than to this sniff. This pins the two guarantees the
  * redundancy rests on, so a tokeniser change reopens the question here instead
@@ -780,21 +820,23 @@ it('probes every member of every hand-enumerated token list', function (
  *   group is a `for` header — which a block statement's own scope ends before
  *   the semicolon scan is ever reached.
  *
- * The corpus is every group-opening shape an assignment can carry: a closure in
- * an argument list, a `match`, an anonymous class, an arrow function, and a
- * `for` header. Both counts are asserted non-zero, so neither loop can pass by
- * finding nothing to check.
+ * The corpus is $groupCloserProbeSource above. Both counts are asserted
+ * non-zero, so neither loop can pass by finding nothing to check.
+ *
+ * The two keys the guarantees speak about are read out of the constant rather
+ * than named only in this prose, so removing or renaming either one reddens
+ * here instead of leaving an invariant pinned for a key the sniff no longer
+ * consults.
  */
-it('keeps the group-closer keys honest about what the tokeniser guarantees', function (): void {
-    $source = "<?php\nclass CloserProbe { private array \$items; private \$other;\n"
-        . "public function __construct(\$value) {\n"
-        . "\$this->items = array_map(function (\$i) { \$x = \$i; return \$x; }, [1, 2]);\n"
-        . "\$this->other = match (\$value) { default => 1 };\n"
-        . "\$this->anon = new class { public function m() { \$y = 1; return \$y; } };\n"
-        . "\$this->fn = fn (\$i) => \$i;\n"
-        . "for (\$i = 0; \$i < 1; \$i++) { \$this->items[] = \$i; }\n} }\n";
+it('keeps the group-closer keys honest about what the tokeniser guarantees', function () use (
+    $groupCloserProbeSource
+): void {
+    $keys = (new ReflectionClass(NoLogicSniff::class))->getConstant('GROUP_CLOSER_KEYS');
 
-    $tokens = analyzeStdinSource([NO_LOGIC], $source)->getTokens();
+    expect($keys)->toContain('bracket_closer')
+        ->and($keys)->toContain('scope_closer');
+
+    $tokens = analyzeStdinSource([NO_LOGIC], $groupCloserProbeSource())->getTokens();
     $scopedBraces = 0;
     $nestedSemicolons = 0;
 
@@ -834,6 +876,48 @@ it('keeps the group-closer keys honest about what the tokeniser guarantees', fun
 
     expect($scopedBraces)->toBeGreaterThan(0)
         ->and($nestedSemicolons)->toBeGreaterThan(0);
+});
+
+/**
+ * Every member of GROUP_CLOSER_KEYS names an attribute PHPCS really emits, and
+ * emits as a *forward* pointer — the only shape groupCloser() can act on.
+ *
+ * The test above pins what the tokeniser guarantees about the two keys that
+ * change no reported line. It says nothing about a key no token carries at all,
+ * and neither does any fixture: groupCloser() skips an unknown key through the
+ * same isset() that skips a known one on a token opening no group, so an
+ * attribute name appended to the list is invisible to the whole suite. That is
+ * the hole this closes from the other side — each member has to be carried,
+ * pointing forward, by at least one token of the corpus.
+ *
+ * The members are read off the constant by reflection and counted one at a
+ * time, so a busy key cannot cover for a dead one, and the list is asserted
+ * non-empty so an emptied constant cannot pass by having nothing to count.
+ *
+ * This is the guard NO_LOGIC_ENUMERATIONS gives the token lists. It cannot be
+ * that same guard: these are attribute names rather than token types, so no
+ * probe set of `T_…` constants can cover them.
+ */
+it('carries only group-closer attributes the tokeniser emits', function () use (
+    $groupCloserProbeSource
+): void {
+    $keys = (new ReflectionClass(NoLogicSniff::class))->getConstant('GROUP_CLOSER_KEYS');
+    $tokens = analyzeStdinSource([NO_LOGIC], $groupCloserProbeSource())->getTokens();
+    $carriers = array_fill_keys($keys, 0);
+
+    foreach ($tokens as $pointer => $token) {
+        foreach ($keys as $key) {
+            if (isset($token[$key]) === true && $token[$key] > $pointer) {
+                $carriers[$key]++;
+            }
+        }
+    }
+
+    expect($keys)->not->toBe([]);
+
+    foreach ($carriers as $key => $carried) {
+        expect($carried)->toBeGreaterThan(0, "no token in the corpus carries {$key} forward");
+    }
 });
 
 /**

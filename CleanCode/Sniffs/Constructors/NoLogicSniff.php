@@ -301,9 +301,14 @@ class NoLogicSniff implements Sniff
      * an argument list, a bracket pair, a scope.
      *
      * Only `bracket_closer` changes a reported line today. Measured, by dropping
-     * each key and running the suite: without `bracket_closer` one test fails;
-     * without `parenthesis_closer`, or without `scope_closer`, or without both,
-     * the suite is identical. Two properties of PHPCS's tokeniser are why —
+     * each key and running the suite: without `bracket_closer`, "flags every
+     * non-assignment statement once, at its first token" fails; without
+     * `parenthesis_closer` no test changes at all; without `scope_closer` no
+     * report changes either, and the one test that does fail — the membership
+     * check in "keeps the group-closer keys honest about what the tokeniser
+     * guarantees" — is that test refusing to pin an invariant for a key this
+     * list no longer holds, not a moved line. Two properties of PHPCS's
+     * tokeniser are why —
      * every scope-owning `{` carries a `bracket_closer` equal to its
      * `scope_closer`, so a scope is already jumped as a bracket pair; and the
      * group-opening shapes an assignment can carry put every `;` inside a
@@ -320,6 +325,13 @@ class NoLogicSniff implements Sniff
      * the group-closer keys honest about what the tokeniser guarantees" — so a
      * PHPCS change that ends either one fails there instead of silently making
      * a dropped key matter.
+     *
+     * That test speaks about the keys this list holds today. The membership
+     * itself is pinned separately, by "carries only group-closer attributes the
+     * tokeniser emits": every member has to be an attribute some token really
+     * carries forward. An added key that names nothing changes no report — the
+     * isset() below skips it exactly as it skips a key on a token opening no
+     * group — so without that test it would be invisible to the whole suite.
      */
     private const GROUP_CLOSER_KEYS = [
         'parenthesis_closer',
