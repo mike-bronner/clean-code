@@ -201,8 +201,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 210, 'column' => 15],
-        ['line' => 211, 'column' => 15],
+        ['line' => 212, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -250,6 +249,14 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 295, 'column' => 24],
         ['line' => 320, 'column' => 28],
         ['line' => 326, 'column' => 19],
+    ],
+    'tests/Standards/DisallowTypeIntrospectionTest.php' => [
+        ['line' => 115, 'column' => 17],
+        ['line' => 137, 'column' => 17],
+        ['line' => 189, 'column' => 17],
+        ['line' => 225, 'column' => 17],
+        ['line' => 247, 'column' => 17],
+        ['line' => 271, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 62, 'column' => 42],
@@ -339,7 +346,7 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
  * Every .php file the reviewed-sites sweep covers, relative to the package root
  * and sorted — the in-process equivalent of the two path arguments and the
  * fixture ignore pattern the #286 phpcs command sweeps with. Confirmed to agree
- * with that command: both report the same 65 file/line/column triples.
+ * with that command: both report the same 99 file/line/column triples.
  *
  * A closure rather than a named function for the reason given on
  * $convertToCollectionMessages above.
@@ -508,8 +515,8 @@ it('reports detection-only violations', function (): void {
  * leave behind.
  *
  * Every site is native on purpose and the reason is one package-level fact, so
- * the alternative — a comment at each of 65 call sites — would restate one true
- * thing 65 times and still not notice the sixty-sixth call the day someone adds
+ * the alternative — a comment at each of 99 call sites — would restate one true
+ * thing 99 times and still not notice the hundredth call the day someone adds
  * it. This pins the reviewed set instead, so an added, moved or deleted native
  * call is a red test rather than one more warning nobody reads.
  *
