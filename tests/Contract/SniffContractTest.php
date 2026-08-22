@@ -15,7 +15,21 @@ dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 
 dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
-dataset('sniffs whose fixer resolves every violation', [
+/**
+ * The autofixable sniffs whose fixer resolves every violation its failing
+ * fixture reports, so the fixed output doubles as a compliant fixture. Every
+ * autofixable sniff left out of this list still reports on its own
+ * autofixed.php — CleanCode.Conditionals.OneConditionPerLine is the worked
+ * example, its one survivor a split condition wrapping a comment that the
+ * fixer withholds because rejoining it would have to decide where the comment
+ * goes, pinned in tests/Standards/OneConditionPerLineTest.php.
+ *
+ * A constant rather than an inline literal only so the alphabetical-order test
+ * below can read it, and declared here rather than in tests/Sniffs.php because
+ * this file is its only reader — the cross-file load-ordering hazard that put
+ * the other enumerations in the bootstrap does not arise within one file.
+ */
+const TOTAL_FIXER_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Indentation.LogicalGroupings',
     'CleanCode.Operators.BinaryOperatorSpacing',
@@ -30,6 +44,27 @@ dataset('sniffs whose fixer resolves every violation', [
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',
     'SlevomatCodingStandard.Exceptions.RequireNonCapturingCatch',
     'SlevomatCodingStandard.Namespaces.UnusedUses',
+];
+
+dataset('sniffs whose fixer resolves every violation', TOTAL_FIXER_SNIFFS);
+
+/**
+ * Every sniff list is kept in strict alphabetical order, so an added sniff has
+ * exactly one place to go and a reader can scan for one. Nothing else enforces
+ * that: the lists are data, and every assertion over them holds whatever order
+ * they are in, so a misfiled entry rides through a fully green suite. This is
+ * the only thing that catches it.
+ */
+it('keeps every sniff list in alphabetical order', function (array $sniffCodes): void {
+    $sorted = $sniffCodes;
+    sort($sorted, SORT_STRING);
+
+    expect($sniffCodes)->toBe($sorted);
+})->with([
+    'error-reporting' => [SWEPT_SNIFFS],
+    'warning-reporting' => [SWEPT_WARNING_SNIFFS],
+    'autofixable' => [AUTOFIXABLE_SNIFFS],
+    'total fixer' => [TOTAL_FIXER_SNIFFS],
 ]);
 
 it('resolves every sniff through the master ruleset', function (string $sniffCode): void {

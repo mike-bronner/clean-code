@@ -92,9 +92,12 @@ sniff adds the *indentation of parenthesized condition groups* on top of it:
   guess.
 - **Cost** — a group is measured from its own direct tokens, stepping over each
   nested construct in one jump rather than walking through it, so the work is
-  linear in the size of the condition however deeply its groups nest. This
-  package runs inside other projects' lint pipelines, where a pathological file
-  costs somebody else's CI.
+  linear in the size of the condition however deeply its groups nest. A group's
+  level is read from the line its parenthesis opens on, and the first token of
+  that line is looked up in an index built once per token stream rather than
+  found by stepping backwards from the group, so the work stays linear when
+  many openers share one physical line as well. This package runs inside other
+  projects' lint pipelines, where a pathological file costs somebody else's CI.
 - **Auto-fixer** — `phpcbf` reindents each offending condition line to the
   correct nesting level, and breaks the line of a first condition glued to its
   group's opening parenthesis so it starts at that level; the resulting file

@@ -137,3 +137,46 @@ function shadowedName(string $h): void
 
     $inner('x');
 }
+
+// --- Stricter here: a first-class callable is not a call ---
+
+// Spelled with the leading backslash on purpose. An unqualified call inside a
+// namespace is already a divergence of its own — PHPMD takes it for a
+// namespaced function and reports through it (passing.php's $eta) — so only
+// the qualified spelling, which PHPMD does honour, isolates the decision this
+// pair is here to pin.
+//
+// PHPMD: silent. `\func_get_args(...)` is PHP 8.1's first-class callable
+// syntax, and PDepend reads it as the call it resembles, so PHPMD grants the
+// whole-signature exemption a real \func_get_args() would earn. Nothing is
+// called: the syntax builds a Closure, and that Closure cannot reach these
+// parameters however it is later invoked — func_get_args() refuses to run
+// outside the function whose arguments it reads, so calling it throws
+// ("func_get_args() cannot be called from the global scope", PHP 8.4).
+// Reported here, because the parameter really is dead and the exemption would
+// rest on a call that never happens.
+function firstClassFuncGetArgs(string $unusedH): callable
+{
+    return \func_get_args(...);
+}
+
+// The same syntax with the other exempting call, and the same qualified
+// spelling for the same reason. compact(...) names no parameter either way,
+// so PHPMD reports this one too — but through its argument list rather than
+// through the syntax, which is the second door into the same misreading, and
+// it is pinned so that closing one does not leave the other open.
+function firstClassCompact(string $unusedI): callable
+{
+    return \compact(...);
+}
+
+// A genuine spread is still a call, and still exempts. `...[]` puts an array
+// where the first-class callable syntax puts the closer, which is the whole of
+// the difference between them — and it spreads to zero arguments, so this is
+// exactly the call `\func_get_args()` would be, and it runs. $j is read
+// through nothing else, so widening the first-class-callable test to any
+// leading ellipsis reports it. Silent in both tools.
+function spreadFuncGetArgs(string $j): array
+{
+    return \func_get_args(...[]);
+}
