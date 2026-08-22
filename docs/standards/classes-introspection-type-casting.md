@@ -115,6 +115,14 @@ The scope rule gets the whole grid rather than a sample, in both directions:
 position and asserts silence, and `function-scope-branches.php` puts a real
 branch inside those same bodies and asserts every one is still reported.
 
+A braced body written *inside* an expression — `new class { … }`, a closure, or
+`match (…) { … }` — is a balanced group the sniff reads past, exactly as it
+reads past a call's parentheses, so a check on either side of one is still
+measured against the branch that owns it. A statement block's braces are not:
+they are where the expression ended, so a check in a `foreach` header is not
+measured against a `?` further down the method. `expression-bodies.php` carries
+both directions.
+
 ## What remains code review
 
 Every gap below is **under-detection** — introspection the sniff stays silent

@@ -81,6 +81,18 @@ final class Inspector
     }
 
     /**
+     * A `match` subject, which decides which arm runs the same way a `switch`
+     * subject decides which case does.
+     */
+    public function asAMatchSubject(mixed $value): string
+    {
+        return match (get_debug_type($value)) {
+            'int' => 'number',
+            default => 'other',
+        };
+    }
+
+    /**
      * A variadic unpack is an ordinary call, not the first-class callable
      * syntax that shares its `...` — there is an argument after the ellipsis,
      * and the call runs here.

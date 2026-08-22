@@ -65,10 +65,10 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 87 are native calls kept on purpose. The reason is a single package-level
- * fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 87 times across 51
- * files: this package is a PHP_CodeSniffer standard with no
+ * All 100 are native calls kept on purpose. The reason is a single
+ * package-level fact, recorded once in rules.xml and in
+ * docs/standards/arrays-convert-to-collection.md rather than 100 times across
+ * 56 files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
  *
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 22 arrived with the sniffs that landed after #312 and are
+ * The remaining 35 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -253,10 +253,11 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/DisallowTypeIntrospectionTest.php' => [
         ['line' => 115, 'column' => 17],
         ['line' => 137, 'column' => 17],
-        ['line' => 189, 'column' => 17],
-        ['line' => 225, 'column' => 17],
-        ['line' => 247, 'column' => 17],
-        ['line' => 271, 'column' => 17],
+        ['line' => 190, 'column' => 17],
+        ['line' => 226, 'column' => 17],
+        ['line' => 248, 'column' => 17],
+        ['line' => 272, 'column' => 17],
+        ['line' => 550, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 62, 'column' => 42],
@@ -346,7 +347,7 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
  * Every .php file the reviewed-sites sweep covers, relative to the package root
  * and sorted — the in-process equivalent of the two path arguments and the
  * fixture ignore pattern the #286 phpcs command sweeps with. Confirmed to agree
- * with that command: both report the same 99 file/line/column triples.
+ * with that command: both report the same 100 file/line/column triples.
  *
  * A closure rather than a named function for the reason given on
  * $convertToCollectionMessages above.
@@ -515,8 +516,8 @@ it('reports detection-only violations', function (): void {
  * leave behind.
  *
  * Every site is native on purpose and the reason is one package-level fact, so
- * the alternative — a comment at each of 99 call sites — would restate one true
- * thing 99 times and still not notice the hundredth call the day someone adds
+ * the alternative — a comment at each of 100 call sites — would restate one
+ * true thing 100 times and still not notice the next call the day someone adds
  * it. This pins the reviewed set instead, so an added, moved or deleted native
  * call is a red test rather than one more warning nobody reads.
  *

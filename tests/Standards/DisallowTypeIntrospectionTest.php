@@ -150,7 +150,8 @@ it('flags introspection functions driving a branch at their exact position', fun
             [53, 13],  // an upper-cased call
             [64, 16],  // is_subclass_of in a while
             [76, 18],  // gettype in a case label
-            [92, 13],  // a variadic unpack, which really does call
+            [89, 23],  // get_debug_type as a match subject
+            [104, 13], // a variadic unpack, which really does call
         ]
     );
 
@@ -513,12 +514,59 @@ it('builds its indexes once per stream, not once per read', function (): void {
     }
 });
 
+/**
+ * Every violation in expression-bodies.php, in file order.
+ *
+ * A braced body written inside an expression — `new class { … }`, a closure,
+ * `match (…) { … }`, or a `${…}` owning no scope at all — is a balanced group
+ * the branch scans cross whole, exactly as they cross a call's parentheses. The
+ * first six entries are the checks a scan has to cross one to reach a branch
+ * for; the rest sit *after* the body and were reported before this fixture
+ * existed, which is what keeps the pairs discriminating rather than the whole
+ * file simply going from silent to loud.
+ *
+ * The two silences in the fixture carry the other half of the rule and are
+ * pinned by this assertion being exact: a statement block's braces are not a
+ * group, they are where the expression ended, so a check in a `foreach` header
+ * is not measured against the `?` of a later statement.
+ */
+const TYPE_INTROSPECTION_BRACED_OPERAND_VIOLATIONS = [
+    [47, 15],   // match arm condition, past an anonymous class holding a match of its own
+    [47, 42],   // the second condition of that same arm, past the closing brace
+    [66, 15],   // switch case label, past an anonymous class
+    [85, 23],   // ternary condition, crossing an anonymous class body to reach the `?`
+    [90, 11],   // the check after that body
+    [95, 23],   // ternary condition, crossing a closure body
+    [97, 11],   // the check after that body
+    [102, 23],  // ternary condition, crossing a `match` body
+    [105, 11],  // the check after that body
+    [114, 23],  // ternary condition, crossing a `${…}` owning no scope
+    [114, 54],  // the check after those braces
+];
+
+it('crosses a braced body written inside an expression', function (): void {
+    $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'expression-bodies.php');
+
+    $expected = array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => TYPE_INTROSPECTION_INSTANCEOF,
+        ],
+        TYPE_INTROSPECTION_BRACED_OPERAND_VIOLATIONS
+    );
+
+    expect(violationTuples($file))->toBe($expected)
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('reports every violation as non-fixable', function (string $fixture): void {
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, $fixture);
 
     expect($file->getErrorCount())->toBeGreaterThan(0)
         ->and($file->getFixableCount())->toBe(0);
 })->with([
+    'expression-bodies.php',
     'failing.php',
     'function-scope-branches.php',
     'introspection-functions.php',
@@ -526,3 +574,26 @@ it('reports every violation as non-fixable', function (string $fixture): void {
     'shadowed-by-declaration.php',
     'shadowed-by-import.php',
 ]);
+
+/**
+ * Source PHP_CodeSniffer cannot link is answered with silence, not with a
+ * guess — the same stance the sniff keeps on a `match` with no scope opener.
+ *
+ * An unclosed brace is the one way a brace reaches the group rule with no
+ * closer to cross to. Reading the closer anyway aborts the whole file with an
+ * Internal.Exception, which is worse than the parse error PHP_CodeSniffer
+ * already reports for it: every other sniff's verdict on that file is lost too.
+ */
+it('stays silent where a brace has no closer to cross to', function (): void {
+    $source = <<<'PHP'
+        <?php
+
+        $label = $value instanceof Failure && new class {
+
+        PHP;
+
+    $file = analyzeStdinSource([TYPE_INTROSPECTION_SNIFF], $source);
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});

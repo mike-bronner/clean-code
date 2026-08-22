@@ -93,8 +93,34 @@ class DisallowTypeIntrospectionSniff implements Sniff
     ];
 
     /**
+     * Scope owners whose braced body is written where a value is expected, so
+     * the expression carries on after the closing brace and a scan crosses the
+     * braces whole — as it crosses a parenthesis or a bracket.
+     *
+     * `new class { … }`, `function () { … }` and `match (…) { … }` are the
+     * three PHP has. Every other braced body — `if`, `foreach`, `try`, a named
+     * function, a class — *is* a statement, and a scan crossing one would read
+     * the statements after it as a continuation of the expression before it.
+     * That is why braces are not simply crossed on sight: see
+     * {@see opensAnExpressionBody()}.
+     *
+     * Braces owning no scope at all — `${$name}`, a property-hook list, a
+     * trait-adaptation block — are crossed too. None of them ends an
+     * expression either.
+     */
+    private const EXPRESSION_BODY_OWNERS = [
+        T_ANON_CLASS,
+        T_CLOSURE,
+        T_MATCH,
+    ];
+
+    /**
      * Tokens that close the expression a forward scan started inside, without
      * that expression having turned out to be a ternary condition.
+     *
+     * The braces are here for the statement blocks only: an expression body's
+     * braces are crossed as a balanced group before this list is consulted, so
+     * a brace reaching it is one that really does end the expression.
      */
     private const EXPRESSION_TERMINATORS = [
         T_CLOSE_CURLY_BRACKET,
@@ -912,15 +938,18 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
         for ($i = ($phpcsFile->numTokens - 1); $i >= 0; $i--) {
             $code = $tokens[$i]['code'];
+            $group = $this->skipGroupForward($tokens, $i);
 
-            if ($code === T_INLINE_THEN || in_array($code, self::EXPRESSION_TERMINATORS, true)) {
+            if (
+                $group === $i
+                && ($code === T_INLINE_THEN || in_array($code, self::EXPRESSION_TERMINATORS, true))
+            ) {
                 $decisions[$i] = $i;
 
                 continue;
             }
 
-            $continuation = ($this->skipGroupForward($tokens, $i) + 1);
-            $decisions[$i] = $decisions[$continuation] ?? $phpcsFile->numTokens;
+            $decisions[$i] = $decisions[$group + 1] ?? $phpcsFile->numTokens;
         }
 
         return $decisions;
@@ -993,6 +1022,14 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $floor = $scope === null ? 0 : $scope['start'];
 
         for ($i = ($stackPtr - 1); $i > $floor; $i--) {
+            $group = $this->skipGroupBackward($tokens, $i);
+
+            if ($group !== $i) {
+                $i = $group;
+
+                continue;
+            }
+
             $code = $tokens[$i]['code'];
 
             if ($code === T_CASE) {
@@ -1002,8 +1039,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
             if (in_array($code, [T_CLOSE_CURLY_BRACKET, T_COLON, T_OPEN_CURLY_BRACKET, T_SEMICOLON], true)) {
                 return false;
             }
-
-            $i = $this->skipGroupBackward($tokens, $i);
         }
 
         return false;
@@ -1013,6 +1048,21 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * Returns the pointer a forward scan should continue from: the closer of a
      * balanced group opening at $stackPtr, or $stackPtr itself.
      *
+     * Every balanced group PHP_CodeSniffer links is crossed here. Parentheses
+     * carry `parenthesis_opener`/`parenthesis_closer`; square brackets, short
+     * arrays *and braces* carry `bracket_opener`/`bracket_closer` — a brace
+     * carries them whether or not it also owns a scope, so a brace is a group
+     * on exactly the same terms as the other three, and was the one kind this
+     * scan broke on instead of crossing. Nothing else is a group: an attribute
+     * (`attribute_opener`/`attribute_closer`) holds a constant expression,
+     * where neither an introspection call nor `instanceof` can be written, and
+     * `use Foo\{A, B}` and a backtick string are linked by no pointers at all —
+     * each a statement of its own, which a scan reaches only past the semicolon
+     * that ended the one before it.
+     *
+     * A brace is crossed only when it opens an expression's own body
+     * ({@see opensAnExpressionBody()}).
+     *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function skipGroupForward(array $tokens, int $stackPtr): int
@@ -1021,6 +1071,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
         if ($code === T_OPEN_PARENTHESIS && isset($tokens[$stackPtr]['parenthesis_closer'])) {
             return $tokens[$stackPtr]['parenthesis_closer'];
+        }
+
+        if ($code === T_OPEN_CURLY_BRACKET) {
+            return $this->opensAnExpressionBody($tokens, $stackPtr)
+                ? $tokens[$stackPtr]['bracket_closer']
+                : $stackPtr;
         }
 
         if (
@@ -1037,6 +1093,9 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * Returns the pointer a backward scan should continue from: the opener of
      * a balanced group closing at $stackPtr, or $stackPtr itself.
      *
+     * The same set of groups {@see skipGroupForward()} crosses, read from the
+     * other end.
+     *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function skipGroupBackward(array $tokens, int $stackPtr): int
@@ -1047,6 +1106,14 @@ class DisallowTypeIntrospectionSniff implements Sniff
             return $tokens[$stackPtr]['parenthesis_opener'];
         }
 
+        if ($code === T_CLOSE_CURLY_BRACKET) {
+            $opener = $tokens[$stackPtr]['bracket_opener'] ?? null;
+
+            return $opener !== null && $this->opensAnExpressionBody($tokens, $opener)
+                ? $opener
+                : $stackPtr;
+        }
+
         if (
             ($code === T_CLOSE_SHORT_ARRAY || $code === T_CLOSE_SQUARE_BRACKET)
             && isset($tokens[$stackPtr]['bracket_opener'])
@@ -1055,5 +1122,29 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         return $stackPtr;
+    }
+
+    /**
+     * True when the brace at $opener opens a body written inside an expression
+     * — one of {@see EXPRESSION_BODY_OWNERS}, or a braced group owning no scope
+     * at all — rather than a statement block.
+     *
+     * An unbalanced brace answers false: with no closer there is no group to
+     * cross, and a scan that guessed where one ended would answer from tokens
+     * belonging to something else. That is the same silence the rest of the
+     * sniff keeps on a stream PHPCS could not link.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function opensAnExpressionBody(array $tokens, int $opener): bool
+    {
+        if (isset($tokens[$opener]['bracket_closer']) === false) {
+            return false;
+        }
+
+        $owner = $tokens[$opener]['scope_condition'] ?? null;
+
+        return $owner === null
+            || in_array($tokens[$owner]['code'], self::EXPRESSION_BODY_OWNERS, true);
     }
 }
