@@ -6,12 +6,16 @@
  * tests/fixtures/RedundantNamespaceSuffixSniff/. The rule is detection-only, so
  * there is no autofixed fixture.
  *
- * Every fixture is a file of braced namespace blocks, which is what lets one
- * file put a declaration under many different namespaces — the sniff reads the
- * declared namespace and nothing else, so a namespace per shape is the whole
- * of what a fixture has to vary. The reported column is 5 rather than 1 because
- * a braced block indents its declarations; the violation is anchored on the
- * declaration keyword.
+ * passing.php and failing.php are files of braced namespace blocks, which is
+ * what lets one file put a declaration under many different namespaces — the
+ * sniff reads the declared namespace and nothing else, so a namespace per shape
+ * is the whole of what a fixture has to vary. The reported column is 5 rather
+ * than 1 in those two because a braced block indents its declarations; the
+ * violation is anchored on the declaration keyword either way.
+ *
+ * file-scoped-namespace.php is the exception, and has to be: one file can carry
+ * only one file-scoped namespace, so the form real application code writes
+ * cannot be exercised inside the braced fixtures at all.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -109,6 +113,10 @@ it('produces no violations on the compliant fixture', function (): void {
  *   through its singular. Contrived as a folder layout, and the only way to
  *   exercise a declaration that could be reported twice; what it pins is
  *   asserted below.
+ * - line 87, `App\Movies\Movie` — the `-ies` plural of a word that already
+ *   ends in `e`. Let `-ies` answer with its `-y` stem alone and `Movies`
+ *   offers only `Movy`, so this ordinary shape goes unreported; every ending
+ *   that applies has to contribute a stem, not just the longest one.
  */
 it('flags every redundant suffix at its own line', function (): void {
     $file = analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'failing.php');
@@ -128,6 +136,7 @@ it('flags every redundant suffix at its own line', function (): void {
         ['line' => 69, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
         ['line' => 75, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
         ['line' => 81, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+        ['line' => 87, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
     ]);
 });
 
@@ -149,7 +158,30 @@ it('names the repeated segment, the suffix, and the kind of declaration', functi
         ->and($messages[4])->toContain('drop the redundant "Analysis" suffix')
         ->and($messages[8])->toContain('Interface RefundablePayment')
         ->and($messages[9])->toContain('Trait RecordsPayment')
-        ->and($messages[10])->toContain('Enum CapturedPayment');
+        ->and($messages[10])->toContain('Enum CapturedPayment')
+        ->and($messages[14])->toContain('Class Movie repeats its own Movies namespace segment')
+        ->and($messages[14])->toContain('drop the redundant "Movie" suffix');
+});
+
+/**
+ * The file-scoped namespace — `namespace App\Services;` with no braces — is the
+ * form every Laravel application actually writes, and no other fixture asserts
+ * a violation under it: the braced blocks above are what lets one file carry
+ * many namespaces, and nameless.php is file-scoped but asserts silence. Without
+ * this, a namespace lookup that resolved only the braced form would report
+ * nothing on real code and leave the whole suite green.
+ *
+ * Both directions are pinned in the one file: `BillingService` on line 7 is the
+ * violation, and `Billing` on line 11 — the standard's own fix, under the same
+ * declared namespace — is the silence.
+ */
+it('reads a file-scoped namespace, not only a braced block', function (): void {
+    $file = analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'file-scoped-namespace.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 7, 'column' => 1, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+    ])->and(violationMessages($file)[0])
+        ->toContain('Class BillingService repeats its own Services namespace segment');
 });
 
 /**
@@ -190,7 +222,7 @@ it('reports a declaration once, against its deepest matching ancestor', function
 it('reports detection-only errors', function (): void {
     $file = analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(14)
+    expect($file->getErrorCount())->toBe(15)
         ->and($file->getWarningCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });

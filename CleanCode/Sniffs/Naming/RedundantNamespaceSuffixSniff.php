@@ -82,13 +82,14 @@ use SlevomatCodingStandard\Helpers\NamespaceHelper;
  * one on a misspelled suffix.
  *
  * Singularisation is a set of candidates rather than one answer, because the
- * `-es` ending is ambiguous (`Statuses` drops `es`, `Cases` drops `s`) and no
- * token stream carries a dictionary. Both spellings are offered and the rule
- * matches whichever one the developer actually wrote. A plural this misses
- * therefore costs a report, never a false one: `Statuse` is not a suffix anyone
- * writes, so an unrecognised plural stays silent instead of demanding a
- * rename to a non-word — the failure mode the first implementation of this
- * standard shipped.
+ * endings are ambiguous — `-es` splits two ways (`Statuses` drops `es`, `Cases`
+ * drops `s`) and `-ies` three (`Categories` drops `ies` for a `y`, `Movies`
+ * drops only the `s`) — and no token stream carries a dictionary. Every ending
+ * that applies offers its stem and the rule matches whichever one the developer
+ * actually wrote. A plural this misses therefore costs a report, never a false
+ * one: `Statuse` is not a suffix anyone writes, so an unrecognised plural stays
+ * silent instead of demanding a rename to a non-word — the failure mode the
+ * first implementation of this standard shipped.
  *
  * One report per declaration, anchored on the deepest matching segment — the
  * nearest folder is the one whose name the developer echoed. Detection only:
@@ -285,9 +286,14 @@ class RedundantNamespaceSuffixSniff implements Sniff
     /**
      * Every singular $segment could be the plural of, lowercased.
      *
-     * The `-es` ending is genuinely ambiguous — `Statuses` drops `es` and
-     * `Cases` drops `s` — so both stems are returned and the declared name
-     * decides which one it wrote.
+     * Every rule that applies contributes a stem, rather than the first one
+     * matched answering alone, because the endings genuinely overlap: `-es` is
+     * ambiguous on its own (`Statuses` drops `es`, `Cases` drops `s`), and
+     * `-ies` is ambiguous against both (`Categories` becomes `Category`,
+     * `Movies` becomes `Movie`). All of them are offered and the declared name
+     * decides which one it wrote. Return the `-y` stem alone and `App\Movies\
+     * Movie` — an ordinary `-ies` plural of a word already ending in `e` — goes
+     * unreported.
      *
      * A segment that is already singular is not told apart from a plural, and
      * does not need to be: `Status` yields the stem `Statu` alongside itself,
@@ -303,14 +309,20 @@ class RedundantNamespaceSuffixSniff implements Sniff
             return [self::IRREGULAR_PLURALS[$segment]];
         }
 
-        if (str_ends_with($segment, 'ies') === true && strlen($segment) > 3) {
-            return [substr($segment, 0, -3) . 'y'];
+        if (str_ends_with($segment, 's') === false) {
+            return [];
         }
+
+        $forms = [substr($segment, 0, -1)];
 
         if (str_ends_with($segment, 'es') === true) {
-            return [substr($segment, 0, -2), substr($segment, 0, -1)];
+            $forms[] = substr($segment, 0, -2);
         }
 
-        return str_ends_with($segment, 's') === true ? [substr($segment, 0, -1)] : [];
+        if (str_ends_with($segment, 'ies') === true && strlen($segment) > 3) {
+            $forms[] = substr($segment, 0, -3) . 'y';
+        }
+
+        return $forms;
     }
 }

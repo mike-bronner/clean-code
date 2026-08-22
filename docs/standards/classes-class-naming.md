@@ -96,9 +96,12 @@ has to start at an upper-case letter, or be the whole name. Both sides are
 compared case-insensitively, as PHP resolves names.
 
 Plurals are handled as a set of candidate stems rather than one guess, because
-`-es` is genuinely ambiguous (`Statuses` → `Status`, `Cases` → `Case`) and no
-token stream carries a dictionary; a handful of irregulars (`Analyses`,
-`Children`, `Criteria`, `Indices`, `Matrices`, `People`) are listed outright.
+the endings are genuinely ambiguous and no token stream carries a dictionary:
+`-es` splits two ways (`Statuses` → `Status`, `Cases` → `Case`) and `-ies`
+three (`Categories` → `Category`, `Movies` → `Movie`). Every ending that
+applies contributes a stem, and the declared name decides which one it wrote; a
+handful of irregulars (`Analyses`, `Children`, `Criteria`, `Indices`,
+`Matrices`, `People`) are listed outright.
 An unrecognised plural therefore costs a missed report rather than a false one.
 
 ## Deliberate limits

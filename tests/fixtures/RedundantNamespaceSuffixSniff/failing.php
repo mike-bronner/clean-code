@@ -82,3 +82,9 @@ namespace App\Services\Service {
     {
     }
 }
+
+namespace App\Movies {
+    class Movie
+    {
+    }
+}
