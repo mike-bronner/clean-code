@@ -75,8 +75,7 @@ Auto-fixable.
 
 Custom sniff. Flags an assignment, comparison, logical, or concatenation
 operator left dangling at the end of a wrapped line — the operator must lead
-the continuation line instead (arithmetic operators such as `+`/`-` are out of
-scope):
+the continuation line instead:
 
 ```php
 // compliant
@@ -88,12 +87,24 @@ $message = $greeting .
     $name;
 ```
 
+The math (`+ - * / % **`) and bitwise (`& | ^ << >>`) operators are out of this
+sniff's scope. They carry the same rule under
+[Operators: Manipulative](operators-manipulative.md)
+([#59](https://github.com/mike-bronner/phpcs-rules/issues/59)), whose
+`CleanCode.Operators.ManipulationOperatorPlacement` registers exactly the tokens
+this sniff leaves out — so a wrapped expression is reported once, whichever
+group its operator belongs to.
+
 **Reporting only** — where the operator lands on the rewritten line (re-indent,
-merge, or split) is a layout judgement, so this rule has no auto-fixer.
+merge, or split) is a layout judgement, so this rule has no auto-fixer. The
+manipulative sniff does auto-fix its own half, moving the operator to lead the
+continuation line at the statement root's indent.
 
 An operator inside an `if`/`elseif`/`while`/`for` condition is left to
 `CleanCode.Conditionals.OneConditionPerLine` **only where that sniff actually
-enforces it** — a top-level boolean operator, or any operator inside a single
+enforces it** — a decision shared with the manipulative sniff through
+`CleanCode\Support\ConditionOperatorOwnership`: a top-level boolean operator, or
+any operator inside a single
 condition (which it collapses onto one line). A dangling non-boolean operator
 inside a *multi*-condition (one that already carries a top-level boolean) is
 enforced by neither of those, so this sniff still reports it. The result: every

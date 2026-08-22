@@ -32,3 +32,18 @@ if (
 ) {
     $second = 1;
 }
+
+// A for-loop's init and increment clauses share the condition's parentheses, but
+// OneConditionPerLine confines every check it makes to the clause between the
+// two semicolons — so a dangling boolean in either of the other two is this
+// sniff's to report. Deferring it there would drop the violation outright, the
+// sniff deferred to never walking that far.
+for (
+    $ready = $isActive &&
+    $isVerified;
+    $index < $limit;
+    $ready = $ready ||
+    $isRetryable
+) {
+    echo $ready;
+}
