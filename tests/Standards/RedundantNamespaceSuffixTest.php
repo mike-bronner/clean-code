@@ -243,6 +243,72 @@ it('passes over a declaration keyword with no name', function (): void {
 });
 
 /**
+ * The claim `rules.xml` and docs/standards/classes-class-naming.md both rest
+ * on — that Slevomat's five Superfluous*Naming sniffs, the closest existing
+ * rules, judge a name without reading the namespace it sits in — measured
+ * against the installed version rather than against its documentation, and
+ * re-run on every suite run so that a release which started reading the
+ * namespace reddens the claim rather than leaving a stale paragraph in the
+ * docs. Same reason as the vendor evaluations pinned in SuperglobalsTest,
+ * RequirePropertiesTest and MethodNestingLevelTest.
+ *
+ * vendor-superfluous-naming.php carries the five shapes Slevomat's
+ * Superfluous*Naming sniffs are written for, twice: once under `App\Services`,
+ * where `BillingService` repeats its folder, and once 26 lines later under
+ * `App\Billing`, where nothing repeats anything. The declarations are
+ * byte-identical, so the namespace is the only thing the file varies.
+ *
+ * Slevomat answers the same in both blocks — the same five sources, 26 lines
+ * apart, and none of them on either `BillingService` — which is what says its
+ * verdict does not follow the namespace. The map is spelled out in full rather
+ * than asserted as "the two halves agree", because agreeing is exactly what two
+ * empty halves would do: a sniff renamed or dropped by an upgrade would satisfy
+ * a symmetry check silently. Listing all ten violations makes the continued
+ * presence of each of the five sniffs part of the claim.
+ *
+ * The custom sniff on the same file is the other half of the search: it reports
+ * line 10 and not its twin at line 36, so the difference between the two blocks
+ * is a difference in the rules rather than in the file.
+ */
+it('measures the Slevomat naming sniffs as unaffected by the namespace', function (): void {
+    $file = analyzeWithStandard(
+        'SlevomatCodingStandard',
+        fixturePath(sniffFixtureDirectory(REDUNDANT_NAMESPACE_SUFFIX), 'vendor-superfluous-naming.php')
+    );
+
+    $superfluous = [];
+
+    foreach (allViolationSourcesByLine($file) as $line => $sources) {
+        foreach ($sources as $source) {
+            if (str_starts_with($source, 'SlevomatCodingStandard.Classes.Superfluous')) {
+                $superfluous[$line][] = $source;
+            }
+        }
+    }
+
+    $interface = 'SlevomatCodingStandard.Classes.SuperfluousInterfaceNaming.SuperfluousSuffix';
+    $trait = 'SlevomatCodingStandard.Classes.SuperfluousTraitNaming.SuperfluousSuffix';
+    $abstract = 'SlevomatCodingStandard.Classes.SuperfluousAbstractClassNaming.SuperfluousPrefix';
+    $exception = 'SlevomatCodingStandard.Classes.SuperfluousExceptionNaming.SuperfluousSuffix';
+    $error = 'SlevomatCodingStandard.Classes.SuperfluousErrorNaming.SuperfluousSuffix';
+
+    $reported = violationTuples(analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'vendor-superfluous-naming.php'));
+
+    expect($superfluous)->toBe([
+        14 => [$interface],
+        18 => [$trait],
+        22 => [$abstract],
+        26 => [$exception],
+        30 => [$error],
+        40 => [$interface],
+        44 => [$trait],
+        48 => [$abstract],
+        52 => [$exception],
+        56 => [$error],
+    ])->and(array_column($reported, 'line'))->toBe([10]);
+});
+
+/**
  * The sniff run over the standard's own source. Every `.php` file this package
  * ships under CleanCode/ has to come back silent, and that is not a
  * coincidence to be re-derived each time the tree grows: every sniff here is

@@ -66,7 +66,12 @@ interface is the identical violation under a different keyword.
 `SuperfluousErrorNaming`) are the closest available rules, and each compares a
 name against one hardcoded word for a *type kind*; none of them reads the
 enclosing namespace, so none can say that `Service` is redundant under
-`App\Services` but fine under `App\Billing`. `Squiz.Classes.ValidClassName`,
+`App\Services` but fine under `App\Billing`. That claim is measured, not
+asserted: `tests/Standards/RedundantNamespaceSuffixTest.php` runs those five
+sniffs over `vendor-superfluous-naming.php`, a fixture holding identical
+declarations under two namespaces, and pins their verdict as the same in both —
+a Slevomat version that started reading the namespace reddens the suite rather
+than leaving this paragraph stale. `Squiz.Classes.ValidClassName`,
 PSR-1's naming sniffs and `Files.TypeNameMatchesFileName` check casing or the
 file name, not the folder.
 
