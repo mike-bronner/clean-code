@@ -189,4 +189,42 @@ final class Formatter
             default => 'value',
         };
     }
+
+    /**
+     * A `match` written as a `switch` case *label*. `match` is an expression,
+     * so it is legal wherever a value is, and the value it produces is the one
+     * the case compares against — the arm's result decides the branch just as
+     * the label itself would.
+     *
+     * PHP_CodeSniffer makes the `match` the innermost scope around the check,
+     * which is why reading only that innermost scope answered "the arm's own
+     * result" and stopped there, never reaching the `switch` the result is
+     * compared for.
+     */
+    public function matchAsASwitchCaseLabel(object $value, int $code): string
+    {
+        switch ($code) {
+            case match (true) {
+                default => $value instanceof \Throwable,
+            }:
+                return 'error';
+
+            default:
+                return 'value';
+        }
+    }
+
+    /**
+     * The same arm result, with the `match` written as a ternary's condition
+     * instead. The position the walk steps out to is the `match`, and what
+     * decides the branch there is the `?` after it rather than a case label —
+     * which is why the walk asks every question again at each position it
+     * reaches, not just the `switch` one.
+     */
+    public function matchAsATernaryCondition(object $value): string
+    {
+        return (match (true) {
+            default => $value instanceof \Throwable,
+        }) ? 'error' : 'value';
+    }
 }

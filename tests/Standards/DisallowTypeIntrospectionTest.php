@@ -55,6 +55,8 @@ const TYPE_INTROSPECTION_VIOLATIONS = [
     [168, 27],  // ternary inside a closure body
     [175, 20],  // match arm inside an arrow function body
     [187, 60],  // match subject inside an arrow function body
+    [208, 35],  // match arm result, the match written as a switch case label
+    [227, 31],  // match arm result, the match written as a ternary condition
 ];
 
 /**
@@ -218,6 +220,7 @@ const TYPE_INTROSPECTION_HOOK_VIOLATIONS = [
     [75, 35],   // switch case label inside a block get hook
     [91, 42],   // ternary inside a set hook's body, past its parameter list
     [145, 20],  // a plain if in a method, after every hook has closed
+    [174, 38],  // if inside a closure an arrow hook's expression calls
 ];
 
 it('confines a branch check to the property hook body it is written in', function (): void {

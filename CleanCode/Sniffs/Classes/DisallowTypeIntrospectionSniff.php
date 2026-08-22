@@ -580,35 +580,65 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * scope's own body. Resolving it in a single place is deliberate: the four
      * checks look for four different constructs, and giving each its own notion
      * of where the body starts is how they came to disagree.
+     *
+     * The question is asked of a *position*, and `match` is what makes that
+     * position move. A `match` is an expression, so it is written wherever a
+     * value is — as a `switch` case label, as a ternary's condition. A token in
+     * one of its arm *results* is the value the whole `match` produces, so
+     * where that token decides a branch is wherever the `match` itself does.
+     * The walk therefore steps outward from the token to each enclosing `match`
+     * it is a result of, and re-asks {@see decidesWhereItSits()} — the two
+     * questions a position answers on its own — at every position it reaches.
+     * The remaining two are asked of the scope the walk is standing in.
+     *
+     * Reading only the innermost enclosing scope answered "the arm's own
+     * result" and stopped there, which is silence on both of those shapes: the
+     * innermost scope around such a token is always the `match`, never what the
+     * `match` is written inside. Any scope that is not a `match` ends the walk
+     * — the value stops flowing outward there.
      */
     private function decidesABranch(File $phpcsFile, int $stackPtr): bool
     {
+        $tokens = $phpcsFile->getTokens();
         $scope = $this->enclosingFunctionScope($phpcsFile, $stackPtr);
+        $probe = $stackPtr;
 
-        if ($this->isInsideAConditionParenthesis($phpcsFile, $stackPtr, $scope)) {
-            return true;
+        foreach (array_reverse($tokens[$stackPtr]['conditions'], true) as $ptr => $code) {
+            if ($this->decidesWhereItSits($phpcsFile, $probe, $scope)) {
+                return true;
+            }
+
+            if ($code === T_SWITCH) {
+                return $this->isASwitchCaseCondition($phpcsFile, $probe, $scope);
+            }
+
+            if ($code !== T_MATCH) {
+                return false;
+            }
+
+            if ($this->isAMatchArmCondition($phpcsFile, $probe, $ptr, $scope)) {
+                return true;
+            }
+
+            $probe = $ptr;
         }
 
-        if ($this->isATernaryCondition($phpcsFile, $stackPtr, $scope)) {
-            return true;
-        }
+        return $this->decidesWhereItSits($phpcsFile, $probe, $scope);
+    }
 
-        $conditions = $phpcsFile->getTokens()[$stackPtr]['conditions'];
-
-        if ($conditions === []) {
-            return false;
-        }
-
-        $innermost = end($conditions);
-
-        if ($innermost === T_MATCH) {
-            $matchPtr = (int) array_key_last($conditions);
-
-            return $this->isAMatchArmCondition($phpcsFile, $stackPtr, $matchPtr, $scope);
-        }
-
-        return $innermost === T_SWITCH
-            && $this->isASwitchCaseCondition($phpcsFile, $stackPtr, $scope);
+    /**
+     * True when the token at $probe is written *in* a branch decision rather
+     * than merely inside a construct that holds one: in the parentheses of an
+     * `if`, `elseif`, `while`, `switch` or `match`, or in a ternary's condition.
+     *
+     * These are the two roles a token holds by where it is written, needing no
+     * enclosing scope to give them, which is why the walk above asks them again
+     * at every position it steps to.
+     */
+    private function decidesWhereItSits(File $phpcsFile, int $probe, ?array $scope): bool
+    {
+        return $this->isInsideAConditionParenthesis($phpcsFile, $probe, $scope)
+            || $this->isATernaryCondition($phpcsFile, $probe, $scope);
     }
 
     /**
@@ -778,7 +808,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
             if ($code === T_DOUBLE_ARROW || $code === T_OPEN_CURLY_BRACKET) {
                 $end = $code === T_DOUBLE_ARROW
-                    ? $phpcsFile->findNext(T_SEMICOLON, ($i + 1), $closer)
+                    ? $this->endOfArrowHook($tokens, ($i + 1), $closer)
                     : ($tokens[$i]['bracket_closer'] ?? false);
 
                 if ($end === false) {
@@ -795,6 +825,37 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         return $bodies;
+    }
+
+    /**
+     * The semicolon that ends the short-arrow hook whose `=>` sits just before
+     * $start, or false when the hook list closes before one is written.
+     *
+     * The walk crosses balanced groups whole, so a semicolon belonging to a
+     * *statement* inside the hook's expression — one written in a closure the
+     * expression declares and calls — is not read as the hook's own
+     * terminator. Taking the first semicolon at any depth ended the body early,
+     * and a body ending before tokens it holds overlaps the closure's own
+     * without nesting inside it, which is a shape {@see buildEnclosingBodies()}
+     * cannot resolve: it pops both at the closure's brace, and every token past
+     * that point resolves to whatever scope encloses the property instead of to
+     * the hook.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return int|false
+     */
+    private function endOfArrowHook(array $tokens, int $start, int $closer)
+    {
+        for ($i = $start; $i < $closer; $i++) {
+            if ($tokens[$i]['code'] === T_SEMICOLON) {
+                return $i;
+            }
+
+            $i = $this->skipGroupForward($tokens, $i);
+        }
+
+        return false;
     }
 
     /**

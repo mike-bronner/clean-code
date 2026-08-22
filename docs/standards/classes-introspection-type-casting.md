@@ -77,6 +77,22 @@ The standard is therefore enforced by the custom
     which branches a check is measured against, it does not exempt the body.
   - **Branch *bodies*** — a `get_class()` inside an `if` block, a `case` body,
     or a `match` arm's result, rather than in the condition that selected it.
+
+    A `match` is an expression, though, so its arm's result is only a branch
+    body while the `match` itself is not a branch decision. Where the value the
+    `match` produces *is* the decision — the `match` written as a `switch` case
+    label, or as a ternary's condition — the check in the arm's result decides
+    that branch and is flagged:
+
+    ```php
+    // Not flagged: the arm's result is the method's return value.
+    return match (true) { default => $value instanceof Throwable };
+
+    // Flagged: the arm's result is what the case label compares.
+    switch ($code) {
+        case match (true) { default => $value instanceof Throwable }:
+    }
+    ```
   - **Same-named methods and functions** — `$this->gettype($value)`,
     `Vendor\get_class($value)`, and a `function gettype()` declaration are not
     the global introspection functions. Nor is a bare name the file resolves to
@@ -148,6 +164,10 @@ be reported as one.
 - **`for` loops.** Their parentheses hold the initialiser and the increment
   alongside the condition, and a token-level check cannot tell them apart, so
   the sniff leaves `for` alone.
+- **A `match` written as another `match`'s subject.** PHP_CodeSniffer leaves
+  the outer `match` as a plain `T_STRING` when its subject holds a `match` of
+  its own, so the outer construct is not a branch the sniff can see at all. The
+  boundary is the tokenizer's, not the rule's.
 - **Several namespaces in one file.** Shadowing (an import or a declared
   function) is resolved against the file as a whole, so a name shadowed in one
   namespace block is treated as shadowed in all of them. PSR-1 rules the shape

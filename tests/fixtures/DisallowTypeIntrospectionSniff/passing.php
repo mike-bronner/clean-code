@@ -376,6 +376,62 @@ final class Reporter
             default => 'some',
         };
     }
+
+    /**
+     * A `match` arm's *result* written inside a `switch`, in the two positions
+     * that are not the case label: the case body, and the `switch` body before
+     * any label. Both are near-misses for the case-label shape — the same two
+     * enclosing scopes in the same order — and in neither does the value the
+     * arm produces reach the case comparand, so neither decides a branch.
+     */
+    public function matchResultInsideASwitchBody(object $value, int $code): bool
+    {
+        switch ($code) {
+            case 0:
+                return match (true) {
+                    default => $value instanceof \Throwable,
+                };
+
+            default:
+                return false;
+        }
+    }
+
+    public function matchResultAssignedInsideASwitch(object $value, int $code): bool
+    {
+        switch ($code) {
+            case 0:
+                $label = match (true) {
+                    default => $value instanceof \Throwable,
+                };
+
+                return $label;
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * A `match` arm's result where the `match` is written as an argument, and
+     * where it is returned. Both are the near-miss for the ternary shape: the
+     * value leaves the arm, and neither position it lands in decides anything.
+     */
+    public function matchResultInAnArgument(object $value): string
+    {
+        return implode(',', [
+            match (true) {
+                default => $value instanceof \Throwable,
+            },
+        ]);
+    }
+
+    public function matchResultReturned(object $value): bool
+    {
+        return match (true) {
+            default => $value instanceof \Throwable,
+        };
+    }
 }
 
 /**

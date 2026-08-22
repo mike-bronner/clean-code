@@ -149,6 +149,46 @@ final class HookedReport
         return 'ok';
     }
 
+    /**
+     * A short-arrow hook whose expression declares and calls a closure of its
+     * own. The closure holds statements, so semicolons are written *inside*
+     * the hook's expression, and the hook's body ends at the semicolon that
+     * closes that whole expression — not at the first one the walk reaches.
+     *
+     * Three positions in the one hook list, which is what makes an early bound
+     * visible. The branch inside the closure is the closure's own and is
+     * reported. The predicate written after the closure closes is still the
+     * hook's, so the `if` around the property declaration is not its branch and
+     * it stays silent. The hook declared after that one is silent for the same
+     * reason, which pins where the walk resumed.
+     */
+    public function arrowHookCallingAClosureInsideAnIfCondition(object $value): string
+    {
+        if (self::probe(new class ($value) {
+            public function __construct(private object $value)
+            {
+            }
+
+            public bool $isFailure {
+                get => (function (): bool {
+                    if ($this->value instanceof Failure) {
+                        return true;
+                    }
+
+                    return false;
+                })() || $this->value instanceof Failure;
+            }
+
+            public bool $isOther {
+                get => $this->value instanceof Failure;
+            }
+        })) {
+            return 'some';
+        }
+
+        return 'none';
+    }
+
     private static function probe(object $candidate): bool
     {
         return $candidate->isFailure;
