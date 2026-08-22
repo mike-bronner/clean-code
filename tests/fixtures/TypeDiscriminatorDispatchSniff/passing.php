@@ -47,6 +47,10 @@ declare(strict_types=1);
  *   - nestedTwoLoopsIf        the same nesting, two brace-less loops in
  *   - bracelessLoopMismatch   a clause the reported body span runs past, whose
  *                             discriminator disqualifies the whole chain
+ *   - bracelessDoWhileMismatch
+ *                             the same disqualifying clause after a brace-less
+ *                             `do`, which the walk resumes past rather than
+ *                             stops at
  */
 
 interface Shape
@@ -551,6 +555,30 @@ final class NearMisses
                 while ($flag) {
                     return 'Round';
                 }
+        elseif ($model->kind === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+        elseif ($shape->type === 'triangle')
+            return 'Triangle';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The brace-less `do` read the other way. Spending the body's semicolon on
+     * the `do` rather than the clause is only correct if the walk then reads
+     * what follows the `while (…);` — and what follows here reads a *different*
+     * discriminator, which disqualifies the whole chain. A walk that resumed
+     * without looking would report the three clauses that do share
+     * `$shape->type` as a chain PHP never runs as one.
+     */
+    public function bracelessDoWhileMismatch(object $shape, object $model, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            do
+                doSomething();
+            while ($flag);
         elseif ($model->kind === 'square')
             return 'Square';
         elseif ($shape->type === 'rect')

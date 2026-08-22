@@ -43,6 +43,10 @@ declare(strict_types=1);
  *   - tryCatchFinallyBody the same statement at three scopes
  *   - doWhileBody         the other multi-scope statement, whose `while` and
  *                         its semicolon sit after the block
+ *   - bracelessDoWhileBody
+ *                         the same `do` without braces, which carries no scope
+ *                         to step over and ends at a later semicolon than its
+ *                         body's
  */
 
 final class Dispatchers
@@ -297,6 +301,28 @@ final class Dispatchers
             do {
                 return 'Round';
             } while ($flag);
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same `do`, brace-less. Dropping the braces costs it the one thing the
+     * walk crossed it on: PHP_CodeSniffer gives a brace-less `do` no scope, so
+     * there is nothing to step over and the body's own semicolon arrives
+     * looking like the end of the clause. It is not — the `while ($flag);`
+     * after it is still part of the same statement. This is the only shape in
+     * PHP where that is true, and the only one the step-over cannot reach.
+     */
+    public function bracelessDoWhileBody(object $shape, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            do
+                doSomething();
+            while ($flag);
         elseif ($shape->type === 'square')
             return 'Square';
         elseif ($shape->type === 'rect')

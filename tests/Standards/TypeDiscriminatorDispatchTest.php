@@ -59,93 +59,101 @@ it('stays silent on every near-miss shape', function (int $line): void {
 
     expect(array_keys($file->getWarnings()))->not->toContain($line);
 })->with([
-    'plain-variable switch subject' => 70,
-    'plain-variable if discriminator' => 82,
-    'class constant as a case label' => 93,
-    'bare constant as a case label' => 105,
-    'variable as a case label' => 117,
-    'variable as an if condition operand' => 140,
-    'class constant as an if condition operand' => 158,
-    'bare constant as an if condition operand' => 175,
-    'non-literal operand written on the left' => 197,
-    'compound boolean condition' => 210,
-    'instanceof condition' => 221,
-    'range condition' => 232,
-    'not-identical condition' => 243,
-    'called discriminator' => 254,
-    'parenthesised condition' => 265,
-    'two-case switch' => 276,
-    'stacked pair below the threshold' => 288,
-    'two-branch if chain' => 299,
-    'match expression' => 308,
-    'same property on two variables' => 317,
-    'switch (true)' => 328,
-    'index read two hops deep, switch' => 343,
-    'index read two hops deep, if' => 358,
-    'property read two hops deep, switch' => 369,
-    'property read two hops deep, if' => 381,
-    'positional index' => 395,
-    'static property read' => 407,
-    'two braced constructs merely adjacent' => 424,
-    'three brace-less constructs merely adjacent' => 445,
-    'nested brace-less if taking the continuations' => 460,
-    'nested braced if taking the continuations' => 480,
-    'nested if behind a brace-less loop' => 502,
-    'nested if two brace-less loops in' => 525,
-    'a swallowed clause on another discriminator' => 549,
+    'plain-variable switch subject' => 74,
+    'plain-variable if discriminator' => 86,
+    'class constant as a case label' => 97,
+    'bare constant as a case label' => 109,
+    'variable as a case label' => 121,
+    'variable as an if condition operand' => 144,
+    'class constant as an if condition operand' => 162,
+    'bare constant as an if condition operand' => 179,
+    'non-literal operand written on the left' => 201,
+    'compound boolean condition' => 214,
+    'instanceof condition' => 225,
+    'range condition' => 236,
+    'not-identical condition' => 247,
+    'called discriminator' => 258,
+    'parenthesised condition' => 269,
+    'two-case switch' => 280,
+    'stacked pair below the threshold' => 292,
+    'two-branch if chain' => 303,
+    'match expression' => 312,
+    'same property on two variables' => 321,
+    'switch (true)' => 332,
+    'index read two hops deep, switch' => 347,
+    'index read two hops deep, if' => 362,
+    'property read two hops deep, switch' => 373,
+    'property read two hops deep, if' => 385,
+    'positional index' => 399,
+    'static property read' => 411,
+    'two braced constructs merely adjacent' => 428,
+    'three brace-less constructs merely adjacent' => 449,
+    'nested brace-less if taking the continuations' => 464,
+    'nested braced if taking the continuations' => 484,
+    'nested if behind a brace-less loop' => 506,
+    'nested if two brace-less loops in' => 529,
+    'a swallowed clause on another discriminator' => 553,
+    'a swallowed clause after a brace-less do/while' => 578,
 ]);
 
 /**
  * One warning per qualifying construct, at the `switch` keyword or the leading
- * `if` — never once per `case` or `elseif`. The fifteen cover both constructs
+ * `if` — never once per `case` or `elseif`. The sixteen cover both constructs
  * against both discriminator shapes (object property and array index), the
  * literal written on either side of the comparison, `==` alongside `===`, a
  * nullsafe read, and the two counting rules a naive implementation gets wrong:
- * stacked labels sharing one body (line 108, three branches only if each label
- * counts on its own) and a `default` written first (line 119).
+ * stacked labels sharing one body (line 112, three branches only if each label
+ * counts on its own) and a `default` written first (line 123).
  *
- * Lines 162 and 178 are the counterpart to the nested-`if` near-misses in
+ * Lines 166 and 182 are the counterpart to the nested-`if` near-misses in
  * passing.php: a brace-less clause whose body holds an `if` that a scope of its
- * own — a braced loop on line 162, a closure on line 178 — closes before the
+ * own — a braced loop on line 166, a closure on line 182 — closes before the
  * body ends. Such an `if` can take no continuation, so both chains really do run
  * three branches deep. They are what stops the nested-`if` check from being
  * written as "any `if` in the body": drop its skip over scopes the body opens
  * and both of these go silent.
  *
- * Lines 206 and 229 are the opposite failure: a body holding a construct a
+ * Lines 210 and 233 are the opposite failure: a body holding a construct a
  * statement walk steps over whole — a braced loop, then a braced `switch` — so
  * a body boundary borrowed from that walk runs past the chain's own second
  * clause. Both chains really do run three branches deep as well; read the body
  * as a statement rather than walking it for a clause boundary, and both go
  * silent instead.
  *
- * Lines 252, 272 and 296 are the same failure in the other direction: a body
+ * Lines 256, 276 and 300 are the same failure in the other direction: a body
  * that is a statement PHP writes as more than one scope — `try`/`catch`,
  * `try`/`catch`/`finally`, `do`/`while` — where a boundary taken from the first
  * scope alone stops short of the body's real end and lands on `catch` or
  * `while`, neither of which continues a chain. All three run three branches
  * deep; stop the body walk at the first scope it steps over and all three go
  * silent.
+ *
+ * Line 322 is that same undershoot where no scope exists to step over: the
+ * `do` is brace-less, so the body's own semicolon is the only boundary on
+ * offer and it is the wrong one — the statement ends at the `while (…);`
+ * after it. It is the one shape the step-over cannot reach, and `do` is the
+ * only statement in PHP that has it.
  */
 it('warns once per qualifying construct, at its head', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
     expect(warningTuples($file))->toBe([
-        ['line' => 52, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 69, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 81, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 95, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 108, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 119, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 131, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 145, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 162, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 178, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 206, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 229, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 252, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 272, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 296, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 56, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 73, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 85, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 99, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 112, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 123, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 135, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 149, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 166, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 182, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 210, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 233, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 256, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 276, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 300, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 322, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
     ]);
 });
 
@@ -153,7 +161,7 @@ it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
     expect($file->getErrorCount())->toBe(0)
-        ->and($file->getWarningCount())->toBe(15);
+        ->and($file->getWarningCount())->toBe(16);
 });
 
 /**
@@ -173,11 +181,11 @@ it('names the principle and interpolates the discriminator', function (int $line
         ->toContain('Open-Closed')
         ->toContain('"' . $discriminator . '"');
 })->with([
-    'switch on a property' => [52, '$shape->type'],
-    'switch on an index' => [69, "\$row['type']"],
-    'if on a property' => [81, '$shape->type'],
-    'if on an index' => [95, "\$row['type']"],
-    'nullsafe property read' => [131, '$shape?->type'],
+    'switch on a property' => [56, '$shape->type'],
+    'switch on an index' => [73, "\$row['type']"],
+    'if on a property' => [85, '$shape->type'],
+    'if on an index' => [99, "\$row['type']"],
+    'nullsafe property read' => [135, '$shape?->type'],
 ]);
 
 /**
@@ -192,8 +200,8 @@ it('counts each case label and the default as one branch', function (int $line):
 
     expect($warnings[$line][9][0]['message'])->toContain('3 branches');
 })->with([
-    'stacked labels sharing one body' => 108,
-    'default written first' => 119,
+    'stacked labels sharing one body' => 112,
+    'default written first' => 123,
 ]);
 
 /**
@@ -206,7 +214,7 @@ it('counts each case label and the default as one branch', function (int $line):
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(15)
+    expect($file->getWarningCount())->toBe(16)
         ->and($file->getFixableCount())->toBe(0);
 });
 

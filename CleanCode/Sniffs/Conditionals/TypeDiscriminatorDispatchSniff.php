@@ -525,7 +525,22 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      * - an `elseif` or `else`. Neither can be part of the body, so the body
      *   ended before it and this is the clause the chain continues at.
      * - a semicolon, which really does end the body. Whatever follows it is a
-     *   continuation only if continuation() says so.
+     *   continuation only if continuation() says so. One statement writes a
+     *   semicolon that ends less than it appears to: a `do` with a brace-less
+     *   body ends at the `while (…);` after that body, not at the body's own
+     *   semicolon. So a brace-less `do` is counted on the way in and the first
+     *   semicolon after it is spent closing that body instead of the clause's.
+     *   Naming `do` is not a special case but the whole of a closed set: it is
+     *   the only statement in PHP whose body ends before the statement does.
+     *   Every other multi-part statement — `try`/`catch`/`finally` above all —
+     *   braces each of its parts, so the step-over below already carries the
+     *   walk across them. A *braced* `do` is one of those, and is deliberately
+     *   not counted: the step-over has already crossed its body, so its
+     *   `while (…);` closes a statement rather than a body, and spending that
+     *   semicolon would read the walk on past the clause. No fixture can pin
+     *   that guard on its own: PHP admits no continuation after a braced
+     *   `do`/`while`, so the over-read finds nothing to return either way. It
+     *   is written for the reason above rather than for an observable.
      * - a closer this walk never opened, or an alternative-syntax `end…`: the
      *   construct *around* the body ended first, which only a file PHP cannot
      *   parse can do. The chain fails closed rather than reading on into
@@ -567,6 +582,8 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             true
         );
 
+        $openDoBodies = 0;
+
         while ($pointer !== false) {
             $code = $tokens[$pointer]['code'];
 
@@ -578,11 +595,19 @@ class TypeDiscriminatorDispatchSniff implements Sniff
                 return $pointer;
             }
 
+            if ($code === T_DO && isset($tokens[$pointer]['scope_closer']) === false) {
+                ++$openDoBodies;
+            }
+
             if ($code === T_SEMICOLON) {
-                return $this->continuation(
-                    $tokens,
-                    $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true)
-                );
+                if ($openDoBodies === 0) {
+                    return $this->continuation(
+                        $tokens,
+                        $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true)
+                    );
+                }
+
+                --$openDoBodies;
             }
 
             if (in_array($code, self::BODY_TERMINATORS, true) === true) {
