@@ -106,19 +106,23 @@ const SWEPT_SNIFFS = [
  * instead, fixtures staged under a real `routes` directory, plus the
  * shipped-binary run in both directions that the sweep gives up on its behalf.
  *
- * Absent for the same reason, and in the same shape:
- * CleanCode.Testing.NoHttpFakesInIntegrationTests, whose default
- * integrationPatterns gate cannot match
- * tests/fixtures/NoHttpFakesInIntegrationTestsSniff/ — the directory holds no
- * `tests/Integration` pair. tests/Standards/NoHttpFakesInIntegrationTestsTest.php
- * carries its whole floor, fixtures staged under a real `tests/Integration`
- * directory, plus the same shipped-binary run in both directions.
+ * CleanCode.Testing.UnitTestExternalConcerns is absent for the same reason and
+ * is the second sniff of that shape: its default unitTestPath is `tests/Unit/`,
+ * and tests/fixtures/UnitTestExternalConcernsSniff/ carries no `Unit` segment,
+ * so the sweep would drive failing.php against a path the sniff never opens.
+ * The sweep configures nothing, so it cannot point a property-scoped sniff at
+ * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
+ * carries the whole floor instead: the two flat fixtures driven under a scope
+ * pointed at their own directory, the shipped scope exercised by a nested
+ * tests/Unit/ tree beside them, and the shipped-binary run in both directions
+ * that the sweep gives up on its behalf.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
     'CleanCode.ClearCode.ActionSingleEntryPoint',
     'CleanCode.ClearCode.JunkDrawerNamespace',
+    'CleanCode.ClearCode.SectionComment',
     'CleanCode.Commenting.DebtMarkers',
     'CleanCode.Conditionals.AvoidConditionals',
     'CleanCode.Conditionals.CombinableConditions',
@@ -134,6 +138,8 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Naming.DisallowMagicNumbers',
     'CleanCode.Pattern.AvoidDuplicateCodeBlocks',
     'CleanCode.Pattern.DisallowRepositoryClasses',
+    'CleanCode.Pattern.ThrowOnlyMethodOverride',
+    'CleanCode.Pattern.TooManyInterfaceMethods',
     'CleanCode.Testing.NoFirstPartyMocks',
     'CleanCode.Testing.NoReflectionAccess',
     'CleanCode.Testing.TestSuiteNamespace',

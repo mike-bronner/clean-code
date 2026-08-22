@@ -748,3 +748,145 @@ it('indexes an ancestor once per file, not once per descendant method', function
         }
     }
 });
+
+/**
+ * The class-like index this sniff builds once per token stream must not answer
+ * one analysis with another analysis's pointers (#343).
+ *
+ * The index used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one index.
+ *
+ * The two sources here tokenise to 67 tokens each — the ancestor's method is
+ * named `run` in A and `walk` in B, one token either way — and differ in
+ * exactly what the index records: the ancestor's method list. In A, `Kid::run()`
+ * overrides `Base::run()`, so its unread `$alpha` is exempt; in B nothing named
+ * `run` exists to override, so `$alpha` is dead. Under the old key B read A's
+ * method list, inherited the override exemption, and reported nothing.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its silence back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose index leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its class-like index from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        class Base
+        {
+            public function run($alpha)
+            {
+                return $alpha;
+            }
+        }
+
+        class Kid extends Base
+        {
+            public function run($alpha)
+            {
+                return 1;
+            }
+        }
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        class Base
+        {
+            public function walk($alpha)
+            {
+                return $alpha;
+            }
+        }
+
+        class Kid extends Base
+        {
+            public function run($alpha)
+            {
+                return 1;
+            }
+        }
+
+        PHP;
+
+    $first = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceA);
+    $second = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceB);
+    $third = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 13, 'column' => 25, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            13 => [
+                'The method run() never reads its parameter $alpha; remove it from the '
+                    . 'signature, or mark the method as an override with #[\\Override] or '
+                    . '@inheritdoc if the signature is imposed from outside '
+                    . '(see docs/phpmd/unusedcode-unusedformalparameter.md)',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
+});
+
+/**
+ * The class-like index is built once for a token stream and read from for the
+ * rest of it, when the analysis is a DummyFile rather than a file on disk
+ * (#343).
+ *
+ * The scale test above makes the same claim for a LocalFile, and made it before
+ * this sniff's key named the token stream by the File object's identity rather
+ * than by its name, token count and fixer loop. Two DummyFile analyses report
+ * the same name, which is the collision #343 is about, and the fix has to close
+ * it without costing the reuse the index exists for. The test above that one
+ * proves the first half; this proves the second on the very shape the fix
+ * changed, and neither can be shown from outside the sniff: a sniff that
+ * rebuilt the index on every read would report exactly the same violations,
+ * only slower.
+ *
+ * Both numbers are pinned, and each rules out a different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - 2n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the index at all would report one build and no hits. Each method
+ *   below reaches the index twice — once from qualifiedNames(), once from
+ *   declarationsByName() — so n methods total 2n reads, of which one builds and
+ *   2n-1 hit. The build is one the guard never had to answer.
+ *
+ * Mutation-checked by deleting the `$this->declarationsKey === $key` guard, so
+ * every read rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 4 builds / 0 hits against the 1 / 3 asserted; n=4 reads 8 / 0
+ * against 1 / 7, and n=8 reads 16 / 0 against 1 / 15.
+ */
+it('builds its class-like index once per STDIN stream, not once per read', function (): void {
+    $sniff = sniffInstance(UNUSED_FORMAL_PARAMETER);
+
+    foreach ([2, 4, 8] as $size) {
+        $methods = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $methods .= "    public function take{$index}(int \$unused{$index}): int\n    {\n"
+                . "        return {$index};\n    }\n\n";
+        }
+
+        $source = "<?php\n\nclass Big\n{\n" . $methods . "}\n";
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([UNUSED_FORMAL_PARAMETER], $source);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe($size, "n={$size}: every unused parameter is still reported")
+            ->and($counted['declarations.builds'])->toBe(
+                1,
+                "n={$size}: the index is built once for the stream, not once per read"
+            )
+            ->and($counted['declarations.hits'])->toBe(
+                (2 * $size) - 1,
+                "n={$size}: every read after the first answers from the index already built"
+            );
+    }
+});

@@ -123,7 +123,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 1037, 'column' => 16],
+        ['line' => 1038, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
@@ -182,14 +182,18 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 274, 'column' => 49],
     ],
     'CleanCode/Sniffs/Testing/TestSuiteNamespaceSniff.php' => [
-        ['line' => 336, 'column' => 20],
+        ['line' => 338, 'column' => 20],
+    ],
+    'CleanCode/Sniffs/Testing/UnitTestExternalConcernsSniff.php' => [
+        ['line' => 611, 'column' => 16],
+        ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 145, 'column' => 27],
+        ['line' => 146, 'column' => 27],
     ],
     'tests/Helpers.php' => [
-        ['line' => 573, 'column' => 66],
-        ['line' => 742, 'column' => 36],
+        ['line' => 612, 'column' => 66],
+        ['line' => 781, 'column' => 36],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -202,10 +206,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 206, 'column' => 15],
+        ['line' => 212, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
-        ['line' => 268, 'column' => 17],
+        ['line' => 278, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
         ['line' => 511, 'column' => 22],
