@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Conditionals;
 
+use MikeBronner\CleanCode\Support\ConditionOperatorOwnership;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -43,30 +44,16 @@ class OneConditionPerLineSniff implements Sniff
      */
     public function process(File $phpcsFile, $stackPtr)
     {
-        $tokens = $phpcsFile->getTokens();
+        // The span this sniff checks is defined once, in the support class, so
+        // the sniffs that stand down inside it defer over the same bounds this
+        // one walks. A for-loop's init and increment clauses lie outside it.
+        $region = ConditionOperatorOwnership::checkedRegion($phpcsFile, $stackPtr);
 
-        if (
-            isset($tokens[$stackPtr]['parenthesis_opener']) === false
-            || isset($tokens[$stackPtr]['parenthesis_closer']) === false
-        ) {
+        if ($region === null) {
             return;
         }
 
-        $opener = $tokens[$stackPtr]['parenthesis_opener'];
-        $closer = $tokens[$stackPtr]['parenthesis_closer'];
-
-        if ($tokens[$stackPtr]['code'] === T_FOR) {
-            $semicolons = $this->findTopLevelTokens($phpcsFile, ($opener + 1), ($closer - 1), [T_SEMICOLON]);
-
-            if (count($semicolons) !== 2) {
-                return;
-            }
-
-            [$boundaryStart, $boundaryEnd] = $semicolons;
-        } else {
-            $boundaryStart = $opener;
-            $boundaryEnd = $closer;
-        }
+        [$boundaryStart, $boundaryEnd] = $region;
 
         $regionStart = $phpcsFile->findNext(Tokens::$emptyTokens, ($boundaryStart + 1), $boundaryEnd, true);
 
@@ -76,7 +63,7 @@ class OneConditionPerLineSniff implements Sniff
 
         $regionEnd = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($boundaryEnd - 1), $boundaryStart, true);
 
-        $operators = $this->findTopLevelTokens(
+        $operators = ConditionOperatorOwnership::findTopLevelTokens(
             $phpcsFile,
             $regionStart,
             $regionEnd,
@@ -238,53 +225,6 @@ class OneConditionPerLineSniff implements Sniff
         }
     }
 
-    /**
-     * Collects pointers to the given token codes between $start and $end,
-     * skipping everything nested inside parentheses, square brackets, or
-     * curly braces — those belong to sub-expressions, not the top level of
-     * the condition.
-     *
-     * @param array<int|string> $codes
-     *
-     * @return array<int>
-     */
-    private function findTopLevelTokens(File $phpcsFile, int $start, int $end, array $codes): array
-    {
-        $tokens = $phpcsFile->getTokens();
-        $pointers = [];
-
-        for ($i = $start; $i <= $end; $i++) {
-            if ($tokens[$i]['code'] === T_OPEN_PARENTHESIS) {
-                $i = $tokens[$i]['parenthesis_closer'];
-
-                continue;
-            }
-
-            if (
-                in_array($tokens[$i]['code'], [T_OPEN_SHORT_ARRAY, T_OPEN_SQUARE_BRACKET], true) === true
-                && isset($tokens[$i]['bracket_closer']) === true
-            ) {
-                $i = $tokens[$i]['bracket_closer'];
-
-                continue;
-            }
-
-            if (
-                $tokens[$i]['code'] === T_OPEN_CURLY_BRACKET
-                && isset($tokens[$i]['bracket_closer']) === true
-            ) {
-                $i = $tokens[$i]['bracket_closer'];
-
-                continue;
-            }
-
-            if (in_array($tokens[$i]['code'], $codes, true) === true) {
-                $pointers[] = $i;
-            }
-        }
-
-        return $pointers;
-    }
 
     /**
      * Renders the condition between $start and $end as a single line,
