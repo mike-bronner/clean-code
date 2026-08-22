@@ -239,6 +239,34 @@
     -->
 
     <!--
+        Classes: Class Naming (#27) — a type's name must not repeat the folder
+        it is filed under: App\Services\BillingService says "service" twice, and
+        the standard's fix is App\Services\Billing plus a `use … as
+        BillingService` alias wherever the fuller name reads better. See
+        docs/standards/classes-class-naming.md.
+
+        No bundled or third-party sniff derives a naming rule from the
+        namespace. Slevomat's five Superfluous*Naming sniffs are the closest,
+        and each compares a name against one hardcoded word for a *type kind*
+        (SuperfluousInterfaceNaming rejects the literal `Interface` suffix,
+        SuperfluousExceptionNaming the literal `Exception`, and so on); none of
+        them reads the enclosing namespace, so none can say that `Service`
+        is redundant under App\Services but fine under App\Billing. That is
+        measured rather than asserted: "measures the Slevomat naming sniffs as
+        unaffected by the namespace" in
+        tests/Standards/RedundantNamespaceSuffixTest.php runs the five sniffs
+        over one fixture holding identical declarations under two namespaces and
+        pins their answer as the same in both, so a release that started reading
+        the namespace reddens the suite instead of leaving this paragraph stale.
+        Squiz.Classes.ValidClassName and PSR1's naming sniffs check casing only.
+        Hence the custom sniff CleanCode.Naming.RedundantNamespaceSuffix,
+        picked up automatically via the ./CleanCode/ruleset.xml ref above, like
+        every other CleanCode sniff. Reporting-only: renaming a type means
+        rewriting every reference to it across the project, which is not a
+        single-file fixer's decision to make.
+    -->
+
+    <!--
         Methods: Type Hints (#70) — every function-like declaration must carry
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;

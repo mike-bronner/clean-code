@@ -152,6 +152,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 538, 'column' => 31],
         ['line' => 539, 'column' => 13],
     ],
+    'CleanCode/Sniffs/Naming/RedundantNamespaceSuffixSniff.php' => [
+        ['line' => 276, 'column' => 36],
+    ],
     'CleanCode/Sniffs/Naming/ShortClassNameSniff.php' => [
         ['line' => 116, 'column' => 16],
         ['line' => 117, 'column' => 13],
