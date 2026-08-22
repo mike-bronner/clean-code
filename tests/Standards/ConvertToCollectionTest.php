@@ -192,7 +192,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 146, 'column' => 27],
+        ['line' => 147, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
@@ -209,7 +209,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 212, 'column' => 15],
+        ['line' => 218, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -291,7 +291,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
         ['line' => 65, 'column' => 44],
     ],
-    'tests/Standards/NoLogicTest.php' => [
+    'tests/Standards/NoInternetTraversalTest.php' => [
+        ['line' => 74, 'column' => 44],
+        ['line' => 411, 'column' => 15],
+        ['line' => 463, 'column' => 14],
         ['line' => 455, 'column' => 15],
         ['line' => 526, 'column' => 15],
         ['line' => 761, 'column' => 20],

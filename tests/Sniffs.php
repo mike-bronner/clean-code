@@ -119,6 +119,13 @@ const SWEPT_SNIFFS = [
  * pointed at their own directory, the shipped scope exercised by a nested
  * tests/Unit/ tree beside them, and the shipped-binary run in both directions
  * that the sweep gives up on its behalf.
+ *
+ * CleanCode.Testing.NoInternetTraversal is the third of that shape: its default
+ * featureTestPatterns gate wants a `tests/Feature` pair that
+ * tests/fixtures/NoInternetTraversalSniff/ does not have, so its failing fixture
+ * would report nothing under the sweep. tests/Standards/NoInternetTraversalTest.php
+ * carries the whole floor, fixtures staged under a real feature-suite directory,
+ * plus the same shipped-binary run in both directions.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',

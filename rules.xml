@@ -1281,6 +1281,62 @@
     -->
 
     <!--
+        Testing: Test Suites (#60), feature-suite content slice —
+        docs/standards/testing-test-suites.md.
+
+        The custom CleanCode.Testing.NoInternetTraversal sniff (#149) is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above; this comment
+        records that no scoping is wanted here. It carries the third slice of #60
+        to be enforced, and the second that reads a test's *content*: the
+        standard says a feature test does not traverse the internet, and while
+        whether a request really leaves the machine is a runtime property, the
+        raw primitives that can only traverse it are written in the file —
+        curl_init(), curl_exec(), fsockopen(), stream_socket_client(), a
+        file_get_contents() whose literal URL — quoted, heredoc or nowdoc —
+        names http:// or https://, and a
+        direct new of GuzzleHttp\Client. The sanctioned route to a third-party
+        API here is the Http facade with Http::fake(), which is deliberately not
+        a watched primitive.
+
+        It does not overlap TestSuiteNamespace above, which reads a test's
+        declarations and no content at all, nor UnitTestExternalConcerns above,
+        which reads the unit suite, nor NoHttpFakesInIntegrationTests (#150),
+        which reads the integration suite. Each of the three content slices
+        watches its own suite and no other.
+
+        Custom rather than third-party. Generic.PHP.ForbiddenFunctions is the
+        near neighbour: it maps a forbidden function to a replacement and reports
+        everywhere. It cannot carry this rule for three reasons — it has no
+        notion of a suite, so it would flag an integration test, which is exactly
+        where the standard says these calls belong; it matches on the name alone,
+        so file_get_contents() would report on every local read; and it speaks
+        about functions only, so the Guzzle instantiation is outside it entirely.
+
+        No <include-pattern>, deliberately, and for the same reason as the
+        TestSuiteNamespace block above: the sniff resolves its own scope from the
+        path it has to read anyway, so its property is both the scope and the
+        anchor and the two cannot disagree. A project whose feature suite lives
+        elsewhere retunes featureTestPatterns instead of overriding this ruleset:
+
+            <rule ref="CleanCode.Testing.NoInternetTraversal">
+                <properties>
+                    <property name="featureTestPatterns" type="array">
+                        <element value="*/spec/Acceptance/*"/>
+                    </property>
+                </properties>
+            </rule>
+
+        Warnings, not errors, matching TestSuiteNamespace and the rest of the
+        Testing standards. The rule reads a project's suite layout off a
+        configurable convention and cannot prove it guessed right, and a
+        primitive is a strong signal rather than proof a request left the
+        machine, so a misread must not fail a consumer's build. Detection only:
+        replacing a real request with a fake means writing the fake — what to
+        return, and for which URLs — which is not recoverable from the call being
+        replaced, so there is no fixer and no autofixed.php fixture.
+    -->
+
+    <!--
         Testing: Guidelines (#54) — docs/standards/testing-guidelines.md.
 
         The custom CleanCode.Testing.NoReflectionAccess sniff (#145) carries the
