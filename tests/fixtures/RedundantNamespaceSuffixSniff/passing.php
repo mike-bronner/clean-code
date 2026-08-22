@@ -38,6 +38,14 @@ namespace App {
     }
 }
 
+// The `Tests\` half of the tooling exemption is fixture-only, and has to be:
+// outside fixtures no file in this repository declares a bare `Tests\`-rooted
+// namespace, because this package's own tests are `MikeBronner\CleanCode\Tests\…`.
+// The `Sniffs\` half is different — RedundantNamespaceSuffixTest sweeps the
+// sniff across the package's real source for it. What carries this half is that
+// the sniff's root gate has no `Tests\`-specific branch: both roots leave
+// through the same one test, so that sweep exercises the logic under this line
+// too.
 namespace Tests\Services {
     class PaymentService
     {
