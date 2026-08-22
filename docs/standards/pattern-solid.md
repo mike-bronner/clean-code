@@ -17,7 +17,7 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3 (core), three principles partially enforced today
+## Enforceability — Tier 3 (core), five principles partially enforced today
 
 The **core** of all five principles is architectural: whether a class has one
 reason to change, whether a hierarchy is behaviourally substitutable, whether a

@@ -59,77 +59,93 @@ it('stays silent on every near-miss shape', function (int $line): void {
 
     expect(array_keys($file->getWarnings()))->not->toContain($line);
 })->with([
-    'plain-variable switch subject' => 64,
-    'plain-variable if discriminator' => 76,
-    'class constant as a case label' => 87,
-    'bare constant as a case label' => 99,
-    'variable as a case label' => 111,
-    'compound boolean condition' => 123,
-    'instanceof condition' => 134,
-    'range condition' => 145,
-    'not-identical condition' => 156,
-    'called discriminator' => 167,
-    'parenthesised condition' => 178,
-    'two-case switch' => 189,
-    'stacked pair below the threshold' => 201,
-    'two-branch if chain' => 212,
-    'match expression' => 221,
-    'same property on two variables' => 230,
-    'switch (true)' => 241,
-    'index read two hops deep, switch' => 256,
-    'index read two hops deep, if' => 271,
-    'property read two hops deep, switch' => 282,
-    'property read two hops deep, if' => 294,
-    'positional index' => 308,
-    'static property read' => 320,
-    'two braced constructs merely adjacent' => 337,
-    'three brace-less constructs merely adjacent' => 358,
-    'nested brace-less if taking the continuations' => 373,
-    'nested braced if taking the continuations' => 393,
-    'nested if behind a brace-less loop' => 415,
-    'nested if two brace-less loops in' => 438,
-    'a swallowed clause on another discriminator' => 462,
+    'plain-variable switch subject' => 70,
+    'plain-variable if discriminator' => 82,
+    'class constant as a case label' => 93,
+    'bare constant as a case label' => 105,
+    'variable as a case label' => 117,
+    'variable as an if condition operand' => 140,
+    'class constant as an if condition operand' => 158,
+    'bare constant as an if condition operand' => 175,
+    'non-literal operand written on the left' => 197,
+    'compound boolean condition' => 210,
+    'instanceof condition' => 221,
+    'range condition' => 232,
+    'not-identical condition' => 243,
+    'called discriminator' => 254,
+    'parenthesised condition' => 265,
+    'two-case switch' => 276,
+    'stacked pair below the threshold' => 288,
+    'two-branch if chain' => 299,
+    'match expression' => 308,
+    'same property on two variables' => 317,
+    'switch (true)' => 328,
+    'index read two hops deep, switch' => 343,
+    'index read two hops deep, if' => 358,
+    'property read two hops deep, switch' => 369,
+    'property read two hops deep, if' => 381,
+    'positional index' => 395,
+    'static property read' => 407,
+    'two braced constructs merely adjacent' => 424,
+    'three brace-less constructs merely adjacent' => 445,
+    'nested brace-less if taking the continuations' => 460,
+    'nested braced if taking the continuations' => 480,
+    'nested if behind a brace-less loop' => 502,
+    'nested if two brace-less loops in' => 525,
+    'a swallowed clause on another discriminator' => 549,
 ]);
 
 /**
  * One warning per qualifying construct, at the `switch` keyword or the leading
- * `if` — never once per `case` or `elseif`. The twelve cover both constructs
+ * `if` — never once per `case` or `elseif`. The fifteen cover both constructs
  * against both discriminator shapes (object property and array index), the
  * literal written on either side of the comparison, `==` alongside `===`, a
  * nullsafe read, and the two counting rules a naive implementation gets wrong:
- * stacked labels sharing one body (line 103, three branches only if each label
- * counts on its own) and a `default` written first (line 114).
+ * stacked labels sharing one body (line 108, three branches only if each label
+ * counts on its own) and a `default` written first (line 119).
  *
- * Lines 157 and 173 are the counterpart to the nested-`if` near-misses in
+ * Lines 162 and 178 are the counterpart to the nested-`if` near-misses in
  * passing.php: a brace-less clause whose body holds an `if` that a scope of its
- * own — a braced loop on line 157, a closure on line 173 — closes before the
+ * own — a braced loop on line 162, a closure on line 178 — closes before the
  * body ends. Such an `if` can take no continuation, so both chains really do run
  * three branches deep. They are what stops the nested-`if` check from being
  * written as "any `if` in the body": drop its skip over scopes the body opens
  * and both of these go silent.
  *
- * Lines 201 and 224 are the opposite failure: a body holding a construct PHPCS
- * steps over whole — a braced loop, then a braced `switch` — so the statement
- * boundary it reports for the brace-less body runs past the chain's own second
- * clause. Both chains really do run three branches deep as well; stop
- * validating that boundary and both go silent instead.
+ * Lines 206 and 229 are the opposite failure: a body holding a construct a
+ * statement walk steps over whole — a braced loop, then a braced `switch` — so
+ * a body boundary borrowed from that walk runs past the chain's own second
+ * clause. Both chains really do run three branches deep as well; read the body
+ * as a statement rather than walking it for a clause boundary, and both go
+ * silent instead.
+ *
+ * Lines 252, 272 and 296 are the same failure in the other direction: a body
+ * that is a statement PHP writes as more than one scope — `try`/`catch`,
+ * `try`/`catch`/`finally`, `do`/`while` — where a boundary taken from the first
+ * scope alone stops short of the body's real end and lands on `catch` or
+ * `while`, neither of which continues a chain. All three run three branches
+ * deep; stop the body walk at the first scope it steps over and all three go
+ * silent.
  */
 it('warns once per qualifying construct, at its head', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
     expect(warningTuples($file))->toBe([
-        ['line' => 47, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 64, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 76, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 90, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 103, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 114, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 126, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 140, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
-        ['line' => 157, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 173, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 201, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
-        ['line' => 224, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 52, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 69, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 81, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 95, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 108, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 119, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 131, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 145, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 162, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 178, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 206, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 229, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 252, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 272, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
+        ['line' => 296, 'column' => 9, 'source' => TYPE_DISCRIMINATOR_IF],
     ]);
 });
 
@@ -137,7 +153,7 @@ it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
     expect($file->getErrorCount())->toBe(0)
-        ->and($file->getWarningCount())->toBe(12);
+        ->and($file->getWarningCount())->toBe(15);
 });
 
 /**
@@ -157,11 +173,11 @@ it('names the principle and interpolates the discriminator', function (int $line
         ->toContain('Open-Closed')
         ->toContain('"' . $discriminator . '"');
 })->with([
-    'switch on a property' => [47, '$shape->type'],
-    'switch on an index' => [64, "\$row['type']"],
-    'if on a property' => [76, '$shape->type'],
-    'if on an index' => [90, "\$row['type']"],
-    'nullsafe property read' => [126, '$shape?->type'],
+    'switch on a property' => [52, '$shape->type'],
+    'switch on an index' => [69, "\$row['type']"],
+    'if on a property' => [81, '$shape->type'],
+    'if on an index' => [95, "\$row['type']"],
+    'nullsafe property read' => [131, '$shape?->type'],
 ]);
 
 /**
@@ -176,8 +192,8 @@ it('counts each case label and the default as one branch', function (int $line):
 
     expect($warnings[$line][9][0]['message'])->toContain('3 branches');
 })->with([
-    'stacked labels sharing one body' => 103,
-    'default written first' => 114,
+    'stacked labels sharing one body' => 108,
+    'default written first' => 119,
 ]);
 
 /**
@@ -190,7 +206,7 @@ it('counts each case label and the default as one branch', function (int $line):
 it('marks no violation fixable', function (): void {
     $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'failing.php');
 
-    expect($file->getWarningCount())->toBe(12)
+    expect($file->getWarningCount())->toBe(15)
         ->and($file->getFixableCount())->toBe(0);
 });
 
@@ -251,9 +267,22 @@ it('warns once on every continuation spelling', function (): void {
  *                               at all; without the check the dangling `else`
  *                               is counted, carrying a two-branch chain over
  *                               the minimum and reporting a file PHP rejects
- *   truncated-braceless.php   — the end of a brace-less body; without the check
- *                               the clause walk never terminates and this test
- *                               hangs rather than fails
+ *   truncated-braceless.php   — the first token of a brace-less body, which a
+ *                               clause cut off at its condition has none of;
+ *                               without the check the body walk starts on a
+ *                               pointer the tokenizer never assigned
+ *   truncated-block.php       — the tokens that end a brace-less body without
+ *                               ending a statement, reached here as the `}`
+ *                               closing the function around the body; without
+ *                               the check the walk reads on past it and takes
+ *                               the `else` written after it as this chain's
+ *                               third branch
+ *   truncated-endif.php       — the same check reached at an alternative-syntax
+ *                               `endif`. Its own `if` never closed, so it
+ *                               carries no scope pointer to be recognised by
+ *                               and only its keyword says the walk has left the
+ *                               construct — which is why the check is a list of
+ *                               tokens rather than a read of the scope map
  *
  * The other two cover an outcome rather than a guard, and are here because the
  * spellings they use are ones the sniff handles by name:
@@ -287,6 +316,8 @@ it('terminates silently on a file it cannot parse', function (string $fixture): 
     'truncated-braced.php',
     'truncated-braceless.php',
     'truncated-alternative.php',
+    'truncated-block.php',
+    'truncated-endif.php',
 ]);
 
 /**
@@ -330,6 +361,49 @@ it('ships minimumBranches at three', function (): void {
     $sniff = $ruleset->sniffs[$ruleset->sniffCodes[TYPE_DISCRIMINATOR_DISPATCH]];
 
     expect($sniff->minimumBranches)->toBe(3);
+});
+
+/**
+ * Every linearly nested brace-less `if` is a chain head in its own right — no
+ * `else` sits before it — so PHP_CodeSniffer dispatches process() once per
+ * level, and a brace-less clause carries no scope for the walk to jump. What
+ * each of those calls costs is therefore the whole question. Re-deriving a
+ * statement end per head walks the remaining levels every time: O(n) work paid
+ * n times. Reading the body directly stops on the nested `if` that opens it,
+ * one token in.
+ *
+ * Measured in this harness at 2000 / 4000 / 8000 levels: 1.69s / 6.66s /
+ * 26.6s before the body walk replaced the statement boundary, the ~4x per
+ * doubling that names it quadratic, and 0.17s / 0.29s / 0.55s after, which is
+ * the file itself growing. A contributor's PR is a file a CI pipeline does not
+ * control, and a few thousand nested clauses is a small one to write, so the
+ * unbounded version turns a check into minutes of CPU.
+ *
+ * An asymptotic fix has no observable but time, so the budget sits well above
+ * the measured cost rather than near it, matching the sibling scale tests in
+ * NPathComplexityTest and MappingArrayCandidateTest.
+ *
+ * The silence assertion is what stops the stopwatch passing vacuously: a file
+ * the sniff bailed out of early would also be fast. Each level is one clause on
+ * its own — PHP binds nothing to it — so no chain here reaches the minimum, and
+ * a walk that instead read the levels as one chain would report at the first
+ * `if` and redden this.
+ */
+it('stays linear on a deep stack of nested brace-less clauses', function (): void {
+    $levels = 4000;
+    $source = "<?php\n\nfunction deeplyNested(object \$shape): int\n{\n"
+        . str_repeat("    if (\$shape->type === 'circle')\n", $levels)
+        . "    return 1;\n}\n";
+    $fixture = stageGeneratedFixture('nested-braceless.php', $source);
+
+    buildRuleset([TYPE_DISCRIMINATOR_DISPATCH]);
+
+    $started = hrtime(true);
+    $file = analyzeWithSniffs([TYPE_DISCRIMINATOR_DISPATCH], $fixture);
+    $elapsed = ((hrtime(true) - $started) / 1e9);
+
+    expect($file->getWarnings())->toBe([])
+        ->and($elapsed)->toBeLessThan(3.0);
 });
 
 /**

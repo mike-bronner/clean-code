@@ -15,6 +15,12 @@ declare(strict_types=1);
  *   - classConstantLabel      a class constant as one `case` label
  *   - bareConstantLabel       a bare constant as one `case` label
  *   - variableLabel           a variable as one `case` label
+ *   - nonLiteralOperandIf     a variable as an if condition's other operand
+ *   - classConstantOperandIf  a class constant in the same position
+ *   - bareConstantOperandIf   a bare constant in the same position
+ *   - reversedNonLiteralOperandIf
+ *                             the same, with the operands written the other
+ *                             way round
  *   - compoundCondition       a compound boolean condition
  *   - instanceofCondition     `instanceof` rather than a literal comparison
  *   - rangeCondition          `>`, which is not one of the two comparisons
@@ -116,6 +122,87 @@ final class NearMisses
             default:
                 return 'Unknown';
         }
+    }
+    /**
+     * The if form of the three case-label near-misses above. A `case` label has
+     * one operand to be a literal; an `if` condition has two, so the same rule
+     * is written at two token positions and needs pinning at both. This method
+     * and the two after it put a non-literal on the right of the comparison;
+     * reversedNonLiteralOperandIf puts one on the left.
+     *
+     * A variable first, the counterpart of variableLabel. Every other rule is
+     * met — one discriminator read, three branches, `===` throughout — so the
+     * literal check on the condition's other operand is the only thing between
+     * this chain and a report.
+     */
+    public function nonLiteralOperandIf(object $shape, string $circle): string
+    {
+        if ($shape->type === $circle) {
+            return 'Circle';
+        } elseif ($shape->type === 'square') {
+            return 'Square';
+        } elseif ($shape->type === 'rect') {
+            return 'Rect';
+        }
+
+        return 'Unknown';
+    }
+
+    /**
+     * A class constant, the counterpart of classConstantLabel. It names a
+     * variant no more than a variable does: the value behind it lives in
+     * another line of another file, and nothing here reads it.
+     */
+    public function classConstantOperandIf(object $shape): string
+    {
+        if ($shape->type === self::CIRCLE) {
+            return 'Circle';
+        } elseif ($shape->type === 'square') {
+            return 'Square';
+        } elseif ($shape->type === 'rect') {
+            return 'Rect';
+        }
+
+        return 'Unknown';
+    }
+
+    /**
+     * A bare constant, the counterpart of bareConstantLabel — the same
+     * indirection without the class in front of it.
+     */
+    public function bareConstantOperandIf(object $shape): string
+    {
+        if ($shape->type === CIRCLE_TYPE) {
+            return 'Circle';
+        } elseif ($shape->type === 'square') {
+            return 'Square';
+        } elseif ($shape->type === 'rect') {
+            return 'Rect';
+        }
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same non-literal operand written on the *left*, which the condition
+     * read reaches through a second literal check — the one that runs after the
+     * discriminator is found on the right. The three methods above cannot pin
+     * it: their discriminator is on the left, so the read answers before that
+     * check is consulted. failing.php proves this operand order is admitted
+     * when the other operand really is a literal; this proves it is refused
+     * when it is not.
+     */
+    public function reversedNonLiteralOperandIf(object $shape, string $circle): string
+    {
+        if ($circle === $shape->type) {
+            return 'Circle';
+        } elseif ('square' === $shape->type) {
+            return 'Square';
+        } elseif ('rect' === $shape->type) {
+            return 'Rect';
+        }
+
+        return 'Unknown';
     }
 
     public function compoundCondition(object $shape, bool $scaled): string

@@ -9,11 +9,11 @@ declare(strict_types=1);
  * literal branches to qualify, so each carries exactly one warning — at the
  * `switch` keyword or at the leading `if`, never once per arm.
  *
- * The twelve cover both constructs against both discriminator shapes, the
+ * The fifteen cover both constructs against both discriminator shapes, the
  * counting rules that a naive implementation gets wrong, the two brace-less
- * bodies that hold an `if` the chain's own continuations do *not* bind to, and
- * the two whose reported statement span runs past a continuation that is the
- * chain's own:
+ * bodies that hold an `if` the chain's own continuations do *not* bind to, the
+ * two whose body holds a construct a statement walk steps over whole, and the
+ * three whose body is a statement PHP writes as more than one scope:
  *
  *   - switchOnProperty    switch, object-property discriminator
  *   - switchOnIndex       switch, array-index discriminator
@@ -38,6 +38,11 @@ declare(strict_types=1);
  *   - bracelessLoopAroundSwitch
  *                         the same overrun, with a `switch` as the construct
  *                         the span steps over
+ *   - tryCatchBody        a body PHP writes as two scopes, so the first one's
+ *                         boundary is not the body's
+ *   - tryCatchFinallyBody the same statement at three scopes
+ *   - doWhileBody         the other multi-scope statement, whose `while` and
+ *                         its semicolon sit after the block
  */
 
 final class Dispatchers
@@ -227,6 +232,71 @@ final class Dispatchers
                     case 1:
                         return 'One';
                 }
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * A brace-less clause whose body is a `try`/`catch`. PHP writes the
+     * statement as two scopes, and the boundary of the first one is not the
+     * boundary of the body — a walk that stops there finds `catch` where it
+     * expects a continuation and reads a one-branch chain. Stepping over each
+     * scope in turn arrives at the `elseif` that is really there.
+     */
+    public function tryCatchBody(object $shape): string
+    {
+        if ($shape->type === 'circle')
+            try {
+                return 'Round';
+            } catch (\Exception $exception) {
+                return 'Failed';
+            }
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same statement at three scopes rather than two, so the walk has to
+     * keep stepping rather than stop after the second.
+     */
+    public function tryCatchFinallyBody(object $shape): string
+    {
+        if ($shape->type === 'circle')
+            try {
+                return 'Round';
+            } catch (\Exception $exception) {
+                return 'Failed';
+            } finally {
+                cleanUp();
+            }
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The other multi-scope statement PHP writes: a `do` block whose `while`
+     * sits after it, carrying the semicolon the body really ends at. The first
+     * scope's boundary lands on `while`, which continues no chain, so the same
+     * one-branch misread follows from stopping there.
+     */
+    public function doWhileBody(object $shape, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            do {
+                return 'Round';
+            } while ($flag);
         elseif ($shape->type === 'square')
             return 'Square';
         elseif ($shape->type === 'rect')

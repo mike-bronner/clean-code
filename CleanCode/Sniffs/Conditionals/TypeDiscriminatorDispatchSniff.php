@@ -198,6 +198,41 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     ];
 
     /**
+     * The tokens that end a brace-less body without ending a statement, so the
+     * chain fails closed rather than reading on past the construct the body
+     * lives in.
+     *
+     * Family: every way PHP closes a construct a body can sit inside — the
+     * three closing pairs plus the short-array closer, PHP's six
+     * alternative-syntax `end…` keywords (`endif`, `endwhile`, `endfor`,
+     * `endforeach`, `endswitch`, `enddeclare`, which is the whole list its
+     * grammar defines), and the close tag, which ends the PHP block itself and
+     * carries no pointers of any kind.
+     *
+     * Named rather than derived from the scope map, because the map is exactly
+     * what a file the tokenizer could not parse is missing: an `endif` whose
+     * `if` never closed carries no scope_closer to recognise it by, and that
+     * unparsed file is the only route to any of these. No body PHP accepts
+     * reaches one — its own groups are stepped over whole and its statement
+     * ends at a semicolon first.
+     *
+     * @var array<int, int|string>
+     */
+    private const BODY_TERMINATORS = [
+        T_CLOSE_CURLY_BRACKET,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SQUARE_BRACKET,
+        T_CLOSE_SHORT_ARRAY,
+        T_CLOSE_TAG,
+        T_ENDIF,
+        T_ENDWHILE,
+        T_ENDFOR,
+        T_ENDFOREACH,
+        T_ENDSWITCH,
+        T_ENDDECLARE,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -443,10 +478,8 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      * yet a reason to believe it continues the chain — so every form hands its
      * find to continuation() for that verdict.
      *
-     * The brace-less form is the one PHPCS answers with a *statement* boundary
-     * rather than a clause boundary, and the two part company in both
-     * directions, so the span it reports is validated rather than trusted. See
-     * chainBoundary().
+     * The brace-less form has no scope to read at all, so its body is walked
+     * rather than looked up. See bracelessNextClause().
      */
     private function nextClause(File $phpcsFile, int $clausePtr): ?int
     {
@@ -465,106 +498,142 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             );
         }
 
+        return $this->bracelessNextClause($phpcsFile, $clausePtr);
+    }
+
+    /**
+     * The same answer for the one body form PHP_CodeSniffer gives no scope: the
+     * body is walked from the token after the condition until something ends
+     * it.
+     *
+     * The walk asks only the question the chain asks, so it never borrows a
+     * *statement* boundary to answer a *clause* one. findEndOfStatement() is
+     * the obvious shortcut and it is wrong in both directions — it overshoots a
+     * body that ends at an `elseif`, because no continuation keyword ends a
+     * statement, and it undershoots every statement PHP writes as more than one
+     * scope, returning the `try` block's own closer for a `try`/`catch` and the
+     * `do` block's for a `do`/`while`. Reading the body directly removes both
+     * failure modes rather than validating a span against them one shape at a
+     * time.
+     *
+     * Four things end the walk, and each is the answer:
+     *
+     * - a nested `if`, at whatever depth it is written. PHP binds a dangling
+     *   `elseif` or `else` to the nearest `if` still open — that nested one,
+     *   never the clause it is the body of — so no continuation after it is
+     *   this clause's, and the chain ends here.
+     * - an `elseif` or `else`. Neither can be part of the body, so the body
+     *   ended before it and this is the clause the chain continues at.
+     * - a semicolon, which really does end the body. Whatever follows it is a
+     *   continuation only if continuation() says so.
+     * - a closer this walk never opened, or an alternative-syntax `end…`: the
+     *   construct *around* the body ended first, which only a file PHP cannot
+     *   parse can do. The chain fails closed rather than reading on into
+     *   whatever follows that construct. See BODY_TERMINATORS.
+     *
+     * Anything that opens a scope, a parenthesis, or a bracket is stepped over
+     * whole. That is what keeps a closure's, an anonymous class's, or a braced
+     * loop's contents out of the four tests above — a boundary written in there
+     * is closed before the body ends, so it can neither take a continuation nor
+     * be one — and it is also what carries the walk across `try`/`catch`/
+     * `finally` and `do`/`while` without either being named: each of their
+     * scopes is stepped over in turn, and the walk simply arrives at whatever
+     * follows the last one.
+     *
+     * The four tests come *before* the step-over, because an `if` owns the
+     * scope it opens and alternative-syntax `elseif`/`else` own theirs:
+     * stepping first would skip the very tokens being looked for.
+     *
+     * The walk visits each token of the body once and stops at the first
+     * boundary, so a clause costs its own body rather than the rest of the
+     * file. That matters for linearly nested brace-less `if`s, where every one
+     * of them reaches process() as a chain head of its own: each ends its walk
+     * on the nested `if` that opens its body, one token in. Re-deriving a
+     * statement end per head instead is O(n) work paid n times, which a file of
+     * a few thousand nested clauses turns into minutes of CPU.
+     */
+    private function bracelessNextClause(File $phpcsFile, int $clausePtr): ?int
+    {
+        $tokens = $phpcsFile->getTokens();
+
         if (isset($tokens[$clausePtr]['parenthesis_closer']) === false) {
             return null;
         }
 
-        // findEndOfStatement() reads the token it is handed, so it has to start
-        // on the statement's first real token, never the whitespace before it.
-        $bodyStart = $phpcsFile->findNext(
+        $pointer = $phpcsFile->findNext(
             Tokens::$emptyTokens,
             $tokens[$clausePtr]['parenthesis_closer'] + 1,
             null,
             true
         );
 
-        if ($bodyStart === false) {
-            return null;
-        }
-
-        $bodyEnd = $phpcsFile->findEndOfStatement($bodyStart);
-
-        if ($bodyEnd <= $clausePtr) {
-            return null;
-        }
-
-        $boundary = $this->chainBoundary($phpcsFile, $bodyStart, $bodyEnd);
-
-        if ($boundary !== null) {
-            // A nested `if` owns every continuation written after it, so the
-            // walk ends rather than claiming one; a continuation keyword inside
-            // the reported span is this clause's own, reached only because the
-            // span overran the body that precedes it.
-            return $tokens[$boundary]['code'] === T_IF ? null : $boundary;
-        }
-
-        return $this->continuation(
-            $tokens,
-            $phpcsFile->findNext(Tokens::$emptyTokens, $bodyEnd + 1, null, true)
-        );
-    }
-
-    /**
-     * The first chain boundary written at statement level between the two
-     * pointers, or null when the range holds none.
-     *
-     * The range is what findEndOfStatement() reports for a brace-less body, and
-     * it is a *statement* boundary, which is not the same question. Two kinds of
-     * clause boundary can sit inside it, and both are found by asking where the
-     * first one is:
-     *
-     * - a nested `if`, because findEndOfStatement() is not chain-aware. Handed
-     *   one, it stops at the end of that `if`'s own first clause, so the token
-     *   after the range is the nested chain's next clause. PHP binds a dangling
-     *   `elseif` or `else` to the nearest `if` still open — that nested one,
-     *   never the clause it is the body of — so it is never this clause's to
-     *   take, and the caller ends the walk.
-     * - this clause's own `elseif` or `else`, because neither keyword ends a
-     *   statement. A body holding any construct findEndOfStatement() steps over
-     *   whole — a brace-less loop around a braced one, at any nesting depth —
-     *   leaves the scan running through this clause's continuation and into the
-     *   statement after it, so the range overshoots. The body really ended at
-     *   that keyword, and the caller continues the chain from it.
-     *
-     * Anything that opens a scope of its own inside the range — a closure, an
-     * arrow function's braces, an anonymous class, a braced loop — is skipped
-     * whole. A boundary written in there is closed by that scope before the body
-     * ends, so it can neither take a continuation that follows the body nor be
-     * one, and reading it as either would misread a chain that really does
-     * continue.
-     *
-     * The two boundary tests come *before* that skip, because an `if` owns the
-     * scope it opens and alternative-syntax `elseif`/`else` own theirs: skipping
-     * first would step over the very tokens being looked for.
-     */
-    private function chainBoundary(File $phpcsFile, int $from, int $to): ?int
-    {
-        $tokens = $phpcsFile->getTokens();
-
-        for ($pointer = $from; $pointer <= $to; $pointer++) {
+        while ($pointer !== false) {
             $code = $tokens[$pointer]['code'];
 
-            if ($code === T_IF || in_array($code, self::CONTINUATION_KEYWORDS, true) === true) {
+            if ($code === T_IF) {
+                return null;
+            }
+
+            if (in_array($code, self::CONTINUATION_KEYWORDS, true) === true) {
                 return $pointer;
             }
 
-            if (isset($tokens[$pointer]['scope_closer']) === false) {
-                continue;
+            if ($code === T_SEMICOLON) {
+                return $this->continuation(
+                    $tokens,
+                    $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true)
+                );
             }
 
-            // PHPCS's own skip-nested-statements test, from
-            // File::findEndOfStatement(): a token owns the scope it names only
-            // when it is that scope's opener or its condition. Every other
-            // token carrying the pointers is inside the scope already.
-            $ownsScope = $pointer === $tokens[$pointer]['scope_opener']
-                || $pointer === $tokens[$pointer]['scope_condition'];
-
-            if ($ownsScope === true) {
-                $pointer = $tokens[$pointer]['scope_closer'];
+            if (in_array($code, self::BODY_TERMINATORS, true) === true) {
+                return null;
             }
+
+            $pointer = $phpcsFile->findNext(
+                Tokens::$emptyTokens,
+                $this->groupCloser($tokens, $pointer) + 1,
+                null,
+                true
+            );
         }
 
         return null;
+    }
+
+    /**
+     * The last token of the group this one opens, or the token itself when it
+     * opens none — so a caller stepping to the returned pointer plus one always
+     * moves forward, whatever it was handed.
+     *
+     * A token owns the scope it names only when it is that scope's opener or
+     * its condition; every other token carrying the pointers is inside the
+     * scope already. That is PHP_CodeSniffer's own skip-nested-statements test,
+     * from File::findEndOfStatement(), and the parenthesis and bracket pairs
+     * are read the same way. A closer never resolved — the tokenizer leaves it
+     * present-but-null on a file it cannot parse — is no group, so the walk
+     * steps a single token instead of jumping to nowhere.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function groupCloser(array $tokens, int $pointer): int
+    {
+        $token = $tokens[$pointer];
+        $ownsScope = isset($token['scope_opener'], $token['scope_closer']) === true
+            && ($pointer === $token['scope_opener'] || $pointer === ($token['scope_condition'] ?? null));
+
+        if ($ownsScope === true) {
+            return max($pointer, $token['scope_closer']);
+        }
+
+        if (isset($token['parenthesis_closer']) === true && $pointer === ($token['parenthesis_opener'] ?? null)) {
+            return max($pointer, $token['parenthesis_closer']);
+        }
+
+        if (isset($token['bracket_closer']) === true && $pointer === ($token['bracket_opener'] ?? null)) {
+            return max($pointer, $token['bracket_closer']);
+        }
+
+        return $pointer;
     }
 
     /**
