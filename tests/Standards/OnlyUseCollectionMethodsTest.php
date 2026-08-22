@@ -176,6 +176,8 @@ it('flags every violation at its own line with the expected code', function (): 
         359 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         370 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
         377 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        396 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+        406 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -254,6 +256,8 @@ it('names the Collection method that replaces each generic function', function (
         359 => 'count() => count()',
         370 => 'count() => count()',
         377 => 'count() => count()',
+        396 => 'count() => count()',
+        406 => 'count() => count()',
     ]);
 });
 
@@ -315,13 +319,23 @@ it('names the Collection method that replaces each generic function', function (
  * as reported-but-unfixable, and they are asserted individually because the
  * admission set is hand-written: any one member dropped from it silently
  * restores the rewrite for that shape alone, which no total would show.
+ *
+ * Lines 396 and 406 are that admission set read the other way, and they are the
+ * only two entries below that a *widening* of it breaks. Two of its members are
+ * closing brackets that a block also ends — the `}` of an `if` body, the `)` of
+ * a brace-less one's condition — and PHP puts no semicolon after either, so
+ * each can sit directly in front of the parenthesis opening the next statement.
+ * Matching the token alone reads an ordinary guard clause as a callable
+ * expression and withholds the rewrite from every line after it. Both stay
+ * fixable, and they are the mirror of the seven above: those fail if a member is
+ * dropped, these fail if a member is trusted without asking what it closes.
  */
 it('offers a fix only for provably-typed receivers', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(54)
+    expect($file->getErrorCount())->toBe(56)
         ->and(violationFixableLines($file->getErrors()))
-        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 236]);
+        ->toBe([18, 31, 40, 41, 49, 81, 82, 92, 93, 103, 104, 146, 157, 166, 180, 198, 222, 223, 236, 396, 406]);
 });
 
 /**
@@ -368,10 +382,15 @@ it('keeps the chainable-method list lower-cased and sorted', function (): void {
  * random() slipped in unnoticed.
  *
  * The fixer no longer consults it (see the fixability test above), so an
- * omission now costs a warning rather than a rewrite — but only five of its
+ * omission now costs a warning rather than a rewrite — but only nine of its
  * sixty entries have behavioural coverage, and without this the other
- * fifty-five could be deleted with the suite still green. Pinning the key set
+ * fifty-one could be deleted with the suite still green. Pinning the key set
  * makes every edit to the constant a deliberate, reviewed one.
+ *
+ * The nine are `all`, `getOrPut`, `mode`, `modelKeys`, `random`,
+ * `reduceWithKeys`, `toArray`, `unlessEmpty` and `unlessNotEmpty` — each
+ * counted by deleting its entry and rerunning the suite with this test
+ * excluded, not by reading the fixtures.
  */
 it('pins the terminal-method list', function (): void {
     $terminal = (new ReflectionClass(OnlyUseCollectionMethodsSniff::class))->getConstant('TERMINAL_METHODS');

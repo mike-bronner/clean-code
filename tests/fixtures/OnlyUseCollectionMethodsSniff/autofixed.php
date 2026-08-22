@@ -377,3 +377,31 @@ class LateStaticConstructorsMayRebindTheirArguments
         return count($data);
     }
 }
+
+// The same two bracket tokens, closing a block instead of a callable
+// expression. PHP needs no semicolon after a block, so the `}` ending an `if`
+// body — and the `)` ending a brace-less one's condition — can each sit
+// directly in front of the parenthesis that opens the *next* statement. Neither
+// hands anything to a call, so neither may cost the line below it its rewrite:
+// read as a callable expression, an ordinary guard clause silently disables the
+// fixer for the rest of its function. Both `count()` calls stay [x].
+function aBlockBraceBeforeAGroupedExpressionIsNotACallee(Collection $data): int
+{
+    if ($data->isEmpty()) {
+        return 0;
+    }
+
+    ($data)->count();
+
+    return $data->count();
+}
+
+// The brace-less form of the same shape. Here the token in front of the
+// grouping parenthesis is the `)` closing the `if` condition, so a fix that
+// only taught the `}` case to tell a block from a callee leaves this one broken.
+function aConditionParenBeforeAGroupedExpressionIsNotACallee(Collection $data): int
+{
+    if ($data->isEmpty()) ($data)->count();
+
+    return $data->count();
+}

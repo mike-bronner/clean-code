@@ -272,6 +272,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
      * all reach a `__construct()` free to declare `&$items`, and none of them
      * carries a class name this sniff could resolve. A plain `new Foo($c)` needs
      * no entry — its name is a T_STRING the caller already reads.
+     *
+     * Membership here is necessary but not sufficient for the two closing
+     * brackets: a `}` or `)` also closes a block or a condition, which ends a
+     * statement rather than producing a value. isCallableExpressionEnd() is what
+     * tells the two apart, and every read of this list goes through it.
      */
     private const CALLABLE_EXPRESSION_ENDERS = [
         T_ANON_CLASS,
@@ -985,7 +990,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             // answer is the admission set, never the fallthrough: a callee whose
             // parameters cannot be read is exactly the one that may declare
             // `&$items`.
-            return in_array($tokens[$callee]['code'], self::CALLABLE_EXPRESSION_ENDERS, true) === false;
+            return $this->isCallableExpressionEnd($phpcsFile, $callee) === false;
         }
 
         // A declaration's parameter list, not a call: its variables are the
@@ -1005,6 +1010,50 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // and rebind the caller's variable — so it escapes like any other call.
         return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
             && FunctionCalls::isGlobalFunctionCall($phpcsFile, $callee) === true;
+    }
+
+    /**
+     * Whether the token at $ptr ends a callable expression, so that the
+     * parenthesis after it opens an argument list rather than a new statement.
+     *
+     * Being in CALLABLE_EXPRESSION_ENDERS is not the whole answer for the two
+     * closing brackets. The same `}` that closes `$o->{$name}` also closes an
+     * `if`/`foreach`/`while`/`try` body, and the same `)` that closes
+     * `($factory->getMutator())` also closes such a block's condition — and PHP
+     * needs no semicolon after a block, so either can sit directly in front of
+     * an unrelated parenthesis opening the next statement. `if (…) { … }`
+     * followed by `($c)->count();` is two statements, not a call on the brace.
+     *
+     * PHPCS records the construct a bracket belongs to, which separates them:
+     * `scope_condition` on a `}` closing a body, `parenthesis_owner` on a `)`
+     * closing a condition or parameter list. A callable expression is owned by
+     * no construct, so an *unowned* bracket is the one that hides a callee. No
+     * owned bracket can be a callee either: the owning constructs that do
+     * produce a value — `array()`, `match () {}`, a closure literal — are none
+     * of them directly invocable, PHP's grammar requiring `(function () {})($c)`
+     * to wrap the expression first, and that wrapping parenthesis is unowned.
+     *
+     * Only the two brackets are asked. T_ANON_CLASS carries both keys itself —
+     * it *is* a construct that owns a scope — so testing it the same way would
+     * read `new class($c)` as owned, hence not a callable expression, hence
+     * provably by value: a constructor free to declare `&$items` would become
+     * fixable. T_SELF, T_STATIC and T_CLOSE_SQUARE_BRACKET carry neither key and
+     * have no such ambiguity to resolve.
+     *
+     * Unowned is also the safe answer to be wrong about: a bracket whose owner
+     * PHPCS has not recorded reads as a callable expression, and the caller
+     * declines the fix.
+     */
+    private function isCallableExpressionEnd(File $phpcsFile, int $ptr): bool
+    {
+        $token = $phpcsFile->getTokens()[$ptr];
+
+        return match (true) {
+            in_array($token['code'], self::CALLABLE_EXPRESSION_ENDERS, true) === false => false,
+            $token['code'] === T_CLOSE_CURLY_BRACKET => isset($token['scope_condition']) === false,
+            $token['code'] === T_CLOSE_PARENTHESIS => isset($token['parenthesis_owner']) === false,
+            default => true,
+        };
     }
 
     /**
