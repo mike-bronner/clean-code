@@ -112,9 +112,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 598, 'column' => 34],
     ],
     'CleanCode/Sniffs/Conditionals/TypeDiscriminatorDispatchSniff.php' => [
-        ['line' => 754, 'column' => 18],
-        ['line' => 774, 'column' => 28],
-        ['line' => 809, 'column' => 31],
+        ['line' => 780, 'column' => 18],
+        ['line' => 800, 'column' => 28],
+        ['line' => 835, 'column' => 31],
     ],
     'CleanCode/Sniffs/Controllers/NoCustomActionsSniff.php' => [
         ['line' => 178, 'column' => 34],
