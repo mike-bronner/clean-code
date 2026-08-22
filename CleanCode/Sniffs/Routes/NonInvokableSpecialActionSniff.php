@@ -231,10 +231,10 @@ class NonInvokableSpecialActionSniff implements Sniff
      *
      * The family is php.net's "Double quoted" table. It holds three more
      * members than this list: an octal `\[0-7]{1,3}` and a hex
-     * `\x[0-9A-Fa-f]{1,2}`, both decoded by unescaped() below because neither
-     * is a fixed list, and the Unicode codepoint escape `\u{...}`, deliberately
-     * left as written — see literalValue(). Everything else PHP evaluates is
-     * here.
+     * `\[xX][0-9A-Fa-f]{1,2}`, both decoded by unescaped() below because
+     * neither is a fixed list, and the Unicode codepoint escape `\u{...}`,
+     * deliberately left as written — see literalValue(). Everything else PHP
+     * evaluates is here.
      *
      * @var array<string, string>
      */
@@ -428,17 +428,11 @@ class NonInvokableSpecialActionSniff implements Sniff
     }
 
     /**
-     * The `[start, end]` span of each argument between $openPtr and its
-     * closer, a named argument's own label included in its span.
-     *
-     * Commas are only counted at the call's own depth: every group opener
-     * (parentheses, arrays, subscripts, braces, attributes) is jumped straight
-     * to its closer, so a comma inside a nested array or a nested call cannot
-     * shift an argument's position.
-     *
-     * A name needs no rule of its own here. It opens the span of the argument
-     * it belongs to, exactly as a positional argument's first token does, and
-     * labelledArgument() below is what separates the two.
+     * The `[start, end]` span of each argument of the call whose opening
+     * parenthesis is $openPtr, a named argument's own label included in its
+     * span. The walk itself is rangesUntil() below; this only resolves the
+     * call's closer, and answers with nothing when the tokenizer left the
+     * parenthesis unpaired.
      *
      * @return array<int, array{0: int, 1: int}>
      */
@@ -447,41 +441,7 @@ class NonInvokableSpecialActionSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $closePtr = $tokens[$openPtr]['parenthesis_closer'] ?? null;
 
-        if ($closePtr === null) {
-            return [];
-        }
-
-        $ranges = [];
-        $start = null;
-        $end = null;
-
-        for ($ptr = ($openPtr + 1); $ptr < $closePtr; $ptr++) {
-            $code = $tokens[$ptr]['code'];
-
-            if ($code === T_COMMA) {
-                if ($start !== null) {
-                    $ranges[] = [$start, $end];
-                }
-
-                $start = null;
-
-                continue;
-            }
-
-            if (isset(Tokens::$emptyTokens[$code]) === true) {
-                continue;
-            }
-
-            $end = $this->groupCloser($tokens, $ptr);
-            $start ??= $ptr;
-            $ptr = $end;
-        }
-
-        if ($start !== null) {
-            $ranges[] = [$start, $end];
-        }
-
-        return $ranges;
+        return $closePtr === null ? [] : $this->rangesUntil($phpcsFile, $openPtr, $closePtr);
     }
 
     /**
@@ -601,7 +561,7 @@ class NonInvokableSpecialActionSniff implements Sniff
      * Requiring both halves to be literal is also what leaves the associative
      * `['uses' => ...]` action alone: a `key => value` element is neither a
      * bare `::class` constant nor a lone string token, so that shape is never
-     * read by index. See elementRanges() below.
+     * read by index. See rangesUntil() below.
      */
     private function methodFromArrayAction(File $phpcsFile, int $start, int $end): ?string
     {
@@ -614,7 +574,7 @@ class NonInvokableSpecialActionSniff implements Sniff
             return null;
         }
 
-        $elements = $this->elementRanges($phpcsFile, $openPtr, $end);
+        $elements = $this->rangesUntil($phpcsFile, $openPtr, $end);
 
         if (count($elements) !== 2) {
             return null;
@@ -637,19 +597,25 @@ class NonInvokableSpecialActionSniff implements Sniff
     }
 
     /**
-     * The `[start, end]` span of each element of the array between $openPtr
-     * and $closePtr.
+     * The `[start, end]` span of each comma-separated range between $openPtr
+     * and $closePtr, which is one walk for both shapes that need it: a call's
+     * argument list, and an array action's element list.
      *
-     * An associative element (`'uses' => …`) needs no guard of its own. Its
-     * range swallows the key and the `=>` along with the value, which breaks
-     * both literal-element checks in the caller — a `key => value` pair is
-     * never a bare `SomeClass::class` constant, and never a lone string token
-     * either. The associative action shape therefore falls out with every
-     * other unrecognised shape rather than through a rule of its own.
+     * Commas are only counted at the opener's own depth: every group opener
+     * (parentheses, arrays, subscripts, braces, attributes) is jumped straight
+     * to its closer, so a comma inside a nested array or a nested call cannot
+     * shift a range's position.
+     *
+     * A range runs from its first significant token to the last, whatever it
+     * holds. An argument's name and an associative element's `'uses' =>` key
+     * are therefore inside the range rather than ahead of it, which is what
+     * lets one walk serve both callers — labelledArgument() strips a name off
+     * the front, and a `key => value` element fails the literal-element checks
+     * in methodFromArrayAction() without a rule of its own.
      *
      * @return array<int, array{0: int, 1: int}>
      */
-    private function elementRanges(File $phpcsFile, int $openPtr, int $closePtr): array
+    private function rangesUntil(File $phpcsFile, int $openPtr, int $closePtr): array
     {
         $tokens = $phpcsFile->getTokens();
         $ranges = [];
@@ -768,9 +734,17 @@ class NonInvokableSpecialActionSniff implements Sniff
      * - a single-quoted literal defines exactly two sequences, `\\` and `\'`,
      *   and leaves every other backslash as a backslash;
      * - a double-quoted literal adds `\n`, `\r`, `\t`, `\v`, `\e`, `\f`, `\$`,
-     *   `\"`, an octal `\[0-7]{1,3}` and a hex `\x[0-9A-Fa-f]{1,2}`, all of
+     *   `\"`, an octal `\[0-7]{1,3}` and a hex `\[xX][0-9A-Fa-f]{1,2}`, all of
      *   them evaluated here, and leaves an unrecognised sequence (`\q`) as
      *   written, exactly as PHP does.
+     *
+     * The hex escape spells its marker in either case — PHP reads `\X41` and
+     * `\x41` alike — and a marker no hex digit follows is not an escape at
+     * all: PHP leaves `"\xZ"` as the three literal characters it is written
+     * with. The alternation above therefore names both cases, and matches a
+     * marker only where hex digits follow it; a lone marker falls through the
+     * `.` branch instead, and unescaped() answers it with the text it was
+     * written with.
      *
      * The one member left unevaluated is the Unicode codepoint escape
      * `\u{...}`, which would need a UTF-8 encoder for a spelling no route
@@ -792,7 +766,7 @@ class NonInvokableSpecialActionSniff implements Sniff
         }
 
         return (string) preg_replace_callback(
-            '/\\\\(x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
+            '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
             fn (array $match): string => $this->unescaped($match[1], $match[0]),
             $body
         );
@@ -805,12 +779,19 @@ class NonInvokableSpecialActionSniff implements Sniff
      *
      * The two numeric families are decoded rather than tabulated, because
      * neither is a fixed list: an octal escape is one to three octal digits
-     * taken modulo 256, and a hex escape one or two hex digits. Both produce a
-     * single byte, which is what PHP puts in the string.
+     * taken modulo 256, and a hex escape a case-insensitive `x` marker and one
+     * or two hex digits. Both produce a single byte, which is what PHP puts in
+     * the string.
+     *
+     * Each is recognised by matching the whole sequence, never by its first
+     * character alone. A marker with no hex digit after it (`\xZ`) reaches
+     * here as the bare marker, is no escape to PHP, and must come back as the
+     * text it was written with rather than decode to the NUL byte an empty
+     * hexdec() would give.
      */
     private function unescaped(string $sequence, string $written): string
     {
-        if ($sequence[0] === 'x') {
+        if (preg_match('/^[xX][0-9A-Fa-f]{1,2}$/', $sequence) === 1) {
             return chr((int) hexdec(substr($sequence, 1)));
         }
 

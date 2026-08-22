@@ -89,3 +89,10 @@ Route::patch('/tags/retag', 'App\Http\Controllers\TagController@retag');
 // an ordinary name character, so each names a method to classify.
 Route::get('/posts/rehome', "PostController@reh\x6fme");
 Route::get('/posts/replace', "PostController@repl\141ce");
+
+// A hex escape spells its marker in either case, so the uppercase form names
+// the same method the lower cased one does. A namespace separator written as a
+// malformed hex escape is no escape at all: PHP leaves the marker and the
+// character after it exactly as written, which is a readable class name still.
+Route::get('/posts/revise', "PostController@rev\X69se");
+Route::patch('/tags/reshelve', "App\xZoneTagController@reshelve");

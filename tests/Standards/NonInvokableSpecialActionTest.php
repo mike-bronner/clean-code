@@ -102,6 +102,16 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
  * are the hex and octal escapes, each spelling an ordinary letter inside the
  * method name: without evaluation the raw text is no identifier and both fall
  * silent.
+ *
+ * Lines 97-98 are the two ways a hex escape is misread by a shortcut, and each
+ * falls out under its own defect rather than the other's. Line 97 writes the
+ * marker in upper case, which PHP reads exactly as the lower cased form: read
+ * only `\x` and the method name never assembles, so the line goes silent. Line
+ * 98 writes a marker no hex digit follows, which is no escape to PHP at all —
+ * it stays the literal text it is written with, and the namespace separator
+ * ahead of it leaves a class name that still reads. Decode that marker as a
+ * hex escape with nothing to decode and it becomes a NUL byte inside the class
+ * name, which matches no name pattern and takes that line silent instead.
  */
 it('flags every non-invokable action shape at its own line and column', function () use ($routeRun): void {
     expect(warningTuples($routeRun('failing.php')))->toBe([
@@ -137,6 +147,8 @@ it('flags every non-invokable action shape at its own line and column', function
         ['line' => 86, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 90, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 91, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 97, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 98, 'column' => 32, 'source' => SPECIAL_ACTION_FOUND],
     ]);
 });
 
@@ -148,7 +160,7 @@ it('flags every non-invokable action shape at its own line and column', function
  */
 it('reports warnings and never errors', function () use ($routeRun): void {
     expect($routeRun('failing.php')->getErrors())->toBe([])
-        ->and($routeRun('failing.php')->getWarningCount())->toBe(32);
+        ->and($routeRun('failing.php')->getWarningCount())->toBe(34);
 });
 
 /**
@@ -289,6 +301,14 @@ it('names the targeted method in the warning', function (string $source, string 
     ],
     'hex escape in the method name' => ['Route::get(\'/a\', "PostController@arch\x69ve");', 'archive'],
     'octal escape in the method name' => ['Route::get(\'/a\', "PostController@arch\151ve");', 'archive'],
+    'upper cased hex escape in the method name' => [
+        'Route::get(\'/a\', "PostController@arch\X69ve");',
+        'archive',
+    ],
+    'malformed hex escape in the class name' => [
+        'Route::get(\'/a\', "App\xZoneController@archive");',
+        'archive',
+    ],
 ]);
 
 /**
@@ -301,8 +321,8 @@ it('names the targeted method in the warning', function (string $source, string 
 it('inspects a file only under a routes directory', function (string $directory, int $expected) use ($routeRun): void {
     expect($routeRun('failing.php', $directory)->getWarningCount())->toBe($expected);
 })->with([
-    'routes' => ['routes', 32],
-    'nested under routes' => ['routes/admin', 32],
+    'routes' => ['routes', 34],
+    'nested under routes' => ['routes/admin', 34],
     'app' => ['app', 0],
     'app/Providers' => ['app/Providers', 0],
     'tests' => ['tests', 0],
@@ -323,7 +343,7 @@ it('honours a ruleset-configured routeFilePatterns', function (): void {
         }
     );
 
-    expect($configured->getWarningCount())->toBe(32);
+    expect($configured->getWarningCount())->toBe(34);
 });
 
 /**
@@ -356,7 +376,7 @@ it('stays silent on input with no path', function (): void {
  * Staged exactly as $routeRun stages it, and asserted in the same paired shape
  * as the file-gate test above rather than only on the positive half:
  *
- * - the staged copy reports all 32, every message under this sniff's own code,
+ * - the staged copy reports all 34, every message under this sniff's own code,
  *   at warning severity, at status 1 — violations, none of them fixable, which
  *   is what this detection-only rule owes. Status 2 would mean phpcbf had been
  *   offered a fix, and 3 is what a broken install exits with.
@@ -376,7 +396,7 @@ it('reports the violation end to end through the installed package', function ()
         stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'passing.php'), 'routes')
     );
 
-    expect(array_column($staged['messages'], 'source'))->toHaveCount(32)
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(34)
         ->each->toBe(SPECIAL_ACTION_FOUND)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
         ->and($staged['status'])->toBe(1)
