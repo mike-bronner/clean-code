@@ -80,7 +80,7 @@ than failing a build.
   which #248 reports at the verb call itself, and flagging it here would
   double-report one line.
 
-  Five boundaries, all deliberate:
+  Seven boundaries, all deliberate:
   - **False positive — a deliberately shared controller.** Several related
     non-RESTful actions grouped on one controller read as violations on shape
     alone. The sniff reports them; a reviewer dismisses them. That is why the
@@ -94,11 +94,27 @@ than failing a build.
     routes clears every check while plainly breaking the intent; that
     judgement stays with code review.
   - **Dynamic actions are skipped, not guessed at.** An action built from a
-    variable, a call, a class constant or string interpolation —
-    `[$controller, 'x']`, `[FooController::class, $method]`,
-    `[FooController::class, self::ACTION]`, `"FooController@{$method}"` — is
-    unreadable at token level. So is the associative `['uses' => …]` action
-    shape, which is left alone rather than read by position.
+    variable, a call, a class constant, string interpolation or a
+    concatenation — `[$controller, 'x']`, `[FooController::class, $method]`,
+    `[FooController::class, self::ACTION]`, `"FooController@{$method}"`,
+    `'FooController@archive' . $suffix`,
+    `[FooController::class, 'archive' . $suffix]` — is unreadable at token
+    level. So is the associative `['uses' => …]` action shape, which is left
+    alone rather than read by position.
+  - **A literal is read in either quoting style, escapes evaluated.**
+    `"App\\Http\\TagController@archive"` and
+    `'App\Http\TagController@archive'` are the same string to PHP, so the same
+    action is read out of both. Every escape sequence either quoting style
+    defines is evaluated first, with one exception: the Unicode codepoint
+    escape `\u{…}` is left as written and therefore matches neither name
+    pattern, so `"FooController@arch\u{69}ve"` is skipped — a false negative
+    for a spelling no route file uses.
+  - **A heredoc or nowdoc action is skipped (false negative).** Its body is
+    several tokens whatever it holds, so `<<<'ACTION'` carrying
+    `FooController@archive` is passed over even though the content is fully
+    literal. Unlike the dynamic shapes above this one is readable in
+    principle; it is left unread because no route file spells an action that
+    way.
   - **Symbol resolution assumes the Laravel `Route` facade.** As with #174 and
     #248, the receiver is matched on the literal token `Route`, case included,
     so an aliased import cannot be resolved and a differently cased spelling

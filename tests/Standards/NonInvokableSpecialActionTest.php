@@ -90,6 +90,18 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
  * that recognised only the single-quoted one falls out here. Line 70 is that
  * same spelling in the array action's method element, which the criteria name
  * both ways as well.
+ *
+ * Lines 77-78 put an arrow function in an argument before the action. PHPCS
+ * ends an arrow function's scope on the token that terminates the expression
+ * around it, which here is the comma separating it from the next argument, so
+ * a walk that followed that closer would fuse both arguments into one and read
+ * no action at all. Lines 84-86 are one PHP string spelled three ways — a
+ * double-quoted namespace separator, a single-quoted escaped one, and the
+ * plain single-quoted form — and all three report the same method, which is
+ * what makes the escape evaluation visible rather than assumed. Lines 90-91
+ * are the hex and octal escapes, each spelling an ordinary letter inside the
+ * method name: without evaluation the raw text is no identifier and both fall
+ * silent.
  */
 it('flags every non-invokable action shape at its own line and column', function () use ($routeRun): void {
     expect(warningTuples($routeRun('failing.php')))->toBe([
@@ -118,6 +130,13 @@ it('flags every non-invokable action shape at its own line and column', function
         ['line' => 59, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 65, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
         ['line' => 70, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 77, 'column' => 38, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 78, 'column' => 58, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 84, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 85, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 86, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 90, 'column' => 29, 'source' => SPECIAL_ACTION_FOUND],
+        ['line' => 91, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
     ]);
 });
 
@@ -129,13 +148,26 @@ it('flags every non-invokable action shape at its own line and column', function
  */
 it('reports warnings and never errors', function () use ($routeRun): void {
     expect($routeRun('failing.php')->getErrors())->toBe([])
-        ->and($routeRun('failing.php')->getWarningCount())->toBe(25);
+        ->and($routeRun('failing.php')->getWarningCount())->toBe(32);
 });
 
 /**
  * Each near-miss on its own file. A shape that stopped being skipped reports
  * here even when the rest of passing.php would still be silent, which is the
  * difference between this and the whole-fixture assertion above.
+ *
+ * Three entries pin a *documented limit* rather than a dynamic action, and are
+ * here so the limit cannot drift into an unnoticed regression: the nowdoc and
+ * heredoc actions carry fully literal content the sniff still declines to
+ * reassemble out of several tokens, and the codepoint escape is the one member
+ * of PHP's double-quoted escape table left as written. Each is recorded in the
+ * class docblock and in the standard's doc as a known false negative. The two
+ * concatenation entries are the opposite case — a genuinely dynamic action the
+ * sniff must never flag — and each drives one of the two paths a concatenation
+ * can arrive on: the string action itself, and the array action's method
+ * element. Both are what the count guards in targetMethod() and
+ * methodFromArrayAction() exist for; delete either guard and the matching
+ * entry here reports.
  */
 it('stays silent on each near-miss shape', function (string $source) use ($routeSource): void {
     $file = $routeSource($source);
@@ -180,6 +212,13 @@ it('stays silent on each near-miss shape', function (string $source) use ($route
     'string holding an @ that names no controller' => ["Route::get('/a', 'support@example.com');"],
     'string action with no method' => ["Route::get('/a', 'PostController@');"],
     'chained builder registration' => ["Route::middleware('auth')->get('/a', [PostController::class, 'archive']);"],
+    'concatenated string action' => ["Route::get('/a', 'PostController@archive' . \$suffix);"],
+    'concatenated array method' => ["Route::get('/a', [PostController::class, 'archive' . \$suffix]);"],
+    'nowdoc action' => ["Route::get('/a', <<<'ACTION'\nPostController@archive\nACTION);"],
+    'heredoc action' => ["Route::get('/a', <<<ACTION\nPostController@archive\nACTION);"],
+    'escaped newline in the class name' => ['Route::get(\'/a\', "Post\nController@archive");'],
+    'escaped quote in the class name' => ['Route::get(\'/a\', "Post\"Controller@archive");'],
+    'codepoint escape in the method name' => ['Route::get(\'/a\', "PostController@arch\u{0069}ve");'],
 ]);
 
 /**
@@ -187,6 +226,13 @@ it('stays silent on each near-miss shape', function (string $source) use ($route
  * The tuples above pin *where* the sniff reports; this pins *what* it read out
  * of the action, so an argument misread that still lands on a reportable token
  * — the methods array in a Route::match call, say — cannot pass both.
+ *
+ * The last six entries are the two defects this pins by construction. The
+ * arrow-function pair reads an action written *after* an argument PHPCS closes
+ * on the following comma; the four escape entries read a method out of a
+ * literal whose raw token text is not its value — a namespace separator
+ * escaped in either quoting style, and the hex and octal escapes. Every one of
+ * them is silent unless the sniff evaluates what PHP evaluates.
  */
 it('names the targeted method in the warning', function (string $source, string $method) use ($routeSource): void {
     $warnings = $routeSource($source)->getWarnings();
@@ -225,6 +271,24 @@ it('names the targeted method in the warning', function (string $source, string 
         "Route::match(['get'], uri: '/a', action: [PostController::class, 'rebuild']);",
         'rebuild',
     ],
+    'arrow function before the action' => [
+        "Route::get(fn () => '/a', [PostController::class, 'archive']);",
+        'archive',
+    ],
+    'arrow function before a match action' => [
+        "Route::match(fn () => ['get'], '/a', [PostController::class, 'export']);",
+        'export',
+    ],
+    'double quoted escaped namespace separator' => [
+        'Route::get(\'/a\', "App\\\\Http\\\\PostController@archive");',
+        'archive',
+    ],
+    'single quoted escaped namespace separator' => [
+        "Route::get('/a', 'App\\\\Http\\\\PostController@archive');",
+        'archive',
+    ],
+    'hex escape in the method name' => ['Route::get(\'/a\', "PostController@arch\x69ve");', 'archive'],
+    'octal escape in the method name' => ['Route::get(\'/a\', "PostController@arch\151ve");', 'archive'],
 ]);
 
 /**
@@ -237,8 +301,8 @@ it('names the targeted method in the warning', function (string $source, string 
 it('inspects a file only under a routes directory', function (string $directory, int $expected) use ($routeRun): void {
     expect($routeRun('failing.php', $directory)->getWarningCount())->toBe($expected);
 })->with([
-    'routes' => ['routes', 25],
-    'nested under routes' => ['routes/admin', 25],
+    'routes' => ['routes', 32],
+    'nested under routes' => ['routes/admin', 32],
     'app' => ['app', 0],
     'app/Providers' => ['app/Providers', 0],
     'tests' => ['tests', 0],
@@ -259,7 +323,7 @@ it('honours a ruleset-configured routeFilePatterns', function (): void {
         }
     );
 
-    expect($configured->getWarningCount())->toBe(25);
+    expect($configured->getWarningCount())->toBe(32);
 });
 
 /**
@@ -292,7 +356,7 @@ it('stays silent on input with no path', function (): void {
  * Staged exactly as $routeRun stages it, and asserted in the same paired shape
  * as the file-gate test above rather than only on the positive half:
  *
- * - the staged copy reports all 25, every message under this sniff's own code,
+ * - the staged copy reports all 32, every message under this sniff's own code,
  *   at warning severity, at status 1 — violations, none of them fixable, which
  *   is what this detection-only rule owes. Status 2 would mean phpcbf had been
  *   offered a fix, and 3 is what a broken install exits with.
@@ -312,7 +376,7 @@ it('reports the violation end to end through the installed package', function ()
         stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'passing.php'), 'routes')
     );
 
-    expect(array_column($staged['messages'], 'source'))->toHaveCount(25)
+    expect(array_column($staged['messages'], 'source'))->toHaveCount(32)
         ->each->toBe(SPECIAL_ACTION_FOUND)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
         ->and($staged['status'])->toBe(1)

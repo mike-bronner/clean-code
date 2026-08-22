@@ -68,3 +68,24 @@ Route::get('/posts/reissue', "PostController@reissue");
 // acceptance criteria name both spellings for it too. The interpolated
 // spelling of *this* element is in passing.php, beside its string-action twin.
 Route::get('/posts/reindex', [PostController::class, "reindex"]);
+
+// An argument written before the action can open a group of its own, and the
+// walk has to end that group where the argument ends. An arrow function is the
+// shape PHPCS does not close at the end of its body: it shares its scope
+// closer with the comma separating it from the next argument. An action one
+// slot further along is only read when that closer is left unfollowed.
+Route::get(fn () => '/posts/rotate', [PostController::class, 'rotate']);
+Route::match(fn () => ['get', 'post'], '/posts/reorder', [PostController::class, 'reorder']);
+
+// A namespace separator is a backslash, and a backslash is the one character
+// both quoting styles escape. All three lines below spell the identical PHP
+// string, so the identical action is read out of each: the raw token text
+// differs where the evaluated value does not.
+Route::post('/tags/rename', "App\\Http\\Controllers\\TagController@rename");
+Route::put('/tags/relabel', 'App\\Http\\Controllers\\TagController@relabel');
+Route::patch('/tags/retag', 'App\Http\Controllers\TagController@retag');
+
+// The two numeric escapes are the rest of the double-quoted table. Each spells
+// an ordinary name character, so each names a method to classify.
+Route::get('/posts/rehome', "PostController@reh\x6fme");
+Route::get('/posts/replace', "PostController@repl\141ce");

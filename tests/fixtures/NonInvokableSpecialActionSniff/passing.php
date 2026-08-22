@@ -142,3 +142,30 @@ Route::get('/empty-controller', '@archive');
 // single-file token scan cannot tell from any other fluent builder.
 Route::middleware('auth')->get('/chained', [PostController::class, 'archive']);
 Route::prefix('admin')->name('admin.')->post('/chained-deep', 'PostController@publish');
+
+// A concatenation is a dynamic action wherever it sits — as the string action
+// itself, or as the array action's method element. Either way the value is
+// more than one token, which is what stops the first token being read as
+// though it were the whole of it.
+$suffix = 'Archive';
+Route::get('/concatenated-string', 'PostController@archive' . $suffix);
+Route::get('/concatenated-method', [PostController::class, 'archive' . $suffix]);
+
+// A heredoc or nowdoc body is several tokens whatever it holds, so an action
+// spelled that way is skipped even though its content is fully literal. No
+// route file writes one; the shape is fixtured so the limit is pinned rather
+// than merely claimed.
+Route::get('/nowdoc', <<<'ACTION'
+PostController@archive
+ACTION);
+Route::get('/heredoc', <<<ACTION
+PostController@archive
+ACTION);
+
+// Escape sequences are evaluated before either half is matched, so a
+// double-quoted action carrying one that is not a name character names nothing
+// to classify. The Unicode codepoint escape is the one member of that table
+// left as written, and the same patterns reject it.
+Route::get('/escaped-newline', "Post\nController@archive");
+Route::get('/escaped-quote', "Post\"Controller@archive");
+Route::get('/codepoint-escape', "PostController@arch\u{0069}ve");

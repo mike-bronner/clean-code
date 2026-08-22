@@ -63,8 +63,22 @@ use PHP_CodeSniffer\Util\Tokens;
  *   special-action routes clears every check here while plainly breaking the
  *   bullet's "very rare"; that judgement stays with code review.
  * - **A dynamic action is skipped, not guessed at.** `[$controller, 'x']`,
- *   `[PostController::class, $method]`, `[PostController::class, self::X]` and
- *   `"PostController@{$method}"` are all unreadable at token level.
+ *   `[PostController::class, $method]`, `[PostController::class, self::X]`,
+ *   `"PostController@{$method}"` and a concatenation on either path
+ *   (`'PostController@archive' . $suffix`,
+ *   `[PostController::class, 'archive' . $suffix]`) are all unreadable at
+ *   token level.
+ * - **Only a single quoted string is read as a string action.** A
+ *   heredoc or nowdoc body is several tokens whatever it holds, so
+ *   `<<<'ACTION'` … `PostController@archive` … `ACTION` is skipped even
+ *   though its content is fully literal. Unlike the dynamic shapes above this
+ *   one is readable in principle; it is left unread because no route file
+ *   spells an action that way, and reading it would mean reassembling a
+ *   multi-token body for no reachable gain.
+ * - **A Unicode codepoint escape is skipped.** `"PostController@arch\u{69}ve"`
+ *   is left as written rather than decoded, so it matches neither name
+ *   pattern and is passed over. Every other escape sequence in either quoting
+ *   style is evaluated — see literalValue().
  * - **Only the two documented shapes are read.** An associative
  *   `['uses' => ...]` action, a closure or arrow function (#174's shape), and
  *   anything else are left alone rather than read positionally.
@@ -158,6 +172,82 @@ class NonInvokableSpecialActionSniff implements Sniff
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
+    ];
+
+    /**
+     * Every key PHP_CodeSniffer records a group's closing token under, in the
+     * order they are consulted.
+     *
+     * The family is the closer keys PHPCS's tokenizer sets, which is a closed
+     * list of four: `parenthesis_closer` (an argument or parameter list, and
+     * `array(...)`), `bracket_closer` (`[...]`, `{...}`), `attribute_closer`
+     * (`#[...]`) and `scope_closer` (a construct with a body). No fifth key
+     * exists to consult.
+     *
+     * `parenthesis_closer` is read before `scope_closer` deliberately: a
+     * closure carries both, and jumping only its parameter list leaves its
+     * body to be walked through the braces, which carry a closer of their own.
+     *
+     * @var array<int, string>
+     */
+    private const CLOSER_KEYS = [
+        'parenthesis_closer',
+        'bracket_closer',
+        'attribute_closer',
+        'scope_closer',
+    ];
+
+    /**
+     * The two tokens of an arrow function, whose `scope_closer` groupCloser()
+     * below must not follow. Both carry it: PHPCS records the same closer on
+     * the `fn` and on its `=>`.
+     *
+     * @var array<int, int|string>
+     */
+    private const ARROW_FUNCTION_TOKENS = [
+        T_FN,
+        T_FN_ARROW,
+    ];
+
+    /**
+     * Every escape sequence a single-quoted literal defines, keyed by the
+     * character after the backslash.
+     *
+     * The family is php.net's "Single quoted" table, which holds exactly these
+     * two entries. Every other backslash in a single-quoted string is a
+     * backslash, which is why the lookup falls back to the sequence as
+     * written.
+     *
+     * @var array<string, string>
+     */
+    private const SINGLE_QUOTED_ESCAPES = [
+        '\\' => '\\',
+        "'" => "'",
+    ];
+
+    /**
+     * The escape sequences a double-quoted literal defines that stand for one
+     * fixed character, keyed the same way.
+     *
+     * The family is php.net's "Double quoted" table. It holds three more
+     * members than this list: an octal `\[0-7]{1,3}` and a hex
+     * `\x[0-9A-Fa-f]{1,2}`, both decoded by unescaped() below because neither
+     * is a fixed list, and the Unicode codepoint escape `\u{...}`, deliberately
+     * left as written — see literalValue(). Everything else PHP evaluates is
+     * here.
+     *
+     * @var array<string, string>
+     */
+    private const DOUBLE_QUOTED_ESCAPES = [
+        'n' => "\n",
+        'r' => "\r",
+        't' => "\t",
+        'v' => "\v",
+        'e' => "\e",
+        'f' => "\f",
+        '\\' => '\\',
+        '$' => '$',
+        '"' => '"',
     ];
 
     /**
@@ -433,13 +523,37 @@ class NonInvokableSpecialActionSniff implements Sniff
     /**
      * The closing token of the group $ptr opens, or $ptr itself when it opens
      * nothing. Every closer PHPCS records lives under a different key, so all
-     * four are consulted rather than assuming one spelling.
+     * four in CLOSER_KEYS are consulted rather than assuming one spelling.
+     *
+     * An arrow function is the one construct whose scope closer must not be
+     * followed, because PHPCS does not end its scope at the end of its body:
+     * Tokenizers/PHP.php walks forward from the `=>` to the first token of its
+     * own $endTokens set — T_COLON, T_COMMA, T_SEMICOLON, T_CLOSE_PARENTHESIS,
+     * T_CLOSE_SQUARE_BRACKET, T_CLOSE_CURLY_BRACKET, T_CLOSE_SHORT_ARRAY,
+     * T_OPEN_TAG, T_CLOSE_TAG — and records *that* token as the scope closer.
+     * For `Route::get(fn () => '/x', [PostController::class, 'archive'])` the
+     * closer is therefore the comma separating the two arguments. Jumping to
+     * it would swallow the separator, fuse both arguments into one range, and
+     * leave the real action unread — a violation reported as silence.
+     *
+     * Skipping the key is the whole fix, not a patch over one shape. The
+     * arrow function's body is then walked token by token like any other
+     * expression: each nested group is jumped by its own closer, and the
+     * terminating comma is read as the separator it is. Nothing is lost by
+     * walking it, because an arrow function's body cannot contain a comma at
+     * that depth — a comma is exactly what ends it.
      *
      * @param array<int, array<string, mixed>> $tokens
      */
     private function groupCloser(array $tokens, int $ptr): int
     {
-        foreach (['parenthesis_closer', 'bracket_closer', 'attribute_closer', 'scope_closer'] as $key) {
+        $isArrowFunction = in_array($tokens[$ptr]['code'], self::ARROW_FUNCTION_TOKENS, true);
+
+        foreach (self::CLOSER_KEYS as $key) {
+            if ($key === 'scope_closer' && $isArrowFunction === true) {
+                continue;
+            }
+
             if (isset($tokens[$ptr][$key]) === true && $tokens[$ptr][$key] > $ptr) {
                 return $tokens[$ptr][$key];
             }
@@ -638,16 +752,73 @@ class NonInvokableSpecialActionSniff implements Sniff
     }
 
     /**
-     * The value of a quoted string literal, the outer quote pair removed.
+     * The value of a quoted string literal: the outer quote pair removed and
+     * the escape sequences evaluated, so the sniff reads what PHP reads.
      *
-     * No unescaping follows, and none is needed: the two halves this sniff
-     * reads out of a literal are a class name and a method name, and neither
-     * can contain an escape sequence and still be a valid PHP identifier — the
-     * identifier patterns above reject anything that tries.
+     * Evaluating them is load-bearing rather than tidy. A namespace separator
+     * is a backslash, and a backslash is the one character both quoting styles
+     * escape, so `"App\\Http\\TagController@archive"` and
+     * `'App\Http\TagController@archive'` are the same string to PHP while
+     * their raw token text is not. Comparing the raw text would read the first
+     * as a doubled separator, fail CLASS_NAME_PATTERN, and silently skip an
+     * action the single-quoted spelling reports.
+     *
+     * Both of PHP's escape tables are covered whole (php.net, "Strings"):
+     *
+     * - a single-quoted literal defines exactly two sequences, `\\` and `\'`,
+     *   and leaves every other backslash as a backslash;
+     * - a double-quoted literal adds `\n`, `\r`, `\t`, `\v`, `\e`, `\f`, `\$`,
+     *   `\"`, an octal `\[0-7]{1,3}` and a hex `\x[0-9A-Fa-f]{1,2}`, all of
+     *   them evaluated here, and leaves an unrecognised sequence (`\q`) as
+     *   written, exactly as PHP does.
+     *
+     * The one member left unevaluated is the Unicode codepoint escape
+     * `\u{...}`, which would need a UTF-8 encoder for a spelling no route
+     * action uses. It is left as written, which costs nothing: both patterns
+     * above reject a brace anywhere in a name, so such an action is skipped
+     * rather than misread — a false negative, pinned by a fixture and recorded
+     * with the other known limits in the class docblock.
      */
     private function literalValue(string $content): string
     {
-        return substr($content, 1, -1);
+        $body = substr($content, 1, -1);
+
+        if ($content[0] === "'") {
+            return (string) preg_replace_callback(
+                '/\\\\(.)/s',
+                static fn (array $match): string => self::SINGLE_QUOTED_ESCAPES[$match[1]] ?? $match[0],
+                $body
+            );
+        }
+
+        return (string) preg_replace_callback(
+            '/\\\\(x[0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
+            fn (array $match): string => $this->unescaped($match[1], $match[0]),
+            $body
+        );
+    }
+
+    /**
+     * What PHP evaluates the double-quoted escape sequence `\$sequence` to,
+     * falling back to $written — the sequence as the source spells it — for
+     * anything PHP does not recognise as an escape.
+     *
+     * The two numeric families are decoded rather than tabulated, because
+     * neither is a fixed list: an octal escape is one to three octal digits
+     * taken modulo 256, and a hex escape one or two hex digits. Both produce a
+     * single byte, which is what PHP puts in the string.
+     */
+    private function unescaped(string $sequence, string $written): string
+    {
+        if ($sequence[0] === 'x') {
+            return chr((int) hexdec(substr($sequence, 1)));
+        }
+
+        if (preg_match('/^[0-7]{1,3}$/', $sequence) === 1) {
+            return chr((int) octdec($sequence) % 256);
+        }
+
+        return self::DOUBLE_QUOTED_ESCAPES[$sequence] ?? $written;
     }
 
     /**
