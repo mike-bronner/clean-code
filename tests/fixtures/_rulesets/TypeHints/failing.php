@@ -50,7 +50,7 @@ class Wallet
     }
 }
 
-interface Repository
+interface Registry
 {
     public function all();
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Models;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -112,11 +113,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
     /**
      * The token stream self::$roots was built from, so a stream it does not
-     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
-     * every `phpcbf` pass and the record holds pointers into one particular
-     * stream, so the fixer's loop counter is part of the key alongside the file
-     * and its token count — the same key tests/../ArrayAccessorsSniff builds
-     * for its own per-stream maps.
+     * describe is never answered from. The record holds pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * four sniffs with a per-stream index in this package share — is what tells
+     * that stream from every other, including the next `phpcbf` pass over the
+     * same file.
      */
     private ?string $rootsKey = null;
 
@@ -131,6 +132,29 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     private array $roots = [];
 
     /**
+     * How many times the record was emptied for a new token stream, and how
+     * many times the key guard left it standing for the stream it describes.
+     *
+     * The record exists to absorb many root walks per token stream, and nothing
+     * a black-box test can observe tells "kept across the stream" from
+     * "emptied on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/DisallowChainedPropertyFetchTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'roots.builds' => 0,
+        'roots.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -139,6 +163,18 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             T_OBJECT_OPERATOR,
             T_NULLSAFE_OBJECT_OPERATOR,
         ];
+    }
+
+    /**
+     * How many times the walked-root record was emptied for a new stream and
+     * how many times the key guard left it standing, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -381,14 +417,15 @@ class DisallowChainedPropertyFetchSniff implements Sniff
      */
     private function discardRootsOfOtherStreams(File $phpcsFile): void
     {
-        $key = $phpcsFile->getFilename()
-            . '|' . count($phpcsFile->getTokens())
-            . '|' . ($phpcsFile->fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->rootsKey === $key) {
+            $this->cacheCounts['roots.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['roots.builds']++;
         $this->rootsKey = $key;
         $this->roots = [];
     }

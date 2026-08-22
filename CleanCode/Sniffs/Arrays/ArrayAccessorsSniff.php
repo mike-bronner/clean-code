@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Arrays;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -168,12 +169,36 @@ class ArrayAccessorsSniff implements Sniff
 
     /**
      * The token stream every map below was built from, so a stream they do not
-     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
-     * every `phpcbf` pass, and the maps hold pointers into one particular
-     * stream: the fixer's loop counter is part of the key for that reason,
-     * alongside the file and its token count.
+     * describe is never answered from. The maps hold pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * four sniffs with a per-stream index in this package share — is what tells
+     * that stream from every other, including the next `phpcbf` pass over the
+     * same file.
      */
     private ?string $enclosureMapKey = null;
+
+    /**
+     * How many times the maps were built, and how many times the key guard
+     * answered a read from the maps already built.
+     *
+     * The maps exist to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/ArrayAccessorsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'enclosureMap.builds' => 0,
+        'enclosureMap.hits' => 0,
+    ];
 
     /**
      * Chain-root token (a T_VARIABLE, or the T_DOLLAR sigil a
@@ -259,6 +284,18 @@ class ArrayAccessorsSniff implements Sniff
     public function register(): array
     {
         return [T_VARIABLE];
+    }
+
+    /**
+     * How many times the enclosure maps were built and how many times the key
+     * guard answered from the maps already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -669,10 +706,15 @@ class ArrayAccessorsSniff implements Sniff
      * - isForeachTargetClause() compares `as` against the chain root, and every
      *   root reaching this step lies inside this construct — so the construct
      *   is wholly on one side of `as` and every one of those roots is on that
-     *   side with it. The exception is an `as` *within* the construct, which
-     *   only a `foreach` header nested in the clause can produce: there the
-     *   roots genuinely differ, and the step is answered STEP_ROOT_DEPENDENT so
-     *   the walk decides it per root rather than caching either answer.
+     *   side with it. STEP_ROOT_DEPENDENT answers the remaining case, where the
+     *   `as` sits *within* the construct and the roots on either side of it
+     *   genuinely differ, so the walk decides it per root rather than caching
+     *   either answer. No well-formed header reaches it: foreachClauseAs()
+     *   returns the `as` at the header's own parenthesis depth, and a construct
+     *   inside the header that spanned that `as` would enclose it and so change
+     *   its depth. It is kept as the answer that decides nothing on its own,
+     *   because assuming a token stream cannot produce it is the direction that
+     *   drops a read.
      *
      * The rest of classifyEnclosure() is a property of the closer alone, so it
      * carries over unchanged.
@@ -789,9 +831,26 @@ class ArrayAccessorsSniff implements Sniff
      * something else — or a header with no `as` at all, which assigns into
      * nothing and so decides exactly as a header that is not a target does.
      *
+     * The header's *own* `as` is the one at the header's own parenthesis depth,
+     * not the first `T_AS` in its span. A header's subject can hold a scope of
+     * any kind — a closure, an anonymous class' method — and a scope can hold a
+     * `foreach` of its own, whose `as` sits in the same span and comes first.
+     * Comparing a chain root against that one takes a genuine read on its far
+     * side for the outer header's write target and silently drops it.
+     *
+     * Depth is read from the candidate's own `nested_parenthesis`, whose *last*
+     * entry is the innermost pair enclosing it. Only that pair identifies the
+     * owner: the header's parentheses enclose every nested `as` too, so mere
+     * membership matches the nested ones as readily as the real one. A
+     * candidate with no enclosing pair on record cannot be shown to be this
+     * header's own, so it is passed over — leaving the header deciding as one
+     * with no `as` does, which reports the read rather than dropping it.
+     *
      * The lookup scans the header, which is the whole of it: a header holding a
      * staircase of reads would be rescanned once per read without this, which is
-     * the O(n²) the outward walk itself no longer has.
+     * the O(n²) the outward walk itself no longer has. Passing over a nested
+     * candidate resumes the scan just past it, so the whole search still crosses
+     * the header once however many nested `foreach` headers sit inside it.
      */
     private function foreachClauseAs(File $phpcsFile, int $closerPtr): ?int
     {
@@ -805,8 +864,19 @@ class ArrayAccessorsSniff implements Sniff
 
         if ($ownerPtr !== null && $tokens[$ownerPtr]['code'] === T_FOREACH) {
             $openerPtr = $tokens[$closerPtr]['parenthesis_opener'];
-            $foundPtr = $phpcsFile->findNext(T_AS, ($openerPtr + 1), $closerPtr);
-            $asPtr = $foundPtr === false ? null : $foundPtr;
+            $searchPtr = ($openerPtr + 1);
+
+            while (($foundPtr = $phpcsFile->findNext(T_AS, $searchPtr, $closerPtr)) !== false) {
+                $nestedPtrs = $tokens[$foundPtr]['nested_parenthesis'] ?? [];
+
+                if (array_key_last($nestedPtrs) === $openerPtr) {
+                    $asPtr = $foundPtr;
+
+                    break;
+                }
+
+                $searchPtr = ($foundPtr + 1);
+            }
         }
 
         return $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
@@ -911,15 +981,15 @@ class ArrayAccessorsSniff implements Sniff
     private function buildEnclosureMap(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $fixer = $phpcsFile->fixer;
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->enclosureMapKey === $key) {
+            $this->cacheCounts['enclosureMap.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['enclosureMap.builds']++;
         $this->enclosureMapKey = $key;
         $this->innermostCloser = [];
         $this->parentCloser = [];

@@ -439,10 +439,34 @@ class ComponentMarkupSniff implements Sniff
      *
      * Attribute names rather than raw markup, so that `wire:click` inside a
      * quoted value or in the page's own prose is not read as a directive.
+     *
+     * The tag read can fail outright. ELEMENT_TAG's tag-name group and its
+     * unquoted attribute run share a character set, so a `<` followed by a
+     * long unbroken run of those characters and then a quote the pattern
+     * cannot pair splits every way between the two and exhausts
+     * pcre.backtrack_limit. Measured on PHP 8.4's default million steps: from
+     * 816 such characters with the PCRE JIT off, 1,412 with it on.
+     *
+     * preg_match_all() then returns false and leaves $matches holding whatever
+     * it managed to match before it gave out — the tags above the run, not
+     * nothing. Answering off that is worse than answering off nothing: the
+     * loop below reads a fraction of the view and calls it the whole, so
+     * whether the view is judged a component's own turns on where the engine
+     * happened to stop rather than on what the view says. A view left unjudged
+     * is the honest answer where nothing was read, so the failure gets its own
+     * exit and the partial matches are dropped unread.
      */
     private function isComponentView(string $markup): bool
     {
-        preg_match_all(self::ELEMENT_TAG, $markup, $matches, PREG_SET_ORDER);
+        $matched = preg_match_all(self::ELEMENT_TAG, $markup, $matches, PREG_SET_ORDER);
+
+        // preg_last_error() === PREG_BACKTRACK_LIMIT_ERROR: the tag read gave
+        // out partway, so $matches is a fragment of the view rather than the
+        // view. Not the same silence as the return below, which is the answer
+        // to a read that finished.
+        if ($matched === false) {
+            return false;
+        }
 
         foreach ($matches as $match) {
             if ($this->isComponentTag($match[1]) === true) {

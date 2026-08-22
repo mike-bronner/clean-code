@@ -9,8 +9,15 @@ use PHPUnit\Framework\TestCase;
 /**
  * Integration tests for the No Dead Code standard as wired into the master
  * rules.xml: third-party rules (Squiz commented-out code, Slevomat unused
- * parameter / unused imports) plus the custom UnusedPrivateElements sniff,
- * exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ * imports) plus the custom UnusedPrivateElements and UnusedFormalParameter
+ * sniffs, exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ *
+ * The unused-parameter half of this standard was carried by
+ * SlevomatCodingStandard.Functions.UnusedParameter until #120 landed, and is
+ * now carried by CleanCode.DeadCode.UnusedFormalParameter. The replacement is
+ * a strict superset on everything this fixture exercises; it differs only by
+ * exempting a method annotated @inheritdoc or #[\Override], or overriding a
+ * parent declared in the same file.
  *
  * The runs scope to this standard's own sniffs via --sniffs (see SNIFFS): the
  * fixtures are clean only of dead code, not of every other standard sharing
@@ -33,7 +40,7 @@ class NoDeadCodeRulesetTest extends TestCase
      * master ruleset cannot trip the zero-violation fixtures.
      */
     private const SNIFFS = 'Squiz.PHP.CommentedOutCode,'
-        . 'SlevomatCodingStandard.Functions.UnusedParameter,'
+        . 'CleanCode.DeadCode.UnusedFormalParameter,'
         . 'SlevomatCodingStandard.Namespaces.UnusedUses,'
         . 'CleanCode.DeadCode.UnusedPrivateElements';
 
@@ -47,27 +54,33 @@ class NoDeadCodeRulesetTest extends TestCase
 
     public function testCommentedOutCodeIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('Squiz.PHP.CommentedOutCode.Found', 16);
+        $this->assertViolationsAt('Squiz.PHP.CommentedOutCode.Found', [[16, 9]]);
     }
 
     public function testUnusedPrivatePropertyIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('CleanCode.DeadCode.UnusedPrivateElements.UnusedProperty', 12);
+        $this->assertViolationsAt('CleanCode.DeadCode.UnusedPrivateElements.UnusedProperty', [[12, 20]]);
     }
 
     public function testUnusedPrivateMethodIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('CleanCode.DeadCode.UnusedPrivateElements.UnusedMethod', 24);
+        $this->assertViolationsAt('CleanCode.DeadCode.UnusedPrivateElements.UnusedMethod', [[24, 22]]);
     }
 
+    /**
+     * Column 46 is $unusedTax. Pinning it matters more here than anywhere else
+     * in this file: $subtotal, the parameter that *is* read, sits on the same
+     * line at column 30, so a line-only assertion would pass just as happily
+     * with both parameters flagged.
+     */
     public function testUnusedParameterIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('SlevomatCodingStandard.Functions.UnusedParameter.UnusedParameter', 14);
+        $this->assertViolationsAt('CleanCode.DeadCode.UnusedFormalParameter.Found', [[14, 46]]);
     }
 
     public function testUnusedImportIsFlaggedAtTheCorrectLine(): void
     {
-        $this->assertViolationAt('SlevomatCodingStandard.Namespaces.UnusedUses.UnusedUse', 7);
+        $this->assertViolationsAt('SlevomatCodingStandard.Namespaces.UnusedUses.UnusedUse', [[7, 1]]);
     }
 
     public function testExplanatoryCommentsAndDocBlocksAreNotFlagged(): void
@@ -98,21 +111,34 @@ class NoDeadCodeRulesetTest extends TestCase
         }
     }
 
-    private function assertViolationAt(string $source, int $line): void
+    /**
+     * Asserts that $source fires on violations.inc at exactly the given
+     * [line, column] positions — no more, no fewer.
+     *
+     * Exclusivity is the point. Asserting only that a violation is *present*
+     * at a line lets a regression that also flags a healthy neighbour pass
+     * unnoticed, and violations.inc pairs a used and an unused member on the
+     * same line precisely to make that possible ($subtotal beside $unusedTax,
+     * line 14). Columns are part of the tuple for the same reason: same line,
+     * different member.
+     *
+     * @param list<array{0: int, 1: int}> $positions
+     */
+    private function assertViolationsAt(string $source, array $positions): void
     {
-        $sourcesAtLines = [];
+        $reported = [];
 
         foreach ($this->runPhpcs($this->fixture('violations.inc'))['files'] as $file) {
             foreach ($file['messages'] as $message) {
-                $sourcesAtLines[$message['source']][] = $message['line'];
+                $reported[$message['source']][] = [$message['line'], $message['column']];
             }
         }
 
-        self::assertContains($line, $sourcesAtLines[$source] ?? [], sprintf(
-            'Expected %s at line %d; got: %s',
+        self::assertSame($positions, $reported[$source] ?? [], sprintf(
+            'Expected %s at exactly %s; got: %s',
             $source,
-            $line,
-            var_export($sourcesAtLines, true)
+            var_export($positions, true),
+            var_export($reported, true)
         ));
     }
 
