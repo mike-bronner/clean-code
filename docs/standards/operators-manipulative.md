@@ -115,7 +115,9 @@ end-to-end over the whole master ruleset, line by line.
     literal (`[1, 2] + [3]`), a postfix `++`/`--` (`$count++ + $step`), a
     backtick shell execution, and the closing brace of a `match`, an anonymous
     class, a closure, or a brace dereference — `${$name}`, `$object->{$name}`,
-    `$object?->{$name}`, `Thing::{$name}()`, `Thing::${$name}`.
+    `$object?->{$name}`, `Thing::{$name}`, `Thing::${$name}`. A dynamic
+    static *call* (`Thing::{$name}()`) ends on the call's `)` instead, so
+    there it is the parenthesis that answers, not the brace.
   - **A sign after a statement's closing brace** — a `}` that ends an `if`,
     `while`, `for`, `foreach`, `switch`, `try`, function, or class body ends a
     *statement*, so the `-` in `} -5;` opens a new (discarded) statement rather
@@ -162,7 +164,13 @@ end-to-end over the whole master ruleset, line by line.
   semicolons divide one header into clauses rather than closing a statement, so
   its init and increment clauses wrap to the same indent as each other and as an
   `if` condition's; read as terminators, the two clauses of one header would
-  stair-step. So a wrapped operator inside an `if (...)` condition, a
+  stair-step. Only those two count: a closure or an anonymous class written
+  directly in a clause carries its own statements inside the same parentheses,
+  and each `;` in that body terminates a statement exactly as a top-level one
+  does — the header's dividers are the two the shared
+  `Support\ConditionOperatorOwnership` resolves, which is also where
+  `OneConditionPerLine` reads its clause boundaries. So a wrapped operator
+  inside an `if (...)` condition, a
   call-argument list (positional or named), or an array literal (keyed or not)
   anchors on the line the statement itself starts on; one inside a `{ … }` block,
   a `switch` case body, or a `match` arm anchors on that inner statement's own

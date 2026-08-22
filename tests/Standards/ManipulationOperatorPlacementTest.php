@@ -68,13 +68,15 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * Every trailing manipulation operator in failing.php, at its exact line and
- * column. Lines 56-96 and 196-214 are the operand-terminator sweep — a
+ * column. Lines 56-102 and 202-220 are the operand-terminator sweep — a
  * short-array `]`, a postfix `++`/`--`, a backtick, the three value-producing
  * braces, one dereference per introducing token, and the value family — each of
  * which the sniff must read as a real left-hand operand rather than exempting
- * the sign as unary. Lines 223-241 are the for-loop clauses this sniff owns
- * because the sniff it otherwise defers to never reads them. Line 261 is the
- * comment case — reported, but not fixable.
+ * the sign as unary. Lines 229-247 are the for-loop clauses this sniff owns
+ * because the sniff it otherwise defers to never reads them, and lines 278 and
+ * 298 are the wraps inside a closure and an anonymous class body written
+ * directly in a `for` clause. Line 310 is the comment case — reported, but not
+ * fixable.
  */
 it('flags every trailing operator at its exact line and column', function (): void {
     $tuples = violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
@@ -106,47 +108,55 @@ it('flags every trailing operator at its exact line and column', function (): vo
         ['line' => 70, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 74, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 78, 'column' => 3, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        // the dereference braces, one per introducing token: `->`, `?->`, `$`, `::`
-        ['line' => 84, 'column' => 37, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 87, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 90, 'column' => 30, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 93, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 96, 'column' => 42, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 103, 'column' => 12, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 108, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 118, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 128, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // the dereference braces, one per introducing token: `->`, `?->`, `$`,
+        // `::` — then the dynamic static call, whose operand ends on the call's
+        // `)` rather than on the brace
+        ['line' => 87, 'column' => 37, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 90, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 93, 'column' => 30, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 96, 'column' => 40, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 99, 'column' => 39, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 102, 'column' => 42, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 109, 'column' => 12, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 114, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 124, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 134, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // the anchor sweep: a named argument's `:`, an array key's `=>`, and the
         // keyed/unkeyed pair inside one literal
-        ['line' => 140, 'column' => 18, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 145, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 150, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 152, 'column' => 20, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 146, 'column' => 18, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 151, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 156, 'column' => 11, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 158, 'column' => 20, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // a nested call and the array literal it must agree with
-        ['line' => 162, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 169, 'column' => 26, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 168, 'column' => 15, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 175, 'column' => 26, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // the boundary side: a `match` arm and a `switch` case body
-        ['line' => 178, 'column' => 22, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 184, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 184, 'column' => 22, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 190, 'column' => 24, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // the value family: a constant, a float, `true`, `false`, `null`, a
         // single-quoted string, and an array index's `]` — each behind a
         // `+`/`-`, the only operators the operand model gates
-        ['line' => 196, 'column' => 25, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 199, 'column' => 14, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 202, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 205, 'column' => 19, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 202, 'column' => 25, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 205, 'column' => 14, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         ['line' => 208, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 211, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 214, 'column' => 29, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 211, 'column' => 19, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 214, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 217, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 220, 'column' => 29, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // a for-loop's init and increment clauses, on both classifications of
         // its condition
-        ['line' => 223, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 226, 'column' => 21, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 237, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 241, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 229, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 232, 'column' => 21, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 243, 'column' => 17, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 247, 'column' => 23, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
         // a closure argument's semicolons, which enclose nothing a `for` owns
-        ['line' => 256, 'column' => 13, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
-        ['line' => 261, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 262, 'column' => 13, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        // a closure body and an anonymous class body written directly in a
+        // `for` clause: their semicolons sit inside the `for`'s own parentheses
+        // but divide nothing
+        ['line' => 278, 'column' => 25, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 298, 'column' => 34, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
+        ['line' => 310, 'column' => 16, 'source' => MANIPULATION_OPERATOR_PLACEMENT . '.OperatorNotLeading'],
     ]);
 });
 
@@ -237,8 +247,8 @@ it('separates a value-producing brace from a scope-closing one', function (): vo
     );
     $compliant = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php');
 
-    // match, anonymous class, closure, and the four dereferences — all values.
-    expect($flagged)->toContain(70, 74, 78, 84, 87, 90, 93, 96)
+    // match, anonymous class, closure, and the dereferences — all values.
+    expect($flagged)->toContain(70, 74, 78, 87, 90, 93, 96, 99, 102)
         // if, while, foreach, for, switch, try/finally, function — all statements.
         ->and($compliant->getErrors())->toBe([]);
 });
@@ -289,8 +299,61 @@ it('admits every token that can open a brace dereference', function (): void {
 
     expect($reflected->getConstant('CURLY_DEREFERENCE_INTRODUCERS'))
         // `${$name}` and `Thing::${$name}`; `$object->{$name}`;
-        // `$object?->{$name}`; `Thing::{$name}()` and `Thing::{$name}`.
+        // `$object?->{$name}`; `Thing::{$name}`.
         ->toBe([T_DOLLAR, T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON]);
+});
+
+/**
+ * The same set closed from the behaviour end, exactly as the operand model's is
+ * above: membership alone is satisfied by a member no fixture ever routes a
+ * violation through, and such a member can be dropped without an assertion
+ * noticing. So every introducer must actually open a brace that terminates a
+ * left-hand operand in failing.php, derived from the violations the sniff
+ * reports rather than from a second hand-written list.
+ *
+ * Only a `}` carrying no `scope_condition` counts — the owned braces are
+ * settled by VALUE_PRODUCING_SCOPE_OWNERS and never reach the introducer — and
+ * only a violation on a UNARY_CAPABLE operator, whose reading is what the
+ * introducer decides. `Thing::{$name}()` satisfies neither: its operand ends on
+ * the call's `)`, which is why the bare `Thing::{$name}` fetch beside it is the
+ * `::` case and not that one.
+ */
+it('exercises every brace-dereference introducer it admits', function (): void {
+    $reflected = new ReflectionClass(
+        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+    );
+    $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
+    $errors = $file->getErrors();
+    $tokens = $file->getTokens();
+    $exercised = [];
+
+    foreach ($tokens as $pointer => $token) {
+        if (
+            isset($errors[$token['line']][$token['column']]) === false
+            || in_array($token['code'], $reflected->getConstant('UNARY_CAPABLE'), true) === false
+        ) {
+            continue;
+        }
+
+        $closer = $file->findPrevious(PHP_CodeSniffer\Util\Tokens::$emptyTokens, ($pointer - 1), null, true);
+
+        if (
+            $tokens[$closer]['code'] !== T_CLOSE_CURLY_BRACKET
+            || isset($tokens[$closer]['scope_condition']) === true
+        ) {
+            continue;
+        }
+
+        $introducer = $file->findPrevious(
+            PHP_CodeSniffer\Util\Tokens::$emptyTokens,
+            ($tokens[$closer]['bracket_opener'] - 1),
+            null,
+            true
+        );
+        $exercised[] = $tokens[$introducer]['code'];
+    }
+
+    expect($exercised)->toContain(...$reflected->getConstant('CURLY_DEREFERENCE_INTRODUCERS'));
 });
 
 /**
@@ -347,8 +410,8 @@ it('offers a fix for every violation except the one behind a comment', function 
     $fixable = violationFixableFlags(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
 
     // The flags come back in report order, so the comment case is the last of
-    // the fifty-two violations the test above pins line by line.
-    expect($fixable)->toBe(array_merge(array_fill(0, 51, true), [false]));
+    // the fifty-five violations the test above pins line by line.
+    expect($fixable)->toBe(array_merge(array_fill(0, 54, true), [false]));
 });
 
 /**
@@ -467,10 +530,40 @@ it("reads only a for header's semicolons as clause dividers", function (): void 
         $terminators[] = $token['line'];
     }
 
-    // The two for headers' four clause dividers, and no other semicolon in a
-    // fixture that is mostly semicolon-terminated statements.
-    expect($dividers)->toBe([224, 225, 238, 240])
+    // The four for headers' eight clause dividers, and no other semicolon in a
+    // fixture that is mostly semicolon-terminated statements — including the
+    // ones inside a closure body and an anonymous class body written directly
+    // in a clause, which report the same `for`-owned parenthesis the dividers
+    // do and are told from them only by the top-level walk.
+    expect($dividers)->toBe([230, 231, 244, 246, 274, 275, 288, 289])
         ->and(count($terminators))->toBeGreaterThan(30);
+});
+
+/**
+ * The behavioural half of the same reading, where it does have output to
+ * assert. A closure or an anonymous class written directly in a `for` clause
+ * puts its own statements inside the parentheses the `for` owns, so each of
+ * their semicolons reports that same parenthesis — indistinguishable from the
+ * header's own two by the owner alone. Read as dividers, the anchor escapes out
+ * of the wrapped statement and into the sibling statement above it, and the
+ * fixer indents the continuation to that sibling instead.
+ *
+ * Both fixtures put the sibling statement at a deliberately different indent
+ * from the wrap, so the wrong donor line shows in the output rather than hiding
+ * behind two lines that happen to share a column — the coincidence that keeps
+ * the ordinary `;` case unfalsifiable through the fixed source.
+ */
+it('anchors a wrap inside a for clause body on its own statement line', function (): void {
+    $fixed = autofixedContents(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php'));
+
+    // The closure body's sibling sits at sixteen spaces; the wrap's own
+    // statement at eight, so its continuation belongs at twelve.
+    expect($fixed)->toContain("                \$seen = 0;\n        \$scaled = \$base\n            * \$factor;")
+        // The anonymous class method's sibling sits at twenty; the wrap's own
+        // statement at twelve, so its continuation belongs at sixteen.
+        ->and($fixed)->toContain(
+            "                    \$seen = 1;\n            \$total = \$this->base\n                + \$seen;"
+        );
 });
 
 /**
@@ -541,7 +634,7 @@ it('keeps a for-loop init or increment wrap it cannot defer', function (): void 
     );
 
     // failing.php — init and increment, with a single condition then a multi one.
-    expect($flagged)->toContain(223, 226, 237, 241)
+    expect($flagged)->toContain(229, 232, 243, 247)
         // passing.php:223 — the condition clause's own wrap, which
         // OneConditionPerLine owns and still owns with a boolean sitting in
         // the init clause beside it.

@@ -606,13 +606,25 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     /**
      * Whether the `;` at $stackPtr divides a `for` header's clauses rather than
-     * ending a statement — true when its innermost enclosing parenthesis is the
-     * one a `for` owns.
+     * ending a statement — true only when it is one of the two dividers
+     * {@see ConditionOperatorOwnership::checkedRegion()} resolves for the `for`
+     * that owns its innermost enclosing parenthesis.
      *
-     * Both degenerate readings fail the same way: a semicolon in no parenthesis
-     * at all, or in one with no owner, is treated as the statement terminator it
-     * is everywhere else, which is the behaviour this method narrows rather than
-     * widens.
+     * Sitting inside those parentheses is not enough. A closure or an anonymous
+     * class written directly in a clause carries its whole body — statements and
+     * all — inside them, and every `;` in that body reports the same `for`-owned
+     * parenthesis as the header's own two do. Read as dividers, those body
+     * semicolons let the continuation anchor walk out of the statement it
+     * belongs to and into a sibling statement of the body, which the fixer then
+     * indents to. Asking the shared resolver instead settles it on the same
+     * top-level walk CleanCode.Conditionals.OneConditionPerLine uses for its own
+     * clause boundaries, so the two readings of "the header's own semicolons"
+     * cannot drift apart.
+     *
+     * Every degenerate reading fails the same way: a semicolon in no parenthesis
+     * at all, in one with no owner, or in a header without exactly two top-level
+     * semicolons, is treated as the statement terminator it is everywhere else,
+     * which is the behaviour this method narrows rather than widens.
      */
     private function isForHeaderSeparator(File $phpcsFile, int $stackPtr): bool
     {
@@ -624,8 +636,19 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
         $opener = max(array_keys($tokens[$stackPtr]['nested_parenthesis']));
 
-        return isset($tokens[$opener]['parenthesis_owner']) === true
-            && $tokens[$tokens[$opener]['parenthesis_owner']]['code'] === T_FOR;
+        if (isset($tokens[$opener]['parenthesis_owner']) === false) {
+            return false;
+        }
+
+        $owner = $tokens[$opener]['parenthesis_owner'];
+
+        if ($tokens[$owner]['code'] !== T_FOR) {
+            return false;
+        }
+
+        $dividers = ConditionOperatorOwnership::checkedRegion($phpcsFile, $owner);
+
+        return $dividers !== null && in_array($stackPtr, $dividers, true);
     }
 
     /**

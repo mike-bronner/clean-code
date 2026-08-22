@@ -79,8 +79,11 @@ $closure = function () {
     + 1;
 
 // A dereference brace also carries no scope owner, so what opened it is what
-// tells it from the bare block of passing.php. One case per introducing token:
-// `->`, `?->`, `$`, and `::`.
+// tells it from the bare block of passing.php. One case per introducing token,
+// each with the brace itself immediately before the operator so the reading is
+// the one under test: `->`, `?->`, `$`, and `::`. The dynamic static *call*
+// below ends on `)` instead, so it exercises the call's closer rather than the
+// dereference — it is kept as the syntax it is, not as this token's case.
 $dynamicProperty = $object->{$name}
     + 1;
 
@@ -88,6 +91,9 @@ $nullsafeProperty = $object?->{$name}
     + 1;
 
 $variableVariable = ${$name}
+    + 1;
+
+$dynamicClassConstant = Thing::{$name}
     + 1;
 
 $dynamicStaticCall = Thing::{$name}()
@@ -255,6 +261,49 @@ $mapped = array_map(function (int $x): int {
     return $doubled;
 }, $values)
     + $extra;
+
+// The same distinction inside the `for` header itself. A closure or an
+// anonymous class written directly in a clause carries its whole body —
+// statements and all — inside the parentheses the `for` owns, so every `;` in
+// that body reports the same enclosing parenthesis the header's own two do.
+// Only the header's top-level semicolons divide clauses. The statement before
+// each wrap is deliberately indented differently from the wrap itself, so an
+// anchor that escaped past a body semicolon into that sibling statement lands
+// in a visibly wrong column instead of hiding behind a coincidence of indents.
+for (
+    $step = 0;
+    $step < $limit;
+    $step = function () use ($base, $factor): int {
+                $seen = 0;
+        $scaled = $base
+            * $factor;
+
+        return $scaled + $seen;
+    }
+) {
+    echo $step;
+}
+
+for (
+    $tick = 0;
+    $tick < $limit;
+    $tick = new class ($base) {
+        public function __construct(private int $base)
+        {
+        }
+
+        public function next(): int
+        {
+                    $seen = 1;
+            $total = $this->base
+                + $seen;
+
+            return $total;
+        }
+    }
+) {
+    echo $tick;
+}
 
 // A comment between the operands would be reordered by the fix, so this one is
 // reported but deliberately left unfixed.
