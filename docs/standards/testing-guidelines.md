@@ -19,12 +19,12 @@
 
 _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
-## Enforceability — Tier 3, with one partial rule
+## Enforceability — Tier 3, with two partial rules
 
 This is an architectural / semantic / process standard. Its **core** is
-enforced by **code review and developer discipline**; one narrow slice is
-enforced by the custom sniff `CleanCode.Testing.NoReflectionAccess`, described
-below.
+enforced by **code review and developer discipline**; two narrow slices are
+enforced by the custom sniffs `CleanCode.Testing.NoReflectionAccess` and
+`CleanCode.Testing.NoFirstPartyMocks`, described below.
 
 A token-based PHPCS sniff inspects one file's tokens in isolation at lint
 time. Where a developer *started* writing tests, whether "Shameless Green" was
@@ -58,9 +58,22 @@ Three public properties configure it from a consuming ruleset:
 ```xml
 <rule ref="CleanCode.Testing.NoReflectionAccess">
     <properties>
-        <property name="testFilePatterns" type="array" value="*/tests/*,*/Tests/*,*Test.php"/>
-        <property name="reflectionClasses" type="array" value="ReflectionMethod,ReflectionProperty"/>
-        <property name="reflectionMembers" type="array" value="getMethod,getProperty,invoke,invokeArgs,setAccessible"/>
+        <property name="testFilePatterns" type="array">
+            <element value="*/tests/*"/>
+            <element value="*/Tests/*"/>
+            <element value="*Test.php"/>
+        </property>
+        <property name="reflectionClasses" type="array">
+            <element value="ReflectionMethod"/>
+            <element value="ReflectionProperty"/>
+        </property>
+        <property name="reflectionMembers" type="array">
+            <element value="getMethod"/>
+            <element value="getProperty"/>
+            <element value="invoke"/>
+            <element value="invokeArgs"/>
+            <element value="setAccessible"/>
+        </property>
     </properties>
 </rule>
 ```
@@ -95,19 +108,132 @@ $method = new ReflectionMethod(Calculator::class, 'applyDiscount');
 A project that hits the second limit often can narrow `reflectionMembers`
 instead.
 
+## The rule: `CleanCode.Testing.NoFirstPartyMocks`
+
+"Do not mock classes you control" has one token-visible approximation: a
+mock-creation call whose class argument resolves into a namespace root the
+project owns. The sniff reports that shape, as a **warning**, detection only —
+replacing a mock of a class you own with the real collaborator is a redesign of
+the test, not a mechanical rewrite ([#146](https://github.com/mike-bronner/phpcs-rules/issues/146)).
+
+It fires only inside test files, and only once configured. These are the
+mock-creation calls it recognises:
+
+| Source | Calls |
+|---|---|
+| PHPUnit | `$this->createMock(…)`, `$this->createPartialMock(…)`, `$this->getMockBuilder(…)` |
+| Mockery | `Mockery::mock(…)`, `Mockery::spy(…)` |
+| Laravel test helpers | `$this->mock(…)`, `$this->partialMock(…)`, `$this->spy(…)` |
+
+The first argument is resolved to a fully-qualified name from the file's own
+`namespace` declaration and `use` imports, so every spelling of the same class
+lands on the same answer:
+
+| Written | Resolved (in `namespace App\Tests\Unit`, with `use App\Models\User`) |
+|---|---|
+| `User::class` | `App\Models\User` — through the import |
+| `Models\Comment::class` | `App\Models\Comment` — every segment past the alias, given `use App\Models` |
+| `\App\Models\User::class` | `App\Models\User` — already qualified |
+| `namespace\Support\Clock::class` | `App\Tests\Unit\Support\Clock` — relative |
+| `Support\Clock::class` | `App\Tests\Unit\Support\Clock` — current namespace |
+| `'App\Models\User'` | `App\Models\User` — a string is never resolved through imports |
+| `'App\\Models\\User'` | `App\Models\User` — a doubled separator is an escape in either quote style |
+| `self::class`, `static::class` | `App\Tests\Unit\UserTest` — the class the call is written in |
+| `parent::class` | the `extends` clause of that class, resolved like any other written name |
+
+`self`, `static` and `parent` matter more than they look:
+`$this->createPartialMock(static::class, [...])` is the idiomatic way to
+partial-mock the class a test file is about, so leaving it unresolved would
+miss the commonest first-party partial mock there is.
+
+A `use function` or `use const` import brings no class into scope and so never
+enters that map — written on the statement, where it binds every clause, or on
+one clause of a group (`use App\{Order, function build};`), where it binds that
+clause alone.
+
+A reference the file's own tokens cannot resolve — a variable, a call, a
+concatenation, a constant that is not `::class`, a spread, or the label of a
+named argument — is left alone rather than guessed at.
+
+Three public properties configure it from a consuming ruleset:
+
+```xml
+<rule ref="CleanCode.Testing.NoFirstPartyMocks">
+    <properties>
+        <property name="firstPartyNamespaces" type="array">
+            <element value="App"/>
+        </property>
+        <property name="testFilePatterns" type="array">
+            <element value="*/tests/*"/>
+            <element value="*/Tests/*"/>
+            <element value="*Test.php"/>
+        </property>
+        <property name="mockCreators" type="array">
+            <element value="createMock"/>
+            <element value="createPartialMock"/>
+            <element value="getMockBuilder"/>
+            <element value="mock"/>
+            <element value="partialMock"/>
+            <element value="spy"/>
+        </property>
+    </properties>
+</rule>
+```
+
+`firstPartyNamespaces` ships **empty on the sniff class**: nothing in one file
+says which roots a project owns, so an unconfigured sniff is a no-op rather
+than a guesser. This package's own `rules.xml` configures `App`, the root of
+the Laravel layout these standards are written against; a project with
+different roots replaces the element list, and a class under **any** listed
+root is first-party. Roots are compared segment-wise and case-insensitively, so
+`App` covers `App\Models\User` and never `Application\Order`.
+
+`testFilePatterns` behaves exactly as it does for `NoReflectionAccess` above,
+and gates this rule the same way.
+
+### Known limits
+
+All three are by design, and the first two are why the rule warns rather than
+errors:
+
+- `mockCreators` matches on member **name**, not on receiver type, which a
+  single-file token scan cannot resolve. `$surveillance->spy(User::class)`
+  therefore reports even though no mocking library is involved.
+- A **facade or contract that wraps a genuinely external service** lives in the
+  project's own namespace and so reports, even though the thing being mocked is
+  external. This is the gray area the standard's own wording leaves open.
+- `self`, `static` and `parent` resolve **only inside a named class**. In a
+  trait or an anonymous class they name a class the file never writes down, and
+  `parent` in a class with no `extends` names nothing at all, so each of those
+  stays silent. `static` resolves to the class the call is written in; a
+  subclass binding it to something else at run time is beyond a single-file
+  scan.
+- A file declaring **more than one `namespace` block** is read as if it declared
+  only the first. The import walk stops at the first statement, so a call in a
+  later block resolves against the first block's namespace and imports, and a
+  vendor class mocked there can report. PSR-1 forbids the shape and these
+  standards enforce one class per file, so the walk stays cheap rather than
+  indexing every block of a file no project should have.
+
+The first two and the last take the ordinary per-line suppression:
+
+```php
+// phpcs:ignore CleanCode.Testing.NoFirstPartyMocks.Found
+$gateway = $this->createMock(PaymentGatewayContract::class);
+```
+
+A project that hits either often can narrow `mockCreators` or the namespace
+roots instead.
+
 ## Partial enforcement assessment
 
-Two narrow slices **are** catchable by a sniff. The first is now the rule
-above; the second is a focused follow-up issue rather than a sniff built under
-this standard:
+Two narrow slices **are** catchable by a sniff, and both are now implemented:
 
 - **Reflection-based access to non-public methods in tests** — [#145](https://github.com/mike-bronner/phpcs-rules/issues/145),
   **implemented** as `CleanCode.Testing.NoReflectionAccess`, above.
 - **Mocking first-party classes in tests** —
-  [#146](https://github.com/mike-bronner/phpcs-rules/issues/146). "Do not mock
-  classes you control" is approximated by flagging mock creation
-  (`createMock`, `Mockery::mock`, Laravel's `$this->mock`) whose class
-  argument resolves to a configured first-party namespace prefix.
+  [#146](https://github.com/mike-bronner/phpcs-rules/issues/146),
+  **implemented** as `CleanCode.Testing.NoFirstPartyMocks`, above.
 
 Adjacent slices already tracked elsewhere:
 
@@ -141,6 +267,8 @@ the public API rather than reaching into a protected or private method, and
 that any newly mocked collaborator is genuinely external — with an integration
 test alongside it that would fail if the real interface drifted from the mock.
 
-The public-API half of that obligation is now partly automated: the sniff above
-reports the Reflection route into a non-public member. It reports nothing about
-the other routes, so the reviewer still owns them.
+Two halves of that obligation are now partly automated: `NoReflectionAccess`
+reports the Reflection route into a non-public member, and `NoFirstPartyMocks`
+reports a mock of a class in the project's own namespace. Neither says anything
+about the other routes into a non-public member, nor about whether an
+integration test sits alongside a mock, so the reviewer still owns those.

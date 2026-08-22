@@ -367,6 +367,109 @@ it('reaches every member of its hand-maintained token arrays', function (
 ]);
 
 /**
+ * EXPRESSION_SCOPES answers to a family it does not itself define, and this
+ * holds the two together.
+ *
+ * The defect this repository keeps paying for (#316, and before it PR #285 and
+ * PR #222) is a hand-typed token list quietly missing a member of the family it
+ * classifies. Nothing fails to compile, and the whole-tree silence test below
+ * cannot see it either: a missing member makes this sniff *quieter*, never
+ * louder. So the family is taken from PHP_CodeSniffer rather than restated here
+ * — `Tokens::$scopeOpeners` is its own register of the tokens a
+ * scope_opener/scope_closer pair hangs off, and so is the whole set
+ * findStatementEnd() could be asked to skip. A PHPCS release that adds a scope
+ * opener reddens this test instead of slipping past it, which a second
+ * hand-typed array here would not do.
+ *
+ * `T_FN` is the single addition to that register, and it is not taken on trust
+ * either. The tokenizer gives an arrow function the same scope pair in
+ * PHP::processAdditional() while leaving T_FN out of `Tokens::$scopeOpeners`,
+ * so both halves of that claim are asserted against a real tokenized arrow
+ * function: if a later PHPCS lists it properly the addition is harmless, and if
+ * one stops giving arrow functions a scope pair this says so.
+ *
+ * The accounting is read out of the constant's own docblock rather than from a
+ * second list kept in this file. A refusal list living in the test is one the
+ * next person to edit the constant never reads, which is how the gap this test
+ * closes was opened in the first place. Parsed out of the sniff's source,
+ * because this package forbids Reflection in its own tests
+ * (CleanCode.Testing.NoReflectionAccess).
+ */
+it('accounts for every scope opener PHPCS defines', function (): void {
+    $path = cleanCodeRoot() . '/CleanCode/Sniffs/WhiteSpace/MultiLineStatementIndentSniff.php';
+    $source = (string) file_get_contents($path);
+    $declaration = strpos($source, 'private const EXPRESSION_SCOPES');
+
+    expect($declaration)->not->toBeFalse('the constant is still declared under that name');
+
+    $commentEnd = (int) strrpos(substr($source, 0, (int) $declaration), '*/');
+    $commentStart = (int) strrpos(substr($source, 0, $commentEnd), '/**');
+    $docblock = substr($source, $commentStart, $commentEnd - $commentStart);
+
+    preg_match_all(
+        '/^\s*\*\s+- `(T_[A-Z_0-9]+)` — (included|excluded): (\S[^\r\n]*)$/m',
+        $docblock,
+        $entries,
+        PREG_SET_ORDER
+    );
+
+    $accounted = [];
+    $shortReasons = [];
+
+    foreach ($entries as [, $name, $disposition, $reason]) {
+        $accounted[$name] = $disposition;
+
+        if (strlen(trim($reason)) < 10) {
+            $shortReasons[] = $name;
+        }
+    }
+
+    expect($accounted)->toHaveCount(count($entries), 'no token is accounted for twice')
+        ->and($shortReasons)->toBe([], 'every member carries a reason, not a placeholder');
+
+    $family = [];
+
+    foreach (\PHP_CodeSniffer\Util\Tokens::$scopeOpeners as $code) {
+        $family[] = is_int($code) === true
+            ? (string) token_name($code)
+            : (string) preg_replace('/^PHPCS_/', '', $code);
+    }
+
+    // PHPCS's own inconsistency, so proven rather than assumed: T_FN is absent
+    // from the register above, yet an arrow function carries the scope pair
+    // every member of it carries.
+    $tokens = analyzeStdinSource(
+        [MULTI_LINE_STATEMENT_INDENT],
+        "<?php\n\n\$double = fn (\$value) => \$value * 2;\n"
+    )->getTokens();
+    $arrows = array_values(array_filter($tokens, static fn (array $token): bool => $token['code'] === T_FN));
+
+    expect(in_array('T_FN', $family, true))->toBeFalse('T_FN is still missing from the register')
+        ->and($arrows)->toHaveCount(1)
+        ->and($arrows[0])->toHaveKey('scope_closer');
+
+    $family[] = 'T_FN';
+    sort($family);
+
+    $documented = array_keys($accounted);
+    sort($documented);
+
+    $isIncluded = static fn (string $disposition): bool => $disposition === 'included';
+    $included = array_keys(array_filter($accounted, $isIncluded));
+    sort($included);
+
+    $listed = tokenNamesInConstant($path, 'EXPRESSION_SCOPES', [MULTI_LINE_STATEMENT_INDENT]);
+    sort($listed);
+
+    expect($listed)->not->toBeEmpty('the constant was found and read')
+        ->and(array_values(array_diff($family, $documented)))
+        ->toBe([], 'every scope opener PHPCS defines is accounted for')
+        ->and(array_values(array_diff($documented, $family)))
+        ->toBe([], 'nothing is accounted for that PHPCS does not define as a scope opener')
+        ->and($included)->toBe($listed, 'the members marked included are exactly the ones listed');
+});
+
+/**
  * Deciding whether a comment fragment continues the one above it is a question
  * about the fragment before it, and answering it by scanning back to the start
  * of the comment costs one pass per line — so a comment of n lines inside a
