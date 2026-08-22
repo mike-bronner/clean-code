@@ -49,7 +49,9 @@ use PHP_CodeSniffer\Util\Tokens;
  * A chain ends where its continuations do. Only `elseif` and `else` continue
  * one, so a bare `if` written after a clause's body opens a construct of its
  * own however alike the two read, and the branches of the two are never added
- * together.
+ * together. A chain ends at a nested `if`, too: a clause whose brace-less body
+ * writes one hands every `elseif` and `else` after it to that nested `if`,
+ * because PHP binds a dangling continuation to the nearest `if` still open.
  *
  * Deliberately **not** flagged, and why:
  *
@@ -440,6 +442,11 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      * What each form finds is the token that *follows* the body, which is not
      * yet a reason to believe it continues the chain — so every form hands its
      * find to continuation() for that verdict.
+     *
+     * A brace-less body that writes an `if` of its own ends the walk instead.
+     * PHP binds a dangling `elseif` or `else` to the nearest `if` still open,
+     * which is that nested one — never the clause it is the body of — so the
+     * continuation after such a body is never this clause's to take.
      */
     private function nextClause(File $phpcsFile, int $clausePtr): ?int
     {
@@ -481,10 +488,56 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             return null;
         }
 
+        // findEndOfStatement() is not chain-aware: handed a nested `if`, it
+        // stops at the end of that `if`'s own first clause rather than at the
+        // end of its chain, so the token after the body it reports is the
+        // nested chain's next clause. That clause belongs to the nested `if` —
+        // see the note above — so the walk ends here rather than claiming it.
+        if ($this->opensNestedIf($phpcsFile, $bodyStart, $bodyEnd) === true) {
+            return null;
+        }
+
         return $this->continuation(
             $tokens,
             $phpcsFile->findNext(Tokens::$emptyTokens, $bodyEnd + 1, null, true)
         );
+    }
+
+    /**
+     * Whether an `if` is written at statement level between the two pointers.
+     *
+     * Anything that opens a scope of its own inside the range — a closure, an
+     * arrow function's braces, an anonymous class, a braced loop — is skipped
+     * whole. An `if` written in there is closed by that scope before the body
+     * ends, so it can take no continuation that follows the body, and reading
+     * it as one would end a chain that really does continue.
+     */
+    private function opensNestedIf(File $phpcsFile, int $from, int $to): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        for ($pointer = $from; $pointer <= $to; $pointer++) {
+            if ($tokens[$pointer]['code'] === T_IF) {
+                return true;
+            }
+
+            if (isset($tokens[$pointer]['scope_closer']) === false) {
+                continue;
+            }
+
+            // PHPCS's own skip-nested-statements test, from
+            // File::findEndOfStatement(): a token owns the scope it names only
+            // when it is that scope's opener or its condition. Every other
+            // token carrying the pointers is inside the scope already.
+            $ownsScope = $pointer === $tokens[$pointer]['scope_opener']
+                || $pointer === $tokens[$pointer]['scope_condition'];
+
+            if ($ownsScope === true) {
+                $pointer = $tokens[$pointer]['scope_closer'];
+            }
+        }
+
+        return false;
     }
 
     /**

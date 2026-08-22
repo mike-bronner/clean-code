@@ -35,6 +35,9 @@ declare(strict_types=1);
  *   - staticPropertySwitch    a static read, which belongs to the class
  *   - adjacentBracedIfs       two braced constructs that only sit side by side
  *   - adjacentBracelessIfs    the same adjacency, with brace-less bodies
+ *   - nestedBracelessIf       a nested `if`, which the continuations bind to
+ *   - nestedBracedIf          the same nesting, with the nested clauses braced
+ *   - nestedLoopIf            the same nesting, one brace-less loop further in
  */
 
 interface Shape
@@ -352,6 +355,68 @@ final class NearMisses
         if ($shape->type === 'circle') return 'Circle';
         if ($shape->type === 'square') return 'Square';
         if ($shape->type === 'rect') return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * One `if` on a discriminator whose whole body is another `if`. PHP binds
+     * both continuations below to the *inner* `if ($flag)`, so the outer one has
+     * a single branch and dispatches on nothing. Reading them as the outer's
+     * reports a three-branch chain that PHP never runs as one.
+     */
+    public function nestedBracelessIf(object $shape, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            if ($flag)
+                return 'Round';
+            elseif ($shape->type === 'square')
+                return 'Square';
+            elseif ($shape->type === 'rect')
+                return 'Rect';
+
+        return 'Unknown';
+    }
+
+    /**
+     * The same binding where the nested clauses are braced. The braces close
+     * each clause's body, not the chain, so the `elseif`s still belong to the
+     * inner `if`. It is the nested `if` carrying a scope of its own that makes
+     * this a second case: the body walk skips whole any scope written inside the
+     * body, so only reading the `if` *before* that skip finds this one.
+     */
+    public function nestedBracedIf(object $shape, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            if ($flag) {
+                return 'Round';
+            } elseif ($shape->type === 'square') {
+                return 'Square';
+            } elseif ($shape->type === 'rect') {
+                return 'Rect';
+            }
+
+        return 'Unknown';
+    }
+
+    /**
+     * The nested `if` one statement further in, behind a brace-less `foreach`.
+     * The outer clause's body is the whole loop, and the `if` that takes the
+     * continuations is the loop's body rather than the clause's — so finding it
+     * means reading the body through, not just looking at the token it opens on.
+     *
+     * @param array<int, int> $sides
+     */
+    public function nestedLoopIf(object $shape, array $sides, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side)
+                if ($flag)
+                    return 'Round';
+                elseif ($shape->type === 'square')
+                    return 'Square';
+                elseif ($shape->type === 'rect')
+                    return 'Rect';
 
         return 'Unknown';
     }

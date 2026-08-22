@@ -195,7 +195,11 @@ switch. Toward `minimumBranches`, each `case` label counts on its own — stacke
 labels sharing one fallthrough body count once each — `default` counts as one
 wherever it sits, and a trailing `else` counts as one. Only branches of the same
 construct are counted: two `if` statements written back to back are two
-constructs, however alike they read, and their branches are never added up.
+constructs, however alike they read, and their branches are never added up. A
+chain also stops where PHP stops it — a clause whose brace-less body writes an
+`if` of its own hands every following `elseif` and `else` to that nested `if`,
+which is the binding PHP itself uses, so those branches belong to the nested
+chain rather than to the outer one.
 
 Never flagged: a plain-variable subject (`switch ($type)`, `if ($type ===
 'circle')`, which `MappingArrayCandidate` already owns in its `if` form), any

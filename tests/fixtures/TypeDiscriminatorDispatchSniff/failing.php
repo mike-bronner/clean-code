@@ -9,8 +9,9 @@ declare(strict_types=1);
  * literal branches to qualify, so each carries exactly one warning — at the
  * `switch` keyword or at the leading `if`, never once per arm.
  *
- * The eight cover both constructs against both discriminator shapes, plus the
- * counting rules that a naive implementation gets wrong:
+ * The ten cover both constructs against both discriminator shapes, the counting
+ * rules that a naive implementation gets wrong, and the two brace-less bodies
+ * that hold an `if` the chain's own continuations do *not* bind to:
  *
  *   - switchOnProperty    switch, object-property discriminator
  *   - switchOnIndex       switch, array-index discriminator
@@ -25,6 +26,10 @@ declare(strict_types=1);
  *                         as a plain one does
  *   - signedLabels        negative and unsigned numeric labels, the two-token
  *                         spelling PHP gives a negative number
+ *   - bracedLoopBody      a brace-less clause whose body is a braced loop
+ *                         holding an `if`. The loop's braces close that `if`, so
+ *                         the two `elseif`s after it are this chain's own
+ *   - closureBody         the same, where the `if` sits inside a closure
  */
 
 final class Dispatchers
@@ -132,6 +137,43 @@ final class Dispatchers
             case 1:
                 return 'Done';
         }
+
+        return 'Unknown';
+    }
+
+    /**
+     * @param array<int, int> $sides
+     */
+    public function bracedLoopBody(object $shape, array $sides, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            foreach ($sides as $side) {
+                if ($flag) {
+                    return 'Round';
+                }
+            }
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
+
+        return 'Unknown';
+    }
+
+    public function closureBody(object $shape, bool $flag): string
+    {
+        if ($shape->type === 'circle')
+            return (string) (static function () use ($flag): int {
+                if ($flag) {
+                    return 1;
+                }
+
+                return 2;
+            })();
+        elseif ($shape->type === 'square')
+            return 'Square';
+        elseif ($shape->type === 'rect')
+            return 'Rect';
 
         return 'Unknown';
     }
