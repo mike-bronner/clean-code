@@ -696,8 +696,8 @@
         CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
         sniffs and 46 in the suite — is a native call kept on purpose. The
         pinned set has since grown with the sniffs that landed after that
-        review: 83 warnings in 50 files, 27 in the shipped sniffs and 56 in the
-        suite. The reason is one package-level fact rather than 83 separate
+        review: 94 warnings in 56 files, 33 in the shipped sniffs and 61 in the
+        suite. The reason is one package-level fact rather than 94 separate
         judgements: this package is a PHP_CodeSniffer standard,
         illuminate/collections is absent from its composer.json by design, and
         adding it to require so a linter could call collect() would put
@@ -714,7 +714,7 @@
         array literal. The other two are only counted, which a Collection
         satisfies through Countable, so for those two the package-level fact is
         the whole reason rather than a reinforcement of the site's own usage.
-        The 18 sites added since #312 are pinned on the package-level fact
+        The 29 sites added since #312 are pinned on the package-level fact
         alone; they have not been walked one at a time the way that PR walked
         the first 65, so the per-site tally stays scoped to that set.
 
