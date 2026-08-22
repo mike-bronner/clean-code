@@ -62,6 +62,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.LongClassName',
     'CleanCode.Naming.LongVariable',
     'CleanCode.Naming.ModelNamingConventions',
+    'CleanCode.Naming.RedundantNamespaceSuffix',
     'CleanCode.Naming.ShortClassName',
     'CleanCode.Naming.ShortMethodName',
     'CleanCode.Naming.ShortVariable',
