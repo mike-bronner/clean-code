@@ -100,9 +100,13 @@ use PHP_CodeSniffer\Util\Tokens;
  *   `foreach` target, a `catch` variable, a `static` local, and a `global`
  *   import each replace what a name means from where they are written on. A
  *   parameter's name is read as the parameter until the first of those re-binds
- *   it, and as the new binding after it ({@see self::rebindingEnd()}). An
- *   assignment re-binds nothing: `$mode = $mode ?? self::AUTO;` overwrites the
- *   parameter's value while the variable stays the parameter.
+ *   it, and as the new binding after it ({@see self::rebindingEnd()}). Only a
+ *   name one of them writes *bare* re-binds: a dynamic target
+ *   (`foreach ($rows as $row->{$mode})`, `global $$mode`) and a destructured
+ *   element's key (`foreach ($rows as [$mode => $row])`) read the names
+ *   spelling them and bind none of them ({@see self::boundNames()}). An
+ *   assignment re-binds nothing either: `$mode = $mode ?? self::AUTO;`
+ *   overwrites the parameter's value while the variable stays the parameter.
  * - **A name that is not PHP's own function.** Whether a predicate or an
  *   argument reader is the global function it reads as is
  *   {@see FunctionCalls::isGlobalFunctionCall()}'s answer — the package's one
@@ -219,6 +223,82 @@ class DisallowCombinedConstructorSniff implements Sniff
      * @var array<int, string>
      */
     private const ARGUMENT_READERS = ['func_get_args', 'func_num_args'];
+
+    /**
+     * Tokens after which a variable spells part of a dynamic target rather
+     * than naming one — read by {@see self::bindsName()}.
+     *
+     * Each entry addresses something the variable's *value* selects: the
+     * property of `$row->$name` and `$row->{$name}`, the element of
+     * `$row[$name]`, the static property of `Row::$slot`, and the variable of
+     * `$$name` and `${$name}`. The nullsafe operator writes nothing ("Can't
+     * use nullsafe operator in write context"), and is listed beside its
+     * sibling so a file PHP_CodeSniffer tokenizes but PHP rejects is read the
+     * same way as one it accepts.
+     *
+     * A destructured element's own brackets are a `T_OPEN_SHORT_ARRAY`, which
+     * PHP_CodeSniffer tells apart from the `T_OPEN_SQUARE_BRACKET` of a
+     * subscript by what precedes it — so `[$first, $second]` binds both names
+     * while `$row[$key]` binds neither.
+     *
+     * @var array<int, int|string>
+     */
+    private const INDIRECTION_PRECEDERS = [
+        T_DOLLAR,
+        T_DOUBLE_COLON,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_OBJECT_OPERATOR,
+        T_OPEN_CURLY_BRACKET,
+        T_OPEN_SQUARE_BRACKET,
+    ];
+
+    /**
+     * Tokens before which a variable is the *container* a dynamic target
+     * writes into rather than the name bound — the mirror of
+     * {@see self::INDIRECTION_PRECEDERS}, read by the same method.
+     *
+     * `$row` in `$row->slot`, `$row?->slot`, `$row::$slot` and `$row[$key]`
+     * keeps whatever it already meant; only the slot named after it is
+     * written.
+     *
+     * @var array<int, int|string>
+     */
+    private const INDIRECTION_FOLLOWERS = [
+        T_DOUBLE_COLON,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_OBJECT_OPERATOR,
+        T_OPEN_SQUARE_BRACKET,
+    ];
+
+    /**
+     * Tokens that open a nested group inside a binding construct's region,
+     * and their closers — counted by {@see self::boundNames()} so a `=>` can
+     * be read as the construct's own key separator or as a destructured
+     * element's, whichever it is.
+     *
+     * The pair is the one CleanCode.Naming.ShortVariable reads a `foreach`
+     * header's nesting with, widened by the braces of a dynamic member name.
+     *
+     * @var array<int, int|string>
+     */
+    private const NESTING_OPENERS = [
+        T_OPEN_CURLY_BRACKET,
+        T_OPEN_PARENTHESIS,
+        T_OPEN_SHORT_ARRAY,
+        T_OPEN_SQUARE_BRACKET,
+    ];
+
+    /**
+     * Their closers.
+     *
+     * @var array<int, int|string>
+     */
+    private const NESTING_CLOSERS = [
+        T_CLOSE_CURLY_BRACKET,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SHORT_ARRAY,
+        T_CLOSE_SQUARE_BRACKET,
+    ];
 
     /**
      * Tokens that open a group holding a sub-expression: a call's or a
@@ -471,10 +551,18 @@ class DisallowCombinedConstructorSniff implements Sniff
      * supplied — reading a normalized flag as a different variable would silence
      * the commonest spelling of the very thing this sniff reports.
      *
-     * The region each construct binds in holds names and nothing else — a
-     * `foreach`'s targets, a `catch`'s exception variable, the constant
-     * expression a `static` local is initialized to — so the walk resumes past
-     * the whole of it rather than reading it.
+     * The region each construct binds in holds its targets — a `foreach`'s,
+     * a `catch`'s exception variable, the constant expression a `static` local
+     * is initialized to — and the walk resumes past the whole of it rather
+     * than reading it. Which of the names written there the construct actually
+     * binds is {@see self::boundNames()}'s answer, since a target can be
+     * dynamic and spell itself with names it only reads.
+     *
+     * A dynamic target's own subscript may in principle carry a branch
+     * (`foreach ($rows as $row[$mode ? 'a' : 'b'])`), and stepping past the
+     * region leaves it unread. That costs a missed warning on a spelling
+     * nobody writes rather than a wrong one on a common spelling — the same
+     * trade this file makes for a named-argument predicate call.
      */
     private function rebindingEnd(File $phpcsFile, int $pointer, int $closer): ?int
     {
@@ -551,20 +639,87 @@ class DisallowCombinedConstructorSniff implements Sniff
     /**
      * The names bound between $from and $to, as a set keyed by name.
      *
+     * A construct's region holds its targets, and only a target written bare
+     * binds the name it is spelled with. Every other variable in the region is
+     * *read* there: the ones spelling a dynamic target
+     * (`foreach ($rows as $row->{$mode})`, `global $$mode`) select where the
+     * write lands, and the key of a destructured element
+     * (`foreach ($rows as [$mode => $row])`) addresses an element rather than
+     * receiving one. Reading either as a binding drops a parameter the
+     * constructor still branches on further down — the very report this sniff
+     * exists to make — so each is left in the map.
+     *
+     * The nesting count separates the two spellings of `=>`: a key at the
+     * construct's own nesting is the `foreach`'s, and binds
+     * (`foreach ($rows as $key => $row)`), while one inside a destructuring
+     * group belongs to the element being addressed, and does not.
+     *
      * @return array<string, true>
      */
     private function boundNames(File $phpcsFile, int $from, int $to): array
     {
         $tokens = $phpcsFile->getTokens();
         $names = [];
+        $depth = 0;
 
         for ($pointer = $from + 1; $pointer < $to; $pointer++) {
-            if ($tokens[$pointer]['code'] === T_VARIABLE) {
+            $code = $tokens[$pointer]['code'];
+
+            if (in_array($code, self::NESTING_OPENERS, true)) {
+                $depth++;
+
+                continue;
+            }
+
+            if (in_array($code, self::NESTING_CLOSERS, true)) {
+                $depth--;
+
+                continue;
+            }
+
+            if ($code === T_VARIABLE && $this->bindsName($phpcsFile, $pointer, $depth)) {
                 $names[$tokens[$pointer]['content']] = true;
             }
         }
 
         return $names;
+    }
+
+    /**
+     * Whether the variable at this pointer is a name its construct binds,
+     * rather than one read to reach a target.
+     *
+     * A bare name is dereferenced from neither side: nothing in front of it
+     * makes it the selector of a dynamic target
+     * ({@see self::INDIRECTION_PRECEDERS}) and nothing behind it makes it the
+     * container one is written into ({@see self::INDIRECTION_FOLLOWERS}). A
+     * `&` in front binds by reference and is not indirection, so a
+     * by-reference `foreach` value binds like any other.
+     *
+     * $depth is the variable's nesting inside the region, and settles the one
+     * token that means either thing — a `=>` behind a variable is the
+     * construct's key separator at depth 0 and a destructured element's key
+     * anywhere deeper.
+     */
+    private function bindsName(File $phpcsFile, int $pointer, int $depth): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
+
+        if ($before !== false && in_array($tokens[$before]['code'], self::INDIRECTION_PRECEDERS, true)) {
+            return false;
+        }
+
+        if ($after === false) {
+            return true;
+        }
+
+        if (in_array($tokens[$after]['code'], self::INDIRECTION_FOLLOWERS, true)) {
+            return false;
+        }
+
+        return $tokens[$after]['code'] !== T_DOUBLE_ARROW || $depth === 0;
     }
 
     /**

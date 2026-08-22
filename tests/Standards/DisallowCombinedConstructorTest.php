@@ -103,7 +103,7 @@
  *     (the property read and the subscripted array start reporting)
  *
  * Comment tolerance — every adjacency test skips `Tokens::$emptyTokens` rather
- * than `T_WHITESPACE` alone. Seventeen of the eighteen flip a verdict when
+ * than `T_WHITESPACE` alone. Nineteen of the twenty flip a verdict when
  * reverted to `T_WHITESPACE`, and each is pinned separately:
  *
  *   - the `instanceof` lookahead — shapes 49 (false negative)
@@ -122,6 +122,10 @@
  *   - the `static`-declaration lookahead — reddens the re-binding test below
  *     (`static /* … *\/ $legacy = false;` stops being read as a declaration, so
  *     the local never displaces the parameter)
+ *   - the bound-name lookback and lookahead — redden the target-spelling test
+ *     below, one spelling each (`$target->{/* … *\/$legacy}`,
+ *     `$legacy/* … *\/->slot`): the comment hides the indirection, so the name
+ *     is read as bound and the parameter leaves the map
  *   - the elvis lookahead — passing 1 (false positive: the elvis default is
  *     read as a branch)
  *   - the chain-head lookback — passing 2, and its `else` step-back —
@@ -196,6 +200,33 @@
  *     pair of the same declaration, and every nested declaration is jumped
  *     whole. Recorded as observed, like the lookahead above that no comment
  *     can reach
+ *
+ * Which of a construct's names it actually binds — only one written bare, and
+ * every leg of that test pinned on its own by the target-spelling test below.
+ * No fixture moves on any of them either, for the same reason as above:
+ *
+ *   - drop the bare-name test entirely, binding every name the region holds —
+ *     the test reddens with all thirteen dynamic targets and destructured keys
+ *     losing the parameter
+ *   - drop one indirection preceder at a time — `T_DOLLAR`, `T_DOUBLE_COLON`,
+ *     `T_NULLSAFE_OBJECT_OPERATOR`, `T_OBJECT_OPERATOR`,
+ *     `T_OPEN_CURLY_BRACKET`, `T_OPEN_SQUARE_BRACKET` — the test reddens on
+ *     that spelling's own class
+ *   - drop one indirection follower at a time — `T_DOUBLE_COLON`,
+ *     `T_NULLSAFE_OBJECT_OPERATOR`, `T_OBJECT_OPERATOR`,
+ *     `T_OPEN_SQUARE_BRACKET` — the test reddens on the class writing into the
+ *     parameter rather than binding it
+ *   - bind every `=>` key whatever its nesting — the test reddens on both
+ *     destructured keys; ignore the nesting the other way, binding no `=>` key
+ *     at all — the bare-target test reddens instead, on the `foreach`'s own key
+ *   - stop counting the region's nesting, so every `=>` reads as depth 0 — the
+ *     test reddens on both destructured keys, the same way as binding them all
+ *
+ * The two nullsafe entries are the one pair PHP itself cannot reach: it rejects
+ * the operator in a write context ("Can't use nullsafe operator in write
+ * context"). PHP_CodeSniffer tokenizes rather than compiles, so the sniff still
+ * meets the spelling in a file being written, and the test pins it there —
+ * "does it tokenize" is the question a fixture answers, not "does it run".
  *
  * Where an expression ends:
  *
@@ -741,4 +772,199 @@ PHP;
         ['line' => 55, 'column' => 65, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 63, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
     ]);
+});
+
+it('reads a name a re-binding construct only spells as still the parameter', function (): void {
+    $source = <<<'PHP'
+<?php
+
+class BracedMemberName
+{
+    public function __construct(bool $legacy, array $items, object $target)
+    {
+        foreach ($items as $target->{/* the name, not a block */$legacy}) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class VariableMemberName
+{
+    public function __construct(bool $legacy, array $items, object $target)
+    {
+        foreach ($items as $target->$legacy) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class SubscriptKey
+{
+    public function __construct(bool $legacy, array $items, array $target)
+    {
+        foreach ($items as $target[$legacy]) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class StaticPropertyName
+{
+    public function __construct(bool $legacy, array $items)
+    {
+        foreach ($items as Registry::$legacy) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class DestructuredElementKey
+{
+    public function __construct(bool $legacy, array $rows)
+    {
+        foreach ($rows as [$legacy => $row]) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class ListedElementKey
+{
+    public function __construct(bool $legacy, array $rows)
+    {
+        foreach ($rows as list($legacy => $row)) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class VariableVariableImport
+{
+    public function __construct(bool $legacy)
+    {
+        global $$legacy;
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class BracedVariableVariableImport
+{
+    public function __construct(bool $legacy)
+    {
+        global ${$legacy};
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class MemberContainer
+{
+    public function __construct(bool $legacy, array $items)
+    {
+        foreach ($items as $legacy/* the container */->slot) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class SubscriptContainer
+{
+    public function __construct(bool $legacy, array $items, string $key)
+    {
+        foreach ($items as $legacy[$key]) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class StaticPropertyContainer
+{
+    public function __construct(bool $legacy, array $items)
+    {
+        foreach ($items as $legacy::$slot) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class NullsafeMemberName
+{
+    public function __construct(bool $legacy, array $items, object $target)
+    {
+        foreach ($items as $target?->$legacy) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+
+class NullsafeMemberContainer
+{
+    public function __construct(bool $legacy, array $items)
+    {
+        foreach ($items as $legacy?->slot) {
+        }
+
+        $this->mode = $legacy ? 'legacy' : 'modern';
+    }
+}
+PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 10, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 21, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 32, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 43, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 54, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 65, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 75, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 85, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 96, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 107, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 118, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 129, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ['line' => 140, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+    ]);
+});
+
+it('re-binds a name a construct writes bare', function (): void {
+    $sources = [
+        'value target' => 'foreach ($items as $legacy) {',
+        'key target' => 'foreach ($items as $legacy => $row) {',
+        'destructured element' => 'foreach ($items as [$first, $legacy]) {',
+        'listed element' => 'foreach ($items as list($first, $legacy)) {',
+        'by-reference value' => 'foreach ($items as &$legacy) {',
+    ];
+
+    foreach ($sources as $shape => $header) {
+        $source = <<<PHP
+        <?php
+
+        class BareTarget
+        {
+            public function __construct(bool \$legacy, array \$items)
+            {
+                {$header}
+                    \$this->mode = \$legacy ? 'legacy' : 'modern';
+                }
+            }
+        }
+        PHP;
+
+        $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+        expect(tuplesFromMessages($file->getWarnings()))->toBe([], $shape);
+    }
 });

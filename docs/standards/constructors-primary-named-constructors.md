@@ -176,10 +176,16 @@ Deliberately silent on:
   name is read as the parameter until the first of those re-binds it, and as
   the new binding after it: in a constructor taking `bool $legacy`,
   `foreach ($rows as $legacy)` reports nothing on the loop variable, while a
-  branch on `$legacy` written *above* the loop still reports. An assignment is
-  not a re-binding — `$mode = $mode ?? self::AUTO;` overwrites the parameter's
-  value while the variable stays the parameter, so a branch on it afterwards
-  reports as before.
+  branch on `$legacy` written *above* the loop still reports. Only a name one
+  of them writes *bare* re-binds: a dynamic target
+  (`foreach ($rows as $row->{$legacy})`, `global $$legacy`) writes into
+  something else and a destructured element's key
+  (`foreach ($rows as [$legacy => $row])`) addresses an element, so each reads
+  `$legacy` rather than binding it, and a branch on `$legacy` below still
+  reports. An assignment is not a re-binding either —
+  `$mode = $mode ?? self::AUTO;` overwrites the parameter's value while the
+  variable stays the parameter, so a branch on it afterwards reports as
+  before.
 - **A predicate or argument reader that is not PHP's own function** — the name
   has to resolve to the global function it reads as, which
   `MikeBronner\CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()`
