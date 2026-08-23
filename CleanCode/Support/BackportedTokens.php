@@ -12,11 +12,17 @@
  * no constant for at all, on any PHP version.
  *
  * The two are the whole difference between PHP 8.4 and PHP 8.5, measured rather
- * than recalled. Both interpreters were asked for every `T_*` constant they
- * publish, with PHP_CodeSniffer loaded so its own additions are counted too:
+ * than recalled — and measured from outside this package, which is the only
+ * place the measurement means anything. Composer's `files` autoloader wires
+ * this file into `vendor/autoload.php`, so anything that loads this package's
+ * autoloader has both names defined before it counts them, on every PHP
+ * version. A count taken from the repository root therefore answers 239 on 8.4
+ * and 239 on 8.5, with an empty `comm -3` — the shim masking the very
+ * difference it exists for. The enumeration below avoids that by loading
+ * PHP_CodeSniffer alone, from a copy outside any Composer autoloader:
  *
- *     php -r 'require "vendor/autoload.php";
- *             require "vendor/squizlabs/php_codesniffer/autoload.php";
+ *     cp -R vendor/squizlabs/php_codesniffer /tmp/phpcs-only
+ *     php -r 'require "/tmp/phpcs-only/autoload.php";
  *             new \PHP_CodeSniffer\Util\Tokens();
  *             foreach (["tokenizer", "user"] as $g) {
  *                 foreach (array_keys(get_defined_constants(true)[$g] ?? []) as $n) {
@@ -24,11 +30,16 @@
  *                 }
  *             }' | sort
  *
- * run under PHP 8.4.24 and PHP 8.5.9 and compared with `comm`. PHP 8.4 answers
- * 237 names, PHP 8.5 answers 239, and the difference is exactly `T_PIPE` and
- * `T_VOID_CAST` in the added direction with nothing removed. Without
- * PHP_CodeSniffer loaded the counts are 151 and 153 and the difference is the
- * same two, so neither is an artefact of what PHP_CodeSniffer itself defines.
+ * run under PHP 8.4.24 and PHP 8.5.9 against PHP_CodeSniffer 3.13.6 and
+ * compared with `comm`. PHP 8.4 answers 237 names, PHP 8.5 answers 239, and the
+ * difference is exactly `T_PIPE` and `T_VOID_CAST` in the added direction with
+ * nothing removed. Dropping the `require` as well — the interpreter's own
+ * `tokenizer` constants and nothing else, which no autoloader can reach — gives
+ * 151 and 153 and the same two names, so neither is an artefact of what
+ * PHP_CodeSniffer itself defines. Neither is a name it knows either:
+ * `grep -rn 'T_PIPE\|T_VOID_CAST' vendor/squizlabs/php_codesniffer/src` matches
+ * nothing at 3.13.6, which is what makes the definitions below this package's
+ * job rather than its dependency's.
  *
  * PHP_CodeSniffer passes both through with their native integer codes and their
  * real names — a token it has no case for keeps whatever `token_get_all()` gave
