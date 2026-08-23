@@ -54,7 +54,9 @@ it('produces no violations on the compliant fixture', function (): void {
  * twice. Line 59 is the long array form, lines 65 and 67 are a nested array
  * and its parent reported independently, line 72 is a keyed destructuring
  * pattern, and lines 79 and 81 are single-quoted keys whose escape sequences
- * make them the same keys as their neighbours.
+ * make them the same keys as their neighbours. Lines 102, 110, 118 and 125 are
+ * the wrap's own boundaries, each reached by a literal the entry above it does
+ * not repeat.
  */
 it('flags every duplicate key at the overriding entry', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php');
@@ -69,6 +71,7 @@ it('flags every duplicate key at the overriding entry', function (): void {
             [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
             [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
             [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5], [93, 5],
+            [102, 5], [110, 5], [118, 5], [125, 5],
         ]
     ))->and($file->getWarnings())->toBe([]);
 });
@@ -113,11 +116,41 @@ it('reports every repeat against the first declaration', function (): void {
  * literals rather than one. Leaving an out-of-range literal unresolved reports
  * nothing here at all. Saturating one onto PHP_INT_MAX/PHP_INT_MIN instead of
  * wrapping makes 1e30 and 2e30 the same key and adds a report on line 90 that
- * PHP would not agree with. Only the wrap gives exactly these two reports with
- * exactly these two keys, and the keys are the ones the interpreter produces:
- * `(int) 1.0e30` is 5076964154930102272 on PHP 8.1, 8.4 and 8.5 alike, and the
- * arithmetic that replaced that cast was checked against it over 200,000
- * random magnitudes on 8.4 and 8.5 with no disagreement.
+ * PHP would not agree with. Only the wrap gives exactly these reports with
+ * exactly these keys.
+ *
+ * Every key named below is the one the interpreter itself puts the entry in,
+ * read off `array_keys()` of the same literals evaluated by PHP, not computed
+ * by the arithmetic under test. PHP 8.4.24 and 8.5.9 agree on all of them.
+ *
+ * The last four pairs stand at the wrap's own boundaries, and each reaches its
+ * shared key from two literals that are not the same text — the pair on line 47
+ * repeats one spelling, so an error that moved every magnitude by the same
+ * amount would keep it a duplicate and go unseen if the key itself were not
+ * asserted. Which mutation each line answers, measured one at a time against
+ * the shipped fixture rather than argued:
+ *
+ * - line 47, 2**63 twice. The first magnitude the direct cast cannot take.
+ *   Folding by 2**63 instead of 2**64 reports key 0 here, and saturating onto
+ *   the range ends reports PHP_INT_MAX; the pair stays a duplicate under both,
+ *   which is why the key and not the report is the assertion.
+ * - line 102, 2**63 against 3 * 2**63. One key from two distances, so the fold
+ *   is pinned as a subtraction of 2**64 rather than a jump to PHP_INT_MIN.
+ *   Moves to 0 under either wrong multiple and to PHP_INT_MAX under saturation.
+ * - line 110, 2**64 against a plain `0`. A whole turn of the wrap. Goes silent
+ *   under saturation and under leaving an out-of-range literal unresolved. It
+ *   survives both modulus mutations, which land it back on 0 by coincidence —
+ *   this line answers saturation, not the modulus.
+ * - line 118, -2**63 against -3 * 2**63. The sign carried into the resolution.
+ *   PHP_INT_MIN has no integer negation, so negating after the wrap leaves the
+ *   range again; the resulting diagnostic is fatal only under the installed
+ *   run, which is where that is pinned. Goes silent here under a wrong fold
+ *   multiple and under leaving the literal unresolved.
+ * - line 125, -2e30 against the plain literal of the key it wraps onto. The
+ *   lift that raises a remainder below -2**63 into [0, 2**64) before the fold.
+ *   Goes silent under saturation and under leaving the literal unresolved.
+ *   Dropping the lift alone leaves this key intact and shows only on 8.5,
+ *   again through the installed run.
  *
  * What this test does *not* pin is the PHP 8.5 abort, and the distinction is
  * worth stating because it is not visible from here. analyzeFixture() drives a
@@ -135,7 +168,17 @@ it('resolves a float key outside the integer range the way PHP does', function (
         ->toBe(['Duplicate array key 5076964154930102272 overrides the entry on line 89; remove one of them'])
         ->and($messages[93])
         ->toBe(['Duplicate array key -5076964154930102272 overrides the entry on line 92; remove one of them'])
-        ->and($messages)->not->toHaveKey(90);
+        ->and($messages)->not->toHaveKey(90)
+        ->and($messages[47])
+        ->toBe(['Duplicate array key -9223372036854775808 overrides the entry on line 46; remove one of them'])
+        ->and($messages[102])
+        ->toBe(['Duplicate array key -9223372036854775808 overrides the entry on line 101; remove one of them'])
+        ->and($messages[110])
+        ->toBe(['Duplicate array key 0 overrides the entry on line 109; remove one of them'])
+        ->and($messages[118])
+        ->toBe(['Duplicate array key -9223372036854775808 overrides the entry on line 117; remove one of them'])
+        ->and($messages[125])
+        ->toBe(['Duplicate array key 8292815763849347072 overrides the entry on line 124; remove one of them']);
 });
 
 /**
@@ -152,6 +195,12 @@ it('resolves a float key outside the integer range the way PHP does', function (
  * Internal.Exception is called out separately so a regression reads as what it
  * is rather than as twenty missing messages.
  *
+ * Line 118 aborts on PHP 8.4 as well, and for a second reason: a key that wraps
+ * onto PHP_INT_MIN has no integer negation, so negating it after the wrap hands
+ * a float back to the key coercion, which 8.4 reports as `Implicit conversion
+ * from float ... to int loses precision` and 8.5 as the same warning the cast
+ * raises. Both are diagnostics inside a sniff, and both abort the file here.
+ *
  * Runs the real phpcs, and only for this one fixture: the in-process harness
  * cannot see the failure at all, and no cheaper path installs Runner's handler.
  */
@@ -161,7 +210,7 @@ it('resolves such a key without aborting the installed run', function (): void {
 
     expect($sources)->not->toContain('Internal.Exception')
         ->and(array_unique($sources))->toBe([DUPLICATED_ARRAY_KEY . '.Found'])
-        ->and(array_column($run['messages'], 'line'))->toContain(91, 93);
+        ->and(array_column($run['messages'], 'line'))->toContain(47, 91, 93, 102, 110, 118, 125);
 });
 
 /**

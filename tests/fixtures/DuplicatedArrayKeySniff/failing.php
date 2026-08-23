@@ -92,3 +92,35 @@ $wrapped = [
     -1.0e30 => 'd',
     -1.0e30 => 'e',
 ];
+
+// The wrap's own boundaries, each reached by two literals that are not the
+// same text, so an error at the boundary cannot corrupt both entries into
+// agreeing by accident. 2**63 is the first magnitude the direct cast cannot
+// take, and 3 * 2**63 reaches the same key from twice the distance.
+$boundaries = [
+    9223372036854775808 => 'a',
+    27670116110564327424 => 'b',
+];
+
+// 2**64 is a whole turn of the wrap, so it lands on 0 — the key the plain
+// literal above it already holds. A modulus that was not 2**64 would put it
+// somewhere else and there would be no duplicate here at all.
+$modulus = [
+    0 => 'a',
+    18446744073709551616 => 'b',
+];
+
+// -2**63 is the one key whose own negation is not an integer, so a negated
+// float is resolved with its sign rather than negated afterwards. Both
+// literals land on PHP_INT_MIN, which is where PHP itself puts them.
+$negatedBoundaries = [
+    -9223372036854775808 => 'a',
+    -27670116110564327424 => 'b',
+];
+
+// A remainder below -2**63 is lifted into [0, 2**64) before it is folded, so
+// -2e30 lands on a positive key — the one the plain literal above it holds.
+$lifted = [
+    8292815763849347072 => 'a',
+    -2.0e30 => 'b',
+];

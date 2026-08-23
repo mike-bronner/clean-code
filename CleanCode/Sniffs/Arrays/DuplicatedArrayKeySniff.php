@@ -231,12 +231,23 @@ class DuplicatedArrayKeySniff implements Sniff
             return null;
         }
 
-        $value = $this->literalValue($tokens[$isNegated === true ? $keyPtrs[1] : $keyPtrs[0]]);
+        $token = $tokens[$isNegated === true ? $keyPtrs[1] : $keyPtrs[0]];
 
-        // Only a number can be negated into a key, so a minus in front of
-        // anything else means the key is not a literal after all.
-        if ($isNegated === true) {
-            $value = is_int($value) === true ? -$value : null;
+        if ($isNegated === true && $token['code'] === T_DNUMBER) {
+            // A negated float carries its sign into the resolution instead of
+            // being negated after it. The wrap can land on PHP_INT_MIN, whose
+            // negation is not an integer at all, and coercing that back to a
+            // key performs the very out-of-range cast floatValue() exists to
+            // avoid — which aborts the whole file on 8.4 and 8.5 alike.
+            $value = $this->floatValue('-' . $token['content']);
+        } else {
+            $value = $this->literalValue($token);
+
+            // Only a number can be negated into a key, so a minus in front of
+            // anything else means the key is not a literal after all.
+            if ($isNegated === true) {
+                $value = is_int($value) === true ? -$value : null;
+            }
         }
 
         return $value === null ? null : array_key_first([$value => null]);
