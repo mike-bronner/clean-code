@@ -346,6 +346,30 @@ it('reports a chain behind every admitted grouping-parenthesis preceder', functi
 });
 
 /**
+ * The same sweep for the two preceders PHP 8.5 adds, in a fixture of its own
+ * because `(void)` and `|>` are parse errors before 8.5 — putting them in
+ * group-preceders.php would change how that file tokenises on every older
+ * version, and this package supports PHP 8.1 upward.
+ *
+ * Which is also why this skips rather than adapts below 8.5: the tokens cannot
+ * occur there, so there is no weaker assertion to fall back to. The catalogue
+ * test below is what covers those versions — it runs everywhere and fails if
+ * either token is left unclassified — and CI pins PHP 8.4, so the run that
+ * proves these two lines is a local one, recorded in the pull request.
+ *
+ * Non-vacuous by mutation rather than by reading: deleting T_VOID_CAST from
+ * GROUP_PRECEDERS silences line 14 and nothing else, deleting T_PIPE silences
+ * line 18 and nothing else, and deleting both empties the report.
+ */
+it('reports a chain behind the grouping-parenthesis preceders PHP 8.5 adds', function () use ($stagedRun): void {
+    $file = $stagedRun('group-preceders-php85.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe([14 => [CHAINED_ERROR], 18 => [CHAINED_ERROR]]);
+})->skip(PHP_VERSION_ID < 80500, 'T_VOID_CAST and T_PIPE need PHP 8.5');
+
+/**
  * The admission set is only as good as its completeness, and completeness is
  * not something a reader can see by looking at a list of plausible tokens. This
  * sniff has already been short by one twice — once for `!`, `~`, `.`, `yield`,

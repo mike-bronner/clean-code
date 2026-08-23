@@ -46,6 +46,15 @@ use PHP_CodeSniffer\Util\Tokens;
 class DuplicatedArrayKeySniff implements Sniff
 {
     /**
+     * 2**63 and 2**64 as floats, the two bounds floatValue() folds a
+     * non-representable float key against. Both are exact in a double —
+     * a power of two always is — so neither bound is approximate.
+     */
+    private const TWO_POW_63 = 9223372036854775808.0;
+
+    private const TWO_POW_64 = 18446744073709551616.0;
+
+    /**
      * Constructs that can nest inside an array element, mapped to the token
      * index holding their closer. The element walk jumps over each one whole,
      * so a comma or a `=>` belonging to a nested construct is never mistaken
@@ -282,12 +291,50 @@ class DuplicatedArrayKeySniff implements Sniff
      * A literal too large to be finite (`1e400`) has no defined integer form,
      * so it is left unresolved rather than folded onto whatever `(int) INF`
      * happens to produce.
+     *
+     * A finite literal outside the integer range does have a defined form —
+     * PHP wraps it modulo 2**64 and uses the result as the key, which is why
+     * `[9223372036854775808 => 'a', 9223372036854775808 => 'b']` is a genuine
+     * duplicate on key -9223372036854775808. The cast that computes it is the
+     * problem: PHP 8.5 raises `The float ... is not representable as an int,
+     * cast occurred` as an E_WARNING, PHP_CodeSniffer turns every warning
+     * raised inside a sniff into an exception, and the run aborts with
+     * Internal.Exception instead of reporting the duplicate. Suppressing the
+     * warning is not available either — the master ruleset carries
+     * Generic.PHP.NoSilencedErrors, and PHP_CodeSniffer's handler ignores
+     * error_reporting() in any case.
+     *
+     * So the wrap is done here, in arithmetic that raises nothing, and only for
+     * the literals that would warn: anything already inside the integer range
+     * is cast directly, exactly as before. The three steps are PHP's own
+     * zend_dval_to_lval() — take the value modulo 2**64, lift a negative
+     * remainder into [0, 2**64), then fold the top half down into the signed
+     * range — and they reproduce the cast rather than approximate it, which is
+     * asserted against the interpreter itself in DuplicatedArrayKeyTest.
      */
     private function floatValue(string $literal): ?int
     {
         $value = (float) str_replace('_', '', $literal);
 
-        return is_finite($value) === true ? (int) $value : null;
+        if (is_finite($value) === false) {
+            return null;
+        }
+
+        if ($value >= -self::TWO_POW_63 && $value < self::TWO_POW_63) {
+            return (int) $value;
+        }
+
+        $wrapped = fmod($value, self::TWO_POW_64);
+
+        if ($wrapped < 0.0) {
+            $wrapped += self::TWO_POW_64;
+        }
+
+        if ($wrapped >= self::TWO_POW_63) {
+            $wrapped -= self::TWO_POW_64;
+        }
+
+        return (int) $wrapped;
     }
 
     /**

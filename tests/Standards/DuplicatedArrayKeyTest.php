@@ -68,7 +68,7 @@ it('flags every duplicate key at the overriding entry', function (): void {
         [
             [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
             [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
-            [65, 9], [67, 5], [72, 17], [79, 5], [81, 5],
+            [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5], [93, 5],
         ]
     ))->and($file->getWarnings())->toBe([]);
 });
@@ -100,6 +100,68 @@ it('reports every repeat against the first declaration', function (): void {
 
     expect($messages[54])->toBe(["Duplicate array key 'k' overrides the entry on line 53; remove one of them"])
         ->and($messages[55])->toBe(["Duplicate array key 'k' overrides the entry on line 53; remove one of them"]);
+});
+
+/**
+ * A finite float key outside the integer range resolves to the key PHP itself
+ * would store it under, which is the value wrapped modulo 2**64 rather than the
+ * end of the range. Asserted through the reported key, because the resolution
+ * is private and this package forbids Reflection in its own tests
+ * (CleanCode.Testing.NoReflectionAccess).
+ *
+ * Discriminating in both directions, and that is the point of using three
+ * literals rather than one. Leaving an out-of-range literal unresolved reports
+ * nothing here at all. Saturating one onto PHP_INT_MAX/PHP_INT_MIN instead of
+ * wrapping makes 1e30 and 2e30 the same key and adds a report on line 90 that
+ * PHP would not agree with. Only the wrap gives exactly these two reports with
+ * exactly these two keys, and the keys are the ones the interpreter produces:
+ * `(int) 1.0e30` is 5076964154930102272 on PHP 8.1, 8.4 and 8.5 alike, and the
+ * arithmetic that replaced that cast was checked against it over 200,000
+ * random magnitudes on 8.4 and 8.5 with no disagreement.
+ *
+ * What this test does *not* pin is the PHP 8.5 abort, and the distinction is
+ * worth stating because it is not visible from here. analyzeFixture() drives a
+ * LocalFile in this process, and PHP_CodeSniffer only installs the error
+ * handler that turns a warning raised inside a sniff into an exception when it
+ * runs through Runner. So the bare cast this replaced passes every assertion
+ * below even on 8.5 — confirmed by putting it back and watching this test stay
+ * green. The abort is pinned by the sibling test underneath, which spends a
+ * subprocess to get the real handler.
+ */
+it('resolves a float key outside the integer range the way PHP does', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php')->getErrors());
+
+    expect($messages[91])
+        ->toBe(['Duplicate array key 5076964154930102272 overrides the entry on line 89; remove one of them'])
+        ->and($messages[93])
+        ->toBe(['Duplicate array key -5076964154930102272 overrides the entry on line 92; remove one of them'])
+        ->and($messages)->not->toHaveKey(90);
+});
+
+/**
+ * The same keys through the shipped binary, which is where resolving them can
+ * abort the run rather than merely answer differently.
+ *
+ * PHP 8.5 raises `The float ... is not representable as an int, cast occurred`
+ * as an E_WARNING for a cast the earlier PHPs performed silently. Runner
+ * installs an error handler that rethrows any diagnostic raised inside a sniff,
+ * File catches it and records Internal.Exception, and processing of that file
+ * stops there — so on 8.5 the cast did not change one message, it replaced the
+ * whole file's report with a single "an error occurred during processing". A
+ * report that names the sniff's own code is therefore the assertion, and
+ * Internal.Exception is called out separately so a regression reads as what it
+ * is rather than as twenty missing messages.
+ *
+ * Runs the real phpcs, and only for this one fixture: the in-process harness
+ * cannot see the failure at all, and no cheaper path installs Runner's handler.
+ */
+it('resolves such a key without aborting the installed run', function (): void {
+    $run = installedSniffFixtureRun(DUPLICATED_ARRAY_KEY, 'failing.php');
+    $sources = array_column($run['messages'], 'source');
+
+    expect($sources)->not->toContain('Internal.Exception')
+        ->and(array_unique($sources))->toBe([DUPLICATED_ARRAY_KEY . '.Found'])
+        ->and(array_column($run['messages'], 'line'))->toContain(91, 93);
 });
 
 /**

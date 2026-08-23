@@ -80,3 +80,15 @@ $escaped = [
     'a\\b' => 'c',
     'a\b' => 'd',
 ];
+
+// A finite float too large for the integer range is not saturated onto the
+// range's end: PHP wraps it modulo 2**64, so two such literals are the same key
+// only when they wrap to the same value. 1e30 and 2e30 land on different keys
+// and are not duplicates; each literal written twice is.
+$wrapped = [
+    1.0e30 => 'a',
+    2.0e30 => 'b',
+    1.0e30 => 'c',
+    -1.0e30 => 'd',
+    -1.0e30 => 'e',
+];
