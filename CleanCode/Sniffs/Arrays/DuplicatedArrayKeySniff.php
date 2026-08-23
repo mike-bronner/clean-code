@@ -281,13 +281,52 @@ class DuplicatedArrayKeySniff implements Sniff
      *
      * A literal too large to be finite (`1e400`) has no defined integer form,
      * so it is left unresolved rather than folded onto whatever `(int) INF`
-     * happens to produce.
+     * happens to produce. A finite literal too large for the integer range does
+     * have one, and truncatedToInt() is where it is worked out.
      */
     private function floatValue(string $literal): ?int
     {
         $value = (float) str_replace('_', '', $literal);
 
-        return is_finite($value) === true ? (int) $value : null;
+        return is_finite($value) === true ? $this->truncatedToInt($value) : null;
+    }
+
+    /**
+     * The integer key a finite float lands on, computed rather than cast.
+     *
+     * A float inside the integer range is cast, which is the whole of this
+     * rule's ordinary traffic. Outside that range `(int)` still has a defined
+     * answer — the engine reduces the value modulo 2**64 back into the signed
+     * range, so `9223372036854775808` and `1e30` land on PHP_INT_MIN and
+     * 5076964154930102272 — but PHP 8.5 raises E_WARNING while producing it
+     * ("The float 9.223372036854776E+18 is not representable as an int, cast
+     * occurred"), where 8.1 and 8.4 are silent. PHP_CodeSniffer installs an
+     * error handler that rethrows any unmuted diagnostic raised inside a sniff
+     * (Runner::handleErrors()), so on 8.5 the cast aborts the whole file with
+     * an Internal.Exception instead of reporting the duplicate.
+     *
+     * Doing the reduction on floats warns on no version and lands on the same
+     * key the engine does, so the reported key stays the key PHP stores the
+     * entry under — which is what the message claims.
+     */
+    private function truncatedToInt(float $value): int
+    {
+        $ceiling = 2 ** 63;
+        $span = 2 ** 64;
+
+        if ($value >= -$ceiling && $value < $ceiling) {
+            return (int) $value;
+        }
+
+        $reduced = fmod($value, $span);
+
+        if ($reduced >= $ceiling) {
+            $reduced -= $span;
+        } elseif ($reduced < -$ceiling) {
+            $reduced += $span;
+        }
+
+        return (int) $reduced;
     }
 
     /**

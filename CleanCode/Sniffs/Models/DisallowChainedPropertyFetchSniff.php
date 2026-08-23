@@ -9,6 +9,51 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
+/*
+ * The PHP 8.5 tokens, back-defined for the versions that predate them.
+ *
+ * T_VOID_CAST and T_PIPE are the *whole* of what PHP 8.5 adds to the T_*
+ * catalogue over PHP 8.4 — enumerated rather than taken from the bug report, by
+ * diffing the two interpreters:
+ *
+ *     for v in 84 85; do
+ *         php$v -r 'foreach (["tokenizer", "user"] as $g) {
+ *             foreach (array_keys(get_defined_constants(true)[$g] ?? []) as $n) {
+ *                 if (str_starts_with($n, "T_")) { echo $n, PHP_EOL; }
+ *             }
+ *         }' | sort > /tmp/tok$v.txt
+ *     done
+ *     comm -13 /tmp/tok84.txt /tmp/tok85.txt
+ *
+ * on PHP 8.4.23 and PHP 8.5.8: 151 names against 153, the two added being
+ * T_PIPE and T_VOID_CAST and nothing removed. Re-run with PHP_CodeSniffer's own
+ * test bootstrap required first, so the constants it back-defines are counted
+ * too, it is 239 against 241 — the same two.
+ *
+ * PHP_CodeSniffer 3.13.6 back-ports neither: `grep -rn 'T_VOID_CAST\|T_PIPE'`
+ * over its `src/` returns nothing, unlike the guarded defines it carries for
+ * T_ENUM and T_READONLY. Naming them bare in GROUP_PRECEDERS would therefore
+ * raise `Error: Undefined constant "T_VOID_CAST"` on PHP 8.1 and 8.4 — on first
+ * *read* of the constant rather than at class-load, because PHP evaluates a
+ * class constant's expression lazily, so the failure would land on the first
+ * file the sniff walks rather than on install. Same defect, later.
+ *
+ * Defined in this file rather than in a bootstrap because a consumer runs
+ * `vendor/bin/phpcs`, which loads a sniff class through PHP_CodeSniffer's own
+ * autoloader and never runs Composer's `files` autoload. The string value is
+ * PHP_CodeSniffer's own back-port convention (Util/Tokens.php: `define('T_NONE',
+ * 'PHPCS_T_NONE')`), and it is what makes the admission inert rather than wrong
+ * on the versions that need it: a string code can never equal the integer code
+ * of a real token, so on 8.1 and 8.4 these two entries match nothing.
+ */
+if (defined('T_VOID_CAST') === false) {
+    define('T_VOID_CAST', 'PHPCS_T_VOID_CAST');
+}
+
+if (defined('T_PIPE') === false) {
+    define('T_PIPE', 'PHPCS_T_PIPE');
+}
+
 /**
  * Flags chained property fetches rooted in a variable ($a->b->c).
  *
@@ -109,6 +154,24 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
         // Concatenation, the one binary operator absent from those unions.
         T_STRING_CONCAT,
+
+        // PHP 8.5's `(void)` cast. `(void) ($book)->author->name;` is accepted
+        // by `php85 -l`, and `phpcs` built on 8.5 hands the sniff T_VOID_CAST
+        // for the `(void)` — a cast, so the parenthesis after it opens the
+        // operand, exactly as it does after `(int)` or `(string)`. Those are
+        // admitted by Tokens::$castTokens, which PHP_CodeSniffer 3.13.6 wrote
+        // before this token existed and so does not list; until it does, the
+        // token is admitted here. php85-tokens.php:9 is the line that reports.
+        T_VOID_CAST,
+
+        // PHP 8.5's pipe operator. `$out = $book |> ($handler)->resolve->fn;`
+        // is accepted by `php85 -l` and rejected outright by `php84 -l`
+        // ("syntax error, unexpected token \">\""), so unlike the cast it can
+        // only be written in a file 8.5 reads. It is a binary operator, so its
+        // right operand may open with a grouping parenthesis in the same way
+        // `.` may — and like `.` it is absent from Tokens::$operators in
+        // 3.13.6. php85-tokens.php:10 is the line that reports.
+        T_PIPE,
     ];
 
     /**

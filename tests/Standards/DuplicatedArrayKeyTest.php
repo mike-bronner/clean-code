@@ -54,7 +54,10 @@ it('produces no violations on the compliant fixture', function (): void {
  * twice. Line 59 is the long array form, lines 65 and 67 are a nested array
  * and its parent reported independently, line 72 is a keyed destructuring
  * pattern, and lines 79 and 81 are single-quoted keys whose escape sequences
- * make them the same keys as their neighbours.
+ * make them the same keys as their neighbours. Line 91 is a literal far
+ * outside the integer range rather than one step past its boundary, so the two
+ * out-of-range lines together pin the reduction rather than only the fact that
+ * something out of range still resolves.
  */
 it('flags every duplicate key at the overriding entry', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php');
@@ -68,7 +71,7 @@ it('flags every duplicate key at the overriding entry', function (): void {
         [
             [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
             [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
-            [65, 9], [67, 5], [72, 17], [79, 5], [81, 5],
+            [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5],
         ]
     ))->and($file->getWarnings())->toBe([]);
 });
@@ -78,6 +81,23 @@ it('flags every duplicate key at the overriding entry', function (): void {
  * `false` and `0` are both reported as the key 0, `'1'` and `true` as 1, and
  * `null` as the empty string. That is the point of the rule — the two entries
  * are the same key however differently they are written.
+ *
+ * Lines 47 and 91 are the same claim for a float PHP cannot represent as an
+ * int. The engine reduces such a value modulo 2**64 back into the signed range,
+ * so `9223372036854775808` is stored under PHP_INT_MIN and `1e30` under
+ * 5076964154930102272, and the message has to name those rather than the
+ * literal, a boundary, or nothing at all. Both numbers were read off PHP
+ * itself: `var_dump((int) 1e30)` and `array_key_first([1e30 => 'a'])` both
+ * print 5076964154930102272 on 8.1, 8.4 and 8.5 alike.
+ *
+ * These two lines pin the value, not the PHP 8.5 abort (#362). Measured by
+ * mutation on 8.5: restoring the plain `(int)` cast leaves every assertion here
+ * green, because this harness drives PHP_CodeSniffer in process and the error
+ * handler that rethrows a sniff's own E_WARNING is installed by Runner::run(),
+ * which only the shipped-package smoke test goes through. That test is where
+ * the abort shows, and it is the one #362 names. What a saturating or
+ * boundary-clamping resolution would break is here: swapping the modular
+ * reduction for either reddens line 91 while line 47 stays green.
  */
 it('names the coerced key and the declaration it overrides', function (): void {
     $messages = violationMessagesByLine(analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php')->getErrors());
@@ -87,7 +107,13 @@ it('names the coerced key and the declaration it overrides', function (): void {
         ->and($messages[16])->toBe(['Duplicate array key 1 overrides the entry on line 15; remove one of them'])
         ->and($messages[17])->toBe(['Duplicate array key 1 overrides the entry on line 15; remove one of them'])
         ->and($messages[23])->toBe(["Duplicate array key '' overrides the entry on line 22; remove one of them"])
-        ->and($messages[30])->toBe(['Duplicate array key 15 overrides the entry on line 28; remove one of them']);
+        ->and($messages[30])->toBe(['Duplicate array key 15 overrides the entry on line 28; remove one of them'])
+        ->and($messages[47])->toBe([
+            'Duplicate array key -9223372036854775808 overrides the entry on line 46; remove one of them',
+        ])
+        ->and($messages[91])->toBe([
+            'Duplicate array key 5076964154930102272 overrides the entry on line 90; remove one of them',
+        ]);
 });
 
 /**

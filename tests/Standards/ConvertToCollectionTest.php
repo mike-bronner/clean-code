@@ -209,7 +209,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 218, 'column' => 15],
+        ['line' => 223, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -233,10 +233,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 196, 'column' => 15],
     ],
     'tests/Standards/DisallowChainedPropertyFetchTest.php' => [
-        ['line' => 396, 'column' => 20],
-        ['line' => 430, 'column' => 58],
-        ['line' => 431, 'column' => 9],
-        ['line' => 433, 'column' => 17],
+        ['line' => 437, 'column' => 20],
+        ['line' => 471, 'column' => 58],
+        ['line' => 472, 'column' => 9],
+        ['line' => 474, 'column' => 17],
     ],
     'tests/Standards/DisallowClosureRoutesTest.php' => [
         ['line' => 109, 'column' => 18],
@@ -259,7 +259,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 326, 'column' => 19],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
-        ['line' => 62, 'column' => 42],
+        ['line' => 65, 'column' => 42],
     ],
     'tests/Standards/ExcessiveMethodLengthTest.php' => [
         ['line' => 125, 'column' => 17],
@@ -295,6 +295,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 74, 'column' => 44],
         ['line' => 411, 'column' => 15],
         ['line' => 463, 'column' => 14],
+    ],
+    'tests/Standards/NoLogicTest.php' => [
         ['line' => 455, 'column' => 15],
         ['line' => 526, 'column' => 15],
         ['line' => 761, 'column' => 20],

@@ -327,12 +327,18 @@ it('names the first completing pair and the accessor remedy', function () use ($
  * group-preceders.php therefore carries one chain per admitted token, and this
  * asserts every one of them is reported. It is the coverage half of the pair:
  * the file exists so that no member of the set can be removed — or fail to be
- * added — without a line here going quiet. Each of the 33 tokens the sniff
- * lists, and each of the five PHP_CodeSniffer unions it defers to, was checked
- * that way: deleting it silences its own line and no other, so no line is
- * carried by a neighbour and no member is dead weight. `=>` was the one that
- * was: Tokens::$assignmentTokens already supplied it, and the list no longer
- * repeats it.
+ * added — without a line here going quiet. Of the 35 tokens the sniff lists,
+ * the 33 that any supported PHP tokenizes are here, one line apiece, and each
+ * of the five PHP_CodeSniffer unions it defers to has a line too. Each was
+ * checked the same way: deleting it silences its own line and no other, so no
+ * line is carried by a neighbour and no member is dead weight. `=>` was the one
+ * that was: Tokens::$assignmentTokens already supplied it, and the list no
+ * longer repeats it.
+ *
+ * The remaining two, T_VOID_CAST and T_PIPE, cannot be written in this file —
+ * `|>` is a parse error before PHP 8.5 and `(void) (…)` means something else
+ * there — so they carry the same one-line-apiece proof in php85-tokens.php,
+ * under the test below that PHP 8.5 gates.
  *
  * The catalogue test below is the other half. Between them, a token is either
  * admitted with a line proving it, or refused with a reason recorded.
@@ -344,6 +350,32 @@ it('reports a chain behind every admitted grouping-parenthesis preceder', functi
         ->and(violationSourcesByLine($file->getErrors()))
         ->toBe(array_fill_keys(CHAINED_PRECEDER_LINES, [CHAINED_ERROR]));
 });
+
+/**
+ * The two admissions PHP 8.5 added, each proved by its own line — the half of
+ * the sweep above that group-preceders.php has no way to carry.
+ *
+ * Line 9 is the `(void)` cast, line 10 the pipe operator, and each holds a
+ * grouping parenthesis around the root of a two-hop chain. Both are
+ * discriminating in the same way every group-preceders.php line is: deleting
+ * T_VOID_CAST from the sniff's list silences line 9 and leaves line 10
+ * reporting, and deleting T_PIPE does the reverse — measured on PHP 8.5.8, not
+ * inferred, because the parenthesis is then read as a call's argument list and
+ * the root found inside it is no root of this chain.
+ *
+ * Gated rather than made version-agnostic because the tokens are the point. On
+ * PHP 8.1 and 8.4 `|>` does not parse at all, and `(void) ($book)->…` parses as
+ * a call to the function named by the constant `void` — a different shape with
+ * a different verdict, so a version-agnostic expectation here would assert one
+ * of the two things and quietly stop asserting the other.
+ */
+it('reports a chain behind the PHP 8.5 grouping-parenthesis preceders', function () use ($stagedRun): void {
+    $file = $stagedRun('php85-tokens.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe([9 => [CHAINED_ERROR], 10 => [CHAINED_ERROR]]);
+})->skip(PHP_VERSION_ID < 80500, 'The (void) cast and |> need a PHP 8.5 tokenizer.');
 
 /**
  * The admission set is only as good as its completeness, and completeness is
@@ -368,6 +400,15 @@ it('reports a chain behind every admitted grouping-parenthesis preceder', functi
  * that broke the standard it ships would be an odd thing to ship.
  */
 it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
+    // Two of the catalogue's names, T_VOID_CAST and T_PIPE, exist on PHP 8.1
+    // and 8.4 only because the sniff's own file back-defines them, and it does
+    // that when the file loads. Load it here rather than relying on an earlier
+    // test having done so, so this closes against the same catalogue the sniff
+    // itself sees whichever tests ran first — or none, under --filter.
+    expect(class_exists(
+        \MikeBronner\CleanCode\Sniffs\Models\DisallowChainedPropertyFetchSniff::class
+    ))->toBeTrue();
+
     $catalogue = [];
 
     foreach (['tokenizer', 'user'] as $group) {

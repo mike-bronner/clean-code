@@ -80,3 +80,13 @@ $escaped = [
     'a\\b' => 'c',
     'a\b' => 'd',
 ];
+
+// A finite literal far outside the integer range is folded onto the key PHP's
+// own modular reduction produces — 5076964154930102272 for 1e30, not the range
+// boundary — so both entries here are that one key. The pair above is the
+// boundary case; this pair is what tells the reduction from a saturation to
+// PHP_INT_MIN, which would answer the boundary case correctly and this one not.
+$farOutside = [
+    1e30 => 'a',
+    1e30 => 'b',
+];
