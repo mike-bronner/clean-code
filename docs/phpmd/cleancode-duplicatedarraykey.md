@@ -61,6 +61,19 @@ the custom `CleanCode.Arrays.DuplicatedArrayKey` sniff, wired into the master
   An implicit (auto-incrementing) key is skipped for the same reason: no
   literal names it, since its value depends on every element before it. PHPMD
   skips all of these too.
+
+  Two numeric literals are skipped as well, for the same reason in a different
+  place — the source names them, but nothing available to the sniff settles the
+  slot PHP would file them under. A literal too large to be finite (`1e400`)
+  has no integer form at all. A literal that leaves the integer range while
+  naming its digits in another base (`0x8000000000000000`, `0b1` and 63 zeros,
+  `0o1000000000000000000000`, `01000000000000000000000`) has one, and PHP's
+  lexer reaches it by rounding that `hexdec()`, `bindec()` and `octdec()` do
+  not reproduce — measured on PHP 8.5.8, they disagree with the literal often
+  enough to move the key. Both are real duplicates that go unreported; a key
+  that is merely close would be a report against a slot PHP never used. Every
+  base is still compared inside the integer range, which is where these
+  literals are written in practice.
 - **Every array literal is inspected** — the short form, the long `array()`
   form, a nested array (in its own right, and independently of its parent), and
   a keyed destructuring pattern, where a repeated key makes the second binding

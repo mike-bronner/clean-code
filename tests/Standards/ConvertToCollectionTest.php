@@ -260,7 +260,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 326, 'column' => 19],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
-        ['line' => 64, 'column' => 42],
+        ['line' => 71, 'column' => 42],
     ],
     'tests/Standards/ExcessiveMethodLengthTest.php' => [
         ['line' => 125, 'column' => 17],

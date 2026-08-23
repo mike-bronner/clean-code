@@ -31,9 +31,16 @@ it('is registered in the master ruleset', function (): void {
  * that stay strings — alongside the near-miss shapes the sniff must stay
  * silent on. Those near misses are deliberately *repeated* keys the sniff
  * declines to resolve: constants, class constants, variables, expressions,
- * escaped and interpolated double-quoted strings, a negated string, and a
- * non-finite float. Each one is an early return, so the fixture's silence is a
- * verdict about them rather than the absence of anything to look at.
+ * escaped and interpolated double-quoted strings, a negated string, a
+ * non-finite float, and an integer literal that leaves the integer range while
+ * naming its digits in hexadecimal, binary or either octal spelling, plain and
+ * negated. Each one is an early return, so the fixture's silence is a verdict
+ * about them rather than the absence of anything to look at.
+ *
+ * The last group is the one that fails loudly when its guard goes: without it
+ * the cast reads every hexadecimal, binary and modern-octal literal there as
+ * 0.0 and every legacy-octal one as 1.0E+21, which makes each pair a duplicate
+ * on a key PHP never used and turns this fixture red.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'passing.php');
