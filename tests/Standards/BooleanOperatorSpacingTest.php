@@ -50,61 +50,48 @@ it('produces no violations on the compliant fixture', function (): void {
  * The word operators `and`/`or`/`xor` are the sniff's actual reason to exist —
  * Squiz.WhiteSpace.OperatorSpacing never registered them — so they are pinned
  * here on equal footing with `&&` and `||`, not treated as an afterthought.
+ *
+ * Every column is the operator token's own position, so the two codes a
+ * both-sides defect raises land on one column rather than one per side.
  */
 it('flags every violation at its own line with the expected code', function (): void {
     $file = analyzeFixture(BOOLEAN_OPERATOR_SPACING, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        16 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
-        17 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
-        18 => [
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore',
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter',
-        ],
-        19 => [
-            BOOLEAN_OPERATOR_SPACING . '.SpacingBefore',
-            BOOLEAN_OPERATOR_SPACING . '.SpacingAfter',
-        ],
-        21 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
-        22 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
-        23 => [
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore',
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter',
-        ],
-        24 => [
-            BOOLEAN_OPERATOR_SPACING . '.SpacingBefore',
-            BOOLEAN_OPERATOR_SPACING . '.SpacingAfter',
-        ],
-        26 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
-        27 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
-        28 => [
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore',
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter',
-        ],
-        29 => [
-            BOOLEAN_OPERATOR_SPACING . '.SpacingBefore',
-            BOOLEAN_OPERATOR_SPACING . '.SpacingAfter',
-        ],
-        31 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
-        32 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
-        33 => [
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore',
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter',
-        ],
-        34 => [
-            BOOLEAN_OPERATOR_SPACING . '.SpacingBefore',
-            BOOLEAN_OPERATOR_SPACING . '.SpacingAfter',
-        ],
-        36 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
-        37 => [BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
-        38 => [
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore',
-            BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter',
-        ],
-        39 => [
-            BOOLEAN_OPERATOR_SPACING . '.SpacingBefore',
-            BOOLEAN_OPERATOR_SPACING . '.SpacingAfter',
-        ],
+    expect(violationTuples($file))->toBe([
+        ['line' => 16, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 17, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 18, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 18, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 19, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 19, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingAfter'],
+
+        ['line' => 21, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 22, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 23, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 23, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 24, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 24, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingAfter'],
+
+        ['line' => 26, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 27, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 28, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 28, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 29, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 29, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingAfter'],
+
+        ['line' => 31, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 32, 'column' => 21, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 33, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 33, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 34, 'column' => 21, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 34, 'column' => 21, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingAfter'],
+
+        ['line' => 36, 'column' => 24, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 37, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 38, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 38, 'column' => 23, 'source' => BOOLEAN_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 39, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 39, 'column' => 22, 'source' => BOOLEAN_OPERATOR_SPACING . '.SpacingAfter'],
     ]);
 });
 

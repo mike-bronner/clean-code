@@ -38,20 +38,26 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
+/**
+ * Line 37 is an inline `if` whose body is a second inline `if`, so one line
+ * carries two reports — the outer `if` at column 1 and the inner one at column
+ * 22. Lines 41 and 46 are reported at column 5 rather than column 1 because
+ * they are indented inside a braced `foreach` and `while` body.
+ */
 it('flags inline conditionals at the expected lines', function (): void {
     $file = analyzeFixture(INLINE_CONTROL_STRUCTURE, 'failing.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        25 => 1,
-        28 => 1,
-        29 => 1,
-        32 => 1,
-        33 => 1,
-        34 => 1,
-        37 => 2,
-        41 => 1,
-        46 => 1,
-    ]);
+    expect(violationTuples($file))->toBe(array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => INLINE_CONTROL_STRUCTURE . '.NotAllowed',
+        ],
+        [
+            [25, 1], [28, 1], [29, 1], [32, 1], [33, 1], [34, 1],
+            [37, 1], [37, 22], [41, 5], [46, 5],
+        ]
+    ));
 });
 
 it('marks every violation auto-fixable', function (): void {

@@ -37,12 +37,17 @@ it('produces no violations on the compliant fixture', function (): void {
  * because the sniff skips comments when locating the next code token.
  */
 it('flags every dangling operator at its line', function (): void {
-    $byLine = violationSourcesByLine(analyzeFixture(OPERATOR_LINE_BREAK, 'failing.php')->getErrors());
+    $tuples = violationTuples(analyzeFixture(OPERATOR_LINE_BREAK, 'failing.php'));
+    $expected = [[5, 19], [8, 22], [12, 29], [16, 9], [19, 16], [22, 12]];
 
-    expect(array_keys($byLine))->toBe([5, 8, 12, 16, 19, 22]);
+    expect($tuples)->toHaveCount(count($expected));
 
-    foreach ($byLine as $sources) {
-        expect($sources)->toBe([OPERATOR_LINE_BREAK . '.OperatorAtLineEnd']);
+    foreach ($expected as $index => [$line, $column]) {
+        expect($tuples[$index])->toBe([
+            'line' => $line,
+            'column' => $column,
+            'source' => OPERATOR_LINE_BREAK . '.OperatorAtLineEnd',
+        ]);
     }
 });
 
@@ -69,14 +74,17 @@ it('defers dangling operators inside conditions', function (): void {
  * (=== inside an inner grouping parenthesis).
  */
 it('reports a dangling non-boolean operator in a multi-condition', function (): void {
-    $byLine = violationSourcesByLine(
-        analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php')->getErrors()
-    );
+    $tuples = violationTuples(analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php'));
+    $expected = [[9, 8], [19, 14], [29, 13], [42, 24], [45, 21]];
 
-    expect(array_keys($byLine))->toBe([9, 19, 29, 42, 45]);
+    expect($tuples)->toHaveCount(count($expected));
 
-    foreach ($byLine as $sources) {
-        expect($sources)->toBe([OPERATOR_LINE_BREAK . '.OperatorAtLineEnd']);
+    foreach ($expected as $index => [$line, $column]) {
+        expect($tuples[$index])->toBe([
+            'line' => $line,
+            'column' => $column,
+            'source' => OPERATOR_LINE_BREAK . '.OperatorAtLineEnd',
+        ]);
     }
 });
 
@@ -96,12 +104,19 @@ it('reports a dangling non-boolean operator in a multi-condition', function (): 
  * same wrap is reported twice.
  */
 it('reports a dangling boolean outside the clause it defers', function (): void {
-    $reported = violationSourcesByLine(
-        analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php')->getErrors()
-    );
+    $reported = violationTuples(analyzeFixture(OPERATOR_LINE_BREAK, 'reported-conditional.php'));
     $deferred = analyzeFixture(OPERATOR_LINE_BREAK, 'deferred-conditional.php');
 
-    expect(array_keys($reported))->toContain(42, 45)
+    $inForHeader = array_values(array_filter(
+        $reported,
+        static fn (array $violation): bool => in_array($violation['line'], [42, 45], true)
+    ));
+
+    expect($inForHeader)->toHaveCount(2)
+        ->and($inForHeader[0])
+        ->toBe(['line' => 42, 'column' => 24, 'source' => OPERATOR_LINE_BREAK . '.OperatorAtLineEnd'])
+        ->and($inForHeader[1])
+        ->toBe(['line' => 45, 'column' => 21, 'source' => OPERATOR_LINE_BREAK . '.OperatorAtLineEnd'])
         ->and($deferred->getErrors())->toBe([]);
 
     // Both lines are genuinely a boolean-terminated wrap inside a for header's
