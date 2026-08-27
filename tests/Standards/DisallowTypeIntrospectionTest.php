@@ -600,3 +600,32 @@ it('stays silent where a brace has no closer to cross to', function (): void {
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * An import binds inside its own namespace block and nowhere else.
+ *
+ * The sniff used to collect `use function` imports itself, walking the whole
+ * token stream and crediting every block with every import. Since #320 the
+ * question belongs to CleanCode\Helpers\FunctionCalls, which resolves an import
+ * against the block the call sits in — so the identical call in a block that
+ * imports nothing is still PHP's own function.
+ *
+ * import-blocks.php spells the same call in both blocks, which is what makes
+ * the assertion discriminating rather than a fixed verdict: the file-wide
+ * approximation reports neither, and dropping import resolution altogether
+ * reports both. Only per-block resolution reports exactly the second.
+ *
+ * Mutation-confirmed both ways — deleting the import reddens this, and so does
+ * moving it above the first `namespace` statement.
+ */
+it('binds a use-function import to its own namespace block only', function (): void {
+    $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'import-blocks.php');
+
+    expect(violationTuples($file))->toBe([
+        [
+            'line' => 44,
+            'column' => 17,
+            'source' => TYPE_INTROSPECTION_FUNCTION,
+        ],
+    ]);
+});
