@@ -267,6 +267,35 @@ function analyzeStdinSource(array $sniffCodes, string $source): DummyFile
 }
 
 /**
+ * Processes generated source through a ruleset narrowed to the given sniffs,
+ * and reports how long the processing took in seconds.
+ *
+ * A linearity assertion needs a body far larger than any fixture on disk, and
+ * needs it written to a real path, since a sniff reads scope and parenthesis
+ * maps a stdin file builds the same way. The file is removed whether the run
+ * succeeds or not.
+ *
+ * @param array<int, string> $sniffCodes
+ *
+ * @return array{0: LocalFile, 1: float}
+ */
+function analyzeSourceTimed(array $sniffCodes, string $source): array
+{
+    $path = sys_get_temp_dir() . '/' . uniqid('cleancode-timed-', true) . '.php';
+    file_put_contents($path, $source);
+
+    try {
+        $startedAt = hrtime(true);
+        $file = analyzeWithSniffs($sniffCodes, $path);
+        $elapsed = (hrtime(true) - $startedAt) / 1e9;
+    } finally {
+        unlink($path);
+    }
+
+    return [$file, $elapsed];
+}
+
+/**
  * The sniff instance a ruleset narrowed to one sniff code holds.
  *
  * buildRuleset() memoises the ruleset per sniff-code key, so this is the very
@@ -318,6 +347,51 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
         fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
         $configure
     );
+}
+
+/**
+ * Processes one file of a fixture *project* through a ruleset narrowed to one
+ * sniff, with PHPCS configured as though it had been invoked on the project
+ * directory.
+ *
+ * Every helper above leaves Config::$files empty, because every one of them
+ * analyses a single file handed over by path. That is indistinguishable, to a
+ * sniff, from `phpcs one-file.php` — which is the right harness until a rule's
+ * answer depends on the *other* files in the run, as
+ * CleanCode.Metrics.NumberOfChildren's does: a parent's children are declared
+ * in files of their own, and a run that does not contain them has none to
+ * count.
+ *
+ * Setting $paths on the config is what a consumer's `phpcs src/` does, and it is
+ * the only difference from analyzeWithSniffs(). The ruleset is always built
+ * fresh: the config carries the run's paths now, so a memoised one would hand a
+ * later test the earlier test's codebase.
+ *
+ * $paths is a directory, or a list of paths for a run narrowed to particular
+ * files — the latter is how a cross-file count is attributed to one file at a
+ * time, by running the same subject against one contributor at a time.
+ *
+ * @param array<int, string>|string   $paths
+ * @param callable(object): void|null $configure
+ */
+function analyzeProjectFixture(
+    string $sniffCode,
+    array|string $paths,
+    string $file,
+    ?callable $configure = null
+): LocalFile {
+    [$config, $ruleset] = buildRuleset([$sniffCode], true);
+
+    $config->files = (array) $paths;
+
+    if ($configure !== null) {
+        $configure($ruleset->sniffs[$ruleset->sniffCodes[$sniffCode]]);
+    }
+
+    $analyzed = new LocalFile($file, $ruleset, $config);
+    $analyzed->process();
+
+    return $analyzed;
 }
 
 /**

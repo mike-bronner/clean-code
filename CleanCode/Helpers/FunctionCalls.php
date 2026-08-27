@@ -26,6 +26,25 @@ use PHP_CodeSniffer\Util\Tokens;
 final class FunctionCalls
 {
     /**
+     * The token stream {@see self::$analysis} describes, as
+     * TokenStreams::key() builds it, or null before the first analysis.
+     */
+    private static ?string $analysisKey = null;
+
+    /**
+     * The imports and namespace blocks of the stream {@see self::$analysisKey}
+     * names.
+     *
+     * @var array{imports: array<int, array<string, true>>, namespaces: array<int, int|null>}
+     */
+    private static array $analysis = ['imports' => [], 'namespaces' => []];
+
+    /**
+     * @var array<string, int>
+     */
+    private static array $analysisCounts = ['builds' => 0, 'hits' => 0];
+
+    /**
      * Tokens that, directly before the name, mean this is not a call to a
      * global function: a member access, a declaration, or an instantiation.
      */
@@ -215,28 +234,68 @@ final class FunctionCalls
     }
 
     /**
-     * The file's `use function` imports and namespace blocks.
+     * The file's `use function` imports and namespace blocks, read once per
+     * token stream and held.
      *
-     * Deliberately recomputed rather than cached. Caching it would have to
-     * survive PHPCS's fixer re-parsing the *same* File object with new content
-     * after every fix pass, and every cheap invalidation signal available here
-     * — the token count, the content length — can be left unchanged by a
-     * same-length rewrite. A wrong answer from a stale entry costs more than
-     * the scan does, and the scan is only ever reached by a bare name that
-     * everything else has already failed to explain: a call behind an operator,
-     * a qualifier, `new`, a declaration, or an attribute never gets this far,
-     * and a sniff has narrowed the name to its own list before that.
+     * Both scans read the whole stream end to end, so recomputing them per call
+     * costs the file's length every time. This was once deliberate, on the
+     * grounds that no sound invalidation signal was available: the token count
+     * and the content length can each be left unchanged by a same-length
+     * rewrite of the same File object between fixer passes, and a stale answer
+     * here is worse than a slow one. TokenStreams::key() — written since, for
+     * #343 — is that signal. It identifies the File object itself rather than
+     * describing it, and carries the fixer's loop counter, so it separates two
+     * analyses that tokenise alike *and* the fifty re-tokenisations of one file
+     * that Fixer::fixFile() performs. The four sniffs already keyed on it hold
+     * indexes of raw pointers, which is strictly more fragile than the names
+     * held here.
+     *
+     * The rest of that reasoning — that the scan is only ever reached by a bare
+     * name everything else failed to explain, so it is rare — does not hold.
+     * The name reaching it is one the *sniff* narrowed to its own list, and a
+     * single constructor may hold thousands of them: 2000 `is_string($value)`
+     * tests in one condition cost 2.65s through DisallowCombinedConstructor and
+     * 0.35s once this is held, with the curve quadratic before and linear
+     * after. Nothing about that shape has to parse, let alone be plausible.
      *
      * @return array{imports: array<int, array<string, true>>, namespaces: array<int, int|null>}
      */
     private static function analyze(File $phpcsFile): array
     {
-        $namespaces = self::namespaceDeclarations($phpcsFile);
+        $key = TokenStreams::key($phpcsFile);
 
-        return [
+        if (self::$analysisKey === $key) {
+            self::$analysisCounts['hits']++;
+
+            return self::$analysis;
+        }
+
+        $namespaces = self::namespaceDeclarations($phpcsFile);
+        self::$analysisCounts['builds']++;
+        self::$analysisKey = $key;
+        self::$analysis = [
             'namespaces' => $namespaces,
             'imports' => self::functionImports($phpcsFile, $namespaces),
         ];
+
+        return self::$analysis;
+    }
+
+    /**
+     * How many times the stream analysis was built and how many times a call
+     * answered from the one already built, cumulative for this process.
+     *
+     * A cache that only shortens a scan changes no violation, so nothing a
+     * black-box test can observe tells "built once per stream" from "rebuilt on
+     * every call" — both answer identically, only slower. These two counters
+     * are what tell them apart, and tests/Helpers/FunctionCallsTest.php pins
+     * both numbers.
+     *
+     * @return array<string, int>
+     */
+    public static function analysisCounts(): array
+    {
+        return self::$analysisCounts;
     }
 
     /**

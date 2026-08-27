@@ -65,10 +65,10 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 127 are native calls kept on purpose. The reason is a single
+ * All 135 are native calls kept on purpose. The reason is a single
  * package-level fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 127 times across
- * 69 files: this package is a PHP_CodeSniffer standard with no
+ * docs/standards/arrays-convert-to-collection.md rather than 135 times across
+ * 70 files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
  *
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 62 arrived with the sniffs that landed after #312 and are
+ * The remaining 70 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -203,9 +203,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
-        ['line' => 612, 'column' => 66],
-        ['line' => 781, 'column' => 36],
-        ['line' => 1599, 'column' => 22],
+        ['line' => 641, 'column' => 66],
+        ['line' => 810, 'column' => 36],
+        ['line' => 1594, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -218,7 +218,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 237, 'column' => 15],
+        ['line' => 236, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -255,6 +255,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/DisallowClosureRoutesTest.php' => [
         ['line' => 109, 'column' => 18],
         ['line' => 187, 'column' => 17],
+    ],
+    'tests/Standards/DisallowCombinedConstructorTest.php' => [
+        ['line' => 568, 'column' => 27],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
         ['line' => 112, 'column' => 17],
@@ -336,6 +339,16 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 142, 'column' => 57],
         ['line' => 176, 'column' => 57],
         ['line' => 446, 'column' => 13],
+    ],
+    'tests/Standards/NumberOfChildrenTest.php' => [
+        ['line' => 491, 'column' => 33],
+        ['line' => 499, 'column' => 66],
+        ['line' => 553, 'column' => 33],
+        ['line' => 557, 'column' => 27],
+        ['line' => 566, 'column' => 59],
+        ['line' => 713, 'column' => 75],
+        ['line' => 753, 'column' => 75],
+        ['line' => 823, 'column' => 25],
     ],
     'tests/Standards/OneThoughtPerLineTest.php' => [
         ['line' => 37, 'column' => 42],
