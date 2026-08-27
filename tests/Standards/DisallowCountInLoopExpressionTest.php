@@ -54,6 +54,8 @@ const COUNT_IN_LOOP_VIOLATIONS = [
     [81, 55],  // for: arrow function in the initialiser, count() in the condition
     [89, 9],   // for: closure body in the initialiser, count() in the condition
     [96, 8],   // while: count(...$rows) — a spread argument is still a real call
+    [105, 18], // while: namespace\count() — the file declares no namespace,
+               // so the relative qualifier reaches the global one
 ];
 
 /**
@@ -409,6 +411,57 @@ it('flags the case and namespace spellings PHPMD misses', function (): void {
  */
 it('refuses a malformed loop header rather than guessing at it', function (): void {
     $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'unclosed-condition.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The sniff no longer answers "is this name PHP's own count()?" itself: it
+ * routes the question through CleanCode\Helpers\FunctionCalls, per #320. Two
+ * shapes that only the shared helper resolves pin that routing, and both would
+ * redden if the hand-rolled preceder/qualifier pair ever came back.
+ *
+ * `namespace\` resolves against the namespace in force. failing.php declares
+ * none, so the relative qualifier reaches the global namespace and the call is
+ * PHP's own — reported. namespaced-relative.php spells the identical line under
+ * `namespace App\Support;`, where it reaches `App\Support\count()` instead —
+ * silent. Neither file can stand alone: reporting every `namespace\count(…)`
+ * satisfies the first and reddens the second, and reporting none does the
+ * reverse, so the pair is what pins the resolution rather than a fixed verdict.
+ *
+ * Mutation-confirmed both ways: reverting isSizeFunctionCall() to the old
+ * `isQualifiedName()` check reddens the failing.php half, and short-circuiting
+ * the qualifier branch to `true` reddens the namespaced-relative.php half.
+ */
+it('resolves a namespace-relative name against the namespace in force', function (): void {
+    $global = violationSourcesByLine(
+        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+    );
+
+    expect($global[105])->toBe([COUNT_IN_LOOP_SNIFF . '.Found']);
+
+    $namespaced = violationSourcesByLine(
+        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespaced-relative.php')->getErrors()
+    );
+
+    // The bare call proves the file is reached; the two relative spellings are
+    // the silence being pinned.
+    expect($namespaced)->toBe([22 => [COUNT_IN_LOOP_SNIFF . '.Found']]);
+});
+
+/**
+ * The other shape only the shared helper resolves: a `use function` import
+ * redirects the bare name to somebody else's function, so the call never
+ * reaches PHP's own count(). The hand-rolled preceder list read the bare name
+ * as the global function and reported this loop, since nothing precedes it.
+ *
+ * Mutation-confirmed: deleting the import from same-named-callables.php makes
+ * the loop report, so the assertion turns on the import rather than on the loop
+ * being invisible to the sniff.
+ */
+it('honours a use-function import that redirects the bare name', function (): void {
+    $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'same-named-callables.php');
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);

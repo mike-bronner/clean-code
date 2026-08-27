@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\ControlStructures;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -87,18 +88,6 @@ class DisallowCountInLoopExpressionSniff implements Sniff
         T_CLOSE_SQUARE_BRACKET,
         T_CLOSE_SHORT_ARRAY,
         T_CLOSE_CURLY_BRACKET,
-    ];
-
-    /**
-     * Tokens that, when directly preceding the function name, mean this is
-     * not a global function call (method call, static call, declaration, …).
-     */
-    private const NON_FUNCTION_CALL_PRECEDERS = [
-        T_OBJECT_OPERATOR,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_DOUBLE_COLON,
-        T_FUNCTION,
-        T_NEW,
     ];
 
     /**
@@ -257,45 +246,34 @@ class DisallowCountInLoopExpressionSniff implements Sniff
      * Whether the token at $stackPtr is a call to one of the global size
      * functions, rather than a same-named method, static method, or
      * declaration.
+     *
+     * "Is this name a call to PHP's own global function?" is
+     * {@see FunctionCalls::isGlobalFunctionCall()}'s question, not this
+     * sniff's: it rules out member access, declarations (including
+     * `function &count()`), instantiation however the name is qualified,
+     * another namespace's `Acme\count()`, an attribute name, and a bare name a
+     * `use function` import redirects elsewhere. This sniff owns only *which*
+     * names it cares about — SIZE_FUNCTIONS — and the one exclusion that is
+     * about its own rule rather than about name resolution: a first-class
+     * callable re-counts nothing per iteration.
      */
     private function isSizeFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
-        if ($tokens[$stackPtr]['code'] !== T_STRING) {
-            return false;
-        }
-
         if (in_array(strtolower($tokens[$stackPtr]['content']), self::SIZE_FUNCTIONS, true) === false) {
             return false;
         }
 
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
-
-        if ($next === false || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS) {
+        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return false;
         }
 
-        if ($this->isFirstClassCallable($phpcsFile, $next) === true) {
-            return false;
-        }
-
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-
-        if ($prev === false) {
-            return true;
-        }
-
-        if (in_array($tokens[$prev]['code'], self::NON_FUNCTION_CALL_PRECEDERS, true) === true) {
-            return false;
-        }
-
-        return $tokens[$prev]['code'] !== T_NS_SEPARATOR
-            || $this->isQualifiedName($phpcsFile, $prev) === false;
+        return $this->isFirstClassCallable($phpcsFile, $stackPtr) === false;
     }
 
     /**
-     * Whether the argument list opening at $openerPtr is PHP 8.1's first-class
+     * Whether the name at $stackPtr is referenced through PHP 8.1's first-class
      * callable syntax — `count(...)`, whose entire argument list is the literal
      * ellipsis. That expression builds a Closure referring to the function; it
      * never invokes it, so nothing is counted and there is no per-iteration
@@ -306,16 +284,24 @@ class DisallowCountInLoopExpressionSniff implements Sniff
      * and stays reported — which is why the token after the ellipsis is checked
      * for the closing parenthesis rather than the ellipsis being taken alone.
      *
-     * Neither `=== false` half is fixtured, and cannot be: findNext() only runs
-     * out of tokens if the file ends inside this argument list, and an argument
-     * list left open at EOF takes the loop's own closing parenthesis with it —
-     * so process() has already returned on the missing parenthesis_closer before
-     * this method is reached. They guard the array reads beside them, in the
-     * same combined form the caller uses for its own findNext() result.
+     * None of the three `=== false` halves can be discriminated by a fixture,
+     * and this says so rather than leaving them to look covered. The first
+     * cannot arrive at all: FunctionCalls::isGlobalFunctionCall() has already
+     * required the next non-empty token to be the opening parenthesis, so the
+     * opener is established before this method is reached. The other two need a
+     * file that ends inside the argument list, and either one made to fall open
+     * reads a token that is not there rather than returning a different verdict.
+     * All three guard the array read beside them.
      */
-    private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool
+    private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
+        $openerPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
+
+        if ($openerPtr === false) {
+            return false;
+        }
+
         $ellipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($openerPtr + 1), null, true);
 
         if ($ellipsis === false || $tokens[$ellipsis]['code'] !== T_ELLIPSIS) {
@@ -325,24 +311,5 @@ class DisallowCountInLoopExpressionSniff implements Sniff
         $afterEllipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsis + 1), null, true);
 
         return $afterEllipsis !== false && $tokens[$afterEllipsis]['code'] === T_CLOSE_PARENTHESIS;
-    }
-
-    /**
-     * Whether the T_NS_SEPARATOR at $separatorPtr belongs to a qualified name
-     * (App\Support\count, namespace\count) rather than a fully-qualified global
-     * one (\count). Qualified names resolve outside the global namespace, so
-     * they are never the global size functions.
-     */
-    private function isQualifiedName(File $phpcsFile, int $separatorPtr): bool
-    {
-        $beforeSeparator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
-
-        if ($beforeSeparator === false) {
-            return false;
-        }
-
-        $tokens = $phpcsFile->getTokens();
-
-        return in_array($tokens[$beforeSeparator]['code'], [T_STRING, T_NAMESPACE], true);
     }
 }
