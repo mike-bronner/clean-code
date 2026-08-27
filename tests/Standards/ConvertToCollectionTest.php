@@ -214,7 +214,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 223, 'column' => 15],
+        ['line' => 235, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
