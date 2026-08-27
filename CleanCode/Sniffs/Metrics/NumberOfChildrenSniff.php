@@ -789,10 +789,12 @@ class NumberOfChildrenSniff implements Sniff
                 continue;
             }
 
-            // `Type::class` declares nothing and opens no body. Recording one
-            // for it would swallow every import that followed, because a `use`
-            // inside a class-like body is a trait's and not an import.
-            if ($token[0] === T_CLASS && $this->isClassConstant($tokens, $index) === true) {
+            // All four keywords are spelled in places that declare nothing —
+            // `Type::class`, a method or constant named `trait`, a named
+            // argument written `class:`. Recording a body for one of those
+            // would swallow every import that followed, because a `use` inside
+            // a class-like body is a trait's and not an import.
+            if ($this->declaresBody($tokens, $index) === false) {
                 continue;
             }
 
@@ -884,52 +886,125 @@ class NumberOfChildrenSniff implements Sniff
     }
 
     /**
-     * Whether the T_CLASS at $index is the `class` of `Type::class`.
+     * Whether the class-like keyword at $index declares a body.
      *
-     * PHP's tokenizer gives the constant the same T_CLASS token as a
-     * declaration, and it is the only one of the three T_CLASS shapes that
-     * opens no body at all.
+     * `class`, `trait`, `interface`, and `enum` are semi-reserved: PHP allows
+     * each as a member name, and the tokenizer emits the declaration keyword's
+     * own token for it. `public function trait(): void;`, `const TRAIT = 1;`,
+     * `case Trait;`, `Type::class`, `Type::TRAIT`, `use T { foo as trait; }`,
+     * and the named argument `f(class: 1)` all reach here as a keyword that
+     * opens nothing — measured with token_get_all(), not assumed. So does an
+     * anonymous class, which opens a body while declaring no name.
+     *
+     * The test is deliberately the positive one: a keyword declares a body when
+     * it is written as a declaration, rather than when it escapes a list of the
+     * ways it can be written as something else. Such a list is what this parse
+     * carried before — `Type::class` and nothing else — and every spelling above
+     * is a case it did not hold. PHP's grammar gives the declaration form
+     * exactly two shapes, and both are read here:
+     *
+     *   - Named — the keyword and then a T_STRING name. Every position that
+     *     spells one of these four words as something other than a declaration
+     *     is a position where the word is the last thing before a delimiter, so
+     *     what follows it is `(`, `=`, `;`, `:`, `}`, `)`, `as`, or `insteadof`
+     *     — never a name. Measured across all of them, group `use` braces and
+     *     attribute arguments included, rather than reasoned from the manual.
+     *   - Anonymous — `new class`, with `readonly` and any number of attributes
+     *     allowed between the two, which is the one declaration form that has
+     *     no name to read.
+     *
+     * A keyword that opens nothing must not be recorded as awaiting a body. The
+     * declaration it announces never arrives, so the entry outlives the
+     * statement and is claimed by the next unrelated brace at the same
+     * parenthesis depth — commonly a braced `namespace X { … }` block, whose
+     * `use` imports are then read as a trait's and dropped, misdirecting every
+     * `extends` of an imported short name in that block.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      */
-    private function isClassConstant(array $tokens, int $index): bool
+    private function declaresBody(array $tokens, int $index): bool
     {
-        return $this->isPrecededBy($tokens, $index, T_DOUBLE_COLON);
+        if ($this->isAnonymous($tokens, $index) === true) {
+            return true;
+        }
+
+        $name = $this->significantAfter($tokens, $index);
+
+        return is_array($name) === true && $name[0] === T_STRING;
     }
 
     /**
-     * Whether the T_CLASS at $index opens an anonymous class.
+     * Whether the class-like keyword at $index opens an anonymous class.
      *
      * An anonymous class has no name for a child to extend, and a live PHPMD
      * 2.15.0 run does not count one as a child of the class it extends, so it
      * contributes neither a declaration nor an edge — only a body to track,
      * since a trait `use` can sit inside it.
      *
-     * `new readonly class` puts the modifier between the two tokens and so
-     * reads as named here; it is caught a step later instead, where a
-     * declaration with no name is dropped.
+     * `new` is not always the token before the keyword: `new readonly class`
+     * puts a modifier between the two, and `new #[Marker] class` an attribute,
+     * which is why this walks back over both rather than reading one token. An
+     * attribute is walked from its closing bracket back to the `#[` that opened
+     * it, so nothing written inside it — a nested attribute, an array, a named
+     * argument — is read as if it sat at this level.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      */
     private function isAnonymous(array $tokens, int $index): bool
     {
-        return $this->isPrecededBy($tokens, $index, T_NEW);
+        for ($cursor = ($index - 1); $cursor >= 0; $cursor--) {
+            $token = $tokens[$cursor];
+
+            if ($token === ']') {
+                $opener = $this->attributeStart($tokens, $cursor);
+
+                if ($opener === null) {
+                    return false;
+                }
+
+                $cursor = $opener;
+
+                continue;
+            }
+
+            if (is_array($token) === false) {
+                return false;
+            }
+
+            if (isset(self::SKIPPED_TOKENS[$token[0]]) === true || $token[0] === T_READONLY) {
+                continue;
+            }
+
+            return $token[0] === T_NEW;
+        }
+
+        return false;
     }
 
     /**
-     * Whether the significant token before $index is $code.
+     * The index of the `#[` that opens the attribute whose `]` sits at $index,
+     * or null when the token stream holds no opener for it.
+     *
+     * The nearest preceding `#[` is that opener. An attribute's arguments are
+     * constant expressions, and the two things written with brackets that could
+     * hold a second one — an array and another attribute — hold no `#[` and are
+     * not allowed there at all: PHP rejects `#[Marker(new #[Inner] class {})]`
+     * before it parses, because an anonymous class is not a constant
+     * expression.
      *
      * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
      */
-    private function isPrecededBy(array $tokens, int $index, int $code): bool
+    private function attributeStart(array $tokens, int $index): ?int
     {
-        $previous = $this->significantBefore($tokens, $index);
+        for ($cursor = $index; $cursor >= 0; $cursor--) {
+            $token = $tokens[$cursor];
 
-        if ($previous === null || is_array($previous) === false) {
-            return false;
+            if (is_array($token) === true && $token[0] === T_ATTRIBUTE) {
+                return $cursor;
+            }
         }
 
-        return $previous[0] === $code;
+        return null;
     }
 
     /**
@@ -1222,27 +1297,6 @@ class NumberOfChildrenSniff implements Sniff
         $next = $this->significantIndexAfter($tokens, $index, false);
 
         return $next === null ? null : $tokens[$next];
-    }
-
-    /**
-     * The first significant token before $index, or null at the start of the
-     * file.
-     *
-     * @param array<int, array{0: int, 1: string, 2: int}|string> $tokens
-     *
-     * @return array{0: int, 1: string, 2: int}|string|null
-     */
-    private function significantBefore(array $tokens, int $index)
-    {
-        for ($cursor = ($index - 1); $cursor >= 0; $cursor--) {
-            $token = $tokens[$cursor];
-
-            if (is_array($token) === false || isset(self::SKIPPED_TOKENS[$token[0]]) === false) {
-                return $token;
-            }
-        }
-
-        return null;
     }
 
     /**

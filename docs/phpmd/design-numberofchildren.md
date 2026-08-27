@@ -185,6 +185,20 @@ not read off phpmd.org, and each is pinned by a fixture:
   `tests/fixtures/NumberOfChildrenSniff/anonymous/` pins each construct, the two
   spellings that hide `new` behind `readonly` or an attribute, and one anonymous
   class nested in another's argument list.
+- **A keyword is only a declaration when a name follows it.** `class`, `trait`,
+  `interface`, and `enum` are semi-reserved words: PHP allows each as a method,
+  constant, enum-case, or trait-alias name, and hands the declaration keyword's
+  own token back for it — `public function trait(): void;`, `const TRAIT = 1;`,
+  `case Trait;`, `Holder::TRAIT`, `Holder::class`, `use T { mark as trait; }`.
+  None of them opens a body, so a parse that records one as awaiting a body is
+  left holding an entry the next unrelated brace claims — commonly a braced
+  `namespace` block's, whose `use` imports are then read as a trait's and
+  dropped. What separates the two is that a declaration is followed by its name
+  and every other spelling is followed by a delimiter, so that is what the sniff
+  reads, rather than a list of the ways the word can be written without
+  declaring anything.
+  `tests/fixtures/NumberOfChildrenSniff/semireserved/` pins one spelling per
+  file.
 - **A short name is not unique within a file.** Braced `namespace` blocks let one
   file declare two different classes called `Foo`, even on one line, so a
   declaration is identified by the line it sits on and by the order it is written

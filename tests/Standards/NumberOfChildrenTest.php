@@ -41,6 +41,8 @@ const NUMBER_OF_CHILDREN_NAMESPACES = __DIR__ . '/../fixtures/NumberOfChildrenSn
 
 const NUMBER_OF_CHILDREN_ANONYMOUS = __DIR__ . '/../fixtures/NumberOfChildrenSniff/anonymous';
 
+const NUMBER_OF_CHILDREN_SEMI_RESERVED = __DIR__ . '/../fixtures/NumberOfChildrenSniff/semireserved';
+
 it('resolves through the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -346,6 +348,54 @@ it('keeps a trait use inside an anonymous class body out of the import map', fun
         ['line' => 29, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
         ['line' => 37, 'column' => 1, 'source' => NUMBER_OF_CHILDREN_ERROR],
     ]],
+]);
+
+/**
+ * `class`, `trait`, `interface`, and `enum` are semi-reserved words: PHP allows
+ * each as a method, constant, enum-case, or trait-alias name, and the tokenizer
+ * emits the declaration keyword's own token for it — measured with
+ * token_get_all(), not read off the manual. None of those four positions
+ * declares a class-like body; each ends in a semicolon instead of opening one.
+ *
+ * A parse that records the keyword as awaiting a body is therefore left holding
+ * an entry nothing consumes, and the next brace at the same parenthesis depth
+ * claims it. In every fixture here that brace is the one opening the
+ * `Fixture\SemiReserved\Consumer` namespace block, so the whole block reads as
+ * being inside a class body — where a `use` is a trait's rather than an import.
+ * `Imported` is dropped from the import map, `extends Imported` resolves to the
+ * consumer's own namespace instead, and the two children land on a class that
+ * nothing declares.
+ *
+ * One spelling per file, each analyzed on its own, so a fix that handles one
+ * position of a semi-reserved name is caught here rather than carried by a
+ * sibling. Each file's local pair is reported in the same run at the same
+ * lowered threshold, so the imported parent's report is about resolution and
+ * not about an inert run — and the two counts differ, two children against one,
+ * so each report is read by count rather than by existence.
+ */
+it('keeps a semi-reserved member name from swallowing a later import', function (
+    string $fixture,
+    int $local,
+    int $imported
+): void {
+    $path = NUMBER_OF_CHILDREN_SEMI_RESERVED . '/' . $fixture;
+    $file = analyzeProjectFixture(NUMBER_OF_CHILDREN, $path, $path, static function (object $sniff): void {
+        $sniff->minimum = 1;
+    });
+
+    expect(violationTuples($file))->toBe([
+        ['line' => $local, 'column' => 5, 'source' => NUMBER_OF_CHILDREN_ERROR],
+        ['line' => $imported, 'column' => 5, 'source' => NUMBER_OF_CHILDREN_ERROR],
+    ]);
+    expect(violationMessagesByLine($file->getErrors())[$local][0])->toContain('has 1 children');
+    expect(violationMessagesByLine($file->getErrors())[$imported][0])->toContain('has 2 children');
+})->with([
+    'method name' => ['Method.php', 34, 52],
+    'constant name' => ['Constant.php', 26, 44],
+    'constant fetch' => ['Fetch.php', 32, 50],
+    'enum case name' => ['EnumCase.php', 22, 40],
+    'trait alias name' => ['Alias.php', 32, 50],
+    'class constant fetch' => ['ClassConstant.php', 33, 51],
 ]);
 
 /**
