@@ -91,22 +91,121 @@ functions keep the enclosing class binding, so those are walked into.
 
 ### Slice 2 — combined-constructor detection ([#193](https://github.com/mike-bronner/phpcs-rules/issues/193))
 
+Implemented by `CleanCode.Constructors.DisallowCombinedConstructor`.
+
 A primary constructor that merges multiple construction scenarios into one
 body is the standard's other violation shape, and its mode-switching signals
-are token-visible inside `__construct`:
+are token-visible inside `__construct`. Each signal reports under its own code,
+so a consuming ruleset can tune the three independently:
 
-- **Mode-flag branching** — a `bool` parameter (or one defaulting to
-  `true`/`false`) used in the condition of an `if`, `switch`, `match`, or
-  ternary that selects between initialization paths.
-- **Parameter-type switching** — a parameter tested with `instanceof` or a
-  type predicate (`is_string()`, `is_array()`, …) in a branching condition;
-  the constructor accepts "either X or Y" and branches on which arrived.
-- **Poor-man's overloading** — `func_num_args()` / `func_get_args()` in the
-  constructor body.
-- **Warning severity, not error** — branching in a constructor is a design
-  smell, not always a defect; the sniff points at split-into-named-constructors
-  candidates. Guard clauses (branches that only throw) and coalesce defaults
-  (`$x ?? new Default()`) stay out.
+| Code | Signal |
+|---|---|
+| `ModeFlag` | a `bool` parameter (or one defaulting to `true`/`false`) used in the condition of an `if`, `elseif`, `switch`, `match`, or ternary that selects between initialization paths |
+| `TypeSwitch` | a parameter tested with `instanceof` or a type predicate (`is_string()`, `is_array()`, `gettype()`, …) in a branching condition — the constructor accepts "either X or Y" and branches on which arrived |
+| `ArgumentCount` | `func_num_args()` / `func_get_args()` anywhere in the constructor body |
+
+A construct's "condition" is read the way that construct spells it: the
+parenthesised expression of an `if`, `elseif`, `switch`, or `match`; the
+expression in front of a ternary `?`; and — for the two dispatch idioms that
+put the test in the branch rather than in the head — a `match` arm's condition
+and a `switch`'s `case` labels.
+
+A predicate tests its *first* argument and nothing else, so
+`is_a($value, $expectedClass)` and `is_subclass_of($value, $expectedClass)`
+report `$value` alone — the class name they compare it against is a value the
+call reads, not a parameter whose own type is switched on. The parameter also
+has to be the *whole* of that first argument: a predicate applied to a derived
+value is not a signal, whether the value is derived by a call
+(`is_string(trim($value))`), a property read (`is_string($holder->prop)`), or a
+subscript (`is_string($items[$key])`).
+
+A redundant grouping parenthesis hides nothing, in either spelling of the type
+test: `is_string(($value))` and `($value) instanceof Mailer` report exactly as
+the unwrapped spellings do, however many pairs are wrapped around the
+parameter. A call's argument list is not such a grouping, so
+`resolve($value) instanceof Mailer` tests what the call returns and stays
+silent, like every other derived value above — and so does a call reached
+through a dynamic member name (`$this->{$name}($value) instanceof Mailer`),
+whose braces end the name rather than a block.
+
+**Warning severity, not error.** Branching in a constructor is a design smell,
+not always a defect; the sniff points at split-into-named-constructors
+candidates. It is detection-only: splitting a constructor rewrites the class's
+construction API and every call site, which is not a mechanical rewrite.
+
+**Why a custom sniff.** No existing PHPCS or Slevomat sniff reports a
+constructor that branches on *how it was called*.
+`SlevomatCodingStandard.Functions.FunctionLength` and the bundled
+cyclomatic-complexity metrics count statements and paths without caring which
+method they sit in or what the branch tests; Slevomat's constructor sniffs speak
+about property promotion. The closest neighbour is this package's own
+`CleanCode.Functions.DisallowBooleanArgumentFlag`, which reports a boolean flag
+in *any* declaration's parameter list — a different finding: a constructor that
+takes a flag and never branches on it is that sniff's alone, and a type switch
+or a `func_get_args()` carries no flag parameter for it to see.
+
+Deliberately silent on:
+
+- **Guard clauses** — a branch whose first statement is a `throw` validates a
+  precondition rather than selecting an initialization path, so its condition
+  is exempt whatever signal it carries — a mode flag, a type test, or an
+  argument-list read alike, since `if (func_num_args() > 1) { throw … }`
+  rejects a call rather than choosing how to build one. A construct whose own
+  condition stands in front of every branch — a `switch` or `match` subject, a
+  ternary's condition — has no branch of its own to judge, so it qualifies when
+  at least one branch throws and no more than one survives: the rest reject,
+  and the single surviving branch is the one construction path.
+- **Coalesce defaults** — `$this->x = $x ?? new Default();` carries no
+  branching token at all, and the elvis `?:` supplies a default for one
+  expression rather than selecting between two. `is_null()` is left out of the
+  predicate list on the same grounds.
+- **Anything but `__construct`** — named constructors and ordinary methods
+  belong to slice 1, and a `function __construct()` that is not a class member
+  constructs nothing.
+- **Bodiless constructors** — abstract and interface declarations, and
+  promotion-only bodies with no statements in them.
+- **Nested declarations** — a named function, closure, arrow function, or
+  anonymous class declared in the body runs on its own terms;
+  `func_get_args()` inside a closure reads the *closure's* arguments. Only the
+  *body* of an anonymous class is exempt: the arguments in
+  `new class ($legacy ? … : …) {}` are evaluated by the constructor that writes
+  them, so a mode signal there still reports.
+- **Re-bound names** — PHP scopes a variable to the whole function, so a
+  `foreach` target, a `catch` variable, a `static` local, and a `global` import
+  each replace what a name means from where they are written on. A parameter's
+  name is read as the parameter until the first of those re-binds it, and as
+  the new binding after it: in a constructor taking `bool $legacy`,
+  `foreach ($rows as $legacy)` reports nothing on the loop variable, while a
+  branch on `$legacy` written *above* the loop still reports. Only a name one
+  of them writes *bare* re-binds: a dynamic target
+  (`foreach ($rows as $row->{$legacy})`, `global $$legacy`) writes into
+  something else and a destructured element's key
+  (`foreach ($rows as [$legacy => $row])`) addresses an element, so each reads
+  `$legacy` rather than binding it, and a branch on `$legacy` below still
+  reports. A `static` local's *initializer* reads rather than binds for the
+  same reason — `static $mode = $legacy;` declares `$mode` and reads `$legacy`,
+  so a branch on `$legacy` below still reports — and because that initializer
+  is an arbitrary expression, a mode switch written inside it
+  (`static $mode = $legacy ? 'legacy' : 'modern';`) reports where it stands.
+  An assignment is not a re-binding either —
+  `$mode = $mode ?? self::AUTO;` overwrites the parameter's value while the
+  variable stays the parameter, so a branch on it afterwards reports as
+  before.
+- **A predicate or argument reader that is not PHP's own function** — the name
+  has to resolve to the global function it reads as, which
+  `MikeBronner\CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()`
+  answers for every sniff in this package. A member call (`$this->is_a(…)`), an
+  instantiation, a name qualified into another namespace
+  (`App\Utils\func_get_args()`), and a bare name that a
+  `use function App\Validation\is_string;` import redirects elsewhere all name
+  somebody else's function, and stay silent. So does PHP 8.1 first-class
+  callable syntax: `func_get_args(...)` builds a `Closure` and reads no argument
+  list where it is written.
+- **Named-argument predicate calls** — `is_a(object: $source, class: $c)`
+  addresses its subject by name rather than by position. Resolving that needs a
+  per-predicate table of parameter names, so the sniff stays silent: a missed
+  warning on an exotic spelling costs less than a wrong one on a common
+  spelling.
 
 **Considered and rejected:** a naming-prefix check on named constructors
 (`from*`, `create*`, `make*`, …). PHP has no canonical prefix vocabulary —

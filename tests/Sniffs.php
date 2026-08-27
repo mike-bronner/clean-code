@@ -152,6 +152,7 @@ const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Conditionals.CombinableConditions',
     'CleanCode.Conditionals.MappingArrayCandidate',
     'CleanCode.Conditionals.TypeDiscriminatorDispatch',
+    'CleanCode.Constructors.DisallowCombinedConstructor',
     'CleanCode.Constructors.PrimaryConstructorDelegation',
     'CleanCode.Controllers.ManualModelResolution',
     'CleanCode.Controllers.NoCustomActions',

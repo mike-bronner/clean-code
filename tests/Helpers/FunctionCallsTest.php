@@ -19,6 +19,7 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Util\Tokens;
 
 it('rejects every shape that is not a call to a global function', function (): void {
@@ -229,4 +230,76 @@ it('keeps a trait use out of the import scan', function (): void {
         // in the other block, then the call that import really does redirect.
         'probeAdaptationLeak' => [true, false, false],
     ]);
+});
+
+const FUNCTION_CALLS_PROBE_SNIFF = 'CleanCode.Constructors.DisallowCombinedConstructor';
+
+/**
+ * The import scan reads its stream once, not once per name it is asked about.
+ *
+ * Both halves of the analysis walk the whole token stream, and every bare name
+ * that reaches this far pays for them. The name reaching this far is one a
+ * sniff already narrowed to its own list, so "rare" is the caller's property
+ * rather than the helper's: DisallowCombinedConstructor asks about every type
+ * predicate in a constructor, and a constructor may hold thousands. Uncached,
+ * n names in one file cost n stream walks — measured at 0.45s/0.89s/2.65s for
+ * n=500/1000/2000 through live phpcs, against 0.11s/0.12s/0.16s held.
+ *
+ * A cache that only shortens a scan changes no verdict, so no fixture reddens
+ * on it and the shapes pinned above pass either way. The helper counts its own
+ * analysis instead, and both numbers are pinned because each rules out a
+ * different failure:
+ *
+ * - one build per stream, at any size, is the claim itself;
+ * - n-1 hits keeps it from passing vacuously, since a helper that stopped
+ *   consulting the held analysis would report one build and no hits.
+ *
+ * Mutation-checked by deleting the `self::$analysisKey === $key` guard, so
+ * every name rebuilds: `composer test` then fails here at the smallest size,
+ * n=2, reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0
+ * against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
+ */
+it('reads its stream once per analysis, not once per name', function (): void {
+    foreach ([2, 4, 8] as $size) {
+        $source = "<?php\n\nclass PredicateProbe\n{\n    public function __construct(mixed \$value)\n    {\n"
+            . '        $this->mode = ' . implode(' || ', array_fill(0, $size, 'is_string($value)'))
+            . " ? 1 : 2;\n    }\n}\n";
+
+        $before = FunctionCalls::analysisCounts();
+        $file = analyzeStdinSource([FUNCTION_CALLS_PROBE_SNIFF], $source);
+        $counted = cacheCountsDelta($before, FunctionCalls::analysisCounts());
+
+        expect($file->getWarningCount())->toBe($size, "n={$size}: every predicate is still reported")
+            ->and($counted['builds'])->toBe(
+                1,
+                "n={$size}: the stream is read once, not once per name"
+            )
+            ->and($counted['hits'])->toBe(
+                $size - 1,
+                "n={$size}: every name after the first answers from the analysis already built"
+            );
+    }
+});
+
+/**
+ * Two streams are told apart, so the analysis of one never answers the other.
+ *
+ * The counter above cannot show this: one build is what a helper that cached
+ * forever, across every file in the run, would also report. Two sources with
+ * different imports drive it here, and the second's verdict is what proves the
+ * held analysis was discarded rather than reused — the same collision
+ * TokenStreams::key() was written for in #343.
+ */
+it('tells two streams apart', function (): void {
+    $importing = "<?php\n\nnamespace App;\n\nuse function App\\Vendor\\is_string;\n\n"
+        . "class Importing\n{\n    public function __construct(mixed \$value)\n    {\n"
+        . "        \$this->mode = is_string(\$value) ? 1 : 2;\n    }\n}\n";
+    $bare = "<?php\n\nnamespace App;\n\nclass Bare\n{\n    public function __construct(mixed \$value)\n    {\n"
+        . "        \$this->mode = is_string(\$value) ? 1 : 2;\n    }\n}\n";
+
+    $first = analyzeStdinSource([FUNCTION_CALLS_PROBE_SNIFF], $importing);
+    $second = analyzeStdinSource([FUNCTION_CALLS_PROBE_SNIFF], $bare);
+
+    expect($first->getWarningCount())->toBe(0, 'the redirected name is not PHP own predicate')
+        ->and($second->getWarningCount())->toBe(1, 'the bare name in the next stream still is');
 });
