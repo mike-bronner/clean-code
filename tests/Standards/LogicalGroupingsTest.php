@@ -225,35 +225,48 @@ it('inserts the break when no spacing separates the opener from the condition', 
  * downstream lint pipelines that run over contributed code, so the cost of one
  * ordinary-looking file is CI CPU somebody else pays for.
  *
- * What is asserted is a ratio, not a stopwatch reading. A fixed budget in
- * seconds cannot do this job: the CI runner takes ~11x this machine's time for
+ * What is asserted is the walk itself, counted (#354, extending #321). This
+ * test used to compare the two files' elapsed times against a x4 bound, and a
+ * ratio was the best a clock could do here: a fixed budget in seconds cannot
+ * do this job at all, because the CI runner takes ~11x this machine's time for
  * the *linear* walk, which is already more than this machine spends on the
- * quadratic one, so any threshold safe there would be blind here.
+ * quadratic one. The ratio in turn needed the control file to cancel what
+ * PHP_CodeSniffer's own tokenizer charges for depth, since it is superlinear
+ * in it and costs several times what this sniff does. #321 recorded that shape
+ * of assertion failing twice and passing on a third run with no code change.
  *
- * The baseline is the same file with the same parentheses nested to the same
- * depth, differing only in that each one opens a call rather than a grouping —
- * so the sniff skips them all and does no grouping work at all. That control
- * matters: PHP_CodeSniffer's own tokenizer is superlinear in parenthesis
- * depth, and on the CI runner it costs several times what this sniff does, so
- * a baseline that nested its parentheses less deeply would measure the
- * tokenizer and call it a regression. Holding the depth identical puts that
- * cost on both sides of the ratio, leaving the sniff's own work as the only
- * difference.
+ * A count of this sniff's own steps needs neither. It is not measured against
+ * the tokenizer, so nothing has to be cancelled, and the control file is
+ * therefore no longer a baseline — it stays because its own assertion still
+ * earns its place: it has to report nothing, which is what proves a call is
+ * skipped whole rather than walked into.
  *
- * The two implementations sit an order of magnitude either side of the
- * threshold: 1.06x for the walk that jumps each nested region against 15.5x
- * for the walk that stepped through it (0.06s/0.05s against 0.93s/0.06s,
- * measured in-process here).
+ * Two counters carry the claim, and neither carries it alone. The jumps are
+ * what make the walk linear — skipNested() says why — so a walk that stopped
+ * jumping is the regression, and 599 of them is one crossing per nested group,
+ * by the walk of the group holding it. The steps are what that buys: the three
+ * walks over a condition touch a fixed number of tokens per level rather than
+ * every token below it. Measured at n=150, 300 and 600 the steps are 4,966,
+ * 9,916 and 19,816 — exactly 33 more per level each time, which is the linear
+ * form asserted here. Stepping through each nested region instead of jumping
+ * it makes the same file quadratic: 2,357,114 steps at n=600, against 19,816.
+ *
+ * For provenance, the timings the old ratio was set against: 1.06x for the
+ * walk that jumps each nested region against 15.5x for the walk that stepped
+ * through it (0.06s/0.05s against 0.93s/0.06s, measured in-process here).
+ *
+ * Mutation-checked by walking each nested region token by token instead of
+ * jumping to its closer, leaving every verdict identical; the hunk and the
+ * failure are in this PR's description.
  *
  * The count is capped at 600 by PHP_CodeSniffer itself, not by taste: past
  * roughly a thousand levels of nesting its tokenizer exhausts PHP's default
  * 128M limit while building the file, and a regression test that only runs
  * under a raised memory_limit is one nobody runs.
  *
- * The violation assertions are what stop the timings passing vacuously: a walk
+ * The violation assertions are what stop the counts passing vacuously: a walk
  * that gave up early, or a tokenizer that never got that far, would be both
- * fast and silent. The baseline's own assertion is the complement — it has to
- * report nothing, or it is not the no-grouping-work control it is used as.
+ * cheap and silent.
  */
 it('stays linear as groupings nest', function (): void {
     $count = 600;
@@ -286,16 +299,21 @@ it('stays linear as groupings nest', function (): void {
 
     buildRuleset([LOGICAL_GROUPINGS]);
 
-    $measure = function (string $name, string $source): array {
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(LOGICAL_GROUPINGS);
+
+    $measure = function (string $name, string $source) use ($sniff): array {
         $fixture = stageGeneratedFixture($name, $source);
-        $started = hrtime(true);
+        $before = $sniff->cacheCounts();
         $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
 
-        return [((hrtime(true) - $started) / 1e9), violationTuples($file)];
+        return [cacheCountsDelta($before, $sniff->cacheCounts()), violationTuples($file)];
     };
 
-    [$grouped, $groupedViolations] = $measure('nested-groupings.php', $build('&& ('));
-    [$skipped, $skippedViolations] = $measure('nested-calls.php', $build('&& check('));
+    [$groupedCounts, $groupedViolations] = $measure('nested-groupings.php', $build('&& ('));
+    [, $skippedViolations] = $measure('nested-calls.php', $build('&& check('));
 
     $expected = [];
 
@@ -315,7 +333,14 @@ it('stays linear as groupings nest', function (): void {
 
     expect($groupedViolations)->toBe($expected)
         ->and($skippedViolations)->toBe([])
-        ->and($grouped)->toBeLessThan(($skipped * 4));
+        ->and($groupedCounts['conditionWalk.jumps'])->toBe(
+            ($count - 1),
+            'each nested grouping is crossed whole once, by the walk of the group holding it'
+        )
+        ->and($groupedCounts['conditionWalk.steps'])->toBe(
+            ((33 * $count) + 16),
+            'the walks touch a fixed number of tokens per level, not the condition below it'
+        );
 });
 
 /**
@@ -387,12 +412,23 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
  * openers paid one walk per group over an ever-growing prefix of that single
  * line: quadratic, on an axis the test above cannot see.
  *
- * The ratio is what is asserted, for the same reason as above — a budget in
- * seconds is meaningless across machines. The two implementations sit an order
- * of magnitude either side of the threshold: 5.34x for the per-call backward
- * walk against 1.02x for the indexed lookup (0.4224s/0.0791s against
- * 0.0742s/0.0730s, measured in-process here on the same run of this test
- * against each implementation).
+ * Counted rather than timed, for the reason the test above gives (#354,
+ * extending #321). The counter is the one the build/hit pair cannot state: a
+ * line-start reading answered from the index examines one token, and the
+ * backward walk it replaced examines one per token already on the line. So the
+ * assertion is that the steps equal the readings — a build and 599 hits, 600
+ * readings, 600 tokens examined — and the 2,000 leading conditions are what
+ * makes that assertion mean something, because a walk examines an ever-growing
+ * prefix of them per reading: 8,464,500 steps for the same file, against 600.
+ *
+ * For provenance, the timings the old ratio was set against: 5.34x for the
+ * per-call backward walk against 1.02x for the indexed lookup (0.4224s/0.0791s
+ * against 0.0742s/0.0730s, measured in-process here on the same run of this
+ * test against each implementation).
+ *
+ * Mutation-checked by answering a line start with a backward walk again,
+ * leaving every verdict identical; the hunk and the failure are in this PR's
+ * description.
  *
  * The 2,000 leading conditions are not decoration. The nesting depth is what
  * caps this shape — PHP_CodeSniffer records the full parenthesis nesting on
@@ -403,8 +439,8 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
  * leading run, which puts the cost back on the axis being measured without
  * touching the depth. Cheap for the control, which tokenizes that run once.
  *
- * The violations and the diagnostic are asserted alongside the timings for two
- * different reasons. A walk that gave up early would be fast and silent, so the
+ * The violations and the diagnostic are asserted alongside the counts for two
+ * different reasons. A walk that gave up early would be cheap and silent, so the
  * 599 tuples are what stop the ratio passing vacuously, and the control's empty
  * set is what proves it does no grouping work at all. The message is the half
  * that catches the other cheap way to be fast: an implementation that capped
@@ -419,20 +455,22 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
 
     buildRuleset([LOGICAL_GROUPINGS]);
 
-    $measure = function (string $name, string $source): array {
+    $sniff = sniffInstance(LOGICAL_GROUPINGS);
+
+    $measure = function (string $name, string $source) use ($sniff): array {
         $fixture = stageGeneratedFixture($name, $source);
-        $started = hrtime(true);
+        $before = $sniff->cacheCounts();
         $file = analyzeWithSniffs([LOGICAL_GROUPINGS], $fixture);
 
         return [
-            ((hrtime(true) - $started) / 1e9),
+            cacheCountsDelta($before, $sniff->cacheCounts()),
             violationTuples($file),
             violationMessagesByLine($file->getErrors()),
         ];
     };
 
-    [$grouped, $groupedViolations, $groupedMessages] = $measure('stacked-groupings.php', $groupedSource);
-    [$skipped, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
+    [$groupedCounts, $groupedViolations, $groupedMessages] = $measure('stacked-groupings.php', $groupedSource);
+    [, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
 
     $expected = array_map(
         static fn (int $column): array => [
@@ -449,7 +487,14 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
             'The first condition of a parenthesized group must start on its own line,'
             . ' indented one level deeper than its enclosing condition; expected 12 spaces',
         ])
-        ->and($grouped)->toBeLessThan(($skipped * 2));
+        ->and($groupedCounts['lineStarts.steps'])->toBe(
+            ($groupedCounts['lineStarts.builds'] + $groupedCounts['lineStarts.hits']),
+            'each line-start reading examines one token, not the line the openers stack on'
+        )
+        ->and($groupedCounts['lineStarts.hits'])->toBe(
+            599,
+            'the index is read once per reported group and built once for the stream'
+        );
 });
 
 /**

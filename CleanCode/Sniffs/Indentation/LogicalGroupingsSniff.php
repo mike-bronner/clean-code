@@ -98,14 +98,35 @@ class LogicalGroupingsSniff implements Sniff
     private ?string $lineStartsKey = null;
 
     /**
-     * How many times $lineStarts was built, and how many times the key guard
-     * answered a read from the index already built.
+     * How many times $lineStarts was built, how many times the key guard
+     * answered a read from the index already built, and what the three walks
+     * over a condition's own tokens cost.
      *
      * The index exists to absorb many reads per token stream into one pass, and
      * nothing a black-box test can observe tells "built once, read n times"
      * from "rebuilt on every read": both report the same violations. These two
      * counters are what tell them apart, and
      * tests/Standards/LogicalGroupingsTest.php pins both numbers.
+     *
+     * The walk pair states the other claim this sniff rests on, which the
+     * build/hit pair cannot: that a condition of n nested or stacked groupings
+     * costs n walks of their own direct tokens rather than n overlapping
+     * rescans of the whole condition. skipNested() says why jumping is what
+     * makes that true; these count it in the unit the cost is charged in.
+     *
+     * - `conditionWalk.steps` — one per token examined by any of the three
+     *   walks over a condition (the grouping collection, the top-level-boolean
+     *   test, and the direct-condition-line scan).
+     * - `conditionWalk.jumps` — one per nested region crossed whole. A jump is
+     *   one step whatever the region holds; walking the region instead costs
+     *   one step per token in it, which is the quadratic shape, and the two
+     *   counters move in opposite directions when it returns.
+     * - `lineStarts.steps` — tokens examined to answer one line-start reading.
+     *   This is the other axis, and the builds/hits pair cannot see it: those
+     *   say the index is built once per stream, not that reading it is cheap.
+     *   The index answers in one; stepping back to the start of the line costs
+     *   one per token already on it, so a line carrying n stacked openers pays
+     *   an ever-growing prefix of that one line per reading.
      *
      * Each increment sits inside the same branch as the guard it counts, so a
      * guard that stopped working cannot leave the counts intact. The totals are
@@ -118,6 +139,9 @@ class LogicalGroupingsSniff implements Sniff
     private array $cacheCounts = [
         'lineStarts.builds' => 0,
         'lineStarts.hits' => 0,
+        'conditionWalk.steps' => 0,
+        'conditionWalk.jumps' => 0,
+        'lineStarts.steps' => 0,
     ];
 
     /**
@@ -129,9 +153,9 @@ class LogicalGroupingsSniff implements Sniff
     }
 
     /**
-     * How many times the line-start index was built and how many times the key
-     * guard answered from the index already built, cumulative for the life of
-     * this instance.
+     * How many times the line-start index was built, how many times the key
+     * guard answered from the index already built, and what the condition walks
+     * cost, cumulative for the life of this instance. See $cacheCounts.
      *
      * @return array<string, int>
      */
@@ -187,6 +211,8 @@ class LogicalGroupingsSniff implements Sniff
         $groups = [];
 
         for ($i = ($opener + 1); $i < $closer; $i++) {
+            $this->cacheCounts['conditionWalk.steps']++;
+
             if ($tokens[$i]['code'] !== T_OPEN_PARENTHESIS) {
                 $skipTo = $this->skipNested($tokens, $i);
 
@@ -291,6 +317,7 @@ class LogicalGroupingsSniff implements Sniff
         $booleans = array_keys(Tokens::$booleanOperators);
 
         for ($i = ($open + 1); $i < $close; $i++) {
+            $this->cacheCounts['conditionWalk.steps']++;
             $skipTo = $this->skipNested($tokens, $i);
 
             if ($skipTo === null) {
@@ -355,6 +382,10 @@ class LogicalGroupingsSniff implements Sniff
         if ($closer === null || $closer <= $i) {
             return null;
         }
+
+        // One step, whatever the region holds. Walking it instead costs one per
+        // token in it, which is what makes n nested regions quadratic.
+        $this->cacheCounts['conditionWalk.jumps']++;
 
         return $closer;
     }
@@ -476,6 +507,8 @@ class LogicalGroupingsSniff implements Sniff
         $spannedThroughLine = 0;
 
         for ($i = ($groupOpen + 1); $i < $groupClose; $i++) {
+            $this->cacheCounts['conditionWalk.steps']++;
+
             if (isset(Tokens::$emptyTokens[$tokens[$i]['code']]) === true) {
                 // Whitespace and comment lines are not conditions: a comment
                 // sitting inside a grouping must never be measured or reindented
@@ -572,6 +605,9 @@ class LogicalGroupingsSniff implements Sniff
         } else {
             $this->cacheCounts['lineStarts.hits']++;
         }
+
+        // One token examined: the line's first is recorded, not walked back to.
+        $this->cacheCounts['lineStarts.steps']++;
 
         return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);
     }
