@@ -233,11 +233,47 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     ];
 
     /**
+     * How many brace-less body walks bracelessNextClause() made, and how many
+     * tokens they visited between them.
+     *
+     * The walk reads the body directly and stops at its first boundary, so a
+     * clause costs its own body rather than the rest of the file. Re-deriving a
+     * statement end per head instead visits the remaining levels every time:
+     * O(n) work paid n times. The two numbers state that difference directly —
+     * one step per walk against n — where the scale test in
+     * tests/Standards/TypeDiscriminatorDispatchTest.php used to state it as
+     * elapsed seconds against a fixed budget, which a shared CI runner's jitter
+     * can cross with no code change (#321, #354).
+     *
+     * The step increment is the first statement of the walk's own loop body, so
+     * it counts exactly what that loop visits. The totals are cumulative for
+     * the life of the sniff instance — tests/Helpers.php's buildRuleset()
+     * memoises it — and are read as a delta around one run.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'bracelessNextClause.walks' => 0,
+        'bracelessNextClause.steps' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_SWITCH, T_IF];
+    }
+
+    /**
+     * How many brace-less body walks were made and how many tokens they
+     * visited, cumulative for the life of this instance. See $scanCounts.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -609,8 +645,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         );
 
         $openDoBodies = 0;
+        $this->scanCounts['bracelessNextClause.walks']++;
 
         while ($pointer !== false) {
+            $this->scanCounts['bracelessNextClause.steps']++;
             $code = $tokens[$pointer]['code'];
 
             if ($code === T_IF) {

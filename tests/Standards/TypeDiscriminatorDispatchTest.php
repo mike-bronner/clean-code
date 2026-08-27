@@ -452,12 +452,34 @@ it('ships minimumBranches at three', function (): void {
  * control, and a few thousand nested clauses is a small one to write, so the
  * unbounded version turns a check into minutes of CPU.
  *
- * An asymptotic fix has no observable but time, so the budget sits well above
- * the measured cost rather than near it, matching the sibling scale tests in
- * NPathComplexityTest and MappingArrayCandidateTest.
+ * Those readings are kept as provenance for what the body walk is worth;
+ * nothing here is timed any more. The claim is counted rather than timed (#354,
+ * extending #321). A wall-clock budget states an asymptotic fix only as far as
+ * a shared CI runner allows — #321 recorded the same assertion shape failing
+ * twice and passing on a third run with no code change — so the walk is read
+ * from TypeDiscriminatorDispatchSniff::scanCounts(), as a delta around this one
+ * run. `bracelessNextClause.walks` is incremented where that method's own loop
+ * is entered, and `bracelessNextClause.steps` as the first statement inside the
+ * loop, so it counts exactly the tokens the loop visits.
  *
- * The silence assertion is what stops the stopwatch passing vacuously: a file
- * the sniff bailed out of early would also be fast. Each level is one clause on
+ * The pair is what states per-level cost, which neither number states alone: a
+ * walk count says how often the method ran, and a step count says how far it
+ * got, and only together do they say each run stopped one token in. Every one
+ * of the $levels nested clauses is dispatched as its own chain head, so there
+ * are $levels walks; each stops on the nested `if` that opens its body, one
+ * step in, except the innermost, whose body is `return 1;` and takes three —
+ * `return`, `1`, `;`. That is $levels + 2 steps in total, which is the direct
+ * body read stated exactly. Re-deriving a statement end per head instead visits
+ * the remaining levels every time and the step count becomes quadratic in
+ * $levels. No replacement bound is derived from the old 3.0s cap, because none
+ * is needed: both counts are exact consequences of the fixture's own $levels.
+ *
+ * Mutation-checked by removing the walk's stop on the nested `if`, so each head
+ * runs on through the levels below it; the diff hunk and the resulting failure
+ * are in this PR's description.
+ *
+ * The silence assertion is what stops the counts passing vacuously: a file
+ * the sniff bailed out of early would also be cheap. Each level is one clause on
  * its own — PHP binds nothing to it — so no chain here reaches the minimum, and
  * a walk that instead read the levels as one chain would report at the first
  * `if` and redden this.
@@ -469,14 +491,23 @@ it('stays linear on a deep stack of nested brace-less clauses', function (): voi
         . "    return 1;\n}\n";
     $fixture = stageGeneratedFixture('nested-braceless.php', $source);
 
-    buildRuleset([TYPE_DISCRIMINATOR_DISPATCH]);
-
-    $started = hrtime(true);
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(TYPE_DISCRIMINATOR_DISPATCH);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([TYPE_DISCRIMINATOR_DISPATCH], $fixture);
-    $elapsed = ((hrtime(true) - $started) / 1e9);
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     expect($file->getWarnings())->toBe([])
-        ->and($elapsed)->toBeLessThan(3.0);
+        ->and($counted['bracelessNextClause.walks'])->toBe(
+            $levels,
+            'every nested clause is dispatched as a chain head of its own'
+        )
+        ->and($counted['bracelessNextClause.steps'])->toBe(
+            ($levels + 2),
+            'each walk stops one token into its body, the innermost `return 1;` in three'
+        );
 });
 
 /**
