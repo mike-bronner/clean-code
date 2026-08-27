@@ -1012,6 +1012,54 @@
     -->
 
     <!--
+        Routes: Conventions (Do / Do Not) (#65, sniff #249) —
+        docs/standards/routes-conventions-do-do-not.md.
+
+        The custom CleanCode.Routes.NonInvokableSpecialAction sniff is picked
+        up automatically via the ./CleanCode/ruleset.xml ref above; this
+        comment records why it is custom, and why the scoping it needs is not
+        written here.
+
+        No existing PHPCS or Slevomat sniff expresses the rule. Both
+        catalogues speak about PHP syntax rather than about Laravel route
+        registration, so neither carries a notion of an action argument, of
+        the seven RESTful method names, or of an invokable controller.
+
+        It carries one slice of the standard: "for special action routes, use
+        invokable controllers". The action argument of a verb registration is
+        token-visible, so a bare FooController::class action reads as
+        compliant and an array or 'FooController@method' action naming a
+        method outside the seven RESTful actions reads as a candidate
+        violation. The remaining bullets — whether a route relates to a single
+        model, whether names match that model, and whether special action
+        routes really are "very rare" — are semantic judgements the doc
+        records as code review's.
+
+        Warnings, not errors. The standard's "very rare" carve-out is a
+        judgement, and a codebase that deliberately groups several related
+        non-RESTful actions on one controller reads as a violation on shape
+        alone, so a misread must not fail a build.
+
+        No <properties> are configured, and the path scoping is deliberately
+        NOT an <include-pattern> here. The sniff gates itself on its own
+        routeFilePatterns property, which ships matching any path holding a
+        routes directory segment; a consuming application whose route files
+        live elsewhere renames the paths rather than re-scoping the rule:
+
+            <rule ref="CleanCode.Routes.NonInvokableSpecialAction">
+                <properties>
+                    <property name="routeFilePatterns" type="array">
+                        <element value="*/Modules/*/routes/*"/>
+                    </property>
+                </properties>
+            </rule>
+
+        Detection only: converting an action to an invokable controller means
+        creating that class and moving the method into it, which is an
+        architectural change with no mechanical rewrite.
+    -->
+
+    <!--
         PHPMD Design: CountInLoopExpression (#99) —
         docs/phpmd/design-countinloopexpression.md.
 
