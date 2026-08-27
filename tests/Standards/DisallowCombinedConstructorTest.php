@@ -178,6 +178,11 @@
  *   - ignore ternary nesting when reading a ternary's two sides — passing 1
  *     (the elvis default inside a guard's surviving side is read as the
  *     guard's own second path)
+ *   - read a ternary's sides to the end of the file rather than to the
+ *     constructor's own closing brace, the bound its `switch` and `match`
+ *     siblings take from `scope_closer` — no fixture moves, since every ternary
+ *     on disk closes inside the constructor that holds it; the ternary-bound
+ *     test below reddens instead, on a ternary cut short at the closing brace
  *
  * Re-bound names — a `foreach` target, a `catch` variable, a `static` local,
  * and a `global` import each stop a parameter's name from being the parameter
@@ -200,6 +205,25 @@
  *     pair of the same declaration, and every nested declaration is jumped
  *     whole. Recorded as observed, like the lookahead above that no comment
  *     can reach
+ *
+ * What a region binds at, as against what it merely reads. A `static` local is
+ * the one construct of the four whose region carries an initializer, and since
+ * PHP 8.3 that initializer is an arbitrary expression; the other three admit
+ * none, so nothing on disk moves on these either and each is pinned by the
+ * static-initializer and static-declarator tests below:
+ *
+ *   - bind every name the region holds, initializer included — the
+ *     static-initializer test reddens on all four read shapes, each losing the
+ *     parameter to a name the declaration only reads
+ *   - stop bounding the `=`/`,` reset to the region's own nesting — the
+ *     argument-list-comma shape reddens alone (the comma inside `sprintf()`
+ *     reads as the next declarator, so the argument behind it binds)
+ *   - open the initializer at `=` but never close it at `,` — the
+ *     static-declarator test reddens on its second-declarator shape (`$legacy`
+ *     written bare after a comma stops re-binding)
+ *   - step past a `static` region whole, as the other three are stepped past —
+ *     the initializer-branch test reddens (a `match`-like ternary written as
+ *     the initializer is never read)
  *
  * Which of a construct's names it actually binds — only one written bare, and
  * every leg of that test pinned on its own by the target-spelling test below.
@@ -967,4 +991,112 @@ it('re-binds a name a construct writes bare', function (): void {
 
         expect(tuplesFromMessages($file->getWarnings()))->toBe([], $shape);
     }
+});
+
+it('reads a name a static initializer only reads as still the parameter', function (): void {
+    $sources = [
+        'bare read' => 'static $mode = $legacy;',
+        'nested read' => 'static $result = strtoupper((string) $legacy);',
+        'second declarator' => 'static $first = 1, $result = $legacy;',
+        'argument-list comma' => 'static $result = sprintf("%s", $legacy, 1);',
+    ];
+
+    foreach ($sources as $shape => $declaration) {
+        $source = <<<PHP
+        <?php
+
+        class StaticInitializerRead
+        {
+            public function __construct(bool \$legacy)
+            {
+                {$declaration}
+
+                if (\$legacy) {
+                    \$this->mode = 'legacy';
+                } else {
+                    \$this->mode = 'modern';
+                }
+            }
+        }
+        PHP;
+
+        $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+        expect(tuplesFromMessages($file->getWarnings()))->toBe([
+            ['line' => 9, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+        ], $shape);
+    }
+});
+
+it('re-binds a name a static declarator writes, wherever it stands in the list', function (): void {
+    $sources = [
+        'only declarator' => 'static $legacy = false;',
+        'second declarator' => 'static $first = 1, $legacy = false;',
+    ];
+
+    foreach ($sources as $shape => $declaration) {
+        $source = <<<PHP
+        <?php
+
+        class StaticDeclarator
+        {
+            public function __construct(bool \$legacy)
+            {
+                {$declaration}
+
+                if (\$legacy) {
+                    \$this->mode = 'legacy';
+                } else {
+                    \$this->mode = 'modern';
+                }
+            }
+        }
+        PHP;
+
+        $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+        expect(tuplesFromMessages($file->getWarnings()))->toBe([], $shape);
+    }
+});
+
+it('reports a mode switch written in a static initializer', function (): void {
+    $source = <<<'PHP'
+    <?php
+
+    class BranchInInitializer
+    {
+        public function __construct(bool $legacy)
+        {
+            static $mode = $legacy ? 'legacy' : 'modern';
+        }
+    }
+    PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 7, 'column' => 24, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+    ]);
+});
+
+it('reads a ternary\'s sides no further than the constructor holding it', function (): void {
+    $source = <<<'PHP'
+    <?php
+
+    class CutShortTernary
+    {
+        public function __construct(bool $legacy)
+        {
+            $this->mode = $legacy ? 'legacy'
+        }
+    }
+
+    : throw new RuntimeException('a side belonging to no ternary');
+    PHP;
+
+    $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+
+    expect(tuplesFromMessages($file->getWarnings()))->toBe([
+        ['line' => 7, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
+    ]);
 });

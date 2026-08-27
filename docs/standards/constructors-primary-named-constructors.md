@@ -182,7 +182,12 @@ Deliberately silent on:
   something else and a destructured element's key
   (`foreach ($rows as [$legacy => $row])`) addresses an element, so each reads
   `$legacy` rather than binding it, and a branch on `$legacy` below still
-  reports. An assignment is not a re-binding either —
+  reports. A `static` local's *initializer* reads rather than binds for the
+  same reason — `static $mode = $legacy;` declares `$mode` and reads `$legacy`,
+  so a branch on `$legacy` below still reports — and because that initializer
+  is an arbitrary expression, a mode switch written inside it
+  (`static $mode = $legacy ? 'legacy' : 'modern';`) reports where it stands.
+  An assignment is not a re-binding either —
   `$mode = $mode ?? self::AUTO;` overwrites the parameter's value while the
   variable stays the parameter, so a branch on it afterwards reports as
   before.

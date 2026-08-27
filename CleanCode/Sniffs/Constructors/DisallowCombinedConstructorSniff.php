@@ -104,9 +104,12 @@ use PHP_CodeSniffer\Util\Tokens;
  *   name one of them writes *bare* re-binds: a dynamic target
  *   (`foreach ($rows as $row->{$mode})`, `global $$mode`) and a destructured
  *   element's key (`foreach ($rows as [$mode => $row])`) read the names
- *   spelling them and bind none of them ({@see self::boundNames()}). An
- *   assignment re-binds nothing either: `$mode = $mode ?? self::AUTO;`
- *   overwrites the parameter's value while the variable stays the parameter.
+ *   spelling them and bind none of them ({@see self::boundNames()}), and
+ *   neither does a `static` local's initializer (`static $seen = $mode;`),
+ *   which since PHP 8.3 is an arbitrary expression and so is read on for mode
+ *   switches of its own. An assignment re-binds nothing either:
+ *   `$mode = $mode ?? self::AUTO;` overwrites the parameter's value while the
+ *   variable stays the parameter.
  * - **A name that is not PHP's own function.** Whether a predicate or an
  *   argument reader is the global function it reads as is
  *   {@see FunctionCalls::isGlobalFunctionCall()}'s answer — the package's one
@@ -485,7 +488,14 @@ class DisallowCombinedConstructorSniff implements Sniff
 
             if ($rebinding !== null) {
                 $parameters = array_diff_key($parameters, $this->boundNames($phpcsFile, $pointer, $rebinding));
-                $pointer = $rebinding;
+
+                // A `static` local's initializer is an arbitrary expression, so
+                // it is the constructor's own code and is walked on into. The
+                // other three regions hold targets alone and are stepped past
+                // whole ({@see self::rebindingEnd()}).
+                if ($code !== T_STATIC) {
+                    $pointer = $rebinding;
+                }
 
                 continue;
             }
@@ -551,12 +561,19 @@ class DisallowCombinedConstructorSniff implements Sniff
      * supplied — reading a normalized flag as a different variable would silence
      * the commonest spelling of the very thing this sniff reports.
      *
-     * The region each construct binds in holds its targets — a `foreach`'s,
-     * a `catch`'s exception variable, the constant expression a `static` local
-     * is initialized to — and the walk resumes past the whole of it rather
-     * than reading it. Which of the names written there the construct actually
-     * binds is {@see self::boundNames()}'s answer, since a target can be
-     * dynamic and spell itself with names it only reads.
+     * The region each construct binds in holds its targets — a `foreach`'s and
+     * a `catch`'s exception variable — and the walk resumes past the whole of
+     * it rather than reading it. Which of the names written there the construct
+     * actually binds is {@see self::boundNames()}'s answer, since a target can
+     * be dynamic and spell itself with names it only reads.
+     *
+     * A `static` local is the exception, and is walked *into* rather than past.
+     * Since PHP 8.3 its initializer is an arbitrary expression rather than a
+     * constant one, so `static $mode = $legacy ? 'legacy' : 'modern';` is a
+     * mode switch written in the constructor's own code, and stepping past it
+     * would lose the report. `global` admits no initializer, so reading it or
+     * stepping past it are the same walk; it is stepped past with the other
+     * two.
      *
      * A dynamic target's own subscript may in principle carry a branch
      * (`foreach ($rows as $row[$mode ? 'a' : 'b'])`), and stepping past the
@@ -654,6 +671,20 @@ class DisallowCombinedConstructorSniff implements Sniff
      * (`foreach ($rows as $key => $row)`), while one inside a destructuring
      * group belongs to the element being addressed, and does not.
      *
+     * A region can also hold an *initializer*, and an initializer is read
+     * rather than written to. `static $mode = $legacy;` declares one name and
+     * reads another, and since PHP 8.3 the expression after the `=` is
+     * arbitrary (`static $result = strtoupper((string) $legacy);`), so the
+     * names in it sit between ordinary tokens no indirection list can
+     * enumerate. The declarator position is what the region binds at: a `=` at
+     * the construct's own nesting opens the initializer, and the `,` that
+     * separates one declarator from the next closes it again
+     * (`static $a = $legacy, $b = 1;` binds `$a` and `$b`, and reads
+     * `$legacy`). The other three constructs never spell a `=` at that nesting
+     * — a `foreach` target, a `catch` variable and a `global` import each admit
+     * no initializer at all — so this is the whole class of read-in-a-region,
+     * covered once here rather than per construct.
+     *
      * @return array<string, true>
      */
     private function boundNames(File $phpcsFile, int $from, int $to): array
@@ -661,6 +692,7 @@ class DisallowCombinedConstructorSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $names = [];
         $depth = 0;
+        $initializing = false;
 
         for ($pointer = $from + 1; $pointer < $to; $pointer++) {
             $code = $tokens[$pointer]['code'];
@@ -677,7 +709,13 @@ class DisallowCombinedConstructorSniff implements Sniff
                 continue;
             }
 
-            if ($code === T_VARIABLE && $this->bindsName($phpcsFile, $pointer, $depth)) {
+            if ($depth === 0 && ($code === T_EQUAL || $code === T_COMMA)) {
+                $initializing = $code === T_EQUAL;
+
+                continue;
+            }
+
+            if (!$initializing && $code === T_VARIABLE && $this->bindsName($phpcsFile, $pointer, $depth)) {
                 $names[$tokens[$pointer]['content']] = true;
             }
         }
@@ -769,7 +807,7 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
 
-        if ($branch !== null && $this->isGuardClause($phpcsFile, $branch)) {
+        if ($branch !== null && $this->isGuardClause($phpcsFile, $branch, $closer)) {
             return;
         }
 
@@ -800,7 +838,7 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
 
-        if ($branch === null || $this->isGuardClause($phpcsFile, $branch)) {
+        if ($branch === null || $this->isGuardClause($phpcsFile, $branch, $closer)) {
             return;
         }
 
@@ -1432,7 +1470,7 @@ class DisallowCombinedConstructorSniff implements Sniff
      * An empty fall-through `case` has no body of its own to judge and is left
      * out of the count entirely.
      */
-    private function isGuardClause(File $phpcsFile, int $branch): bool
+    private function isGuardClause(File $phpcsFile, int $branch, int $closer): bool
     {
         [$construct, $own] = $this->constructOf($phpcsFile, $branch);
 
@@ -1440,7 +1478,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             return false;
         }
 
-        $verdicts = $this->branchVerdicts($phpcsFile, $construct);
+        $verdicts = $this->branchVerdicts($phpcsFile, $construct, $closer);
         $ownThrows = $own !== null && ($verdicts['throws'][$own] ?? false);
 
         return $verdicts['throwing'] > 0 && ($ownThrows || $verdicts['surviving'] <= 1);
@@ -1452,7 +1490,7 @@ class DisallowCombinedConstructorSniff implements Sniff
      *
      * @return array{throws: array<int, bool>, throwing: int, surviving: int}
      */
-    private function branchVerdicts(File $phpcsFile, int $construct): array
+    private function branchVerdicts(File $phpcsFile, int $construct, int $closer): array
     {
         if (isset($this->branchVerdicts[$construct])) {
             return $this->branchVerdicts[$construct];
@@ -1460,7 +1498,7 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $verdicts = ['throws' => [], 'throwing' => 0, 'surviving' => 0];
 
-        foreach ($this->branchStarts($phpcsFile, $construct) as $pointer => $start) {
+        foreach ($this->branchStarts($phpcsFile, $construct, $closer) as $pointer => $start) {
             $throws = $this->firstStatementThrows($phpcsFile, $start);
             $verdicts['throws'][$pointer] = $throws;
 
@@ -1505,7 +1543,7 @@ class DisallowCombinedConstructorSniff implements Sniff
      *
      * @return array<int, int>
      */
-    private function branchStarts(File $phpcsFile, int $construct): array
+    private function branchStarts(File $phpcsFile, int $construct, int $closer): array
     {
         $code = $phpcsFile->getTokens()[$construct]['code'];
 
@@ -1518,7 +1556,7 @@ class DisallowCombinedConstructorSniff implements Sniff
         }
 
         if ($code === T_INLINE_THEN) {
-            return $this->ternarySides($phpcsFile, $construct);
+            return $this->ternarySides($phpcsFile, $construct, $closer);
         }
 
         return $this->chainStarts($phpcsFile, $construct);
@@ -1718,15 +1756,25 @@ class DisallowCombinedConstructorSniff implements Sniff
      * The two sides of the ternary opening at this `?`, keyed by the token each
      * side follows.
      *
+     * A `switch` and a `match` carry their own end, so {@see self::caseStarts()}
+     * and {@see self::armStarts()} bound their walks on `scope_closer`. A
+     * ternary carries none, so the constructor's `$closer` is its bound, the
+     * same one {@see self::followingSelector()} walks to. Without it the walk
+     * ends only on a `;`, a depth-0 `:` or the end of the file, and a ternary
+     * left unclosed inside the constructor — one cut short at a `?>` template
+     * boundary, or mid-edit — reads on through the rest of the file: it adopts
+     * a `:` belonging to no ternary as this one's else-side, and judges a
+     * `throw` that is not in this constructor as this construct's branch.
+     *
      * @return array<int, int>
      */
-    private function ternarySides(File $phpcsFile, int $then): array
+    private function ternarySides(File $phpcsFile, int $then, int $closer): array
     {
         $tokens = $phpcsFile->getTokens();
         $sides = [$then => $then];
         $depth = 0;
 
-        for ($pointer = $then + 1; $pointer < count($tokens); $pointer++) {
+        for ($pointer = $then + 1; $pointer < $closer; $pointer++) {
             $code = $tokens[$pointer]['code'];
 
             if ($code === T_SEMICOLON) {
