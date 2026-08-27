@@ -311,7 +311,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
             return;
         }
 
-        if ($this->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($this->isGlobalCallAccountingForShadowing($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -334,6 +334,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * and not qualified as a method, a class member, a `new` target, a
      * declaration, another namespace's function, or a name the file shadows.
      *
+     * The name says what this adds rather than repeating the shared helper's,
+     * because the two answer different questions and a reader has to be able to
+     * tell which one a call site wants. This one composes the helper and layers
+     * the same-file declaration shadow the helper documents as outside its
+     * scope; it does not re-implement the helper's own check (#320).
+     *
      * The first of those is {@see FunctionCalls::isGlobalFunctionCall()}'s
      * question and is asked there rather than answered again here (#320): the
      * shared helper rules out member access, declarations including
@@ -350,7 +356,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * deliberately outside its scope, since answering it means reading
      * declarations across a namespace rather than reading one statement.
      */
-    private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
+    private function isGlobalCallAccountingForShadowing(File $phpcsFile, int $stackPtr): bool
     {
         if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return false;
