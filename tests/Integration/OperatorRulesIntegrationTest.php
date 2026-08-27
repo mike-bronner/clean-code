@@ -45,19 +45,30 @@ declare(strict_types=1);
  * here: this map pins operator diagnostics, and a second sniff reporting into
  * it would mask exactly the double-reporting the test exists to catch. That
  * preamble is why the pinned lines sit four below the fixture's own numbering
- * before it.
+ * before it. The preamble seeds those names in one chained statement, which
+ * #157's chained-assignment rule reports; those reports are pinned on line 7
+ * below rather than removed, because rewriting the preamble to one name per
+ * line would move every other line this map pins.
  */
 it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
         // The preamble's own two one-letter names, reported by the master
-        // ruleset's short-variable rule (#106). Listed for the same reason as
-        // the DisallowMagicNumbers entries below — the map is exhaustive, and
-        // that is what makes a second *operator* source here a failure.
+        // ruleset's short-variable rule (#106), plus one chained-assignment
+        // report per assignment after the first: the preamble seeds six names
+        // in one statement, so #157's Squiz.PHP.DisallowMultipleAssignments
+        // speaks five times. Listed for the same reason as the
+        // DisallowMagicNumbers entries below — the map is exhaustive, and that
+        // is what makes a second *operator* source here a failure.
         7 => [
             'CleanCode.Naming.ShortVariable.TooShort',
             'CleanCode.Naming.ShortVariable.TooShort',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
         ],
         // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
         // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands

@@ -320,19 +320,25 @@ it('exposes the detection lists as configurable properties', function () use ($i
     $withoutFakes = analyzeWithSniffs(
         [NO_HTTP_FAKES],
         $staged,
-        static fn (object $sniff) => $sniff->fakeMethods = ['fakeSequence']
+        static function (object $sniff): void {
+            $sniff->fakeMethods = ['fakeSequence'];
+        }
     );
 
     $withoutCreators = analyzeWithSniffs(
         [NO_HTTP_FAKES],
         $staged,
-        static fn (object $sniff) => $sniff->mockCreators = ['createMock']
+        static function (object $sniff): void {
+            $sniff->mockCreators = ['createMock'];
+        }
     );
 
     $withoutClients = analyzeWithSniffs(
         [NO_HTTP_FAKES],
         $staged,
-        static fn (object $sniff) => $sniff->httpClientClasses = []
+        static function (object $sniff): void {
+            $sniff->httpClientClasses = [];
+        }
     );
 
     expect(array_column(warningTuples($withoutFakes), 'source'))
