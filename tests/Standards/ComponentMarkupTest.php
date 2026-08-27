@@ -744,3 +744,161 @@ it('says nothing about a view whose element tags cannot be read at all', functio
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * The component-tag read can fail outright, and the tag list has to say so.
+ *
+ * COMPONENT_TAG carries the same shape ELEMENT_TAG carries: its tag-name group
+ * (`livewire:[A-Za-z0-9._-]+`) and its unquoted attribute run share a character
+ * set, so a `<livewire:` followed by a long unbroken run of those characters and
+ * then a quote the pattern cannot pair splits every way between the two groups,
+ * and preg_match_all() returns false.
+ *
+ * The fixture's run is 8,008 characters — the same length unreadable-element-
+ * tags.php uses, and deliberately far past the point it has to clear rather than
+ * just past it. Measured against PHP 8.4's default million-step
+ * pcre.backtrack_limit, on the fixture's own markup: the failure starts at 811
+ * characters with the PCRE JIT off and 1,406 with it on, so the fixture sits
+ * ~9.9x and ~5.7x above the two. The shared alternation is why those two numbers
+ * land within a handful of characters of ELEMENT_TAG's own 816 and 1,412. The
+ * cost is bounded by the limit either way: ~12ms unJITted, well under 1ms JITted.
+ *
+ * **This case does not tell the fixed code from the pre-fix code, and is not
+ * written to.** componentTags()' failure exit is a deliberate branch, not a
+ * behaviour change: the corrupted tag is the first Livewire tag in the file, so
+ * the failed read collects nothing before it gives out, and an unchecked
+ * `foreach` over those nought matches builds the same empty tag list the exit
+ * returns. Verified by removing both early returns and re-running: the reported
+ * violations are identical. A file holding a *valid* Livewire tag ahead of the
+ * corrupted one would tell them apart — the exit drops that tag where the
+ * fallthrough sometimes keeps it — but that is a real behaviour change on
+ * partially-readable markup, out of scope here (#334) and deliberately not
+ * covered by this fixture.
+ *
+ * What the two layers below do pin is everything else. The precondition proves,
+ * without the sniff, that this markup really does drive COMPONENT_TAG to a
+ * backtrack-limit failure and that it yields *no* matches when it does — so the
+ * fixture cannot rot into one that exercises nothing, and the "empty either way"
+ * reasoning above cannot quietly stop holding. The sniff-level layer proves the
+ * failure stays a silence: nothing is reported, and no PHP warning or error
+ * escapes the run (phpunit.xml.dist's failOnWarning is what makes that bite).
+ *
+ * The control at the end is what keeps the silence from being vacuous. Strip the
+ * corrupted tag out of the same markup and the read succeeds, at which point the
+ * fixture's `@foreach` — a component with no `wire:key` — is reported. So the
+ * fixture does hold markup this sniff has something to say about, and the
+ * silence above is the failed read's doing rather than an empty file's.
+ *
+ * The pattern is read off the sniff rather than transcribed, following
+ * unreadable-element-tags.php's own case above: a transcription would keep
+ * passing after COMPONENT_TAG was rewritten into a pattern the fixture no
+ * longer breaks.
+ */
+it('says nothing about a view whose component tags cannot be read at all', function (): void {
+    $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'COMPONENT_TAG'))->getValue();
+    $markup = file_get_contents(
+        fixturePath('ComponentMarkupSniff', 'unreadable-component-tags.php')
+    );
+
+    // Read immediately: preg_last_error() is process-global and any later
+    // preg_* call — including one inside expect() — would overwrite it.
+    $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+    $error = preg_last_error();
+
+    expect($matched)->toBeFalse()
+        ->and($error)->toBe(PREG_BACKTRACK_LIMIT_ERROR)
+        ->and($matches)->toBe([]);
+
+    $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-component-tags.php');
+
+    expect(allViolationSourcesByLine($file))->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+
+    // The same markup with only the corrupted tag taken out: the read now
+    // finishes, and what it finds is a component in a loop with no wire:key.
+    $readable = (string) preg_replace('/<livewire:(?:report-row-)+"/', '', $markup);
+
+    expect($readable)->not->toBe($markup);
+
+    $control = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($readable));
+
+    expect(array_merge(...array_values(allViolationSourcesByLine($control))))
+        ->toContain(MISSING_WIRE_KEY_IN_LOOP);
+});
+
+/**
+ * The wrapper read can fail too, and an empty wrapper list is not a silence.
+ *
+ * TEMPLATE_TAG does not fail the way the two patterns above fail. Its tag name
+ * is the literal word `template`, so there is no tag-name/attribute-run
+ * alternation to split and no backtrack blow-up. What gives out is the
+ * attribute-run group itself: it repeats over single characters, one level of
+ * recursion per character, so a long enough attribute list exhausts the engine's
+ * depth instead of its step budget.
+ *
+ * Which constant that is depends on the PCRE JIT, and the fixture is sized to
+ * fail either way. Measured on PHP 8.4's defaults, against the fixture's own
+ * markup: with the JIT off the failure starts at 99,995 characters and reports
+ * PREG_RECURSION_LIMIT_ERROR (pcre.recursion_limit's default is 100,000, which
+ * is the number that threshold is really tracking); with the JIT on the JIT's
+ * own stack gives out first, from 8,190 characters, and reports
+ * PREG_JIT_STACKLIMIT_ERROR. The fixture's run is 600,000 characters — ~6.0x
+ * above the higher of the two thresholds, a margin in the same order as
+ * unreadable-element-tags.php's own. Neither constant is
+ * PREG_BACKTRACK_LIMIT_ERROR, which is the substantive point: this is a
+ * different mechanism from componentTags()' failure, reachable only at a far
+ * larger input, and the assertion below pins that in both directions.
+ *
+ * **Like the case above, this one does not tell the fixed code from the pre-fix
+ * code.** The corrupted wrapper is the first one in the file, so the failed read
+ * collects nothing, and the deliberate `return []` and an unchecked `foreach`
+ * over nought matches produce the same empty list. Verified by removing both
+ * early returns and re-running: identical output.
+ *
+ * What it does pin is the *effect* of that empty list, which is the part worth
+ * writing down. reportUnwrapped() looks each component's wrapper up by offset,
+ * so an empty list misses every lookup, and the sniff reports
+ * AdjacentComponentNotWrapped against two components that are correctly wrapped
+ * — a false positive. That is templateTags()' behaviour today; #334's fix makes
+ * the empty list deliberate and tested, and does **not** make the false positive
+ * go away. Asserting it here is a record of a known defect, not a claim that it
+ * is correct.
+ *
+ * The control at the end is what proves that reading. Take the corrupted wrapper
+ * out and the very same pair goes quiet, so the two errors above are the failed
+ * read's doing and not a malformed wrapper's.
+ */
+it('reports correctly wrapped components when the wrapper tags cannot be read at all', function (): void {
+    $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_TAG'))->getValue();
+    $markup = file_get_contents(
+        fixturePath('ComponentMarkupSniff', 'unreadable-template-tags.php')
+    );
+
+    // Read immediately: preg_last_error() is process-global and any later
+    // preg_* call — including one inside expect() — would overwrite it.
+    $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+    $error = preg_last_error();
+    $jitted = (ini_get('pcre.jit') === '1');
+
+    expect($matched)->toBeFalse()
+        ->and($error)->toBe($jitted ? PREG_JIT_STACKLIMIT_ERROR : PREG_RECURSION_LIMIT_ERROR)
+        ->and($error)->not->toBe(PREG_BACKTRACK_LIMIT_ERROR)
+        ->and($matches)->toBe([]);
+
+    $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-template-tags.php');
+
+    expect(allViolationSourcesByLine($file))->toBe([
+        29 => [ADJACENT_COMPONENT_NOT_WRAPPED],
+        30 => [ADJACENT_COMPONENT_NOT_WRAPPED],
+    ])->and($file->getWarnings())->toBe([]);
+
+    // The same markup with only the corrupted wrapper taken out: the read now
+    // finishes, the two wrappers are found, and the pair is left alone.
+    $readable = (string) preg_replace('/<template (?:data-column-)+>/', '', $markup);
+
+    expect($readable)->not->toBe($markup);
+
+    $control = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($readable));
+
+    expect(allViolationSourcesByLine($control))->toBe([]);
+});

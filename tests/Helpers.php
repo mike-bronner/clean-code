@@ -350,6 +350,51 @@ function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure
 }
 
 /**
+ * Processes one file of a fixture *project* through a ruleset narrowed to one
+ * sniff, with PHPCS configured as though it had been invoked on the project
+ * directory.
+ *
+ * Every helper above leaves Config::$files empty, because every one of them
+ * analyses a single file handed over by path. That is indistinguishable, to a
+ * sniff, from `phpcs one-file.php` — which is the right harness until a rule's
+ * answer depends on the *other* files in the run, as
+ * CleanCode.Metrics.NumberOfChildren's does: a parent's children are declared
+ * in files of their own, and a run that does not contain them has none to
+ * count.
+ *
+ * Setting $paths on the config is what a consumer's `phpcs src/` does, and it is
+ * the only difference from analyzeWithSniffs(). The ruleset is always built
+ * fresh: the config carries the run's paths now, so a memoised one would hand a
+ * later test the earlier test's codebase.
+ *
+ * $paths is a directory, or a list of paths for a run narrowed to particular
+ * files — the latter is how a cross-file count is attributed to one file at a
+ * time, by running the same subject against one contributor at a time.
+ *
+ * @param array<int, string>|string   $paths
+ * @param callable(object): void|null $configure
+ */
+function analyzeProjectFixture(
+    string $sniffCode,
+    array|string $paths,
+    string $file,
+    ?callable $configure = null
+): LocalFile {
+    [$config, $ruleset] = buildRuleset([$sniffCode], true);
+
+    $config->files = (array) $paths;
+
+    if ($configure !== null) {
+        $configure($ruleset->sniffs[$ruleset->sniffCodes[$sniffCode]]);
+    }
+
+    $analyzed = new LocalFile($file, $ruleset, $config);
+    $analyzed->process();
+
+    return $analyzed;
+}
+
+/**
  * Processes a fixture through a ruleset narrowed to one sniff, with a single
  * public property set the way a consuming ruleset's <properties> would set it.
  * The shorthand for the common case of exercising one configurable threshold.
@@ -967,6 +1012,40 @@ function violationFixableFlags(LocalFile $file): array
     }
 
     return $flags;
+}
+
+/**
+ * The sorted, de-duplicated lines carrying a violation the fixer would rewrite.
+ *
+ * The line-level counterpart of violationFixableFlags(), for a partial fixer
+ * whose contract is *which* lines it will act on. A count cannot express that:
+ * a line that loses fixability and another that gains it leave the total
+ * unmoved, so a sniff whose fixer silently relocated would still pass.
+ *
+ * Takes the messages array rather than the file, so a caller can ask the same
+ * question of getWarnings() as of getErrors().
+ *
+ * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+ *
+ * @return array<int, int>
+ */
+function violationFixableLines(array $messages): array
+{
+    $lines = [];
+
+    foreach ($messages as $line => $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                if ($violation['fixable'] === true) {
+                    $lines[$line] = $line;
+                }
+            }
+        }
+    }
+
+    ksort($lines);
+
+    return array_values($lines);
 }
 
 /**
