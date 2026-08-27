@@ -124,3 +124,32 @@ $lifted = [
     8292815763849347072 => 'a',
     -2.0e30 => 'b',
 ];
+
+// A leading zero does not make a float literal octal, and the two spellings
+// below are why the base is read off the digits rather than off the zero:
+// `0.5` and `0e5` are decimal, and both land on the key 0 the plain literal
+// above them already holds. Taking the zero alone for an octal marker leaves
+// all three unresolved and reports nothing here at all.
+$leadingZeroDecimals = [
+    0 => 'a',
+    0.5 => 'b',
+    0e5 => 'c',
+];
+
+// The same shape with an octal digit in front of the period. `05.5` is 5.5, so
+// it lands on key 5 — a check that stopped reading at the first character no
+// octal digit can be would take it for the octal 05 and decline it.
+$leadingZeroOctalDigits = [
+    5 => 'a',
+    05.5 => 'b',
+];
+
+// A digit separator is removed before the digits are read, in every base, so
+// each of these is 15 again.
+$separatedBases = [
+    15 => 'a',
+    0x0_F => 'b',
+    0b1_111 => 'c',
+    0o1_7 => 'd',
+    01_7 => 'e',
+];

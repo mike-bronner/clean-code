@@ -62,18 +62,26 @@ the custom `CleanCode.Arrays.DuplicatedArrayKey` sniff, wired into the master
   literal names it, since its value depends on every element before it. PHPMD
   skips all of these too.
 
-  Two numeric literals are skipped as well, for the same reason in a different
-  place — the source names them, but nothing available to the sniff settles the
-  slot PHP would file them under. A literal too large to be finite (`1e400`)
-  has no integer form at all. A literal that leaves the integer range while
-  naming its digits in another base (`0x8000000000000000`, `0b1` and 63 zeros,
-  `0o1000000000000000000000`, `01000000000000000000000`) has one, and PHP's
-  lexer reaches it by rounding that `hexdec()`, `bindec()` and `octdec()` do
-  not reproduce — measured on PHP 8.5.8, they disagree with the literal often
-  enough to move the key. Both are real duplicates that go unreported; a key
-  that is merely close would be a report against a slot PHP never used. Every
-  base is still compared inside the integer range, which is where these
+  Three kinds of numeric literal are skipped as well, for the same reason in a
+  different place — the source names them, but nothing available to the sniff
+  settles the slot PHP would file them under. A literal too large to be finite
+  (`1e400`) has no integer form at all. A literal that leaves the integer range
+  while naming its digits in another base (`0x8000000000000000`, `0b1` and 63
+  zeros, `0o1000000000000000000000`, `01000000000000000000000`) has one, and
+  PHP's lexer reaches it by rounding that `hexdec()`, `bindec()` and `octdec()`
+  do not reproduce — measured on PHP 8.5.8, they disagree with the literal
+  often enough to move the key. Both are real duplicates that go unreported; a
+  key that is merely close would be a report against a slot PHP never used.
+  Every base is still compared inside the integer range, which is where these
   literals are written in practice.
+
+  The third is a literal whose digits are not legal in the base it names, such
+  as `089`. It files under no slot at all, because the file holding it does not
+  compile: `php -l` rejects it as an invalid numeric literal. PHP_CodeSniffer
+  tokenises rather than compiles, so the sniff is handed it all the same, and
+  resolving the digits anyway is what `octdec()` answers by ignoring the
+  illegal ones — after raising a diagnostic that PHP_CodeSniffer turns into an
+  aborted file.
 - **Every array literal is inspected** — the short form, the long `array()`
   form, a nested array (in its own right, and independently of its parent), and
   a keyed destructuring pattern, where a repeated key makes the second binding
@@ -127,8 +135,13 @@ function-aware.
 
 Behaviour tests covering compliant code, the exact line and column of every
 report, the coerced key named in the message, the first-declaration rule, the
-absence of a fixer, the divergences above, and both unterminated-source cases
-live at `tests/Standards/DuplicatedArrayKeyTest.php`. The sniff is also in the
+key a float outside the integer range wraps onto, the base a leading zero does
+and does not name, the absence of a fixer, the divergences above, and both
+unterminated-source cases live at
+`tests/Standards/DuplicatedArrayKeyTest.php`. Two of them run the shipped
+binary rather than the in-process harness, because the diagnostics that an
+out-of-range cast and a malformed literal raise abort the whole file only under
+the Runner the binary uses. The sniff is also in the
 generic three-fixture sweep in `tests/Contract/SniffContractTest.php`.
 
 Its fixtures follow the contract CONTRIBUTING.md prescribes, under

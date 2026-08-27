@@ -273,32 +273,62 @@ class DuplicatedArrayKeySniff implements Sniff
     }
 
     /**
-     * The value of an integer literal, in any base PHP accepts.
+     * The value of an integer literal, in any base PHP accepts, or null when
+     * its digits are not legal in the base it names.
      *
      * No overflow case is needed: PHP tokenises a numeric literal too large for
      * the integer range as a float whatever its base — `9223372036854775808`,
      * `0xFFFFFFFFFFFFFFFFF`, and their octal and binary counterparts all arrive
-     * as T_DNUMBER — so a T_LNUMBER always fits, and floatValue() takes the
-     * rest. It resolves the decimal ones only: see its docblock for why a
-     * literal that names its digits in another base is left unresolved once it
-     * leaves the integer range.
+     * as T_DNUMBER — so a well-formed T_LNUMBER always fits, and floatValue()
+     * takes the rest. It resolves the decimal ones only: see its docblock for
+     * why a literal that names its digits in another base is left unresolved
+     * once it leaves the integer range.
      *
-     * The conversions below are exact for every literal that reaches them.
-     * hexdec(), bindec() and octdec() answer an int whenever the digits fit the
-     * integer range, and a T_LNUMBER is the tokeniser's own statement that they
-     * do.
+     * A T_LNUMBER is not, however, the tokeniser's statement that the digits
+     * are legal in that base. token_get_all() is the lexer alone, and only full
+     * compilation rejects a malformed literal: `089` is a parse error to `php
+     * -l` — "Invalid numeric literal" — yet it arrives here as one T_LNUMBER
+     * with the content `089`, because a file PHP_CodeSniffer reads never has to
+     * compile. Handing those digits to octdec() raises PHP's "Invalid
+     * characters passed for attempted conversion", PHP_CodeSniffer's Runner
+     * rethrows any diagnostic raised inside a sniff, and the whole file is
+     * abandoned with Internal.Exception — the same abort floatValue() exists to
+     * avoid, from a different direction. So the digits are checked against the
+     * base first and an illegal one declines the key, which costs nothing: the
+     * literal names no slot in any array PHP can run.
+     *
+     * The check covers every base rather than the older octal spelling alone,
+     * which is the only one reachable today: `0b12` and `0o89` are lexed as two
+     * tokens apiece, and two tokens are not a key this sniff resolves. Reaching
+     * them turns on where the lexer draws a token boundary for source it will
+     * not compile, which is not a contract PHP publishes.
+     *
+     * Past the check the conversions are exact. hexdec(), bindec() and octdec()
+     * answer an int whenever legal digits fit the integer range, and the
+     * tokeniser's choice of T_LNUMBER over T_DNUMBER says they do.
      */
-    private function integerValue(string $literal): int
+    private function integerValue(string $literal): ?int
     {
         $digits = str_replace('_', '', $literal);
         $prefix = strtolower(substr($digits, 0, 2));
 
-        return (int) match (true) {
-            $prefix === '0x' => hexdec(substr($digits, 2)),
-            $prefix === '0b' => bindec(substr($digits, 2)),
-            $prefix === '0o' => octdec(substr($digits, 2)),
-            strlen($digits) > 1 && $digits[0] === '0' => octdec(substr($digits, 1)),
-            default => $digits,
+        [$body, $base, $legalDigits] = match (true) {
+            $prefix === '0x' => [substr($digits, 2), 16, '0-9A-Fa-f'],
+            $prefix === '0b' => [substr($digits, 2), 2, '01'],
+            $prefix === '0o' => [substr($digits, 2), 8, '0-7'],
+            strlen($digits) > 1 && $digits[0] === '0' => [substr($digits, 1), 8, '0-7'],
+            default => [$digits, 10, '0-9'],
+        };
+
+        if (preg_match('/^[' . $legalDigits . ']+$/', $body) !== 1) {
+            return null;
+        }
+
+        return (int) match ($base) {
+            16 => hexdec($body),
+            8 => octdec($body),
+            2 => bindec($body),
+            default => $body,
         };
     }
 

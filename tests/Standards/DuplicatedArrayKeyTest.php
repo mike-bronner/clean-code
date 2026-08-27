@@ -37,10 +37,19 @@ it('is registered in the master ruleset', function (): void {
  * negated. Each one is an early return, so the fixture's silence is a verdict
  * about them rather than the absence of anything to look at.
  *
- * The last group is the one that fails loudly when its guard goes: without it
- * the cast reads every hexadecimal, binary and modern-octal literal there as
+ * The out-of-range group is one that fails loudly when its guard goes: without
+ * it the cast reads every hexadecimal, binary and modern-octal literal there as
  * 0.0 and every legacy-octal one as 1.0E+21, which makes each pair a duplicate
  * on a key PHP never used and turns this fixture red.
+ *
+ * The malformed-octal group at the end is the other. Those literals do not
+ * compile at all — `php -l` calls `089` an invalid numeric literal — but
+ * PHP_CodeSniffer tokenises rather than compiles, so the sniff sees them, and
+ * each is written twice. Without the digit check, octdec() ignores the illegal
+ * digits and answers 0 for all three literals, which makes every pair a
+ * duplicate here and turns this fixture red in process; through the shipped
+ * binary the diagnostic octdec() raises aborts the file instead, which the
+ * installed-run test below pins separately.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'passing.php');
@@ -64,6 +73,14 @@ it('produces no violations on the compliant fixture', function (): void {
  * make them the same keys as their neighbours. Lines 102, 110, 118 and 125 are
  * the wrap's own boundaries, each reached by a literal the entry above it does
  * not repeat.
+ *
+ * Lines 135, 136 and 144 are float literals a leading zero does not make octal,
+ * and they are here rather than in the compliant fixture because reading that
+ * zero as an octal marker silences a real duplicate: each of the three shares
+ * its key with the plain literal above it. Lines 151 to 154 are the same
+ * number written in the four non-decimal bases with a digit separator inside
+ * its digits, so a separator removed after the digits are read — rather than
+ * before — silences all four.
  */
 it('flags every duplicate key at the overriding entry', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php');
@@ -78,7 +95,8 @@ it('flags every duplicate key at the overriding entry', function (): void {
             [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
             [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
             [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5], [93, 5],
-            [102, 5], [110, 5], [118, 5], [125, 5],
+            [102, 5], [110, 5], [118, 5], [125, 5], [135, 5], [136, 5],
+            [144, 5], [151, 5], [152, 5], [153, 5], [154, 5],
         ]
     ))->and($file->getWarnings())->toBe([]);
 });
@@ -218,6 +236,52 @@ it('resolves such a key without aborting the installed run', function (): void {
     expect($sources)->not->toContain('Internal.Exception')
         ->and(array_unique($sources))->toBe([DUPLICATED_ARRAY_KEY . '.Found'])
         ->and(array_column($run['messages'], 'line'))->toContain(47, 91, 93, 102, 110, 118, 125);
+});
+
+/**
+ * A leading zero marks an octal literal only when the digits after it are octal
+ * digits and nothing else follows them. The period and the exponent are what
+ * make `0.5` and `0e5` decimal, and `05.5` is decimal too even though an octal
+ * digit is what follows its zero.
+ *
+ * The key is asserted and not merely the report, because the two answers this
+ * separates are both a key: reading `05.5` as the octal `05` gives 5 as well.
+ * What that reading actually does is decline the literal — an out-of-range
+ * non-decimal literal is left unresolved, and `05.5` is not out of range, so
+ * the decline would be silent — but a resolution that reached 5 by the wrong
+ * route would be indistinguishable here without the key.
+ */
+it('reads a leading zero as octal only when the digits are octal', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php')->getErrors());
+
+    expect($messages[135])->toBe(['Duplicate array key 0 overrides the entry on line 134; remove one of them'])
+        ->and($messages[136])->toBe(['Duplicate array key 0 overrides the entry on line 134; remove one of them'])
+        ->and($messages[144])->toBe(['Duplicate array key 5 overrides the entry on line 143; remove one of them']);
+});
+
+/**
+ * The compliant fixture through the shipped binary, where a malformed literal
+ * costs the whole file rather than one message.
+ *
+ * `089` reaches the sniff as a single integer token — PHP_CodeSniffer reads a
+ * file that does not compile, and only compilation rejects the digits — and
+ * handing them to octdec() raises "Invalid characters passed for attempted
+ * conversion". Runner rethrows any diagnostic raised inside a sniff, File
+ * records Internal.Exception, and the file's report is replaced by a single
+ * "an error occurred during processing". The in-process harness cannot see
+ * this: it drives a LocalFile, which never installs Runner's handler, so the
+ * compliant fixture stays green there with the digit check removed.
+ *
+ * Internal.Exception is named rather than left to the empty-list assertion so
+ * that a regression reads as the abort it is. The status is asserted alongside
+ * it because an abort is reported as an error and exits non-zero.
+ */
+it('declines a malformed literal without aborting the installed run', function (): void {
+    $run = installedSniffFixtureRun(DUPLICATED_ARRAY_KEY, 'passing.php');
+
+    expect(array_column($run['messages'], 'source'))->not->toContain('Internal.Exception')
+        ->and($run['messages'])->toBe([])
+        ->and($run['status'])->toBe(0);
 });
 
 /**

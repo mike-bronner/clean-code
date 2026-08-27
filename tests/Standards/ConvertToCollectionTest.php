@@ -65,9 +65,9 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 107 are native calls kept on purpose. The reason is a single
+ * All 108 are native calls kept on purpose. The reason is a single
  * package-level fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 107 times across
+ * docs/standards/arrays-convert-to-collection.md rather than 108 times across
  * 60 files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 42 arrived with the sniffs that landed after #312 and are
+ * The remaining 43 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -197,6 +197,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
         ['line' => 781, 'column' => 36],
+        ['line' => 1565, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -260,7 +261,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 326, 'column' => 19],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
-        ['line' => 71, 'column' => 42],
+        ['line' => 88, 'column' => 42],
     ],
     'tests/Standards/ExcessiveMethodLengthTest.php' => [
         ['line' => 125, 'column' => 17],

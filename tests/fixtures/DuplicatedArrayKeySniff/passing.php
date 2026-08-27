@@ -132,3 +132,22 @@ $legacyOctalOverflow = [
     -01000000000000000000000 => 'c',
     -01000000000000000000000 => 'd',
 ];
+
+// Positive: a literal PHP's own lexer hands over as one integer token although
+// its digits are illegal in the base it names. `089` is a parse error to
+// `php -l` — "Invalid numeric literal", so this file never compiles — but
+// token_get_all() is the lexer alone and PHP_CodeSniffer reads files that do
+// not compile, so the token arrives all the same. Each pair below repeats one
+// literal, and there is still nothing to report: the entries name no slot in
+// any array PHP can run. Resolving the digits anyway is what raises "Invalid
+// characters passed for attempted conversion" and abandons the whole file with
+// Internal.Exception, which is the other half of what this fixture's silence
+// asserts and is pinned separately through the shipped binary.
+$malformedOctal = [
+    089 => 'a',
+    089 => 'b',
+    0189 => 'c',
+    0189 => 'd',
+    08 => 'e',
+    08 => 'f',
+];
