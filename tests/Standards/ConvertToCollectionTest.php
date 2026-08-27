@@ -65,10 +65,10 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 106 are native calls kept on purpose. The reason is a single
+ * All 113 are native calls kept on purpose. The reason is a single
  * package-level fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 106 times across
- * 60 files: this package is a PHP_CodeSniffer standard with no
+ * docs/standards/arrays-convert-to-collection.md rather than 113 times across
+ * 61 files: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
  *
@@ -84,7 +84,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 41 arrived with the sniffs that landed after #312 and are
+ * The remaining 48 arrived with the sniffs that landed after #312 and are
  * pinned on the package-level fact alone — the same fact that carries those two,
  * and the only one that can carry any of them while collect() is absent. They
  * have not been walked one at a time the way #312 walked the first 65, so the
@@ -170,6 +170,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Routes/ApiControllerNamespaceSniff.php' => [
         ['line' => 171, 'column' => 20],
     ],
+    'CleanCode/Sniffs/Routes/NonInvokableSpecialActionSniff.php' => [
+        ['line' => 411, 'column' => 22],
+        ['line' => 423, 'column' => 13],
+    ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
     ],
@@ -192,7 +196,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 147, 'column' => 27],
+        ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
@@ -209,7 +213,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 223, 'column' => 15],
+        ['line' => 224, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -257,6 +261,15 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 295, 'column' => 24],
         ['line' => 320, 'column' => 28],
         ['line' => 326, 'column' => 19],
+    ],
+    'tests/Standards/DisallowTypeIntrospectionTest.php' => [
+        ['line' => 117, 'column' => 17],
+        ['line' => 139, 'column' => 17],
+        ['line' => 192, 'column' => 17],
+        ['line' => 229, 'column' => 17],
+        ['line' => 251, 'column' => 17],
+        ['line' => 275, 'column' => 17],
+        ['line' => 553, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 62, 'column' => 42],
@@ -361,7 +374,7 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
  * Every .php file the reviewed-sites sweep covers, relative to the package root
  * and sorted — the in-process equivalent of the two path arguments and the
  * fixture ignore pattern the #286 phpcs command sweeps with. Confirmed to agree
- * with that command: both report the same 94 file/line/column triples.
+ * with that command: both report the same 113 file/line/column triples.
  *
  * A closure rather than a named function for the reason given on
  * $convertToCollectionMessages above.
@@ -530,8 +543,8 @@ it('reports detection-only violations', function (): void {
  * leave behind.
  *
  * Every site is native on purpose and the reason is one package-level fact, so
- * the alternative — a comment at each of 65 call sites — would restate one true
- * thing 65 times and still not notice the sixty-sixth call the day someone adds
+ * the alternative — a comment at each of 113 call sites — would restate one
+ * true thing 113 times and still not notice the next call the day someone adds
  * it. This pins the reviewed set instead, so an added, moved or deleted native
  * call is a red test rather than one more warning nobody reads.
  *
