@@ -96,3 +96,12 @@ for ($i = 0, $fn = function (): int {
 while (count(...$rows) > 0) {
     array_pop($rows);
 }
+
+// `namespace\` resolves against the namespace in force, and this file declares
+// none — so the namespace in force is the global one and this spells exactly
+// the call `\count()` does. The hand-rolled qualifier check this sniff used to
+// carry read every `namespace\` name as somebody else's function and stayed
+// silent here; FunctionCalls::isGlobalFunctionCall() resolves it.
+while (namespace\count($rows) > 0) {
+    array_pop($rows);
+}

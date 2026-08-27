@@ -127,7 +127,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 1040, 'column' => 16],
+        ['line' => 950, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
@@ -203,9 +203,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
-        ['line' => 641, 'column' => 66],
-        ['line' => 810, 'column' => 36],
-        ['line' => 1594, 'column' => 22],
+        ['line' => 686, 'column' => 66],
+        ['line' => 855, 'column' => 36],
+        ['line' => 1673, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -218,7 +218,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 236, 'column' => 15],
+        ['line' => 239, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -260,8 +260,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 568, 'column' => 27],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
-        ['line' => 110, 'column' => 17],
-        ['line' => 268, 'column' => 17],
+        ['line' => 112, 'column' => 17],
+        ['line' => 270, 'column' => 17],
     ],
     'tests/Standards/DisallowDebugFunctionsTest.php' => [
         ['line' => 53, 'column' => 42],

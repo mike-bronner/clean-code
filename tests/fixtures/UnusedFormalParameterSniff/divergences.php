@@ -180,3 +180,36 @@ function spreadFuncGetArgs(string $j): array
 {
     return \func_get_args(...[]);
 }
+
+// --- Stricter here: names that only spell an exempting call ---
+
+// PHPMD: silent. It matches `compact` by suffix, so the last segment of a
+// qualified name satisfies it and the parameter the argument list names is
+// exempted. The call reaches `Vendor\Package\compact()` — somebody else's
+// function, which has no obligation to bring `$unusedK` into scope — so the
+// parameter really is dead and is reported here. Resolved by
+// CleanCode\Helpers\FunctionCalls, which every sniff asking this question
+// shares (#320); the hand-rolled copy this sniff used to carry stepped over
+// the qualifier and matched the suffix exactly as PHPMD does.
+function qualifiedCompact(string $unusedK): array
+{
+    return \Vendor\Package\compact('unusedK');
+}
+
+// PHPMD: silent, for the same reason read the other way round — the name is
+// spelled bare, so the suffix match succeeds without the import being read at
+// all. `use function` below redirects the bare name to the very function
+// above, so this call is that one and not PHP's, and $unusedL is dead.
+//
+// An import binds for the whole namespace block wherever in it the statement is
+// written, so this one is in force above its own line as well. That is safe
+// only because no other shape in this file spells `compact` bare with an
+// argument list — `\compact(...)` on line 170 is qualified and names no
+// parameter. Adding one above this point would be redirected by this import,
+// so it belongs in a file of its own rather than here.
+use function Vendor\Package\compact;
+
+function importedCompact(string $unusedL): array
+{
+    return compact('unusedL');
+}
