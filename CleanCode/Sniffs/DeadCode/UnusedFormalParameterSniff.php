@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\DeadCode;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -167,47 +168,6 @@ class UnusedFormalParameterSniff implements Sniff
     private const INTERPOLATING_TEXT = [
         T_DOUBLE_QUOTED_STRING,
         T_HEREDOC,
-    ];
-
-    /**
-     * What a name is not a call to a global function after.
-     *
-     * PHPMD matches `func_get_args()` and `compact()` as a FunctionPostfix —
-     * the global function, not something else that happens to share its
-     * spelling. The list is the whole enumeration of what can stand in front of
-     * a `T_STRING` that an opening parenthesis follows and still not be that
-     * call, derived by working through the grammar once rather than by adding a
-     * case at a time:
-     *
-     * - `$this->compact('x')` and `$service?->compact('x')` call a method, and
-     *   `Helper::compact('x')` a static one — T_OBJECT_OPERATOR,
-     *   T_NULLSAFE_OBJECT_OPERATOR and T_DOUBLE_COLON.
-     * - `new Compact('x')` calls a constructor. PHP resolves class names
-     *   case-insensitively, so the spelling matches there too — T_NEW.
-     * - `function compact()` *declares* something of that name — T_FUNCTION.
-     *   The earlier reasoning that PHP refuses to redeclare a built-in holds
-     *   only for a bare global function: a method of a nested or anonymous
-     *   class may be named either one freely.
-     *
-     * Two more shapes are settled before this list is consulted, because
-     * neither is decided by the token immediately in front of the name:
-     *
-     * - A qualified reference — `new \Compact('x')`, `new \Vendor\Compact('x')`
-     *   — puts a T_NS_SEPARATOR there instead, so isCallTo() steps over the
-     *   whole qualified name first and asks what precedes *that*. PHP_CodeSniffer
-     *   splits a fully-qualified name back into separators and T_STRINGs, so
-     *   this is the shape every such reference arrives in.
-     * - An attribute name — `#[Compact('x')]` — is not a call at all, and is
-     *   ruled out structurally by the group its token belongs to. An
-     *   attribute's arguments are constant expressions, so no genuine call is
-     *   lost with it.
-     */
-    private const NOT_A_FUNCTION_CALL = [
-        T_DOUBLE_COLON,
-        T_FUNCTION,
-        T_NEW,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_OBJECT_OPERATOR,
     ];
 
     /**
@@ -530,59 +490,42 @@ class UnusedFormalParameterSniff implements Sniff
     /**
      * Whether this token is a call to the named global function.
      *
-     * The name has to be a T_STRING immediately followed by an opening
-     * parenthesis, which is what tells a call from every other place the same
-     * spelling can appear: inside a comment or a string it is not a T_STRING at
-     * all, and as a constant or a property it is followed by something else.
-     * What precedes it settles the rest — see NOT_A_FUNCTION_CALL — so neither a
-     * method, a static method, a constructor nor a declaration of the same name
-     * is mistaken for the global function PHPMD matches.
+     * PHPMD matches `func_get_args()` and `compact()` as a FunctionPostfix —
+     * the global function, not something else that happens to share its
+     * spelling. Deciding that is
+     * {@see FunctionCalls::isGlobalFunctionCall()}'s job, not this sniff's, per
+     * #320: a method, a static method, a constructor however the class name is
+     * qualified, a declaration including `function &compact()`, an attribute
+     * name, another namespace's `Vendor\compact()`, and a bare name a
+     * `use function` import redirects elsewhere are all ruled out there, and a
+     * shape fixed there is fixed for every sniff at once.
      *
-     * Two things are decided before that list is reached. An attribute name is
-     * ruled out by the group it sits in rather than by what precedes it,
-     * because `#[Override, Compact('x')]` puts a comma there — the same token a
-     * genuine `f($a, compact('b'))` does. And a qualified reference is stepped
-     * over whole, together with a return-by-reference `&`, so
-     * `new \Vendor\Compact('x')` is read as the constructor it is and
-     * `function &compact()` as the declaration it is; the name that remains is
-     * the last segment, which is what PHPMD matches `compact` by, leaving
-     * `\func_get_args()` the global function spelled out.
+     * Two things stay here because they are about this rule rather than about
+     * name resolution. Which name is wanted — PHPMD matches these two by name —
+     * and the first-class callable, which names the function without calling
+     * it: no argument list runs, so the body reaches no parameter through it
+     * and neither exemption may apply.
      *
      * The comparison is case-insensitive because PHP resolves function names
      * that way, and PHPMD compares with strcasecmp for the same reason.
      */
     private function isCallTo(File $phpcsFile, int $pointer, string $name): bool
     {
-        $tokens = $phpcsFile->getTokens();
-
-        if (
-            $tokens[$pointer]['code'] !== T_STRING
-            || strtolower($tokens[$pointer]['content']) !== $name
-            || isset($tokens[$pointer]['attribute_opener']) === true
-        ) {
+        if (strtolower($phpcsFile->getTokens()[$pointer]['content']) !== $name) {
             return false;
         }
 
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
-
-        if (
-            $next === false
-            || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS
-            || $this->isFirstClassCallable($phpcsFile, $next) === true
-        ) {
+        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $pointer) === false) {
             return false;
         }
 
-        $previous = $this->beforeName($phpcsFile, $pointer);
-
-        return $previous === false
-            || in_array($tokens[$previous]['code'], self::NOT_A_FUNCTION_CALL, true) === false;
+        return $this->isFirstClassCallable($phpcsFile, $pointer) === false;
     }
 
     /**
-     * Whether these parentheses hold PHP 8.1's first-class callable syntax
-     * rather than an argument list — `func_get_args(...)`, not
-     * `func_get_args()`.
+     * Whether the name at $stackPtr is referenced through PHP 8.1's first-class
+     * callable syntax rather than called with an argument list —
+     * `func_get_args(...)`, not `func_get_args()`.
      *
      * The two are the same tokens up to the opening parenthesis, so a check
      * that stops there reads `f(...)` as a call to `f`. It is not one: it
@@ -597,10 +540,25 @@ class UnusedFormalParameterSniff implements Sniff
      * a real argument — `f(...$arguments)` — puts a variable after the
      * ellipsis instead of the closer, and that *is* a call, so it is left to
      * exempt as before.
+     *
+     * None of the three `=== false` halves can be discriminated by a fixture,
+     * and this says so rather than leaving them to look covered. The first
+     * cannot arrive at all: FunctionCalls::isGlobalFunctionCall() has already
+     * required the next non-empty token to be the opening parenthesis, so the
+     * opener is established before this method is reached. The other two need a
+     * file that ends inside the argument list, and either one made to fall open
+     * reads a token that is not there rather than returning a different verdict.
+     * All three guard the array read beside them.
      */
-    private function isFirstClassCallable(File $phpcsFile, int $opener): bool
+    private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
+        $opener = $phpcsFile->findNext(Tokens::$emptyTokens, $stackPtr + 1, null, true);
+
+        if ($opener === false) {
+            return false;
+        }
+
         $argument = $phpcsFile->findNext(Tokens::$emptyTokens, $opener + 1, null, true);
 
         if ($argument === false || $tokens[$argument]['code'] !== T_ELLIPSIS) {
@@ -610,54 +568,6 @@ class UnusedFormalParameterSniff implements Sniff
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, $argument + 1, null, true);
 
         return $after !== false && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
-    }
-
-    /**
-     * The first significant token in front of a name, with everything that
-     * merely decorates the name stepped over.
-     *
-     * Two decorations sit between a name and the token that says what the name
-     * means, and neither says anything itself:
-     *
-     * - a qualifier. PHP_CodeSniffer hands back a fully-qualified name as
-     *   alternating T_NS_SEPARATOR and T_STRING tokens rather than as one name
-     *   token, so the token in front of the last segment of
-     *   `new \Vendor\Compact()` is a separator and not the `new` that decides
-     *   it. Each `separator, segment` pair is stepped over, and a `namespace\`
-     *   prefix on the same terms — it is one more way of writing the qualifier,
-     *   and the name it qualifies still ends in the segment being matched.
-     * - a return-by-reference `&`. `function &compact()` declares something;
-     *   `$mask & compact('x')` and `$ref = &compact('x')` call something. The
-     *   `&` is common to all three, so it is stepped over and the token behind
-     *   it — `function`, a variable, an `=` — is what settles the difference.
-     *
-     * A `&` cannot appear inside a qualified name, so stepping over the
-     * qualifier first and the `&` after it reaches the same token whichever
-     * decorations are present.
-     */
-    private function beforeName(File $phpcsFile, int $pointer): int|false
-    {
-        $tokens = $phpcsFile->getTokens();
-        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
-
-        while ($previous !== false && $tokens[$previous]['code'] === T_NS_SEPARATOR) {
-            $segment = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
-
-            if (
-                $segment === false
-                || in_array($tokens[$segment]['code'], [T_NAMESPACE, T_STRING], true) === false
-            ) {
-                return $segment;
-            }
-
-            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $segment - 1, null, true);
-        }
-
-        if ($previous !== false && $tokens[$previous]['code'] === T_BITWISE_AND) {
-            return $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
-        }
-
-        return $previous;
     }
 
     /**

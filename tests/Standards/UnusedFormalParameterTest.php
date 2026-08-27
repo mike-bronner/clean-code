@@ -31,12 +31,18 @@
  * #[\Override] at all). Both are rows in the divergence table in
  * docs/phpmd/unusedcode-unusedformalparameter.md.
  *
- * On divergences.php PHPMD reports four of the nine this sniff reports. The
- * five it skips are the three constructs PDepend never surfaces to a
+ * On divergences.php PHPMD reports four of the eleven this sniff reports. The
+ * seven it skips are the three constructs PDepend never surfaces to a
  * MethodAware rule, a child of a class whose nested anonymous class uses a
  * trait — which PDepend attributes to the enclosing class, so PHPMD reads the
- * child as an override — and a first-class callable, which it reads as the
- * call that syntax only resembles.
+ * child as an override — a first-class callable, which it reads as the call
+ * that syntax only resembles, and the two names that merely spell `compact`:
+ * PHPMD matches that one by suffix, so a qualified `Vendor\Package\compact()`
+ * and a bare name a `use function` redirects to it both satisfy it, while this
+ * sniff resolves them through CleanCode\Helpers\FunctionCalls and finds
+ * somebody else's function. Re-measured on a live PHPMD 2.15.0 run over this
+ * exact file while adding those two (#320): four reported, both new lines
+ * silent.
  *
  * That parity is the whole point of #120: the rule exists so that `phpmd` no
  * longer has to run, and a shape this sniff stays silent on where PHPMD speaks
@@ -432,6 +438,8 @@ it('reports the documented divergences, and only those', function (): void {
         ['line' => 124, 'column' => 29, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 158, 'column' => 39, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 168, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 194, 'column' => 34, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 212, 'column' => 33, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
