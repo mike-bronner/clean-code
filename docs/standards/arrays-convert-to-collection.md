@@ -20,6 +20,10 @@ native array-manipulation functions (`array_map()`, `array_filter()`,
 `array_reduce()`) are token-visible — a function-name token followed by an
 open parenthesis, not preceded by `->`, `::`, `new`, or `function` — and each
 has a direct Collection equivalent (`collect()->map()/filter()/reduce()`).
+Its mirror image — the same functions applied to a value that is *already* a
+Collection — is [Collections: Only Use Collection
+Methods](collections-only-use-collection-methods.md), enforced by
+`CleanCode.Collections.OnlyUseCollectionMethods`.
 
 That slice is the custom **`CleanCode.Arrays.ConvertToCollection`** sniff
 ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165)). No existing
@@ -79,10 +83,10 @@ rather than about which API does the manipulating.
 warning this sniff raises against `CleanCode/` and `tests/` one site at a time:
 65 warnings in 37 files, 19 in the shipped sniffs and 46 in the test suite.
 Every one is a native call kept on purpose. The pinned set has since grown with
-the sniffs that landed after that review — 108 warnings in 60 files, 37 in the
-shipped sniffs and 71 in the test suite.
+the sniffs that landed after that review — 127 warnings in 69 files, 39 in the
+shipped sniffs and 88 in the test suite.
 
-The reason is a single package-level fact rather than 108 separate judgements.
+The reason is a single package-level fact rather than 127 separate judgements.
 This package is a PHP_CodeSniffer standard; `illuminate/collections` is absent
 from its `composer.json` by design, and adding it to `require` so a linter could
 call `collect()` would put Laravel's collections in every downstream consumer's

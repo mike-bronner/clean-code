@@ -33,6 +33,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
     'CleanCode.CodeStyle.NoFormatterDirectives',
+    'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.DisallowListAssignmentInCondition',
     'CleanCode.Conditionals.DisallowNestedTernary',
@@ -176,6 +177,7 @@ const SWEPT_WARNING_SNIFFS = [
  */
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.ClearCode.OneThoughtPerLine',
+    'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',
     'CleanCode.Conditionals.OneConditionPerLine',
     'CleanCode.Indentation.LogicalGroupings',

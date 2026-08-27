@@ -941,6 +941,40 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * The sorted, de-duplicated lines carrying a violation the fixer would rewrite.
+ *
+ * The line-level counterpart of violationFixableFlags(), for a partial fixer
+ * whose contract is *which* lines it will act on. A count cannot express that:
+ * a line that loses fixability and another that gains it leave the total
+ * unmoved, so a sniff whose fixer silently relocated would still pass.
+ *
+ * Takes the messages array rather than the file, so a caller can ask the same
+ * question of getWarnings() as of getErrors().
+ *
+ * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+ *
+ * @return array<int, int>
+ */
+function violationFixableLines(array $messages): array
+{
+    $lines = [];
+
+    foreach ($messages as $line => $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                if ($violation['fixable'] === true) {
+                    $lines[$line] = $line;
+                }
+            }
+        }
+    }
+
+    ksort($lines);
+
+    return array_values($lines);
+}
+
+/**
  * Writes source to a file outside the repository and returns its path, for a
  * case that varies one detail of a view or too large a body to keep on disk.
  * Staged paths are purged after each test by tests/Pest.php.

@@ -500,6 +500,17 @@
     -->
 
     <!--
+        Collections: Only Use Collection Methods (#28) —
+        docs/standards/collections-only-use-collection-methods.md.
+
+        Enforced by the custom CleanCode.Collections.OnlyUseCollectionMethods
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above; no third-party rule to wire in. Generic.PHP.ForbiddenFunctions
+        was evaluated and rejected: it forbids the named functions everywhere,
+        including on plain arrays, which this standard allows.
+    -->
+
+    <!--
         Use Statements: Sort Alphabetically (#67) —
         docs/standards/use-statements-sort-alphabetically.md.
 
@@ -735,8 +746,8 @@
         CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
         sniffs and 46 in the suite — is a native call kept on purpose. The
         pinned set has since grown with the sniffs that landed after that
-        review: 108 warnings in 60 files, 37 in the shipped sniffs and 71 in
-        the suite. The reason is one package-level fact rather than 108 separate
+        review: 127 warnings in 69 files, 39 in the shipped sniffs and 88 in
+        the suite. The reason is one package-level fact rather than 127 separate
         judgements: this package is a PHP_CodeSniffer standard,
         illuminate/collections is absent from its composer.json by design, and
         adding it to require so a linter could call collect() would put
