@@ -898,3 +898,31 @@ it('builds its class-like index once per STDIN stream, not once per read', funct
             );
     }
 });
+
+/**
+ * The namespace in force is the block's, not the file's. `compact()` is what
+ * makes that observable: reaching PHP's own compact() exempts the parameter its
+ * argument names, and reaching another namespace's function of the same short
+ * name does not, so namespace-blocks.php gives the identical line opposite
+ * verdicts in an unnamed block and a named one.
+ *
+ * The unnamed block has no unbraced spelling — only a braced block can be
+ * unnamed — so this case cannot be folded into passing.php or divergences.php,
+ * for the same reason namespaces.php exists.
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself: restored from `main`, it
+ * reports nothing in this file. Its hand-rolled copy stepped over the qualifier
+ * and matched the short name exactly as PHPMD does, so it read both lines as
+ * PHP's own compact() and exempted both, losing line 40. The unnamed block's
+ * silence is the other half: it is what stops the fix being "no `namespace\`
+ * name ever exempts".
+ */
+it('resolves a namespace-relative exempting call against the enclosing block', function (): void {
+    $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'namespace-blocks.php');
+
+    expect(violationTuples($file))->toBe([
+        // Only the named block's parameter. The unnamed block's `namespace\compact()`
+        // is PHP's own, so it exempts $unusedA and nothing is reported there.
+        ['line' => 40, 'column' => 50, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+    ])->and($file->getWarnings())->toBe([]);
+});

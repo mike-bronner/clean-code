@@ -466,3 +466,53 @@ it('honours a use-function import that redirects the bare name', function (): vo
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * The third shape only the shared helper resolves, and the one that made the
+ * hand-rolled list wrong rather than merely incomplete: a declaration that
+ * returns by reference. `function &count()` puts T_BITWISE_AND between the
+ * keyword and the name, so a preceder check reading the single token before the
+ * name never sees the T_FUNCTION behind it and reads the declaration as a live
+ * call.
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself rather than a hand-made
+ * approximation of it: restoring
+ * CleanCode/Sniffs/ControlStructures/DisallowCountInLoopExpressionSniff.php
+ * from `main` and running phpcs over this fixture reports line 103 — the
+ * `public function &count(): iterable` declaration — alongside the import case
+ * on line 47. Both are silent once the sniff routes through FunctionCalls, so
+ * this assertion turns on the ampersand being stepped over.
+ */
+it('reads a by-reference declaration as a declaration, not a call', function (): void {
+    $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'same-named-callables.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The namespace in force is the block's, not the file's. namespaced-relative.php
+ * pins the named half with the unbraced syntax, which cannot express an unnamed
+ * namespace at all — only a braced block can be unnamed. namespace-blocks.php
+ * writes the identical loop in both an unnamed block and a named one, so the
+ * verdict has to come from the enclosing block rather than from a fixed reading
+ * of the qualifier.
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself: restored from `main`, it
+ * reports line 32 alone. Line 17 disappears, because the hand-rolled walker read
+ * every `namespace\`-qualified name as never-global and could not tell the
+ * unnamed block from a named one. Line 25 stays silent under both, and is what
+ * stops the fix being "report every namespace\count()".
+ */
+it('resolves a namespace-relative name against the enclosing block, unnamed included', function (): void {
+    $sources = violationSourcesByLine(
+        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespace-blocks.php')->getErrors()
+    );
+
+    expect($sources)->toBe([
+        // `namespace\count()` inside the unnamed block is PHP's own count().
+        17 => [COUNT_IN_LOOP_SNIFF . '.Found'],
+        // The bare control in the named block, which proves that block is read.
+        32 => [COUNT_IN_LOOP_SNIFF . '.Found'],
+    ]);
+});

@@ -91,3 +91,26 @@ class count
 while ((new count($items))->hasMore()) {
     break;
 }
+
+// Declaring a method *by reference* is still a declaration, and the ampersand
+// is what makes it a different shape from the one above: `&` sits between
+// `function` and the name, so a preceder check that reads only the token
+// immediately before the name finds T_BITWISE_AND, matches nothing in its list,
+// and reads the declaration as a live call. The shared helper steps over the
+// ampersand and finds the T_FUNCTION behind it. Reverting this sniff to its
+// pre-#320 preceder list reports this loop.
+while ((new class {
+    public function &count(): iterable
+    {
+        static $rows = [];
+
+        return $rows;
+    }
+
+    public function hasRows(): bool
+    {
+        return false;
+    }
+})->hasRows()) {
+    break;
+}

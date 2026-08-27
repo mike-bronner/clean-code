@@ -629,3 +629,52 @@ it('binds a use-function import to its own namespace block only', function (): v
         ],
     ]);
 });
+
+/**
+ * A declaration that returns by reference is not a call to the function it
+ * declares. `function &get_class()` puts T_BITWISE_AND between the keyword and
+ * the name, so a preceder check reading the single token before the name never
+ * reaches the T_FUNCTION behind it — the gap that made the hand-rolled
+ * NOT_A_GLOBAL_CALL list wrong rather than merely incomplete, and one the
+ * shared helper closes (#320).
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself rather than an
+ * approximation of it: restoring
+ * CleanCode/Sniffs/Classes/DisallowTypeIntrospectionSniff.php from `main` and
+ * running phpcs over passing.php reports line 483 — the
+ * `public function &get_class(): string` declaration — and reports nothing else
+ * in the file, so this assertion turns on the ampersand being stepped over and
+ * on nothing the rest of the fixture already pins.
+ */
+it('reads a by-reference declaration as a declaration, not a call', function (): void {
+    $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'passing.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * The namespace in force is the block's, not the file's. Both branches in
+ * namespace-blocks.php spell `namespace\get_class($value)` identically and only
+ * the enclosing block differs, so the verdict has to come from that block. The
+ * unnamed block has no unbraced spelling — only a braced block can be unnamed —
+ * so this case cannot be folded into a fixture declaring one namespace the
+ * ordinary way.
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself: restored from `main`, it
+ * reports line 56 alone. Line 22 disappears, because the hand-rolled walker read
+ * every `namespace\`-qualified name as never-global and could not tell the
+ * unnamed block from a named one. The named block's identical line stays silent
+ * under both, and is what stops the fix being "report every
+ * namespace\get_class()".
+ */
+it('resolves a namespace-relative name against the enclosing block, unnamed included', function (): void {
+    $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'namespace-blocks.php');
+
+    expect(violationTuples($file))->toBe([
+        // `namespace\get_class()` inside the unnamed block is PHP's own.
+        ['line' => 22, 'column' => 27, 'source' => TYPE_INTROSPECTION_FUNCTION],
+        // The bare control in the named block, which proves that block is read.
+        ['line' => 56, 'column' => 17, 'source' => TYPE_INTROSPECTION_FUNCTION],
+    ])->and($file->getWarnings())->toBe([]);
+});

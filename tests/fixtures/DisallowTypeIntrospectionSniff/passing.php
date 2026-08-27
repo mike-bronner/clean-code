@@ -459,3 +459,42 @@ final class gettype
     {
     }
 }
+
+/**
+ * A declaration that returns by reference is still a declaration. The `&`
+ * between the keyword and the name is the whole of the difference: a preceder
+ * check reading the single token before the name finds T_BITWISE_AND and never
+ * reaches the T_FUNCTION behind it, so it reads the declaration as a live call.
+ *
+ * The declaration has to sit inside a branch decision to pin anything, because
+ * a name that decides no branch is dropped before the call check is ever asked.
+ * An anonymous class expression in an `if` condition is how a declaration
+ * reaches one, the same way same-named-callables.php reaches a loop condition.
+ *
+ * `get_class` rather than the `is_string` the issue named: `is_string` is not
+ * in INTROSPECTION_FUNCTIONS, so the sniff drops that name one check earlier
+ * and the fixture would pass whatever the call check answered.
+ */
+final class ReferenceReturningDeclarer
+{
+    public function byReferenceReturningDeclaration(object $value): string
+    {
+        if ((new class {
+            public function &get_class(): string
+            {
+                static $name = 'thing';
+
+                return $name;
+            }
+
+            public function matches(): bool
+            {
+                return false;
+            }
+        })->matches()) {
+            return 'thing';
+        }
+
+        return 'other';
+    }
+}
