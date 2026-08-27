@@ -1565,3 +1565,44 @@ function analyzeFileset(array $sniffCodes, string $directory): array
 
     return $files;
 }
+
+/**
+ * Loads the shim twice in a fresh interpreter and reports what it saw.
+ *
+ * Diagnostics are collected rather than displayed: PHP writes a warning to
+ * stdout under the CLI's default display_errors, where it would land in the
+ * middle of the JSON this reads back.
+ *
+ * @return array{diagnostics: array<int, string>, first: array<string, mixed>, second: array<string, mixed>}
+ */
+function backportedTokensDoubleLoad(): array
+{
+    $shim = var_export(cleanCodeRoot() . '/CleanCode/Support/BackportedTokens.php', true);
+    $script = <<<PHP
+    \$diagnostics = [];
+    set_error_handler(static function (int \$number, string \$message) use (&\$diagnostics): bool {
+        \$diagnostics[] = \$message;
+
+        return true;
+    });
+    require {$shim};
+    \$first = ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE];
+    require {$shim};
+    echo json_encode([
+        'diagnostics' => \$diagnostics,
+        'first' => \$first,
+        'second' => ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE],
+    ]);
+    PHP;
+
+    [$stdout, $stderr] = runOutsidePackage(
+        implode(' ', array_map('escapeshellarg', [PHP_BINARY, '-d', 'error_reporting=-1', '-r', $script]))
+    );
+    $decoded = json_decode($stdout, true);
+
+    if (is_array($decoded) === false) {
+        throw new RuntimeException("the shim subprocess produced no JSON; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    return $decoded;
+}

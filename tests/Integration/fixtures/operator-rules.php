@@ -31,3 +31,13 @@ if (
 ) {
     $done = true;
 }
+
+$total = $first -
+    $second;
+
+if (
+    $first +
+    $second > $total
+) {
+    $reached = true;
+}

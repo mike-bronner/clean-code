@@ -109,6 +109,26 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
         // Concatenation, the one binary operator absent from those unions.
         T_STRING_CONCAT,
+
+        // PHP 8.5's two new tokens. PHP_CodeSniffer 3.13.6 predates both, so
+        // neither reaches the unions above however well it fits one of them —
+        // Tokens::$castTokens has no T_VOID_CAST and Tokens::$operators no
+        // T_PIPE. CleanCode/Support/BackportedTokens.php records how the pair
+        // was measured; each is admitted on its own evidence:
+        //
+        // - `(void)` is a cast, and a cast takes an expression, so a
+        //   parenthesis after one opens a group.
+        //   `<?php (void) ($book)->author->name;` passes `php -l` on PHP 8.5,
+        //   and PHP_CodeSniffer tokenises it T_VOID_CAST, T_OPEN_PARENTHESIS,
+        //   T_VARIABLE — the grouped-root shape this sniff reports. Refusing it
+        //   would lose that report on 8.5 and keep it on 8.4.
+        // - `|>` is a binary operator whose right operand is an expression
+        //   evaluating to a callable. `<?php $r = $y |> ($this->resolver)->handler;`
+        //   passes `php -l` on PHP 8.5 and tokenises T_PIPE,
+        //   T_OPEN_PARENTHESIS, T_VARIABLE, so the parenthesis groups exactly
+        //   as it does after `.` above.
+        T_VOID_CAST,
+        T_PIPE,
     ];
 
     /**

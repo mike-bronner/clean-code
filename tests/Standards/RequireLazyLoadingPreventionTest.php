@@ -85,16 +85,16 @@ it('accepts the call anywhere in the class body', function (): void {
 
 /**
  * A provider with a real `boot()` that never enables the check earns
- * exactly one warning, reported on the class declaration (line 3) rather
- * than on any single statement — the defect is the absence of a call, so
- * it has no line of its own.
+ * exactly one warning, reported at the start of the class declaration
+ * (line 3, column 1) rather than on any single statement — the defect is the
+ * absence of a call, so it has no line of its own.
  */
 it('flags a provider without the safety check on its class declaration', function (): void {
     $file = analyzeFixture(LAZY_LOADING, 'failing.php');
 
     expect($file->getErrors())->toBe([])
-        ->and(violationSourcesByLine($file->getWarnings()))->toBe([
-            3 => [LAZY_LOADING_WARNING],
+        ->and(warningTuples($file))->toBe([
+            ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
         ]);
 });
 
@@ -127,8 +127,8 @@ it('names the provider class in the warning message', function (): void {
 it('rejects shapes that only mention the method', function (): void {
     $file = analyzeFixture(LAZY_LOADING, 'near-miss.php');
 
-    expect(violationSourcesByLine($file->getWarnings()))->toBe([
-        3 => [LAZY_LOADING_WARNING],
+    expect(warningTuples($file))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
     ]);
 });
 
@@ -141,8 +141,8 @@ it('rejects shapes that only mention the method', function (): void {
 it('scopes the search to the watched class body', function (): void {
     $file = analyzeFixture(LAZY_LOADING, 'scoped.php');
 
-    expect(violationSourcesByLine($file->getWarnings()))->toBe([
-        3 => [LAZY_LOADING_WARNING],
+    expect(warningTuples($file))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
     ]);
 });
 
@@ -169,8 +169,8 @@ it('exposes a configurable watched-provider list', function (): void {
         }
     );
 
-    expect(violationSourcesByLine($configured->getWarnings()))->toBe([
-        3 => [LAZY_LOADING_WARNING],
+    expect(warningTuples($configured))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
     ]);
 });
 
@@ -192,8 +192,8 @@ it('exposes a configurable watched-provider list', function (): void {
 it('handles a truncated call without falling over', function (): void {
     $file = analyzeFixture(LAZY_LOADING, 'truncated.php');
 
-    expect(violationSourcesByLine($file->getWarnings()))->toBe([
-        3 => [LAZY_LOADING_WARNING],
+    expect(warningTuples($file))->toBe([
+        ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
     ]);
 });
 

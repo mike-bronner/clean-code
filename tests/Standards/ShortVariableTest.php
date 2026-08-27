@@ -139,13 +139,17 @@ it('passes a name exactly at the minimum and fails one character shorter', funct
     $atMinimum = analyzeFixture(
         SHORT_VARIABLE,
         'passing.php',
-        static fn (object $sniff): mixed => $sniff->minimum = 3
+        static function (object $sniff): void {
+            $sniff->minimum = 3;
+        }
     );
 
     $oneAbove = analyzeFixture(
         SHORT_VARIABLE,
         'passing.php',
-        static fn (object $sniff): mixed => $sniff->minimum = 4
+        static function (object $sniff): void {
+            $sniff->minimum = 4;
+        }
     );
 
     expect($atMinimum->getErrors())->toBe([])
@@ -165,7 +169,9 @@ it('measures the name in bytes, as PHPMD does', function (): void {
     $raised = analyzeFixture(
         SHORT_VARIABLE,
         'passing.php',
-        static fn (object $sniff): mixed => $sniff->minimum = 4
+        static function (object $sniff): void {
+            $sniff->minimum = 4;
+        }
     );
 
     expect(array_keys($atDefault->getErrors()))->not->toContain(29)
@@ -184,7 +190,9 @@ it('never reports a name in the exceptions list', function (): void {
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'failing.php',
-        static fn (object $sniff): mixed => $sniff->exceptions = 'ip'
+        static function (object $sniff): void {
+            $sniff->exceptions = 'ip';
+        }
     );
 
     expect(array_keys($file->getErrors()))
@@ -204,7 +212,9 @@ it('ignores an exceptions entry written with its sigil', function (): void {
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'failing.php',
-        static fn (object $sniff): mixed => $sniff->exceptions = '$ip'
+        static function (object $sniff): void {
+            $sniff->exceptions = '$ip';
+        }
     );
 
     expect(array_keys($file->getErrors()))->toContain(36, 61);
@@ -224,7 +234,9 @@ it('does not trim the exceptions list, matching PHPMD', function (): void {
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'failing.php',
-        static fn (object $sniff): mixed => $sniff->exceptions = 'ip, tf'
+        static function (object $sniff): void {
+            $sniff->exceptions = 'ip, tf';
+        }
     );
 
     expect(array_keys($file->getErrors()))
@@ -242,7 +254,9 @@ it('matches exceptions case-sensitively, matching PHPMD', function (): void {
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'failing.php',
-        static fn (object $sniff): mixed => $sniff->exceptions = 'IP'
+        static function (object $sniff): void {
+            $sniff->exceptions = 'IP';
+        }
     );
 
     expect(array_keys($file->getErrors()))->toContain(36, 61);
@@ -282,7 +296,9 @@ it('falls back to the default minimum when the configured one is unusable', func
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'failing.php',
-        static fn (object $sniff): mixed => $sniff->minimum = $configured
+        static function (object $sniff) use ($configured): void {
+            $sniff->minimum = $configured;
+        }
     );
 
     expect($file->getErrorCount())->toBe(25);
@@ -304,7 +320,9 @@ it('honours a numeric string threshold from a ruleset', function (): void {
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'passing.php',
-        static fn (object $sniff): mixed => $sniff->minimum = '4'
+        static function (object $sniff): void {
+            $sniff->minimum = '4';
+        }
     );
 
     expect(array_keys($file->getErrors()))->toContain(25, 29);
@@ -375,7 +393,9 @@ it('never reports the implicit receiver, however it is written', function (): vo
     $file = analyzeFixture(
         SHORT_VARIABLE,
         'implicit-receiver.php',
-        static fn (object $sniff): mixed => $sniff->minimum = 5
+        static function (object $sniff): void {
+            $sniff->minimum = 5;
+        }
     );
 
     expect(violationTuples($file))->toBe([
