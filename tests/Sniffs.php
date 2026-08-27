@@ -127,6 +127,16 @@ const SWEPT_SNIFFS = [
  * would report nothing under the sweep. tests/Standards/NoInternetTraversalTest.php
  * carries the whole floor, fixtures staged under a real feature-suite directory,
  * plus the same shipped-binary run in both directions.
+ *
+ * CleanCode.Routes.NonInvokableSpecialAction is the fourth of that shape: it
+ * scopes itself by path from its own routeFilePatterns property, the sweep
+ * processes each fixture where it lives under tests/, and the sweep configures
+ * nothing — so its failing fixture would report nothing here and the floor
+ * would pass vacuously. tests/Standards/NonInvokableSpecialActionTest.php
+ * applies the same floor instead, against copies staged into a routes/
+ * directory outside the repository, and pins the gate itself from four
+ * different paths. It also carries the shipped-install smoke test the sweep's
+ * absence would otherwise cost, the way the other path-scoped sniffs do.
  */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',

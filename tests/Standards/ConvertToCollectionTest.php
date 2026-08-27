@@ -170,6 +170,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Routes/ApiControllerNamespaceSniff.php' => [
         ['line' => 171, 'column' => 20],
     ],
+    'CleanCode/Sniffs/Routes/NonInvokableSpecialActionSniff.php' => [
+        ['line' => 411, 'column' => 22],
+        ['line' => 423, 'column' => 13],
+    ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
     ],
@@ -192,7 +196,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 147, 'column' => 27],
+        ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
