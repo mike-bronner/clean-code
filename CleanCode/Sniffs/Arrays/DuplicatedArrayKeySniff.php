@@ -46,6 +46,15 @@ use PHP_CodeSniffer\Util\Tokens;
 class DuplicatedArrayKeySniff implements Sniff
 {
     /**
+     * 2**63 and 2**64 as floats, the two bounds floatValue() folds a
+     * non-representable float key against. Both are exact in a double —
+     * a power of two always is — so neither bound is approximate.
+     */
+    private const TWO_POW_63 = 9223372036854775808.0;
+
+    private const TWO_POW_64 = 18446744073709551616.0;
+
+    /**
      * Constructs that can nest inside an array element, mapped to the token
      * index holding their closer. The element walk jumps over each one whole,
      * so a comma or a `=>` belonging to a nested construct is never mistaken
@@ -222,12 +231,23 @@ class DuplicatedArrayKeySniff implements Sniff
             return null;
         }
 
-        $value = $this->literalValue($tokens[$isNegated === true ? $keyPtrs[1] : $keyPtrs[0]]);
+        $token = $tokens[$isNegated === true ? $keyPtrs[1] : $keyPtrs[0]];
 
-        // Only a number can be negated into a key, so a minus in front of
-        // anything else means the key is not a literal after all.
-        if ($isNegated === true) {
-            $value = is_int($value) === true ? -$value : null;
+        if ($isNegated === true && $token['code'] === T_DNUMBER) {
+            // A negated float carries its sign into the resolution instead of
+            // being negated after it. The wrap can land on PHP_INT_MIN, whose
+            // negation is not an integer at all, and coercing that back to a
+            // key performs the very out-of-range cast floatValue() exists to
+            // avoid — which aborts the whole file on 8.4 and 8.5 alike.
+            $value = $this->floatValue('-' . $token['content']);
+        } else {
+            $value = $this->literalValue($token);
+
+            // Only a number can be negated into a key, so a minus in front of
+            // anything else means the key is not a literal after all.
+            if ($isNegated === true) {
+                $value = is_int($value) === true ? -$value : null;
+            }
         }
 
         return $value === null ? null : array_key_first([$value => null]);
@@ -253,25 +273,62 @@ class DuplicatedArrayKeySniff implements Sniff
     }
 
     /**
-     * The value of an integer literal, in any base PHP accepts.
+     * The value of an integer literal, in any base PHP accepts, or null when
+     * its digits are not legal in the base it names.
      *
      * No overflow case is needed: PHP tokenises a numeric literal too large for
      * the integer range as a float whatever its base — `9223372036854775808`,
      * `0xFFFFFFFFFFFFFFFFF`, and their octal and binary counterparts all arrive
-     * as T_DNUMBER — so a T_LNUMBER always fits, and floatValue() handles the
-     * rest.
+     * as T_DNUMBER — so a well-formed T_LNUMBER always fits, and floatValue()
+     * takes the rest. It resolves the decimal ones only: see its docblock for
+     * why a literal that names its digits in another base is left unresolved
+     * once it leaves the integer range.
+     *
+     * A T_LNUMBER is not, however, the tokeniser's statement that the digits
+     * are legal in that base. token_get_all() is the lexer alone, and only full
+     * compilation rejects a malformed literal: `089` is a parse error to `php
+     * -l` — "Invalid numeric literal" — yet it arrives here as one T_LNUMBER
+     * with the content `089`, because a file PHP_CodeSniffer reads never has to
+     * compile. Handing those digits to octdec() raises PHP's "Invalid
+     * characters passed for attempted conversion", PHP_CodeSniffer's Runner
+     * rethrows any diagnostic raised inside a sniff, and the whole file is
+     * abandoned with Internal.Exception — the same abort floatValue() exists to
+     * avoid, from a different direction. So the digits are checked against the
+     * base first and an illegal one declines the key, which costs nothing: the
+     * literal names no slot in any array PHP can run.
+     *
+     * The check covers every base rather than the older octal spelling alone,
+     * which is the only one reachable today: `0b12` and `0o89` are lexed as two
+     * tokens apiece, and two tokens are not a key this sniff resolves. Reaching
+     * them turns on where the lexer draws a token boundary for source it will
+     * not compile, which is not a contract PHP publishes.
+     *
+     * Past the check the conversions are exact. hexdec(), bindec() and octdec()
+     * answer an int whenever legal digits fit the integer range, and the
+     * tokeniser's choice of T_LNUMBER over T_DNUMBER says they do.
      */
-    private function integerValue(string $literal): int
+    private function integerValue(string $literal): ?int
     {
         $digits = str_replace('_', '', $literal);
         $prefix = strtolower(substr($digits, 0, 2));
 
-        return (int) match (true) {
-            $prefix === '0x' => hexdec(substr($digits, 2)),
-            $prefix === '0b' => bindec(substr($digits, 2)),
-            $prefix === '0o' => octdec(substr($digits, 2)),
-            strlen($digits) > 1 && $digits[0] === '0' => octdec(substr($digits, 1)),
-            default => $digits,
+        [$body, $base, $legalDigits] = match (true) {
+            $prefix === '0x' => [substr($digits, 2), 16, '0-9A-Fa-f'],
+            $prefix === '0b' => [substr($digits, 2), 2, '01'],
+            $prefix === '0o' => [substr($digits, 2), 8, '0-7'],
+            strlen($digits) > 1 && $digits[0] === '0' => [substr($digits, 1), 8, '0-7'],
+            default => [$digits, 10, '0-9'],
+        };
+
+        if (preg_match('/^[' . $legalDigits . ']+$/', $body) !== 1) {
+            return null;
+        }
+
+        return (int) match ($base) {
+            16 => hexdec($body),
+            8 => octdec($body),
+            2 => bindec($body),
+            default => $body,
         };
     }
 
@@ -282,12 +339,93 @@ class DuplicatedArrayKeySniff implements Sniff
      * A literal too large to be finite (`1e400`) has no defined integer form,
      * so it is left unresolved rather than folded onto whatever `(int) INF`
      * happens to produce.
+     *
+     * A literal that names its digits in another base is left unresolved for a
+     * different reason: nothing available here answers the value PHP gives it.
+     * Such a literal only arrives here once it leaves the integer range, since
+     * integerValue() takes every base below it, and the cast alone is wrong at
+     * that point — it stops at the first character no decimal digit can be, so
+     * `(float) '0x8000000000000000'` is 0.0 where PHP's key is
+     * -9223372036854775808, and the older octal spelling is worse still:
+     * `(float) '01000000000000000000000'` is 1.0E+21 where the literal is
+     * 2**63. The obvious repair is to reuse integerValue()'s hexdec(), bindec()
+     * and octdec(), and it does not hold: PHP's lexer rounds an overflowing
+     * non-decimal literal differently from those functions, often by the one
+     * unit in the last place that decides the key. Measured on 8.5.8 over 400
+     * random overflowing literals per base, they disagreed with the literal on
+     * 40 hexadecimal, 101 octal and 205 binary. The plainest case is 2**63
+     * written in binary: PHP evaluates `0b1` followed by 63 zeros as
+     * 9223372036854774784, which is inside the integer range and needs no wrap
+     * at all, while bindec() of the same digits is 9223372036854775808, which
+     * wraps onto PHP_INT_MIN. So these are declined rather than guessed — a key
+     * that is merely close is a duplicate reported against a slot PHP does not
+     * use. The decimal literals below are not affected: over 1000 random ones,
+     * plain and scientific, the cast agreed with the interpreter every time.
+     *
+     * A finite literal outside the integer range does have a defined form —
+     * PHP wraps it modulo 2**64 and uses the result as the key, which is why
+     * `[9223372036854775808 => 'a', 9223372036854775808 => 'b']` is a genuine
+     * duplicate on key -9223372036854775808. The cast that computes it is the
+     * problem: PHP 8.5 raises `The float ... is not representable as an int,
+     * cast occurred` as an E_WARNING, PHP_CodeSniffer turns every warning
+     * raised inside a sniff into an exception, and the run aborts with
+     * Internal.Exception instead of reporting the duplicate. Suppressing the
+     * warning is not available either — the master ruleset carries
+     * Generic.PHP.NoSilencedErrors, and PHP_CodeSniffer's handler ignores
+     * error_reporting() in any case.
+     *
+     * So the wrap is done here, in arithmetic that raises nothing, and only for
+     * the literals that would warn: anything already inside the integer range
+     * is cast directly, exactly as before. The three steps are PHP's own
+     * zend_dval_to_lval() — take the value modulo 2**64, lift a negative
+     * remainder into [0, 2**64), then fold the top half down into the signed
+     * range — and they reproduce the cast rather than approximate it, which is
+     * asserted against the interpreter itself in DuplicatedArrayKeyTest.
      */
     private function floatValue(string $literal): ?int
     {
-        $value = (float) str_replace('_', '', $literal);
+        $digits = str_replace('_', '', $literal);
 
-        return is_finite($value) === true ? (int) $value : null;
+        if ($this->isNonDecimal(ltrim($digits, '-')) === true) {
+            return null;
+        }
+
+        $value = (float) $digits;
+
+        if (is_finite($value) === false) {
+            return null;
+        }
+
+        if ($value >= -self::TWO_POW_63 && $value < self::TWO_POW_63) {
+            return (int) $value;
+        }
+
+        $wrapped = fmod($value, self::TWO_POW_64);
+
+        if ($wrapped < 0.0) {
+            $wrapped += self::TWO_POW_64;
+        }
+
+        if ($wrapped >= self::TWO_POW_63) {
+            $wrapped -= self::TWO_POW_64;
+        }
+
+        return (int) $wrapped;
+    }
+
+    /**
+     * Whether the literal names its digits in a base other than ten.
+     *
+     * `0x`, `0b` and `0o` say so in the literal. A leading zero in front of
+     * octal digits alone is PHP's older spelling of the same thing, and it is
+     * recognised by those digits rather than by the zero, because a decimal
+     * float can start with a zero too — `0.5` and `0e5` are decimal, and the
+     * period and the exponent are what say so. The underscores are already out
+     * by the time this is asked, and a leading minus with them.
+     */
+    private function isNonDecimal(string $digits): bool
+    {
+        return preg_match('/^0([xXbBoO]|[0-7]+$)/', $digits) === 1;
     }
 
     /**

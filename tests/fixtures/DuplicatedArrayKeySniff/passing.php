@@ -90,3 +90,64 @@ $infinite = [
     1e400 => 'a',
     1e400 => 'b',
 ];
+
+// Positive: an integer literal that leaves the integer range while naming its
+// digits in another base. Each pair below is a real duplicate — PHP stores both
+// entries under one key — and the sniff declines all of them, because no
+// conversion available to it answers the key PHP uses: the cast reads
+// 0x8000000000000000 as 0.0 and 01000000000000000000000 as 1.0E+21, and
+// hexdec(), bindec() and octdec() round these differently from PHP's own
+// lexer. Silence is the deliberate answer; a key that is merely close would be
+// a report against a slot PHP never used.
+$hexadecimalOverflow = [
+    0x8000000000000000 => 'a',
+    0x8000000000000000 => 'b',
+    -0x8000000000000000 => 'c',
+    -0x8000000000000000 => 'd',
+];
+
+// 0b1 followed by 63 zeros is the case that rules bindec() out on its own: PHP
+// evaluates it as 9223372036854774784, which is inside the integer range,
+// while bindec() of the same digits is 9223372036854775808, which wraps onto
+// PHP_INT_MIN.
+$binaryOverflow = [
+    0b1000000000000000000000000000000000000000000000000000000000000000 => 'a',
+    0b1000000000000000000000000000000000000000000000000000000000000000 => 'b',
+    -0b1000000000000000000000000000000000000000000000000000000000000000 => 'c',
+    -0b1000000000000000000000000000000000000000000000000000000000000000 => 'd',
+];
+
+$octalOverflow = [
+    0o1000000000000000000000 => 'a',
+    0o1000000000000000000000 => 'b',
+    -0o1000000000000000000000 => 'c',
+    -0o1000000000000000000000 => 'd',
+];
+
+// The older octal spelling is the one the bare cast gets wrong quietly rather
+// than loudly: it reads these digits as the decimal 1.0E+21 instead of 2**63.
+$legacyOctalOverflow = [
+    01000000000000000000000 => 'a',
+    01000000000000000000000 => 'b',
+    -01000000000000000000000 => 'c',
+    -01000000000000000000000 => 'd',
+];
+
+// Positive: a literal PHP's own lexer hands over as one integer token although
+// its digits are illegal in the base it names. `089` is a parse error to
+// `php -l` — "Invalid numeric literal", so this file never compiles — but
+// token_get_all() is the lexer alone and PHP_CodeSniffer reads files that do
+// not compile, so the token arrives all the same. Each pair below repeats one
+// literal, and there is still nothing to report: the entries name no slot in
+// any array PHP can run. Resolving the digits anyway is what raises "Invalid
+// characters passed for attempted conversion" and abandons the whole file with
+// Internal.Exception, which is the other half of what this fixture's silence
+// asserts and is pinned separately through the shipped binary.
+$malformedOctal = [
+    089 => 'a',
+    089 => 'b',
+    0189 => 'c',
+    0189 => 'd',
+    08 => 'e',
+    08 => 'f',
+];
