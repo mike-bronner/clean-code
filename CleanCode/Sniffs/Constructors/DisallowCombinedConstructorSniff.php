@@ -1829,10 +1829,16 @@ class DisallowCombinedConstructorSniff implements Sniff
      * The walk carries the `?`s it has opened on a stack rather than counting
      * them, so the `:` closing each one is recorded as the walk reaches it and
      * every level of a nested chain is settled by the first walk to cross it
-     * ({@see self::$ternaryElse}). A level already settled is jumped whole, so
-     * a walk started at an outer `?` after an inner one was settled steps over
-     * the inner ternary rather than through it. Without both, each level of a
-     * nested then-side chain walks every level under it to reach its own `:`.
+     * ({@see self::$ternaryElse}). Without that, each level of a nested
+     * then-side chain walks every level under it to reach its own `:`, which is
+     * quadratic in the chain's depth.
+     *
+     * A level already settled is read through rather than jumped, because no
+     * walk crosses one: process() reads a body left to right, so a walk starts
+     * at the outermost `?` its region has not settled yet and every level under
+     * it is answered from the cache above without walking at all. The
+     * linearity tests in tests/Standards/DisallowCombinedConstructorTest.php
+     * pin that — one walk and n-1 cache hits over a chain of n levels.
      *
      * @return array<int, int>
      */
