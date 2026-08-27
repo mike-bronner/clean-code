@@ -52,16 +52,22 @@ class OneIdeaPerStatement
             $first .= $row;
         }
 
-        // A braceless control-structure body. Despite the name of the sniff's
-        // FoundInControlStructure code, a single assignment following a
-        // braceless header is NOT reported: the code is chosen by whether the
-        // assignment sits inside the header's own parentheses, and this one
-        // sits after the closing parenthesis.
-        if ($limit > 0) $braceless = 1;
+        // An assignment in a control-structure body. Silent for the ordinary
+        // reason — it is the first thing in its own statement — and named here
+        // because the sniff's FoundInControlStructure code invites the opposite
+        // reading. That code is picked only after a report is decided, from the
+        // parentheses the assignment sits inside, so it names a header and
+        // never a body. The body is braced because rules.xml wires
+        // Generic.ControlStructures.InlineControlStructure: the inline spelling
+        // is silent from this sniff for the same reason and an error of its own
+        // there.
+        if ($limit > 0) {
+            $guarded = 1;
+        }
 
         // A condition carrying no assignment at all.
         if ($first === $second) {
-            $braceless = 2;
+            $guarded = 2;
         }
 
         // An array element and a property target, each one idea, each with the
@@ -75,6 +81,6 @@ class OneIdeaPerStatement
         };
         $arrow = static fn (int $size = 4): int => $size;
 
-        return $first . $second . $total . $count . $braceless . $closure(1) . $arrow(1) . $mode;
+        return $first . $second . $total . $count . $guarded . $closure(1) . $arrow(1) . $mode;
     }
 }

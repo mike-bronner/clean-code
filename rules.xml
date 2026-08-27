@@ -3103,12 +3103,16 @@
         The sniff reports under two codes and both are kept. Found is the
         chained-assignment shape this standard is here for. FoundInControlStructure
         is the same "assignment is not the first thing on the line" finding
-        raised from inside an if/elseif/switch/case/for/match condition — despite
-        the name it says nothing about braceless bodies, which the sniff does not
-        report at all. That code overlaps the rule above on purpose: an assignment
-        written inside a condition is reported once by each sniff, which is the
-        existing behaviour of every pair of rules here that agree, and narrowing
-        either one would take a code the other does not carry offline.
+        raised from inside an if/elseif/switch/case/for/match condition. The code
+        is picked from the parentheses the assignment sits inside, after the
+        report itself is decided, so it names a header and never a body — an
+        assignment in a control structure's body is the first thing in its own
+        statement and is silent, which
+        tests/fixtures/DisallowMultipleAssignmentsSniff/passing.php pins. That
+        code overlaps the rule above on purpose: an assignment written inside a
+        condition is reported once by each sniff, which is the existing
+        behaviour of every pair of rules here that agree, and narrowing either
+        one would take a code the other does not carry offline.
 
         No fixer, matching the rule above — splitting `$a = $b = $c;` into two
         statements has to decide the order the names are bound in, and where the
