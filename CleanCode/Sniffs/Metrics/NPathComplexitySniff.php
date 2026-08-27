@@ -222,11 +222,45 @@ class NPathComplexitySniff implements Sniff
     private array $branchEnds = [];
 
     /**
+     * How often expressionEnd() answered from what it had already recorded, and
+     * how often it ran the forward scan that records it.
+     *
+     * The scan is O(n) in what remains of the statement, so one scan per link
+     * costs a chain its own square; recording every position the scan steps
+     * over turns the whole chain into one scan. That claim has no observable
+     * but these counts or the elapsed time they replace, which a shared CI
+     * runner's jitter can carry across any fixed budget with no code change
+     * (#321, #354).
+     *
+     * Each increment sits inside the branch it describes — the memo hit inside
+     * the isset() guard, the scan immediately after it — so a memo that stopped
+     * working cannot leave the counts intact. The totals are cumulative for the
+     * life of the sniff instance and are read as a delta around one run.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'expressionEnd.scans' => 0,
+        'expressionEnd.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_FUNCTION];
+    }
+
+    /**
+     * How often the else-branch terminator was scanned for and how often it was
+     * read back, cumulative for the life of this instance. See $scanCounts.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -1159,11 +1193,14 @@ class NPathComplexitySniff implements Sniff
     private function expressionEnd(File $phpcsFile, array $tokens, int $elsePtr, int $end): int
     {
         if (isset($this->branchEnds[$elsePtr]) === true) {
+            $this->scanCounts['expressionEnd.hits']++;
+
             // A terminator at or past the caller's limit is out of its reach,
             // and the scan below would have run out at $end instead.
             return min($this->branchEnds[$elsePtr], $end);
         }
 
+        $this->scanCounts['expressionEnd.scans']++;
         $ptr = $elsePtr;
         $stepped = [];
 

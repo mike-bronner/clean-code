@@ -192,11 +192,46 @@ class MappingArrayCandidateSniff implements Sniff
     ];
 
     /**
+     * How often the brace-less body check refused a body before its end was
+     * asked for, and how often findEndOfStatement() was called from that path.
+     *
+     * Reading the body's first token before asking for its end is the whole of
+     * the reorder that made this walk linear: findEndOfStatement()'s own search
+     * is unbounded, so one call per nesting level costs the file its own square.
+     * The two counters move in opposite directions, which is what states the
+     * reorder directly — the scale test in
+     * tests/Standards/MappingArrayCandidateTest.php used to state it as elapsed
+     * seconds against a fixed budget, which a shared CI runner's jitter can
+     * cross with no code change (#321, #354).
+     *
+     * Each increment sits inside the branch it describes. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises it — and are read as a delta around one run.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'braceless.headRefusals' => 0,
+        'braceless.endScans' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_IF];
+    }
+
+    /**
+     * How often each half of the body-token-first reorder fired, cumulative for
+     * the life of this instance. See $scanCounts.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -444,10 +479,17 @@ class MappingArrayCandidateSniff implements Sniff
         // on the statement's first real token, never the whitespace before it.
         $bodyStart = $phpcsFile->findNext(Tokens::$emptyTokens, $afterCondition, null, true);
 
-        if ($bodyStart === false || $this->isStatementHead($tokens[$bodyStart]['code']) === false) {
+        if ($bodyStart === false) {
             return null;
         }
 
+        if ($this->isStatementHead($tokens[$bodyStart]['code']) === false) {
+            $this->scanCounts['braceless.headRefusals']++;
+
+            return null;
+        }
+
+        $this->scanCounts['braceless.endScans']++;
         $bodyEnd = $phpcsFile->findEndOfStatement($bodyStart);
 
         if ($bodyEnd <= $bodyStart) {

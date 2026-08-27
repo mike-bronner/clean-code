@@ -206,32 +206,70 @@ it('terminates silently on a truncated chain', function (string $fixture): void 
  * for correctness by the nested pair in shapes.php instead. A brace-less body
  * opens no scope, so nothing caps it and the walk is the only thing that can.
  *
- * An asymptotic fix has no observable but time, so the budget sits an order of
- * magnitude above the measured cost rather than near it. Measured in this
- * harness at 2400 levels: 6.161s before the walk was reordered, 0.123s after —
- * and 0.349s / 1.345s / 3.202s before at 600 / 1200 / 1800, the ~4x per
- * doubling that names the growth as quadratic. A 2.0s cap leaves a slow runner
- * 16x room while still failing the quadratic walk by 3x.
+ * Measured in this harness at 2400 levels when the reorder landed: 6.161s
+ * before the walk was reordered, 0.123s after — and 0.349s / 1.345s / 3.202s
+ * before at 600 / 1200 / 1800, the ~4x per doubling that names the growth as
+ * quadratic. Those readings are kept as provenance for what the reorder is
+ * worth; nothing here is timed any more.
  *
- * The warning assertion is what stops the timing from passing vacuously, and it
- * has already earned its keep: a file the tokenizer gives up on is both fast and
- * silent about this sniff, which a stopwatch alone would have read as a pass.
- * The ruleset is built before the clock starts so the first parse of rules.xml
- * is not charged to the measurement.
+ * The claim is counted rather than timed (#354, extending #321). A wall-clock
+ * budget states an asymptotic fix only as far as a shared CI runner allows —
+ * #321 recorded the same assertion shape failing twice and passing on a third
+ * run with no code change — so the reorder is read from
+ * MappingArrayCandidateSniff::scanCounts(), as a delta around this one run:
+ *
+ * - `braceless.headRefusals`, incremented in clauseExtent()'s
+ *   isStatementHead() branch, which is the reordered read: the body's first
+ *   token decides the clause before its end is ever asked for.
+ * - `braceless.endScans`, incremented immediately before the
+ *   findEndOfStatement() call in that same method, which is the
+ *   body-materialising walk the reorder avoids. Its search is unbounded, so one
+ *   call per level is what the 6.161s above is made of.
+ *
+ * Both are asserted, and the pair is what makes the claim rather than either
+ * alone: a refusal count could hold while the ends were asked for anyway
+ * through some other path, and an end-scan count of 1 could equally mean the
+ * file stopped being walked. Of the 2400 nested levels every one but the
+ * innermost has another `if` for a body, so 2399 are refused on their first
+ * token and exactly one — the innermost `return`, which is a statement head —
+ * is walked to its end. No replacement bound is derived from the old 2.0s cap,
+ * because none is needed: both counts are exact consequences of the fixture's
+ * own 2400 levels, so they are asserted as `$levels - 1` and 1 rather than as a
+ * budget with headroom.
+ *
+ * Mutation-checked by reverting the reorder so the end is asked for before the
+ * body's first token is read; the diff hunk and the resulting failure are in
+ * this PR's description.
+ *
+ * The warning assertion is what stops the counts from passing vacuously, and it
+ * has already earned its keep: a file the tokenizer gives up on is both cheap
+ * and silent about this sniff, which a stopwatch alone would have read as a
+ * pass.
  */
 it('stays linear on deeply nested chains', function (): void {
-    [$source, $chainLine] = nestedChainFixture(2400);
+    $levels = 2400;
+    [$source, $chainLine] = nestedChainFixture($levels);
     $fixture = stageGeneratedFixture('nested.php', $source);
 
-    buildRuleset([MAPPING_ARRAY_CANDIDATE]);
-
-    $started = hrtime(true);
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(MAPPING_ARRAY_CANDIDATE);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([MAPPING_ARRAY_CANDIDATE], $fixture);
-    $elapsed = (hrtime(true) - $started) / 1e9;
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     expect(warningTuples($file))->toBe([
         ['line' => $chainLine, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
-    ])->and($elapsed)->toBeLessThan(2.0);
+    ])
+        ->and($counted['braceless.headRefusals'])->toBe(
+            ($levels - 1),
+            'every nested level but the innermost is decided on its first token'
+        )
+        ->and($counted['braceless.endScans'])->toBe(
+            1,
+            'only the innermost body, which is a statement head, is walked to its end'
+        );
 });
 
 /**
