@@ -306,6 +306,8 @@ class TypeDiscriminatorDispatchSniff implements Sniff
      * Only the arms of *this* switch are counted. A nested switch's arms carry
      * that switch as their innermost condition, so the ownership check is what
      * keeps their labels — and their disqualifications — out of this verdict.
+     * The jump below is the other half of that: the ownership check decides
+     * what a nested arm *means*, the jump decides that the walk never reads it.
      */
     private function switchBranches(File $phpcsFile, int $stackPtr): ?int
     {
@@ -315,6 +317,30 @@ class TypeDiscriminatorDispatchSniff implements Sniff
 
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
             $code = $tokens[$pointer]['code'];
+
+            // A nested switch's body holds nothing this walk counts, so jump the
+            // whole scope rather than stepping through it — the repo idiom, as
+            // DisallowConstructorInstantiationSniff::reportBody() and
+            // UnusedPrivateElementsSniff both write it. No check that this is a
+            // *nested* switch is needed: the walk starts one token past this
+            // switch's own scope_opener, which the tokenizer never places before
+            // the keyword, so $stackPtr itself is behind the walk from its first
+            // step and out of reach.
+            //
+            // The isset() guard is load-bearing. A nested switch written with no
+            // body carries neither scope pointer, and assigning the absent closer
+            // hands the walk a null pointer that the loop's own increment turns
+            // into 1 — restarting it at the top of the file, outside this switch
+            // entirely, with every branch counted so far still on the tally and
+            // the tokens before this switch read as if they were its arms. Such a
+            // switch is stepped through instead, exactly as before the jump
+            // existed, and the ownership check still reads every arm around it
+            // correctly.
+            if ($code === T_SWITCH && isset($tokens[$pointer]['scope_closer']) === true) {
+                $pointer = $tokens[$pointer]['scope_closer'];
+
+                continue;
+            }
 
             if ($code !== T_CASE && $code !== T_DEFAULT) {
                 continue;

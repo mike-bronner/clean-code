@@ -127,9 +127,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 598, 'column' => 34],
     ],
     'CleanCode/Sniffs/Conditionals/TypeDiscriminatorDispatchSniff.php' => [
-        ['line' => 754, 'column' => 18],
-        ['line' => 774, 'column' => 28],
-        ['line' => 809, 'column' => 31],
+        ['line' => 780, 'column' => 18],
+        ['line' => 800, 'column' => 28],
+        ['line' => 835, 'column' => 31],
     ],
     'CleanCode/Sniffs/Controllers/NoCustomActionsSniff.php' => [
         ['line' => 178, 'column' => 34],
@@ -185,6 +185,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Routes/ApiControllerNamespaceSniff.php' => [
         ['line' => 171, 'column' => 20],
     ],
+    'CleanCode/Sniffs/Routes/NonInvokableSpecialActionSniff.php' => [
+        ['line' => 411, 'column' => 22],
+        ['line' => 423, 'column' => 13],
+    ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
     ],
@@ -207,7 +211,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 147, 'column' => 27],
+        ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
@@ -224,7 +228,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 173, 'column' => 26],
     ],
     'tests/Sniffs.php' => [
-        ['line' => 223, 'column' => 15],
+        ['line' => 224, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
         ['line' => 278, 'column' => 17],
@@ -279,6 +283,15 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 295, 'column' => 24],
         ['line' => 320, 'column' => 28],
         ['line' => 326, 'column' => 19],
+    ],
+    'tests/Standards/DisallowTypeIntrospectionTest.php' => [
+        ['line' => 117, 'column' => 17],
+        ['line' => 139, 'column' => 17],
+        ['line' => 192, 'column' => 17],
+        ['line' => 229, 'column' => 17],
+        ['line' => 251, 'column' => 17],
+        ['line' => 275, 'column' => 17],
+        ['line' => 553, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 62, 'column' => 42],
@@ -396,7 +409,7 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
  * Every .php file the reviewed-sites sweep covers, relative to the package root
  * and sorted — the in-process equivalent of the two path arguments and the
  * fixture ignore pattern the #286 phpcs command sweeps with. Confirmed to agree
- * with that command: both report the same 94 file/line/column triples.
+ * with that command: both report the same 113 file/line/column triples.
  *
  * A closure rather than a named function for the reason given on
  * $convertToCollectionMessages above.
@@ -565,8 +578,8 @@ it('reports detection-only violations', function (): void {
  * leave behind.
  *
  * Every site is native on purpose and the reason is one package-level fact, so
- * the alternative — a comment at each of 65 call sites — would restate one true
- * thing 65 times and still not notice the sixty-sixth call the day someone adds
+ * the alternative — a comment at each of 113 call sites — would restate one
+ * true thing 113 times and still not notice the next call the day someone adds
  * it. This pins the reviewed set instead, so an added, moved or deleted native
  * call is a red test rather than one more warning nobody reads.
  *

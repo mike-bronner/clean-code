@@ -253,12 +253,64 @@ it('warns once on every continuation spelling', function (): void {
 });
 
 /**
+ * nested-switch.php is what the arm walk's jump over a nested scope is written
+ * for. Three shapes, each a switch that qualifies at every level:
+ *
+ *   18/20 — an outer switch of three arms holding a nested one of five
+ *   45/51 — the same, with the nested switch written as the last statement of
+ *           the outer's final arm, so its closing brace is the token before the
+ *           outer's own. That is the boundary between the jump's target and the
+ *           walk's `$pointer < $closer` termination, and an off-by-one either
+ *           way loses the outer's report or runs the walk past its own switch
+ *   68/70/72 — three levels deep, with three, four and five arms
+ *
+ * Every count is distinct from the counts around it. That is what makes the
+ * numbers below a regression guard: arms leaking across a boundary would have
+ * to change a reported number rather than summing to the same one by accident.
+ */
+it('reports each nested switch on its own arms alone', function (): void {
+    $file = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'nested-switch.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 18, 'column' => 5, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 20, 'column' => 13, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 45, 'column' => 5, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 51, 'column' => 13, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 68, 'column' => 5, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 70, 'column' => 13, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+        ['line' => 72, 'column' => 21, 'source' => TYPE_DISCRIMINATOR_SWITCH],
+    ]);
+});
+
+/**
+ * The counts themselves, read back out of each message. The assertion above
+ * says a report exists at each level; this one says the number it carries is
+ * that level's own arm count and nothing else. A walk that counted a nested
+ * switch's arms into the switch around it would report 8 on line 18, 7 on line
+ * 45, and 12 on line 68.
+ */
+it('counts only its own arms at every level of nesting', function (int $line, int $branches): void {
+    $warnings = analyzeFixture(TYPE_DISCRIMINATOR_DISPATCH, 'nested-switch.php')->getWarnings();
+    $column = array_key_first($warnings[$line]);
+
+    expect($warnings[$line][$column][0]['message'])->toContain($branches . ' branches');
+})->with([
+    'outer of an outer/nested pair' => [18, 3],
+    'nested of an outer/nested pair' => [20, 5],
+    'outer, nested switch closing last' => [45, 3],
+    'nested written as the final arm' => [51, 4],
+    'outermost of three levels' => [68, 3],
+    'middle of three levels' => [70, 4],
+    'innermost of three levels' => [72, 5],
+]);
+
+/**
  * PHP_CodeSniffer tokenizes a file it cannot parse rather than refusing it, so
  * every pointer this sniff reads off the scope map can be absent. Each fixture
  * below removes one of them while satisfying every other rule it can, so the
  * missing pointer is the only thing between the file and a report.
  *
- * Five of the seven pin a specific guard, each confirmed by deleting that guard
+ * Eight of the ten pin a specific guard, each confirmed by deleting that guard
  * and watching this test go red on that fixture alone:
  *
  *   truncated-switch.php      — the switch's own scope, which bounds the arm
@@ -291,6 +343,18 @@ it('warns once on every continuation spelling', function (): void {
  *                               and only its keyword says the walk has left the
  *                               construct — which is why the check is a list of
  *                               tokens rather than a read of the scope map
+ *
+ * A sixth pins the guard the nested-scope jump carries:
+ *
+ *   truncated-nested-switch.php — a nested `switch` written with no body, so it
+ *                               carries no scope_closer for the arm walk's jump
+ *                               to land on while the switch around it keeps both
+ *                               of its own. Without the isset() check the jump
+ *                               assigns that absent closer to the walk's own
+ *                               pointer, and the loop's increment turns the null
+ *                               into 1 — restarting the walk at the top of the
+ *                               file, reading tokens that belong to no arm of
+ *                               this switch at all
  *
  * The other two cover an outcome rather than a guard, and are here because the
  * spellings they use are ones the sniff handles by name:
@@ -326,6 +390,7 @@ it('terminates silently on a file it cannot parse', function (string $fixture): 
     'truncated-alternative.php',
     'truncated-block.php',
     'truncated-endif.php',
+    'truncated-nested-switch.php',
 ]);
 
 /**
