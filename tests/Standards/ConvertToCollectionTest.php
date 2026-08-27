@@ -113,12 +113,12 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 90, 'column' => 24],
     ],
     'CleanCode/Sniffs/Conditionals/MappingArrayCandidateSniff.php' => [
-        ['line' => 598, 'column' => 34],
+        ['line' => 640, 'column' => 34],
     ],
     'CleanCode/Sniffs/Conditionals/TypeDiscriminatorDispatchSniff.php' => [
-        ['line' => 780, 'column' => 18],
-        ['line' => 800, 'column' => 28],
-        ['line' => 835, 'column' => 31],
+        ['line' => 818, 'column' => 18],
+        ['line' => 838, 'column' => 28],
+        ['line' => 873, 'column' => 31],
     ],
     'CleanCode/Sniffs/Controllers/NoCustomActionsSniff.php' => [
         ['line' => 178, 'column' => 34],
@@ -285,7 +285,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 229, 'column' => 17],
         ['line' => 251, 'column' => 17],
         ['line' => 275, 'column' => 17],
-        ['line' => 553, 'column' => 17],
+        ['line' => 583, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 88, 'column' => 42],
