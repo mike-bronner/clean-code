@@ -12,8 +12,11 @@
  *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
- *     a wrapped condition (OperatorLineBreak defers there).
- * A per-sniff test structurally cannot catch either — only this one can.
+ *     a wrapped condition (OperatorLineBreak defers there), and
+ *   - CleanCode.Operators.ManipulationOperatorPlacement (#59) overlapping
+ *     OperatorLineBreak, which enforces the identical "an operator must lead
+ *     the continuation line" rule over a disjoint half of the operator list.
+ * A per-sniff test structurally cannot catch any of them — only this one can.
  */
 
 declare(strict_types=1);
@@ -30,26 +33,42 @@ declare(strict_types=1);
  *   - re-adding "(" to NotOperatorSpacing so PSR12's ControlStructureSpacing
  *     double-reports "if ( ! " (line 23), and
  *   - re-broadening OperatorLineBreak's deferral so a dangling non-boolean
- *     operator inside a multi-condition slips through unreported (line 28).
+ *     operator inside a multi-condition slips through unreported (line 28), and
+ *   - re-registering the math or bitwise group on both line-break sniffs at
+ *     once, doubling every wrapped math operator (line 35), and
+ *   - narrowing ManipulationOperatorPlacement's deferral so a wrapped math
+ *     operator inside a single condition is reported by it *and* collapsed by
+ *     OneConditionPerLine (line 38/39).
  *
  * The fixture opens with a four-line preamble assigning every name it goes on
  * to use, so the master ruleset's undefined-variable rule (#85) stays quiet
  * here: this map pins operator diagnostics, and a second sniff reporting into
  * it would mask exactly the double-reporting the test exists to catch. That
  * preamble is why the pinned lines sit four below the fixture's own numbering
- * before it.
+ * before it. The preamble seeds those names in one chained statement, which
+ * #157's chained-assignment rule reports; those reports are pinned on line 7
+ * below rather than removed, because rewriting the preamble to one name per
+ * line would move every other line this map pins.
  */
 it('reports every operator violation exactly once', function (): void {
     $file = analyzeWithMasterRuleset(__DIR__ . '/fixtures/operator-rules.php');
 
     expect(allViolationSourcesByLine($file))->toBe([
         // The preamble's own two one-letter names, reported by the master
-        // ruleset's short-variable rule (#106). Listed for the same reason as
-        // the DisallowMagicNumbers entries below — the map is exhaustive, and
-        // that is what makes a second *operator* source here a failure.
+        // ruleset's short-variable rule (#106), plus one chained-assignment
+        // report per assignment after the first: the preamble seeds six names
+        // in one statement, so #157's Squiz.PHP.DisallowMultipleAssignments
+        // speaks five times. Listed for the same reason as the
+        // DisallowMagicNumbers entries below — the map is exhaustive, and that
+        // is what makes a second *operator* source here a failure.
         7 => [
             'CleanCode.Naming.ShortVariable.TooShort',
             'CleanCode.Naming.ShortVariable.TooShort',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
+            'Squiz.PHP.DisallowMultipleAssignments.Found',
         ],
         // exactly-1-space spacing — Squiz supersedes PSR12, no stacking. The
         // DisallowMagicNumbers entry is the "2" of `$sum = 1+2;`: the operands
@@ -108,6 +127,23 @@ it('reports every operator violation exactly once', function (): void {
         28 => [
             'CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators.FoundAfter',
             'CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd',
+        ],
+        // dangling "-" outside a condition — ManipulationOperatorPlacement's
+        // to own (#59), and only its. OperatorLineBreak enforces the identical
+        // rule over the assignment/comparison/logical/concatenation operators,
+        // so the two register disjoint token sets; were the math or bitwise
+        // group added back to either one, this line would carry two sources.
+        35 => ['CleanCode.Operators.ManipulationOperatorPlacement.OperatorNotLeading'],
+        // A dangling "+" inside a *single* condition — one carrying no
+        // top-level boolean. OneConditionPerLine collapses that whole condition
+        // onto one line, so ManipulationOperatorPlacement stands down and only
+        // the collapse is reported, on the "if" line. This is the one deferral
+        // no per-sniff test can pin: narrowing the ruleset to one sniff proves
+        // only that this sniff is silent, never that the other one speaks. Were
+        // the deferral dropped, line 39 would gain a second, duplicate source.
+        38 => [
+            'CleanCode.Conditionals.AvoidConditionals.IfStatement',
+            'CleanCode.Conditionals.OneConditionPerLine.SingleConditionNotOnOneLine',
         ],
     ]);
 });

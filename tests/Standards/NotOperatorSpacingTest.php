@@ -30,18 +30,22 @@ it('produces no violations on the compliant fixture', function (): void {
 });
 
 /**
- * Each of the three violation codes is pinned to its own line, in a
+ * Each of the three violation codes is pinned to its own line and column, in a
  * different enclosing construct: a control-structure parenthesis (7, 13),
  * an array literal (11) and an index (17).
+ *
+ * Every column is the `!` token's own position, so it also pins where inside
+ * the construct each report lands: column 5 inside `if (`, column 12 inside the
+ * array literal and column 17 inside the index.
  */
 it('flags every violation at its own line with the expected code', function (): void {
     $file = analyzeFixture(NOT_OPERATOR_SPACING, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        7 => [NOT_OPERATOR_SPACING . '.NoSpaceAfter'],
-        11 => [NOT_OPERATOR_SPACING . '.SpaceBefore'],
-        13 => [NOT_OPERATOR_SPACING . '.TooMuchSpaceAfter'],
-        17 => [NOT_OPERATOR_SPACING . '.SpaceBefore'],
+    expect(violationTuples($file))->toBe([
+        ['line' => 7, 'column' => 5, 'source' => NOT_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 11, 'column' => 12, 'source' => NOT_OPERATOR_SPACING . '.SpaceBefore'],
+        ['line' => 13, 'column' => 5, 'source' => NOT_OPERATOR_SPACING . '.TooMuchSpaceAfter'],
+        ['line' => 17, 'column' => 17, 'source' => NOT_OPERATOR_SPACING . '.SpaceBefore'],
     ]);
 });
 

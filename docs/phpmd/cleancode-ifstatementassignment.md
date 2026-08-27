@@ -24,8 +24,16 @@ deliberate assign-and-test, and PHPMD flags it too.
 ## How it is enforced
 
 `rules.xml` wires in PHPCS's bundled `Generic.CodeAnalysis.AssignmentInCondition`
-sniff and raises it from a warning to an error, so an assignment in a condition
-fails a `phpcs` run the way it fails a `phpmd` run.
+sniff and raises its `.Found` code from a warning to an error, so an assignment
+in a condition fails a `phpcs` run the way it fails a `phpmd` run.
+
+The sniff's other code, `.FoundInWhileCondition`, keeps the sniff's own
+**warning** severity (#157). It is the only code a `while` or `do`/`while`
+condition reports under, and `while ($row = $statement->fetch())` is the one
+assignment-in-condition shape that is idiomatic rather than accidental — worth
+pointing at, not worth failing a build over. Parity with PHPMD is untouched:
+PHPMD's rule reads `if` and `elseif` clauses only, so every lowered report was
+already outside the mapping.
 
 One custom sniff sits beside it,
 `CleanCode.Conditionals.DisallowListAssignmentInCondition`, covering the single
@@ -45,19 +53,23 @@ in an `elseif`, and assignments in nested `if` statements.
 accepts a plain `=` only, and visits function and method bodies only. So these
 are silent under PHPMD and flagged here:
 
-| Shape | Example |
-| --- | --- |
-| Compound assignment operators | `if ($sum += 1)` |
-| `while` and `do`/`while` conditions | `while ($row = array_pop($rows))` |
-| The condition section of a `for` | `for ($i = 0; $row = $rows[$i]; $i++)` |
-| `switch` subjects and `case` labels | `switch ($state = 1)` |
-| `match` subjects | `match ($state = 1) { … }` |
-| Code outside any function or method | a top-level `if ($x = 1)` |
+| Shape | Example | Severity |
+| --- | --- | --- |
+| Compound assignment operators | `if ($sum += 1)` | error |
+| `while` and `do`/`while` conditions | `while ($row = array_pop($rows))` | warning |
+| The condition section of a `for` | `for ($i = 0; $row = $rows[$i]; $i++)` | error |
+| `switch` subjects and `case` labels | `switch ($state = 1)` | error |
+| `match` subjects | `match ($state = 1) { … }` | error |
+| Code outside any function or method | a top-level `if ($x = 1)` | error |
+
+The `while` row is the only warning, and the only row `.FoundInWhileCondition`
+covers; every other row reports under `.Found`.
 
 The wider coverage is deliberate. Each shape is the same code smell, no other
 PHPMD rule owns any of them, and the sniff groups the constructs under two
 codes (`Found`, `FoundInWhileCondition`), so narrowing to PHPMD's subset is not
-expressible as configuration anyway.
+expressible as configuration anyway. Severity, however, is settable per code,
+which is what the `while` downgrade above uses.
 
 **PHPCS misses one shape, which the custom sniff restores.** The Generic sniff
 decides an assignment is worth reporting by walking back from the `=` and

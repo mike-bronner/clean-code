@@ -126,6 +126,42 @@ const CHAINED_REFUSED_PRECEDERS = [
     'T_LABEL', 'T_ZSR', 'T_REGULAR_EXPRESSION', 'T_EMBEDDED_PHP',
 ];
 
+/**
+ * Classified names whose token PHP itself only added in a later version than
+ * this package's floor, mapped to the PHP_VERSION_ID that added it.
+ *
+ * The catalogue test closes the enumeration in both directions, and the second
+ * direction — no classified name PHP_CodeSniffer does not define — reads
+ * differently on an older interpreter. A refusal recorded for a token PHP has
+ * not added yet names nothing there, so it is not a stale entry to be removed;
+ * it is an entry the running interpreter cannot see. Without this map the test
+ * is red on every PHP below 8.4, which is inside the `^8.1` composer.json
+ * declares.
+ *
+ * `T_PROPERTY_C` is the only such name, and that is measured over the whole
+ * supported range rather than assumed from the one failure. Every `T_*`
+ * constant a sniff can see was enumerated on php:8.1-cli 8.1.34, php:8.2-cli
+ * 8.2.33, php:8.3-cli 8.3.33, php:8.4-cli 8.4.24 and php:8.5-cli 8.5.9, using
+ * the command CleanCode/Support/BackportedTokens.php records, against
+ * PHP_CodeSniffer 3.13.6. PHP 8.1, 8.2 and 8.3 each answer the same 236 names.
+ * PHP 8.4 answers 237, the one addition being `T_PROPERTY_C` — the
+ * `__PROPERTY__` magic constant, which PHP_CodeSniffer does not back-port,
+ * unlike the `T_PUBLIC_SET` family PHP 8.4 adds beside it. PHP 8.5 answers 239,
+ * adding `T_PIPE` and `T_VOID_CAST`. Nothing is removed between any two.
+ *
+ * The 8.5 pair is deliberately absent from this map: the sniff admits both, so
+ * CleanCode/Support/BackportedTokens.php defines them on every version and they
+ * are in the catalogue wherever this test runs. Only a refused name — a string
+ * that nothing defines — can go missing.
+ *
+ * A gate only ever subtracts, and only below its own version. On PHP 8.4 and up
+ * nothing here is filtered, so a typo or a stale name in either list still
+ * reddens the test on the interpreter CI pins and on the newest one.
+ */
+const CHAINED_TOKENS_ADDED_IN = [
+    'T_PROPERTY_C' => 80400,
+];
+
 // Fixtures are copied outside the repository before processing, because PHPCS
 // decides rules.xml's test-path exclusion from the file's path alone. The
 // staged copies are removed by the afterEach() hook in tests/Pest.php.
@@ -327,12 +363,18 @@ it('names the first completing pair and the accessor remedy', function () use ($
  * group-preceders.php therefore carries one chain per admitted token, and this
  * asserts every one of them is reported. It is the coverage half of the pair:
  * the file exists so that no member of the set can be removed — or fail to be
- * added — without a line here going quiet. Each of the 33 tokens the sniff
- * lists, and each of the five PHP_CodeSniffer unions it defers to, was checked
- * that way: deleting it silences its own line and no other, so no line is
- * carried by a neighbour and no member is dead weight. `=>` was the one that
- * was: Tokens::$assignmentTokens already supplied it, and the list no longer
- * repeats it.
+ * added — without a line here going quiet. The sniff lists 35 tokens; the 33
+ * that every supported PHP tokenizes have a line here, one apiece, as does each
+ * of the five PHP_CodeSniffer unions it defers to. Each was checked the same
+ * way: deleting it silences its own line and no other, so no line is carried by
+ * a neighbour and no member is dead weight. `=>` was the one that was:
+ * Tokens::$assignmentTokens already supplied it, and the list no longer repeats
+ * it.
+ *
+ * The other two, T_VOID_CAST and T_PIPE, cannot be written in this file at all
+ * — `|>` does not parse before PHP 8.5 and `(void) (…)` parses there as
+ * something else — so they carry the same one-line-apiece proof in
+ * group-preceders-php85.php, under the test that PHP 8.5 gates.
  *
  * The catalogue test below is the other half. Between them, a token is either
  * admitted with a line proving it, or refused with a reason recorded.
@@ -344,6 +386,30 @@ it('reports a chain behind every admitted grouping-parenthesis preceder', functi
         ->and(violationSourcesByLine($file->getErrors()))
         ->toBe(array_fill_keys(CHAINED_PRECEDER_LINES, [CHAINED_ERROR]));
 });
+
+/**
+ * The same sweep for the two preceders PHP 8.5 adds, in a fixture of its own
+ * because `(void)` and `|>` are parse errors before 8.5 — putting them in
+ * group-preceders.php would change how that file tokenises on every older
+ * version, and this package supports PHP 8.1 upward.
+ *
+ * Which is also why this skips rather than adapts below 8.5: the tokens cannot
+ * occur there, so there is no weaker assertion to fall back to. The catalogue
+ * test below is what covers those versions — it runs everywhere and fails if
+ * either token is left unclassified — and CI pins PHP 8.4, so the run that
+ * proves these two lines is a local one, recorded in the pull request.
+ *
+ * Non-vacuous by mutation rather than by reading: deleting T_VOID_CAST from
+ * GROUP_PRECEDERS silences line 14 and nothing else, deleting T_PIPE silences
+ * line 18 and nothing else, and deleting both empties the report.
+ */
+it('reports a chain behind the grouping-parenthesis preceders PHP 8.5 adds', function () use ($stagedRun): void {
+    $file = $stagedRun('group-preceders-php85.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe([14 => [CHAINED_ERROR], 18 => [CHAINED_ERROR]]);
+})->skip(PHP_VERSION_ID < 80500, 'T_VOID_CAST and T_PIPE need PHP 8.5');
 
 /**
  * The admission set is only as good as its completeness, and completeness is
@@ -396,7 +462,16 @@ it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
         array_keys(array_filter($catalogue, static fn ($code): bool => isset($unions[$code]) === true))
     );
 
-    $classified = array_merge($admitted, CHAINED_REFUSED_PRECEDERS);
+    // Names for tokens this interpreter is too old to define at all. They are
+    // classified, and on a newer PHP this test proves it; here there is nothing
+    // for them to name, so they are held out of both directions rather than
+    // read as naming a token PHP_CodeSniffer lacks.
+    $premature = array_keys(array_filter(
+        CHAINED_TOKENS_ADDED_IN,
+        static fn (int $addedIn): bool => PHP_VERSION_ID < $addedIn
+    ));
+
+    $classified = array_diff(array_merge($admitted, CHAINED_REFUSED_PRECEDERS), $premature);
 
     sort($classified);
     $expected = array_keys($catalogue);
@@ -409,6 +484,33 @@ it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
         ->and(array_values(array_intersect($admitted, CHAINED_REFUSED_PRECEDERS)))
         ->toBe([], 'no token is both admitted and refused')
         ->and($classified)->toBe($expected);
+});
+
+/**
+ * The gate the catalogue test reads is held to the interpreter it claims to
+ * describe, so it cannot quietly widen into an excuse.
+ *
+ * Each entry says two things: PHP defines the name from the stated version, and
+ * PHP does not define it before. Both are asserted here against the running
+ * interpreter, whichever one that is, so the pair of runs CI and a developer's
+ * 8.5 checkout make between them puts each entry to the test from both sides. A
+ * name that no PHP ever defines — a typo, or one PHP_CodeSniffer back-ports
+ * after all — reddens this on the version that was supposed to have it, rather
+ * than being filtered out of the catalogue test in silence on every version.
+ *
+ * Membership in the refused list is asserted for the same reason: the gate
+ * subtracts from what the catalogue test classifies, and subtracting a name
+ * that was never classified would be filtering nothing while looking like
+ * coverage.
+ */
+it('gates a token name only for the PHP versions that predate it', function (): void {
+    expect(CHAINED_TOKENS_ADDED_IN)->not->toBe([]);
+
+    foreach (CHAINED_TOKENS_ADDED_IN as $name => $addedIn) {
+        expect(defined($name))
+            ->toBe(PHP_VERSION_ID >= $addedIn, $name . ' is defined from PHP ' . $addedIn . ' onward')
+            ->and(CHAINED_REFUSED_PRECEDERS)->toContain($name);
+    }
 });
 
 /**
@@ -718,4 +820,124 @@ it('reports the violation end to end through the installed package', function ()
         ->and($inRepo['status'])->toBe(0)
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
+});
+
+/**
+ * The record of walked chain roots this sniff builds once per token stream must
+ * not answer one analysis with another analysis's pointers (#343).
+ *
+ * The record used to be keyed by file name, token count and fixer-loop counter.
+ * Two sources analysed as STDIN report the same name, so two of them that also
+ * tokenise to the same count shared one key — and a single `Ruleset` reused
+ * across several analyses, which is what buildRuleset()'s memoisation gives
+ * every call below, hands them one sniff instance and one record.
+ *
+ * The two sources here tokenise to 15 tokens each — `self::` in A and `!!` in B
+ * are two tokens either way, so the chain's receiver sits at the same pointer
+ * in both — and differ in exactly what the record holds for that pointer: A's
+ * chain hangs off a static property, which the standard leaves alone, so the
+ * walk records "not variable-rooted" there, while B's hangs off a plain
+ * variable. Under the old key B read A's verdict for that pointer, was ruled
+ * not variable-rooted, and its violation was never reported.
+ *
+ * rules.xml scopes this sniff out of test paths, and that exclusion is decided
+ * from the analysed file's own path; STDIN has none, so these three analyses
+ * reach the sniff where a fixture under tests/ would not.
+ *
+ * The third call is what separates a working key from no cache at all: it
+ * re-analyses A and requires its silence back, which a sniff that had simply
+ * stopped caching would also give — but a sniff whose record leaked between
+ * streams would not, since B's stream would by then have overwritten it.
+ */
+it('keeps its root record from answering another STDIN analysis', function (): void {
+    $sourceA = <<<'PHP'
+        <?php
+
+        $flag = self::$book->author->name;
+
+        PHP;
+
+    $sourceB = <<<'PHP'
+        <?php
+
+        $flag = !!$book->author->name;
+
+        PHP;
+
+    $first = analyzeStdinSource([CHAINED], $sourceA);
+    $second = analyzeStdinSource([CHAINED], $sourceB);
+    $third = analyzeStdinSource([CHAINED], $sourceA);
+
+    expect(count($first->getTokens()))->toBe(count($second->getTokens()))
+        ->and(tuplesFromMessages($second->getErrors()))->toBe([
+            ['line' => 3, 'column' => 26, 'source' => CHAINED_ERROR],
+        ])
+        ->and(violationMessagesByLine($second->getErrors()))->toBe([
+            3 => [
+                'Chained property fetch author->name; expose the value as an accessor '
+                    . 'attribute on the first model instead (e.g. getAuthorNameAttribute() so '
+                    . 'callers read $book->authorName rather than $book->author->name) '
+                    . '(see docs/standards/models-relationship-properties.md)',
+            ],
+        ])
+        ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
+});
+
+/**
+ * The record of walked chain roots is kept for the whole of a token stream and
+ * emptied only when the stream changes, rather than on every read (#343).
+ *
+ * The test above proves the key never answers one analysis with another's
+ * pointers. It cannot prove the other half of what a key is for, and neither
+ * can any other black-box test: a sniff that emptied the record on every single
+ * read would report exactly the same violations, only slower — which is the
+ * repeated backward walk the record exists to remove. Every analysis there also
+ * constructs its own DummyFile, so all three get their own identity from
+ * TokenStreams::key() and are emptied by design.
+ *
+ * Reuse is observable only from inside the sniff, so the sniff counts it, the
+ * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
+ * are pinned, and each rules out a different failure:
+ *
+ * - one emptying per stream, at any size, is the claim itself;
+ * - n-1 kept keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the record at all would report one emptying and nothing kept.
+ *   The check is made in rootFrom(), which each fetch below reaches once: a
+ *   fetch holds two object operators, and process() refuses the first before
+ *   any walk, since nothing precedes it. So n fetches total n checks, of which
+ *   one empties and n-1 leave the record standing. The emptying is one the
+ *   guard never had to answer.
+ *
+ * Mutation-checked by deleting the `$this->rootsKey === $key` guard, so every
+ * read empties: `composer test` then fails here at the smallest size, n=2,
+ * reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0 against
+ * 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
+ */
+it('keeps its walked-root record for the whole stream, not one read', function (): void {
+    $sniff = sniffInstance(CHAINED);
+
+    foreach ([2, 4, 8] as $size) {
+        $fetches = '';
+
+        for ($index = 0; $index < $size; $index++) {
+            $fetches .= "        \$one{$index} = \$this->alpha{$index}->beta;\n";
+        }
+
+        $source = "<?php\n\nclass Consumer\n{\n    public function read(): void\n    {\n"
+            . $fetches . "    }\n}\n";
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([CHAINED], $source);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getErrorCount())->toBe($size, "n={$size}: every fetch is still reported")
+            ->and($counted['roots.builds'])->toBe(
+                1,
+                "n={$size}: the record is emptied once for the stream, not once per read"
+            )
+            ->and($counted['roots.hits'])->toBe(
+                $size - 1,
+                "n={$size}: every read after the first finds the record already standing"
+            );
+    }
 });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Arrays;
 
+use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -168,12 +169,36 @@ class ArrayAccessorsSniff implements Sniff
 
     /**
      * The token stream every map below was built from, so a stream they do not
-     * describe is never answered from. PHP_CodeSniffer re-tokenizes a file on
-     * every `phpcbf` pass, and the maps hold pointers into one particular
-     * stream: the fixer's loop counter is part of the key for that reason,
-     * alongside the file and its token count.
+     * describe is never answered from. The maps hold pointers into one
+     * particular stream, and TokenStreams::key() — the one implementation the
+     * four sniffs with a per-stream index in this package share — is what tells
+     * that stream from every other, including the next `phpcbf` pass over the
+     * same file.
      */
     private ?string $enclosureMapKey = null;
+
+    /**
+     * How many times the maps were built, and how many times the key guard
+     * answered a read from the maps already built.
+     *
+     * The maps exist to absorb many reads per token stream into one pass, and
+     * nothing a black-box test can observe tells "built once, read n times"
+     * from "rebuilt on every read": both report the same violations. These two
+     * counters are what tell them apart, and
+     * tests/Standards/ArrayAccessorsTest.php pins both numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'enclosureMap.builds' => 0,
+        'enclosureMap.hits' => 0,
+    ];
 
     /**
      * Chain-root token (a T_VARIABLE, or the T_DOLLAR sigil a
@@ -259,6 +284,18 @@ class ArrayAccessorsSniff implements Sniff
     public function register(): array
     {
         return [T_VARIABLE];
+    }
+
+    /**
+     * How many times the enclosure maps were built and how many times the key
+     * guard answered from the maps already built, cumulative for the life of
+     * this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -842,7 +879,9 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        return $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
+        $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
+
+        return $asPtr;
     }
 
     /**
@@ -944,15 +983,15 @@ class ArrayAccessorsSniff implements Sniff
     private function buildEnclosureMap(File $phpcsFile): void
     {
         $tokens = $phpcsFile->getTokens();
-        $fixer = $phpcsFile->fixer;
-        $key = $phpcsFile->getFilename()
-            . '|' . count($tokens)
-            . '|' . ($fixer->loops ?? 0);
+        $key = TokenStreams::key($phpcsFile);
 
         if ($this->enclosureMapKey === $key) {
+            $this->cacheCounts['enclosureMap.hits']++;
+
             return;
         }
 
+        $this->cacheCounts['enclosureMap.builds']++;
         $this->enclosureMapKey = $key;
         $this->innermostCloser = [];
         $this->parentCloser = [];
