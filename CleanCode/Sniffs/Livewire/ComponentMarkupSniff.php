@@ -710,12 +710,44 @@ class ComponentMarkupSniff implements Sniff
      * same silence the unbalanced-loop handling takes: where the source does
      * not close the element, the sniff does not guess where it ended.
      *
+     * The tag read can fail outright, the same way isComponentView()'s does.
+     * COMPONENT_TAG's tag-name group and its unquoted attribute run share a
+     * character set, so a `<livewire:` followed by a long unbroken run of
+     * those characters and then a quote the pattern cannot pair splits every
+     * way between the two and exhausts pcre.backtrack_limit. Measured on PHP
+     * 8.4's default million steps, against the fixture this ships with: from
+     * 811 such characters with the PCRE JIT off, 1,406 with it on. Within a
+     * handful of characters of ELEMENT_TAG's own 816 and 1,412, which is what
+     * the shared alternation predicts; the small gap is the surrounding markup,
+     * which the failing read has to carry either way.
+     *
+     * The list this returns is read by every check the sniff makes, so a
+     * partial read is worse here than it is anywhere else in the file: the
+     * root-element guard, the loop keys, and the adjacency pairs would all be
+     * answered off a fraction of the view presented as the whole. A view left
+     * unjudged is the honest answer where the tags were not read, so the
+     * failure gets its own exit and whatever the engine collected is dropped
+     * unread.
+     *
      * @return array<int, array{offset: int, end: int, elementEnd: int, line: int, parent: int,
      *     name: string, attributes: string}>
      */
     private function componentTags(string $markup): array
     {
-        preg_match_all(self::COMPONENT_TAG, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+        $matched = preg_match_all(
+            self::COMPONENT_TAG,
+            $markup,
+            $matches,
+            PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+        );
+
+        // preg_last_error() === PREG_BACKTRACK_LIMIT_ERROR: the tag read gave
+        // out partway, so $matches holds a fraction of the view rather than
+        // the view. Not the same emptiness as a finished read that found no
+        // component tag, which the loop below returns [] from.
+        if ($matched === false) {
+            return [];
+        }
 
         $tags = [];
         $open = [];
@@ -791,11 +823,46 @@ class ComponentMarkupSniff implements Sniff
      * from offset 0 made the pass quadratic in file size, which a large but
      * entirely well-formed view was enough to stall CI on.
      *
+     * This read can fail too, but not by the mechanism the other two patterns
+     * fail by. TEMPLATE_TAG's tag name is the literal `template`, so there is
+     * no tag-name/attribute-run alternation to split and no backtrack blow-up.
+     * What gives out is the attribute-run group itself: it repeats over single
+     * characters, one level of recursion per character, so a long enough
+     * attribute list exhausts pcre.recursion_limit instead. Measured on PHP
+     * 8.4's defaults: from 99,995 characters with the PCRE JIT off, failing
+     * with PREG_RECURSION_LIMIT_ERROR; with the JIT on the JIT's own stack
+     * gives out first, from 8,190 characters, with PREG_JIT_STACKLIMIT_ERROR.
+     * Two different constants for the same defect, decided by an ini setting —
+     * neither of them PREG_BACKTRACK_LIMIT_ERROR.
+     *
+     * An empty list is not silence here, which is why the failure still needs
+     * its own exit rather than being left to fall through. Every wrapper
+     * lookup in reportUnwrapped() misses against an empty list, so a failed
+     * read makes the sniff report AdjacentComponentNotWrapped against
+     * components that are correctly wrapped. That false positive is this
+     * method's behaviour today and the exit below does not change it: it makes
+     * the empty list a deliberate answer to a read that failed rather than an
+     * accident of one that stopped partway.
+     *
      * @return array<int, string>
      */
     private function templateTags(string $markup): array
     {
-        preg_match_all(self::TEMPLATE_TAG, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
+        $matched = preg_match_all(
+            self::TEMPLATE_TAG,
+            $markup,
+            $matches,
+            PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+        );
+
+        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
+        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
+        // gave out partway, so $matches holds a fraction of the view rather
+        // than the view. Not the same emptiness as a finished read that found
+        // no wrapper, which the loop below returns [] from.
+        if ($matched === false) {
+            return [];
+        }
 
         $tags = [];
 
