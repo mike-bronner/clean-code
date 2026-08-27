@@ -726,12 +726,52 @@ it('reports detection-only errors', function () use ($stagedRun): void {
  * reproduction of the originally reported shape (2.4s at n=2,000, 9.4s at
  * n=4,000, 36.8s at n=8,000 before either change — ~4x per doubling).
  *
- * The budget is wall clock, so it is set generously: both shapes answer
- * n=16,000 in about a third of a second here, better than an order of magnitude
- * of headroom for a loaded CI runner, while the quadratic walk needs a minute
- * for the same file and cannot pass by being unlucky.
+ * Those readings are kept as provenance for what the record is worth; nothing
+ * here is timed any more. The claim is counted rather than timed (#354,
+ * extending #321). A wall-clock budget states an asymptotic bound only as far
+ * as a shared CI runner allows — #321 recorded the same assertion shape failing
+ * twice and passing on a third run with no code change — so the record is read
+ * from DisallowChainedPropertyFetchSniff::walkSteps(): how many tokens
+ * rootFrom()'s walk stepped over for this file. The increment is the first
+ * statement of that walk's loop body, placed after the record's own
+ * array_key_exists() guard has had its turn, so a step is counted exactly when
+ * the record did not answer — which is the coupling that makes the number the
+ * record's own and not the file's.
+ *
+ * The count is read straight rather than as a delta: it is cleared with the
+ * record itself, in discardRootsOfOtherStreams(), so it already describes only
+ * the file just processed. That coupling is pinned separately by
+ * `it('keeps no record across files')` below.
+ *
+ * The two shapes are pinned at the exact counts they produce, which are what
+ * make them different tests rather than one test run twice:
+ *
+ * - `plain` walks once and steps once. Its whole chain is reported from the
+ *   first hop, and the cheap already-reported test then keeps every later hop
+ *   from starting a walk at all — so this shape says nothing about the record
+ *   and everything about that test, which is why it cannot stand alone.
+ * - `interleaved` breaks the chain every third hop, so each of its 5,333
+ *   segments gets past the already-reported test and asks for its own root.
+ *   With the record answering, the file's tokens are stepped over about four
+ *   times per segment and never re-walked: 21,329 steps for 16,000 hops.
+ *   Without it, each segment re-walks its whole receiver and the count is
+ *   quadratic — measured at 56,876,445 steps for the same file, three orders of
+ *   magnitude more, which is the 62.1s above stated as a number. `plain` still
+ *   passes that same reversion, which is the whole reason `interleaved` is
+ *   here.
+ *
+ * No replacement bound is derived from the old 3.0s cap, because none is
+ * needed: both counts are exact, deterministic consequences of the fixture the
+ * test generates, so they are asserted as equalities rather than as a budget
+ * with headroom.
+ *
+ * Mutation-checked by deleting the record's array_key_exists() answer from
+ * rootFrom(); the diff hunk and the resulting failure are in this PR's
+ * description. The error-count assertion is what stops the counts passing
+ * vacuously: a walk that stopped resolving roots would step cheaply and report
+ * nothing.
  */
-it('decides a chain in time linear in its length', function (string $shape, int $size): void {
+it('decides a chain in time linear in its length', function (string $shape, int $size, int $steps): void {
     $source = "<?php\n\n\$a";
 
     for ($hop = 0; $hop < $size; $hop++) {
@@ -740,15 +780,18 @@ it('decides a chain in time linear in its length', function (string $shape, int 
 
     $path = stageGeneratedFixture("chained-{$shape}.php", $source . ";\n");
 
-    $startedAt = hrtime(true);
     $file = analyzeWithSniffs([CHAINED], $path);
-    $elapsed = (hrtime(true) - $startedAt) / 1e9;
 
+    // Read straight, not as a delta: the counter is cleared with the record it
+    // belongs to, so it already describes only the file just processed.
     expect($file->getErrorCount())->toBeGreaterThan(0, 'the chain is still reported')
-        ->and($elapsed)->toBeLessThan(3.0, "{$shape} at n={$size} took {$elapsed}s");
+        ->and(sniffInstance(CHAINED)->walkSteps())->toBe(
+            $steps,
+            "{$shape} at n={$size}: the record answers every re-entry into a receiver already walked"
+        );
 })->with([
-    'n consecutive hops' => ['plain', 16000],
-    'n hops in call-separated segments' => ['interleaved', 16000],
+    'n consecutive hops' => ['plain', 16000, 1],
+    'n hops in call-separated segments' => ['interleaved', 16000, 21329],
 ]);
 
 /**
@@ -762,17 +805,39 @@ it('decides a chain in time linear in its length', function (string $shape, int 
  * dedicated tests above establish. The passing run in the middle is what makes
  * it discriminating — it is the file whose pointers would be wrong, and a record
  * that survived into it reports chains against a file that has none.
+ *
+ * The walk-step count is asserted alongside the verdicts, and it is the half
+ * that pins the *counter's* own reset rather than the record's. The scale test
+ * above reads that counter straight, which is only sound while it is cleared
+ * with the record; leaving it standing across files would let one file's count
+ * be read as another's. Cleared, the third run steps exactly what the first did
+ * — the same file, walked the same way. Left standing, it would read the first,
+ * second and third runs added together, so this equality is what the reset is
+ * pinned by. The middle run's own count is asserted non-zero for the same
+ * reason the middle run exists: a file that contributed nothing could not
+ * contaminate anything, and the equality would hold vacuously.
  */
 it('keeps no record across files', function () use ($stagedRun): void {
     $first = $stagedRun('failing.php');
+    $firstSteps = sniffInstance(CHAINED)->walkSteps();
     $between = $stagedRun('passing.php');
+    $betweenSteps = sniffInstance(CHAINED)->walkSteps();
     $second = $stagedRun('failing.php');
+    $secondSteps = sniffInstance(CHAINED)->walkSteps();
 
     expect(violationSourcesByLine($first->getErrors()))
         ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]))
         ->and($between->getErrors())->toBe([])
         ->and(violationSourcesByLine($second->getErrors()))
-        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]));
+        ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]))
+        ->and($betweenSteps)->toBeGreaterThan(
+            0,
+            'the middle file walks, so a count left standing would carry into the third run'
+        )
+        ->and($secondSteps)->toBe(
+            $firstSteps,
+            'the walk-step count is cleared with the record, so the same file steps the same'
+        );
 });
 
 /**

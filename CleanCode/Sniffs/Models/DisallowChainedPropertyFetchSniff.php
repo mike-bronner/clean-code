@@ -175,6 +175,31 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     ];
 
     /**
+     * How many tokens rootFrom()'s walk has stepped over for the stream the
+     * record currently describes.
+     *
+     * This is what bounds the cost, stated as a number. The record answers a
+     * walk that reaches a token already decided, so every token of a file is
+     * stepped over once however many chains are rooted through it; without the
+     * record a chain broken into segments walks its whole receiver again per
+     * segment and the count becomes quadratic. The scale test in
+     * tests/Standards/DisallowChainedPropertyFetchTest.php used to state that
+     * as elapsed seconds against a fixed budget, which a shared CI runner's
+     * jitter can cross with no code change (#321, #354).
+     *
+     * The increment is the first statement of the walk's own loop body, after
+     * the record's own guard has had its turn, so a step is counted exactly
+     * when the record did not answer.
+     *
+     * It counts *for one stream*, not for the life of the instance: it is
+     * cleared in discardRootsOfOtherStreams(), in the same branch that empties
+     * the record itself, because a step count carried from another file
+     * describes that file and not this one. That coupling is what
+     * `it('keeps no record across files')` pins.
+     */
+    private int $walkSteps = 0;
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -195,6 +220,16 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     public function cacheCounts(): array
     {
         return $this->cacheCounts;
+    }
+
+    /**
+     * How many tokens the root walk stepped over for the stream the record
+     * currently describes. Cleared with the record itself, so this is read
+     * straight rather than as a delta. See $walkSteps.
+     */
+    public function walkSteps(): int
+    {
+        return $this->walkSteps;
     }
 
     /**
@@ -352,6 +387,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 return $this->recordRoots($walked, $this->roots[$ptr]);
             }
 
+            ++$this->walkSteps;
             $walked[] = $ptr;
             $code = $tokens[$ptr]['code'];
 
@@ -448,6 +484,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         $this->cacheCounts['roots.builds']++;
         $this->rootsKey = $key;
         $this->roots = [];
+        $this->walkSteps = 0;
     }
 
     /**
