@@ -224,8 +224,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 278, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
-        ['line' => 511, 'column' => 22],
-        ['line' => 533, 'column' => 25],
+        ['line' => 542, 'column' => 22],
+        ['line' => 564, 'column' => 25],
     ],
     'tests/Standards/AvoidConditionalsTest.php' => [
         ['line' => 127, 'column' => 23],
@@ -296,9 +296,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Standards/LogicalGroupingsTest.php' => [
         ['line' => 206, 'column' => 37],
-        ['line' => 437, 'column' => 17],
-        ['line' => 641, 'column' => 27],
-        ['line' => 647, 'column' => 12],
+        ['line' => 475, 'column' => 17],
+        ['line' => 686, 'column' => 27],
+        ['line' => 692, 'column' => 12],
     ],
     'tests/Standards/ManipulationOperatorPlacementTest.php' => [
         ['line' => 181, 'column' => 29],
