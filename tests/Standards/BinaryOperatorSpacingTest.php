@@ -42,16 +42,19 @@ it('produces no violations on the compliant fixture', function (): void {
  * All four inherited message codes, one per line. Keeping the parent's codes
  * is what makes the swap in rules.xml invisible to anything that references
  * them; a renamed code would show up here.
+ *
+ * Every column is the offending sign's own position, which is what pins line 17
+ * to the binary `+` at column 30 rather than to the `++` in front of it.
  */
 it('flags every violation at its own line with the expected code', function (): void {
     $file = analyzeFixture(BINARY_OPERATOR_SPACING, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        9 => [BINARY_OPERATOR_SPACING . '.NoSpaceBefore'],
-        10 => [BINARY_OPERATOR_SPACING . '.NoSpaceAfter'],
-        11 => [BINARY_OPERATOR_SPACING . '.SpacingBefore'],
-        12 => [BINARY_OPERATOR_SPACING . '.SpacingAfter'],
-        17 => [BINARY_OPERATOR_SPACING . '.NoSpaceAfter'],
+    expect(violationTuples($file))->toBe([
+        ['line' => 9, 'column' => 28, 'source' => BINARY_OPERATOR_SPACING . '.NoSpaceBefore'],
+        ['line' => 10, 'column' => 28, 'source' => BINARY_OPERATOR_SPACING . '.NoSpaceAfter'],
+        ['line' => 11, 'column' => 35, 'source' => BINARY_OPERATOR_SPACING . '.SpacingBefore'],
+        ['line' => 12, 'column' => 33, 'source' => BINARY_OPERATOR_SPACING . '.SpacingAfter'],
+        ['line' => 17, 'column' => 30, 'source' => BINARY_OPERATOR_SPACING . '.NoSpaceAfter'],
     ]);
 });
 

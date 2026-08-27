@@ -74,19 +74,76 @@ than failing a build.
   (`Route::get`/`post`/`put`/`patch`/`delete`/`options`/`any`/`match`) registers
   a route outside the resource-route convention; `Route::resource()` and
   `Route::apiResource()` are the compliant shapes.
-- **Do: for special action routes, use invokable controllers.** The action
+- **Do: for special action routes, use invokable controllers.** **Shipped**
+  as the custom sniff `CleanCode.Routes.NonInvokableSpecialAction`
+  ([#249](https://github.com/mike-bronner/phpcs-rules/issues/249)). The action
   argument carries the answer: a bare `FooController::class` is invokable and
   compliant, while an array action `[FooController::class, 'method']` (or the
-  legacy `'FooController@method'` string) with a method outside the seven
-  RESTful actions is a candidate violation. Focused sniff issue:
-  [#249](https://github.com/mike-bronner/phpcs-rules/issues/249).
-  - **False positive** — several related non-RESTful actions deliberately
-    grouped on one controller read as violations on shape alone.
-  - **False negative** — a bare `::class` action passes on shape; whether
-    that class actually defines `__invoke()` lives in another file.
-  - **False negative** — the "very rare" half of the bullet is a frequency
-    judgement, and a file of thirty invokable special-action routes passes
-    every token check while breaking the intent.
+  legacy `'FooController@method'` string, in either quoting style — a
+  double-quoted one with nothing to interpolate is the same constant string)
+  with a method outside the seven RESTful actions is a candidate violation.
+
+  The sniff reads the action argument of `Route::get`, `post`, `put`, `patch`,
+  `delete`, `options`, `any` and `match` — second for every verb but `match`,
+  whose HTTP-methods array comes first and whose action is therefore third. A
+  call that writes `action: …` is read by that name instead, in whatever order
+  the names are written, so a named registration is reported exactly as the
+  positional spelling of it is. An action naming one of the seven RESTful
+  methods is *not* flagged: that shape is a resource route written longhand,
+  which #248 reports at the verb call itself, and flagging it here would
+  double-report one line.
+
+  Seven boundaries, all deliberate:
+  - **False positive — a deliberately shared controller.** Several related
+    non-RESTful actions grouped on one controller read as violations on shape
+    alone. The sniff reports them; a reviewer dismisses them. That is why the
+    rule is a warning and not an error.
+  - **False negative — an invokable-looking class that is not invokable.** A
+    bare `FooController::class` action passes on shape; whether that class
+    really declares `__invoke()` lives in another file and needs project-wide
+    symbol resolution.
+  - **False negative — the "very rare" half of the bullet.** Frequency is not
+    token-visible. A routes file holding thirty invokable special-action
+    routes clears every check while plainly breaking the intent; that
+    judgement stays with code review.
+  - **Dynamic actions are skipped, not guessed at.** An action built from a
+    variable, a call, a class constant, string interpolation or a
+    concatenation — `[$controller, 'x']`, `[FooController::class, $method]`,
+    `[FooController::class, self::ACTION]`, `"FooController@{$method}"`,
+    `'FooController@archive' . $suffix`,
+    `[FooController::class, 'archive' . $suffix]` — is unreadable at token
+    level. So is the associative `['uses' => …]` action shape, which is left
+    alone rather than read by position.
+  - **A literal is read in either quoting style, escapes evaluated.**
+    `"App\\Http\\TagController@archive"` and
+    `'App\Http\TagController@archive'` are the same string to PHP, so the same
+    action is read out of both. Every escape sequence either quoting style
+    defines is evaluated first, with one exception: the Unicode codepoint
+    escape `\u{…}` is left as written and therefore matches neither name
+    pattern, so `"FooController@arch\u{69}ve"` is skipped — a false negative
+    for a spelling no route file uses.
+  - **A heredoc or nowdoc action is skipped (false negative).** Its body is
+    several tokens whatever it holds, so `<<<'ACTION'` carrying
+    `FooController@archive` is passed over even though the content is fully
+    literal. Unlike the dynamic shapes above this one is readable in
+    principle; it is left unread because no route file spells an action that
+    way.
+  - **Symbol resolution assumes the Laravel `Route` facade.** As with #174 and
+    #248, the receiver is matched on the literal token `Route`, case included,
+    so an aliased import cannot be resolved and a differently cased spelling
+    (`route::get(…)`) is read as another name. Two consequences: an unrelated
+    `Http::get()` is never mistaken for a route registration, and a verb
+    reached through a chained builder (`Route::middleware('auth')->get(…)`) is
+    not seen, because the verb is called on the returned object rather than on
+    the facade.
+
+  The check is gated on the file path by the sniff's own configurable
+  `routeFilePatterns` property, which ships matching any path holding a
+  `routes` directory segment. Without it every `Route::verb()` call in a
+  service provider, a package boot method or a test would be in scope — the
+  same false-positive flood #248's gate exists to prevent. Detection only:
+  converting an action to an invokable controller means creating that class
+  and moving the method into it.
 
 ### Not statically enforceable — code review only (Tier 3)
 

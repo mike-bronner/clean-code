@@ -112,9 +112,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 598, 'column' => 34],
     ],
     'CleanCode/Sniffs/Conditionals/TypeDiscriminatorDispatchSniff.php' => [
-        ['line' => 754, 'column' => 18],
-        ['line' => 774, 'column' => 28],
-        ['line' => 809, 'column' => 31],
+        ['line' => 780, 'column' => 18],
+        ['line' => 800, 'column' => 28],
+        ['line' => 835, 'column' => 31],
     ],
     'CleanCode/Sniffs/Controllers/NoCustomActionsSniff.php' => [
         ['line' => 178, 'column' => 34],
@@ -123,7 +123,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 1038, 'column' => 16],
+        ['line' => 1040, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
@@ -170,6 +170,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'CleanCode/Sniffs/Routes/ApiControllerNamespaceSniff.php' => [
         ['line' => 171, 'column' => 20],
     ],
+    'CleanCode/Sniffs/Routes/NonInvokableSpecialActionSniff.php' => [
+        ['line' => 411, 'column' => 22],
+        ['line' => 423, 'column' => 13],
+    ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
         ['line' => 862, 'column' => 44],
     ],
@@ -192,7 +196,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 629, 'column' => 13],
     ],
     'tests/Contract/ShippedPackageSmokeTest.php' => [
-        ['line' => 147, 'column' => 27],
+        ['line' => 148, 'column' => 27],
     ],
     'tests/Helpers.php' => [
         ['line' => 612, 'column' => 66],
@@ -222,8 +226,12 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/AvoidConditionalsTest.php' => [
         ['line' => 127, 'column' => 23],
     ],
+    'tests/Standards/BlankLinesTest.php' => [
+        ['line' => 91, 'column' => 42],
+        ['line' => 117, 'column' => 42],
+    ],
     'tests/Standards/BooleanOperatorSpacingTest.php' => [
-        ['line' => 221, 'column' => 27],
+        ['line' => 208, 'column' => 27],
     ],
     'tests/Standards/ComponentMarkupTest.php' => [
         ['line' => 399, 'column' => 16],
@@ -248,6 +256,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 110, 'column' => 17],
         ['line' => 268, 'column' => 17],
     ],
+    'tests/Standards/DisallowDebugFunctionsTest.php' => [
+        ['line' => 53, 'column' => 42],
+    ],
     'tests/Standards/DisallowExitExpressionTest.php' => [
         ['line' => 65, 'column' => 18],
         ['line' => 141, 'column' => 18],
@@ -259,6 +270,15 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 295, 'column' => 24],
         ['line' => 320, 'column' => 28],
         ['line' => 326, 'column' => 19],
+    ],
+    'tests/Standards/DisallowTypeIntrospectionTest.php' => [
+        ['line' => 117, 'column' => 17],
+        ['line' => 139, 'column' => 17],
+        ['line' => 192, 'column' => 17],
+        ['line' => 229, 'column' => 17],
+        ['line' => 251, 'column' => 17],
+        ['line' => 275, 'column' => 17],
+        ['line' => 553, 'column' => 17],
     ],
     'tests/Standards/DuplicatedArrayKeyTest.php' => [
         ['line' => 88, 'column' => 42],
@@ -293,6 +313,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
         ['line' => 65, 'column' => 44],
     ],
+    'tests/Standards/NoInlineIfStatementsTest.php' => [
+        ['line' => 50, 'column' => 42],
+    ],
     'tests/Standards/NoInternetTraversalTest.php' => [
         ['line' => 74, 'column' => 44],
         ['line' => 411, 'column' => 15],
@@ -310,11 +333,21 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 176, 'column' => 57],
         ['line' => 446, 'column' => 13],
     ],
+    'tests/Standards/OneThoughtPerLineTest.php' => [
+        ['line' => 37, 'column' => 42],
+    ],
+    'tests/Standards/OperatorLineBreakTest.php' => [
+        ['line' => 110, 'column' => 33],
+    ],
+    'tests/Standards/PassiveOperatorSpacingTest.php' => [
+        ['line' => 90, 'column' => 60],
+        ['line' => 125, 'column' => 60],
+    ],
     'tests/Standards/RequirePropertiesTest.php' => [
         ['line' => 198, 'column' => 25],
     ],
     'tests/Standards/ShortVariableTest.php' => [
-        ['line' => 489, 'column' => 25],
+        ['line' => 509, 'column' => 25],
     ],
     'tests/Standards/SuperglobalsTest.php' => [
         ['line' => 99, 'column' => 18],
@@ -363,7 +396,7 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
  * Every .php file the reviewed-sites sweep covers, relative to the package root
  * and sorted — the in-process equivalent of the two path arguments and the
  * fixture ignore pattern the #286 phpcs command sweeps with. Confirmed to agree
- * with that command: both report the same 94 file/line/column triples.
+ * with that command: both report the same 113 file/line/column triples.
  *
  * A closure rather than a named function for the reason given on
  * $convertToCollectionMessages above.
@@ -532,8 +565,8 @@ it('reports detection-only violations', function (): void {
  * leave behind.
  *
  * Every site is native on purpose and the reason is one package-level fact, so
- * the alternative — a comment at each of 65 call sites — would restate one true
- * thing 65 times and still not notice the sixty-sixth call the day someone adds
+ * the alternative — a comment at each of 113 call sites — would restate one
+ * true thing 113 times and still not notice the next call the day someone adds
  * it. This pins the reviewed set instead, so an added, moved or deleted native
  * call is a red test rather than one more warning nobody reads.
  *
