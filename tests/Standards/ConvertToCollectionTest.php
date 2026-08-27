@@ -127,7 +127,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 217, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 1040, 'column' => 16],
+        ['line' => 950, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
@@ -257,8 +257,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 187, 'column' => 17],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
-        ['line' => 110, 'column' => 17],
-        ['line' => 268, 'column' => 17],
+        ['line' => 112, 'column' => 17],
+        ['line' => 270, 'column' => 17],
     ],
     'tests/Standards/DisallowDebugFunctionsTest.php' => [
         ['line' => 53, 'column' => 42],
