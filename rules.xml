@@ -489,6 +489,17 @@
     </rule>
 
     <!--
+        Classes: Introspection / Type Casting (#73) —
+        docs/standards/classes-introspection-type-casting.md.
+
+        No PHPCS or Slevomat sniff flags type introspection used to decide a
+        branch, so this is the custom CleanCode.Classes.DisallowTypeIntrospection
+        sniff, picked up automatically via the ./CleanCode/ruleset.xml ref
+        above. Detection-only — replacing a type check with polymorphism is a
+        refactor, not a mechanical rewrite.
+    -->
+
+    <!--
         Use Statements: Sort Alphabetically (#67) —
         docs/standards/use-statements-sort-alphabetically.md.
 
@@ -724,8 +735,8 @@
         CleanCode/ and tests/ — 65 of them, in 37 files, 19 in the shipped
         sniffs and 46 in the suite — is a native call kept on purpose. The
         pinned set has since grown with the sniffs that landed after that
-        review: 94 warnings in 56 files, 33 in the shipped sniffs and 61 in the
-        suite. The reason is one package-level fact rather than 94 separate
+        review: 113 warnings in 61 files, 37 in the shipped sniffs and 76 in
+        the suite. The reason is one package-level fact rather than 113 separate
         judgements: this package is a PHP_CodeSniffer standard,
         illuminate/collections is absent from its composer.json by design, and
         adding it to require so a linter could call collect() would put
@@ -742,7 +753,7 @@
         array literal. The other two are only counted, which a Collection
         satisfies through Countable, so for those two the package-level fact is
         the whole reason rather than a reinforcement of the site's own usage.
-        The 29 sites added since #312 are pinned on the package-level fact
+        The 48 sites added since #312 are pinned on the package-level fact
         alone; they have not been walked one at a time the way that PR walked
         the first 65, so the per-site tally stays scoped to that set.
 
