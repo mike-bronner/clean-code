@@ -74,11 +74,19 @@ separately for it.
   depends on the re-evaluation, so only the author knows whether hoisting
   preserves the intent.
 - **Same-named methods are not flagged** — `$collection->count()`,
-  `$collection?->count()`, `Collection::count(…)`, and a qualified
-  `App\Support\count(…)` or `namespace\count(…)` all resolve to something other
-  than the global function. So does a declaration of a method by that name, and
-  so does `new count(…)`, since a class may share the short name. The compliant
-  fixture pins every one of them.
+  `$collection?->count()`, `Collection::count(…)`, a qualified
+  `App\Support\count(…)`, and a bare name a `use function` import redirects
+  elsewhere all resolve to something other than the global function. So does a
+  declaration of a method by that name, and so does `new count(…)`, since a
+  class may share the short name. The compliant fixture pins every one of them.
+
+  `namespace\count(…)` is the one qualified spelling that depends on where it is
+  written: it resolves against the namespace in force, so it *is* the global
+  function in a file that declares no namespace and somebody else's inside a
+  named one. The sniff routes this question through
+  `CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()` rather than
+  answering it itself, so both directions are pinned — the reported one in
+  `failing.php`, the silent one in `namespaced-relative.php`.
 - **First-class callables are not flagged** — `count(...)` and `sizeof(...)`
   (PHP 8.1) build a `Closure` referring to the function rather than invoking it,
   so no array is counted and there is no per-iteration re-count to report. The

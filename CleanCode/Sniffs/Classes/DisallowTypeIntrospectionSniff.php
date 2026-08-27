@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -132,18 +133,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
         T_MATCH_ARROW,
         T_OPEN_CURLY_BRACKET,
         T_SEMICOLON,
-    ];
-
-    /**
-     * Tokens which, sitting directly before a `name(`, mean the name is not a
-     * call to the global introspection function of that name.
-     */
-    private const NOT_A_GLOBAL_CALL = [
-        T_DOUBLE_COLON,
-        T_FUNCTION,
-        T_NEW,
-        T_NULLSAFE_OBJECT_OPERATOR,
-        T_OBJECT_OPERATOR,
     ];
 
     /**
@@ -322,7 +311,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
             return;
         }
 
-        if ($this->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($this->isGlobalCallAccountingForShadowing($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -345,50 +334,50 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * and not qualified as a method, a class member, a `new` target, a
      * declaration, another namespace's function, or a name the file shadows.
      *
-     * {@see NOT_A_GLOBAL_CALL} is tested against the token before the *whole*
-     * qualified name rather than the token before $stackPtr, because what
-     * precedes the name governs the name however it is spelled. Reading only
-     * the immediate predecessor made `new \get_class()` escape the `new` case
-     * entirely — the token before that name is the separator, not the keyword —
-     * and the qualifier branch below then read the `new` as "no qualifying
-     * segment", i.e. as the global function. The keyword is the same keyword in
-     * every spelling, so it is resolved before the spelling is examined.
+     * The name says what this adds rather than repeating the shared helper's,
+     * because the two answer different questions and a reader has to be able to
+     * tell which one a call site wants. This one composes the helper and layers
+     * the same-file declaration shadow the helper documents as outside its
+     * scope; it does not re-implement the helper's own check (#320).
+     *
+     * The first of those is {@see FunctionCalls::isGlobalFunctionCall()}'s
+     * question and is asked there rather than answered again here (#320): the
+     * shared helper rules out member access, declarations including
+     * `function &get_class()`, instantiation however the class name is
+     * qualified, `Vendor\get_class()`, an attribute name, and a bare name a
+     * `use function` import redirects elsewhere. It resolves an import against
+     * the namespace block the call sits in, where the file-wide approximation
+     * this sniff used to carry credited a shadow to the whole file.
+     *
+     * Two things stay here. A first-class callable references the function
+     * without calling it, so nothing is evaluated and no branch is decided by
+     * it. And a function *declared in this file* shadows the global fallback
+     * for a bare call — the one resolution the shared helper documents as
+     * deliberately outside its scope, since answering it means reading
+     * declarations across a namespace rather than reading one statement.
      */
-    private function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
+    private function isGlobalCallAccountingForShadowing(File $phpcsFile, int $stackPtr): bool
     {
+        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+            return false;
+        }
+
+        if ($this->isFirstClassCallable($phpcsFile, $stackPtr) === true) {
+            return false;
+        }
+
         $tokens = $phpcsFile->getTokens();
+        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
-
-        if ($next === false || $tokens[$next]['code'] !== T_OPEN_PARENTHESIS) {
-            return false;
+        // Only a *bare* name falls back to the global function, so only a bare
+        // name can be shadowed by a declaration. A qualifier the helper already
+        // resolved to the global namespace — `\get_class()`, or
+        // `namespace\get_class()` written outside any namespace — names that
+        // function explicitly and outranks whatever this file declares.
+        if ($prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR) {
+            return true;
         }
 
-        if ($this->isFirstClassCallable($phpcsFile, $next)) {
-            return false;
-        }
-
-        $nameStart = $this->qualifiedNameStart($phpcsFile, $stackPtr);
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($nameStart - 1), null, true);
-
-        if ($prev !== false && in_array($tokens[$prev]['code'], self::NOT_A_GLOBAL_CALL, true)) {
-            return false;
-        }
-
-        if ($nameStart !== $stackPtr) {
-            // `\get_class()` is the global function, and an explicit qualifier
-            // outranks any import; `Vendor\get_class()` and
-            // `namespace\get_class()` are different ones. The name starts at a
-            // separator only when nothing qualifies it, so a leading separator
-            // directly before the name is the root-qualified form.
-            $qualified = $phpcsFile->findNext(Tokens::$emptyTokens, ($nameStart + 1), null, true);
-
-            return $tokens[$nameStart]['code'] === T_NS_SEPARATOR
-                && $qualified === $stackPtr;
-        }
-
-        // An unqualified name falls back to the global function only when the
-        // file does not resolve it to one of its own.
         $this->index($phpcsFile);
         $this->shadowedNames ??= $this->buildShadowedNames($phpcsFile);
 
@@ -397,41 +386,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
             $this->shadowedNames,
             true
         ) === false;
-    }
-
-    /**
-     * The first token of the qualified name ending at $stackPtr — its leading
-     * `\` when it has one, its first segment otherwise, and $stackPtr itself
-     * when the name is unqualified.
-     *
-     * Walking the whole name is what lets a caller ask about the construct the
-     * name belongs to rather than about its last segment: `new`, `::`, `->` and
-     * `function` all sit before the first token of the name, however many
-     * segments follow.
-     */
-    private function qualifiedNameStart(File $phpcsFile, int $stackPtr): int
-    {
-        $tokens = $phpcsFile->getTokens();
-        $start = $stackPtr;
-
-        while (true) {
-            $separator = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
-
-            if ($separator === false || $tokens[$separator]['code'] !== T_NS_SEPARATOR) {
-                return $start;
-            }
-
-            $segment = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separator - 1), null, true);
-
-            if (
-                $segment === false
-                || in_array($tokens[$segment]['code'], [T_NAMESPACE, T_STRING], true) === false
-            ) {
-                return $separator;
-            }
-
-            $start = $segment;
-        }
     }
 
     /**
@@ -444,10 +398,11 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * A variadic unpack (`is_a(...$args)`) has an argument after the `...` and
      * is an ordinary call.
      */
-    private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool
+    private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
-        $closer = $tokens[$openerPtr]['parenthesis_closer'] ?? null;
+        $openerPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
+        $closer = $openerPtr === false ? null : ($tokens[$openerPtr]['parenthesis_closer'] ?? null);
 
         if ($closer === null) {
             return false;
@@ -461,15 +416,20 @@ class DisallowTypeIntrospectionSniff implements Sniff
     }
 
     /**
-     * The introspection function names an unqualified call in this file
-     * resolves to something other than the global function of that name:
-     * imported by `use function` (under its own name or an alias), or declared
-     * as a function in the file.
+     * The introspection function names this file *declares* as functions of its
+     * own, which shadow the global fallback for a bare call to that name.
      *
-     * The whole file is treated as one scope. A file holding several namespace
-     * blocks could therefore be credited with a shadow that only covers one of
-     * them, but the result is a missed report rather than a false one, and
-     * PSR-1 rules the shape out anyway.
+     * `use function` imports used to be collected here too. They are
+     * FunctionCalls::isGlobalFunctionCall()'s since #320, which resolves them
+     * against the namespace block the call sits in rather than crediting the
+     * whole file — strictly better on a multi-block file, and one fewer copy of
+     * a shape the shared helper already answers.
+     *
+     * Declarations are still read file-wide, because that is the resolution the
+     * shared helper documents as outside its scope. A file holding several
+     * namespace blocks can therefore be credited with a shadow covering only
+     * one of them, but the result is a missed report rather than a false one,
+     * and PSR-1 rules the shape out anyway.
      *
      * @return array<int, string>
      */
@@ -479,12 +439,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $names = [];
 
         for ($i = 0; $i < $phpcsFile->numTokens; $i++) {
-            if ($tokens[$i]['code'] === T_USE) {
-                $names = array_merge($names, $this->importedFunctionNames($phpcsFile, $i));
-
-                continue;
-            }
-
             if ($tokens[$i]['code'] !== T_FUNCTION) {
                 continue;
             }
@@ -497,61 +451,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         return array_values(array_intersect($names, self::INTROSPECTION_FUNCTIONS));
-    }
-
-    /**
-     * The names a `use function …;` statement at $usePtr binds in this file —
-     * the alias when one is given, otherwise the imported function's own name.
-     * Any other `use` (a trait, a closure's `use (…)`) binds no function name.
-     *
-     * Each comma-separated entry ends at the name it binds, so the last `T_STRING`
-     * of a segment is that name in every form the statement takes: plain,
-     * `as`-aliased, and braced group imports alike.
-     *
-     * The `function` keyword itself is matched by content as well as by code:
-     * PHPCS re-tokenises it from `T_FUNCTION` to `T_STRING` here, precisely
-     * because it declares nothing. No other `use` can be followed by that word
-     * — `function` is reserved, so it names no trait.
-     *
-     * @return array<int, string>
-     */
-    private function importedFunctionNames(File $phpcsFile, int $usePtr): array
-    {
-        $tokens = $phpcsFile->getTokens();
-        $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
-
-        if ($next === false || strtolower($tokens[$next]['content']) !== 'function') {
-            return [];
-        }
-
-        $end = $phpcsFile->findNext(T_SEMICOLON, $next);
-
-        if ($end === false) {
-            return [];
-        }
-
-        $names = [];
-        $bound = null;
-
-        for ($i = ($next + 1); $i <= $end; $i++) {
-            if ($tokens[$i]['code'] === T_STRING) {
-                $bound = strtolower($tokens[$i]['content']);
-
-                continue;
-            }
-
-            if ($tokens[$i]['code'] !== T_COMMA && $i !== $end) {
-                continue;
-            }
-
-            if ($bound !== null) {
-                $names[] = $bound;
-            }
-
-            $bound = null;
-        }
-
-        return $names;
     }
 
     /**

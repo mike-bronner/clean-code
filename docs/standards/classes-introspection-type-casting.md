@@ -97,8 +97,9 @@ The standard is therefore enforced by the custom
     `Vendor\get_class($value)`, and a `function gettype()` declaration are not
     the global introspection functions. Nor is a bare name the file resolves to
     something of its own: a `use function Vendor\get_class;` import (under its
-    own name or an `as` alias), or a `function get_class()` declared in the
-    file's namespace. Nor is a constructor call on a class of the same name
+    own name or an `as` alias), in force for the namespace block it is written
+    in, or a `function get_class()` declared in the file's namespace. Nor is a
+    constructor call on a class of the same name
     (`new get_class()`): PHP keeps class and function names in separate symbol
     tables, so the name after `new` is always the class. A root-namespaced
     `\get_class()` *is* the global function — an explicit qualifier outranks
@@ -168,7 +169,12 @@ be reported as one.
   the outer `match` as a plain `T_STRING` when its subject holds a `match` of
   its own, so the outer construct is not a branch the sniff can see at all. The
   boundary is the tokenizer's, not the rule's.
-- **Several namespaces in one file.** Shadowing (an import or a declared
-  function) is resolved against the file as a whole, so a name shadowed in one
-  namespace block is treated as shadowed in all of them. PSR-1 rules the shape
-  out, and the cost is a missed report rather than a false one.
+- **Several namespaces in one file.** Shadowing by a *declared* function is
+  resolved against the file as a whole, so a name declared in one namespace
+  block is treated as shadowed in all of them. PSR-1 rules the shape out, and
+  the cost is a missed report rather than a false one. A `use function` import
+  is not subject to this: since #320 the sniff routes that question through
+  `CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()`, which binds an
+  import to the block the call sits in. `import-blocks.php` pins the pair —
+  the same bare call is silent in the block that imports it and reported in the
+  block that does not.

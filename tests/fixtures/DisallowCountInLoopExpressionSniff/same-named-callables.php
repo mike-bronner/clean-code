@@ -2,8 +2,10 @@
 
 // Every loop below puts the name `count` or `sizeof` inside a real loop
 // condition, where the sniff is looking, but none of them is a call to the
-// global function. This fixture isolates the callable check: drop any one
-// member of NON_FUNCTION_CALL_PRECEDERS and a loop here is reported.
+// global function. This fixture isolates the callable check: every shape here
+// is silent only because FunctionCalls::isGlobalFunctionCall() says so, so
+// dropping any one of its NON_CALL_PRECEDERS members — or its import
+// resolution — reports a loop here.
 //
 // The `class count` declaration near the end is the one construct here that is
 // *not* in a loop condition. It is supporting scaffolding, so the `new count(…)`
@@ -34,7 +36,15 @@ while (App\Support\count($items) > 0) {
     array_pop($items);
 }
 
-for ($i = 0; $i < namespace\sizeof($items); $i++) {
+// `use function` redirects the bare name to somebody else's function, so the
+// call below never reaches PHP's own count(). This file has no namespace of its
+// own, so the import binds in the global one, which is where the call sits.
+// Only FunctionCalls::isGlobalFunctionCall() resolves imports — the hand-rolled
+// preceder list this sniff used to carry read the bare name as the global
+// function and reported this loop.
+use function App\Support\sizeof;
+
+for ($i = 0; $i < sizeof($items); $i++) {
     echo $items[$i];
 }
 
@@ -79,5 +89,28 @@ class count
 }
 
 while ((new count($items))->hasMore()) {
+    break;
+}
+
+// Declaring a method *by reference* is still a declaration, and the ampersand
+// is what makes it a different shape from the one above: `&` sits between
+// `function` and the name, so a preceder check that reads only the token
+// immediately before the name finds T_BITWISE_AND, matches nothing in its list,
+// and reads the declaration as a live call. The shared helper steps over the
+// ampersand and finds the T_FUNCTION behind it. Reverting this sniff to its
+// pre-#320 preceder list reports this loop.
+while ((new class {
+    public function &count(): iterable
+    {
+        static $rows = [];
+
+        return $rows;
+    }
+
+    public function hasRows(): bool
+    {
+        return false;
+    }
+})->hasRows()) {
     break;
 }

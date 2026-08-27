@@ -154,6 +154,8 @@ here and pinned by `tests/fixtures/UnusedFormalParameterSniff/divergences.php`.
 | Method colliding with the *qualifier* of a trait imported by its full name | flags | flags |
 | `\func_get_args(...)` — the first-class callable, not the call | silent | **flags** |
 | `\func_get_args(...[])` — a genuine spread of zero arguments | silent | silent |
+| Qualified `\Vendor\Package\compact('name')` | silent | **flags** |
+| Bare `compact('name')` that a `use function` import redirects elsewhere | silent | **flags** |
 
 Reading the rows that disagree:
 
@@ -179,7 +181,8 @@ Reading the rows that disagree:
   namespaced function and reports through it, while `\func_get_args()` on the
   very next line exempts. The parameters really are read either way, so
   reporting them would be a false positive on correct code. `compact()` is
-  unaffected, because PHPMD matches that one by suffix.
+  unaffected in PHPMD, because PHPMD matches that one by suffix — which is what
+  the two rows below turn on.
 - **`\func_get_args(...)`.** PHP 8.1's first-class callable syntax reaches the
   opening parenthesis with the same tokens a call does, so PHPMD reads it as
   the call it resembles and grants the whole-signature exemption. Nothing is
@@ -191,6 +194,18 @@ Reading the rows that disagree:
   written with the leading backslash because the unqualified spelling is
   already decided by the namespace row above. A genuine spread —
   `\func_get_args(...[])` — is a real call and still exempts, in both tools.
+- **A qualified `compact()`, and a bare one a `use function` redirects.**
+  PHPMD matches `compact` by suffix, so the last segment of
+  `\Vendor\Package\compact('name')` satisfies it and a bare name satisfies it
+  without the import being read at all. Neither call reaches PHP's `compact()`:
+  the first names somebody else's function outright, and the second is bound to
+  one by the import. Neither has any obligation to bring the named variable
+  into scope, so the parameter really is dead and is reported here. Since #320
+  this ruleset does not answer the question itself — it routes through
+  `CleanCode\Helpers\FunctionCalls::isGlobalFunctionCall()`, shared with every
+  other sniff that has to tell PHP's own function from a name that merely
+  spells it. Both rows measured on a live PHPMD 2.15.0 run over
+  `divergences.php`: silent there, reported here.
 
 Two rows agree, and are in the table because reaching that agreement took a
 fix rather than nothing:

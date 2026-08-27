@@ -31,12 +31,18 @@
  * #[\Override] at all). Both are rows in the divergence table in
  * docs/phpmd/unusedcode-unusedformalparameter.md.
  *
- * On divergences.php PHPMD reports four of the nine this sniff reports. The
- * five it skips are the three constructs PDepend never surfaces to a
+ * On divergences.php PHPMD reports four of the eleven this sniff reports. The
+ * seven it skips are the three constructs PDepend never surfaces to a
  * MethodAware rule, a child of a class whose nested anonymous class uses a
  * trait — which PDepend attributes to the enclosing class, so PHPMD reads the
- * child as an override — and a first-class callable, which it reads as the
- * call that syntax only resembles.
+ * child as an override — a first-class callable, which it reads as the call
+ * that syntax only resembles, and the two names that merely spell `compact`:
+ * PHPMD matches that one by suffix, so a qualified `Vendor\Package\compact()`
+ * and a bare name a `use function` redirects to it both satisfy it, while this
+ * sniff resolves them through CleanCode\Helpers\FunctionCalls and finds
+ * somebody else's function. Re-measured on a live PHPMD 2.15.0 run over this
+ * exact file while adding those two (#320): four reported, both new lines
+ * silent.
  *
  * That parity is the whole point of #120: the rule exists so that `phpmd` no
  * longer has to run, and a shape this sniff stays silent on where PHPMD speaks
@@ -432,6 +438,8 @@ it('reports the documented divergences, and only those', function (): void {
         ['line' => 124, 'column' => 29, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 158, 'column' => 39, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
         ['line' => 168, 'column' => 35, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 194, 'column' => 34, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+        ['line' => 212, 'column' => 33, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ]);
 });
 
@@ -889,4 +897,32 @@ it('builds its class-like index once per STDIN stream, not once per read', funct
                 "n={$size}: every read after the first answers from the index already built"
             );
     }
+});
+
+/**
+ * The namespace in force is the block's, not the file's. `compact()` is what
+ * makes that observable: reaching PHP's own compact() exempts the parameter its
+ * argument names, and reaching another namespace's function of the same short
+ * name does not, so namespace-blocks.php gives the identical line opposite
+ * verdicts in an unnamed block and a named one.
+ *
+ * The unnamed block has no unbraced spelling — only a braced block can be
+ * unnamed — so this case cannot be folded into passing.php or divergences.php,
+ * for the same reason namespaces.php exists.
+ *
+ * Mutation-confirmed against the pre-#320 sniff itself: restored from `main`, it
+ * reports nothing in this file. Its hand-rolled copy stepped over the qualifier
+ * and matched the short name exactly as PHPMD does, so it read both lines as
+ * PHP's own compact() and exempted both, losing line 40. The unnamed block's
+ * silence is the other half: it is what stops the fix being "no `namespace\`
+ * name ever exempts".
+ */
+it('resolves a namespace-relative exempting call against the enclosing block', function (): void {
+    $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'namespace-blocks.php');
+
+    expect(violationTuples($file))->toBe([
+        // Only the named block's parameter. The unnamed block's `namespace\compact()`
+        // is PHP's own, so it exempts $unusedA and nothing is reported there.
+        ['line' => 40, 'column' => 50, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
+    ])->and($file->getWarnings())->toBe([]);
 });
