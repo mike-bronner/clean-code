@@ -10,8 +10,8 @@
  * (+ autofixed.php).
  *
  * Line 25 carries two errors — a chain broken across lines more than once in a
- * single statement — which is what keeps the map a count map rather than a
- * plain list of lines.
+ * single statement — which is why it appears twice below, once per reported
+ * column, rather than once per line.
  */
 
 declare(strict_types=1);
@@ -34,20 +34,18 @@ it('produces no violations on the compliant fixture', function (): void {
 it('flags every violation at its own line', function (): void {
     $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'failing.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        25 => 2,
-        26 => 1,
-        27 => 1,
-        28 => 1,
-        29 => 1,
-        30 => 1,
-        31 => 1,
-        34 => 1,
-        36 => 1,
-        37 => 1,
-        38 => 1,
-        42 => 1,
-    ])->and($file->getWarnings())->toBe([]);
+    expect(violationTuples($file))->toBe(array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => ONE_THOUGHT_PER_LINE . '.MultipleAccessOperators',
+        ],
+        [
+            [25, 23], [25, 32], [26, 25], [27, 23], [28, 27], [29, 26],
+            [30, 27], [31, 14], [34, 16], [36, 26], [37, 26], [38, 25],
+            [42, 28],
+        ]
+    ))->and($file->getWarnings())->toBe([]);
 });
 
 it('auto-fixes the failing fixture into the autofixed fixture', function (): void {
