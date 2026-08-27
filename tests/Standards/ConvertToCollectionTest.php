@@ -65,10 +65,10 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * Every warning this sniff raises against the package's *own* source, as
  * file => line/column tuples. Reviewed one site at a time under #286.
  *
- * All 113 are native calls kept on purpose. The reason is a single
+ * All 115 are native calls kept on purpose. The reason is a single
  * package-level fact, recorded once in rules.xml and in
- * docs/standards/arrays-convert-to-collection.md rather than 113 times across
- * 61 files: this package is a PHP_CodeSniffer standard with no
+ * docs/standards/arrays-convert-to-collection.md rather than 115 times across
+ * the files below: this package is a PHP_CodeSniffer standard with no
  * illuminate/collections dependency, so collect() does not exist here to call.
  * That is the plain-PHP context the warning severity exists for.
  *
@@ -84,12 +84,27 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * conversion nor argues for one; for those two the package-level fact is the
  * whole reason.
  *
- * The remaining 48 arrived with the sniffs that landed after #312 and are
- * pinned on the package-level fact alone — the same fact that carries those two,
- * and the only one that can carry any of them while collect() is absent. They
- * have not been walked one at a time the way #312 walked the first 65, so the
- * per-site claim above is deliberately scoped to that set rather than widened to
- * cover reviews nobody performed.
+ * The remaining 50 arrived with the sniffs and tests that landed after #312 and
+ * are pinned on the package-level fact alone — the same fact that carries those
+ * two, and the only one that can carry any of them while collect() is absent.
+ * They have not been walked one at a time the way #312 walked the first 65, so
+ * the per-site claim above is deliberately scoped to that set rather than
+ * widened to cover reviews nobody performed.
+ *
+ * Eight of those 50 are the array_map()/array_filter() calls #363 added while
+ * wiring eleven Standards tests through violationTuples(): BlankLinesTest.php
+ * (2), DisallowDebugFunctionsTest.php, NoInlineIfStatementsTest.php,
+ * OneThoughtPerLineTest.php, OperatorLineBreakTest.php and
+ * PassiveOperatorSpacingTest.php (2). Each builds an expected-violation list
+ * this file's own sibling tests then compare against, so each is consumed by an
+ * assertion rather than by a Collection API.
+ *
+ * Two entries #363 also corrected were stale rather than new. tests/Sniffs.php's
+ * site moved from line 218 to 223, and the five sites at lines 455, 526, 761,
+ * 797 and 801 were keyed to NoInternetTraversalTest.php while they are in fact
+ * in NoLogicTest.php, the key that sorts next to it. Neither line nor column
+ * changed for any of the six, so neither correction pins a site nobody reviewed
+ * — but until #363 they left this sweep red on main.
  *
  * Pinned by file, line and column rather than by count: a count stays unchanged
  * when one site moves and another disappears. A native call added, moved or
@@ -225,8 +240,12 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/AvoidConditionalsTest.php' => [
         ['line' => 127, 'column' => 23],
     ],
+    'tests/Standards/BlankLinesTest.php' => [
+        ['line' => 91, 'column' => 42],
+        ['line' => 117, 'column' => 42],
+    ],
     'tests/Standards/BooleanOperatorSpacingTest.php' => [
-        ['line' => 221, 'column' => 27],
+        ['line' => 208, 'column' => 27],
     ],
     'tests/Standards/ComponentMarkupTest.php' => [
         ['line' => 399, 'column' => 16],
@@ -249,6 +268,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
         ['line' => 110, 'column' => 17],
         ['line' => 268, 'column' => 17],
+    ],
+    'tests/Standards/DisallowDebugFunctionsTest.php' => [
+        ['line' => 53, 'column' => 42],
     ],
     'tests/Standards/DisallowExitExpressionTest.php' => [
         ['line' => 65, 'column' => 18],
@@ -304,6 +326,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/NoHttpFakesInIntegrationTestsTest.php' => [
         ['line' => 65, 'column' => 44],
     ],
+    'tests/Standards/NoInlineIfStatementsTest.php' => [
+        ['line' => 50, 'column' => 42],
+    ],
     'tests/Standards/NoInternetTraversalTest.php' => [
         ['line' => 74, 'column' => 44],
         ['line' => 411, 'column' => 15],
@@ -320,6 +345,16 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 142, 'column' => 57],
         ['line' => 176, 'column' => 57],
         ['line' => 446, 'column' => 13],
+    ],
+    'tests/Standards/OneThoughtPerLineTest.php' => [
+        ['line' => 37, 'column' => 42],
+    ],
+    'tests/Standards/OperatorLineBreakTest.php' => [
+        ['line' => 110, 'column' => 33],
+    ],
+    'tests/Standards/PassiveOperatorSpacingTest.php' => [
+        ['line' => 90, 'column' => 60],
+        ['line' => 125, 'column' => 60],
     ],
     'tests/Standards/RequirePropertiesTest.php' => [
         ['line' => 198, 'column' => 25],

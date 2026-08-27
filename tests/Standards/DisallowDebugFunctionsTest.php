@@ -5,9 +5,10 @@
  *
  * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the fixture
  * moved from CleanCode/Tests/Debug/DisallowDebugFunctionsUnitTest.inc to
- * tests/fixtures/DisallowDebugFunctionsSniff/failing.php, and the line =>
- * error-count map below carried over from that test's getErrorList(). Lines 26
- * onward were added for the PHPMD DevelopmentCodeFragment names (#86).
+ * tests/fixtures/DisallowDebugFunctionsSniff/failing.php, and the lines pinned
+ * below carried over from that test's getErrorList(), with the column of each
+ * report added. Lines 26 onward were added for the PHPMD
+ * DevelopmentCodeFragment names (#86).
  *
  * The rule is detection-only — removing a debug call is a judgement about what
  * the code was meant to do — so there is no autofixed fixture, and the
@@ -41,28 +42,31 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
+/**
+ * Every column is the function-name token's own position, never the qualifier
+ * in front of it: column 1 for a plain call, column 2 where a leading `\`
+ * precedes the name, and column 11 on line 22, past `namespace\`.
+ */
 it('flags every debug call at its own line', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'failing.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        3 => 1,
-        4 => 1,
-        5 => 1,
-        6 => 1,
-        7 => 1,
-        // `namespace\dump()` where no namespace is declared: the namespace in
-        // force is the global one, so the call reaches PHP's own function
-        // exactly as the leading-separator form on the next line does.
-        22 => 1,
-        24 => 1,
-        26 => 1,
-        27 => 1,
-        28 => 1,
-        29 => 1,
-        30 => 1,
-        31 => 1,
-        32 => 1,
-    ])->and($file->getWarnings())->toBe([]);
+    expect(violationTuples($file))->toBe(array_map(
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found',
+        ],
+        [
+            [3, 1], [4, 1], [5, 1], [6, 1], [7, 1],
+            // `namespace\dump()` where no namespace is declared: the namespace
+            // in force is the global one, so the call reaches PHP's own
+            // function exactly as the leading-separator form on the next line
+            // does.
+            [22, 11],
+            [24, 2], [26, 1], [27, 2], [28, 1], [29, 1], [30, 2], [31, 1],
+            [32, 2],
+        ]
+    ))->and($file->getWarnings())->toBe([]);
 });
 
 /**
@@ -76,10 +80,10 @@ it('flags every debug call at its own line', function (): void {
 it('flags every debug call an import did not bind', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'imported-names.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        13 => 1,
-        14 => 1,
-        15 => 1,
+    expect(violationTuples($file))->toBe([
+        ['line' => 13, 'column' => 1, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found'],
+        ['line' => 14, 'column' => 1, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found'],
+        ['line' => 15, 'column' => 1, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found'],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -93,7 +97,8 @@ it('flags every debug call an import did not bind', function (): void {
 it('stays silent on a namespace-relative call inside a declared namespace', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'namespace-relative.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([22 => 1])
+    expect(violationTuples($file))
+        ->toBe([['line' => 22, 'column' => 2, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found']])
         ->and($file->getWarnings())->toBe([]);
 });
 
