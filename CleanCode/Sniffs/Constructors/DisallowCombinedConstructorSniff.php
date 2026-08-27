@@ -429,11 +429,68 @@ class DisallowCombinedConstructorSniff implements Sniff
     private array $chainHeadCache = [];
 
     /**
+     * The `:` each ternary `?` in this body selects its else-side at, keyed by
+     * the `?`.
+     *
+     * One walk settles every `?` it steps over, not only the one it started at:
+     * a stack of the opened `?`s pairs each with the `:` that closes it, the
+     * way {@see self::buildCommaMap()} pairs a comma with its group in one
+     * pass. Without that, each level of a nested then-side chain
+     * (`$flag ? $flag ? … : d2 : d1`) walks through every level under it to
+     * reach its own `:`, which is quadratic in the chain's depth.
+     *
+     * Holds `null` for a `?` whose ternary reaches no `:` before the body ends
+     * or a `;` closes the statement, so membership is tested with
+     * array_key_exists() rather than isset().
+     *
+     * @var array<int, int|null>
+     */
+    private array $ternaryElse = [];
+
+    /**
+     * How many forward walks {@see self::ternarySides()} ran, and how many
+     * calls answered from a walk already run, cumulative for the life of this
+     * instance.
+     *
+     * A cache that only shortens a walk changes no violation, so nothing a
+     * black-box test can observe tells "one walk settles the whole chain" from
+     * "one walk per level" — both report the same warnings, and the wall clock
+     * that separates them at this chain's size is PHP_CodeSniffer's own
+     * quadratic tokenizer rather than the sniff's (see the docblock over the
+     * linearity assertions in tests/Standards/DisallowCombinedConstructorTest.php).
+     * These two counters are what tell them apart, and that file pins both
+     * numbers.
+     *
+     * Each increment sits inside the same branch as the guard it counts, so a
+     * guard that stopped working cannot leave the counts intact. The totals are
+     * cumulative for the life of the sniff instance — tests/Helpers.php's
+     * buildRuleset() memoises the instance, so every test in one file shares
+     * one — and are read as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $cacheCounts = [
+        'ternarySides.walks' => 0,
+        'ternarySides.hits' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_FUNCTION];
+    }
+
+    /**
+     * How many times the ternary walk ran and how many times a call answered
+     * from a walk already run, cumulative for the life of this instance.
+     *
+     * @return array<string, int>
+     */
+    public function cacheCounts(): array
+    {
+        return $this->cacheCounts;
     }
 
     /**
@@ -471,6 +528,7 @@ class DisallowCombinedConstructorSniff implements Sniff
         $this->selectorCache = [];
         $this->branchVerdicts = [];
         $this->chainHeadCache = [];
+        $this->ternaryElse = [];
         $this->buildCommaMap($phpcsFile, $tokens[$stackPtr]['scope_opener'], $closer);
 
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
@@ -1768,35 +1826,49 @@ class DisallowCombinedConstructorSniff implements Sniff
      * a `:` belonging to no ternary as this one's else-side, and judges a
      * `throw` that is not in this constructor as this construct's branch.
      *
+     * The walk carries the `?`s it has opened on a stack rather than counting
+     * them, so the `:` closing each one is recorded as the walk reaches it and
+     * every level of a nested chain is settled by the first walk to cross it
+     * ({@see self::$ternaryElse}). A level already settled is jumped whole, so
+     * a walk started at an outer `?` after an inner one was settled steps over
+     * the inner ternary rather than through it. Without both, each level of a
+     * nested then-side chain walks every level under it to reach its own `:`.
+     *
      * @return array<int, int>
      */
     private function ternarySides(File $phpcsFile, int $then, int $closer): array
     {
+        if (array_key_exists($then, $this->ternaryElse)) {
+            $this->cacheCounts['ternarySides.hits']++;
+            $settled = $this->ternaryElse[$then];
+
+            return $settled === null ? [$then => $then] : [$then => $then, $settled => $settled];
+        }
+
+        $this->cacheCounts['ternarySides.walks']++;
         $tokens = $phpcsFile->getTokens();
-        $sides = [$then => $then];
-        $depth = 0;
+        $opened = [$then];
 
         for ($pointer = $then + 1; $pointer < $closer; $pointer++) {
             $code = $tokens[$pointer]['code'];
 
             if ($code === T_SEMICOLON) {
-                return $sides;
+                break;
             }
 
             if ($code === T_INLINE_THEN) {
-                $depth++;
+                $opened[] = $pointer;
 
                 continue;
             }
 
             if ($code === T_INLINE_ELSE) {
-                if ($depth === 0) {
-                    $sides[$pointer] = $pointer;
+                $matched = array_pop($opened);
+                $this->ternaryElse[$matched] = $pointer;
 
-                    return $sides;
+                if ($opened === []) {
+                    return [$then => $then, $pointer => $pointer];
                 }
-
-                $depth--;
 
                 continue;
             }
@@ -1804,7 +1876,11 @@ class DisallowCombinedConstructorSniff implements Sniff
             $pointer = $this->groupEnd($phpcsFile, $pointer) ?? $pointer;
         }
 
-        return $sides;
+        foreach ($opened as $unmatched) {
+            $this->ternaryElse[$unmatched] = null;
+        }
+
+        return [$then => $then];
     }
 
     /**

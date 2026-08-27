@@ -516,16 +516,18 @@ it('warns on every branching, declaration, and argument-reader shape', function 
 });
 
 /**
- * Three shapes cost a walk of the whole enclosing construct per signal found in
+ * Four shapes cost a walk of the whole enclosing construct per signal found in
  * it, and each is held rather than re-derived: the forward scan's answers per
- * position, what each branch of a construct does, and where an `if` chain
- * begins. A generated file reaches every one of these easily, and the same
- * defect class the repo already fixed once in ArrayAccessorsSniff (#239).
+ * position, what each branch of a construct does, where an `if` chain begins,
+ * and which `:` each ternary `?` selects at. A generated file reaches every one
+ * of these easily, and the same defect class the repo already fixed once in
+ * ArrayAccessorsSniff (#239).
  *
- * No fixture reddens on any of the three caches, since they change only how
- * long the answers take to reach; these are the assertions that pin them, one
- * per shape, so a cache lost from one walk cannot hide behind another. Every
- * bound below sits between the two costs measured on the machine that wrote it,
+ * No fixture reddens on any of the four caches, since they change only how long
+ * the answers take to reach; these are the assertions that pin them, one per
+ * shape, so a cache lost from one walk cannot hide behind another. The first
+ * three are bounded on the wall clock. Every bound below sits between the two
+ * costs measured on the machine that wrote it,
  * and each was confirmed to redden with its own cache removed and to pass with
  * it — measured, not derived:
  *
@@ -540,6 +542,14 @@ it('warns on every branching, declaration, and argument-reader shape', function 
  * would assert PHPCS's behaviour rather than the sniff's. The case walk shares
  * the per-construct cache the `match` assertion below pins, and the count
  * assertion in each test proves the walk still reports every branch.
+ *
+ * The fourth shape — a nested ternary chain — is bounded the same way, and for
+ * the same reason: PHPCS's tokenizer is quadratic on that chain too. At n=4000
+ * the whole run costs 10.54s with the ternary cache and 23.97s without, but
+ * PSR2.ControlStructures.SwitchDeclaration alone costs 10.37s on the very same
+ * file, so all but ~0.2s of the passing time is PHPCS's. A wall-clock bound
+ * there would be four fifths tokenizer. The two counter assertions below pin
+ * that walk instead, exactly as ArrayAccessorsTest pins its enclosure map.
  */
 it('scans repeated uses of one parameter in linear time', function (): void {
     $size = 4000;
@@ -584,6 +594,105 @@ it('scans a long if chain in linear time', function (): void {
 
     expect($file->getWarningCount())->toBe($size, 'every link condition is still reported')
         ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
+});
+
+/**
+ * Every level of a nested ternary chain is settled by one walk of it, not by one
+ * walk per level.
+ *
+ * `$flag ? $flag ? $flag ? … : d3 : d2 : d1` nests on the *then* side, which is
+ * ordinary compiling PHP — only else-side chaining without parentheses is the
+ * shape PHP 8 rejects. Each level is its own construct, so the per-construct
+ * verdict cache shares nothing between them; without a cache of its own each
+ * level's walk reads through every level under it to reach its own `:`, which
+ * is quadratic in the chain's depth.
+ *
+ * A cache that only shortens a walk changes no warning, so no fixture reddens
+ * on it and the wall clock cannot separate the two either (see the docblock
+ * above). The sniff counts the walk instead, the way ArrayAccessorsSniff counts
+ * its enclosure map, and both numbers are pinned because each rules out a
+ * different failure:
+ *
+ * - one walk per chain, at any depth, is the claim itself;
+ * - n-1 hits keeps it from passing vacuously, since a sniff that stopped
+ *   consulting the cache would report one walk and no hits. Each level's
+ *   condition asks once, so n levels total n calls, of which one walks.
+ *
+ * Mutation-checked by deleting the array_key_exists() guard at the top of
+ * ternarySides(), so every level walks: `composer test` then fails here at the
+ * smallest size, n=2, reading 2 walks / 0 hits against the 1 / 1 asserted; n=4
+ * reads 4 / 0 against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
+ */
+it('settles a nested ternary chain in one walk', function (): void {
+    $sniff = sniffInstance(COMBINED_CONSTRUCTOR);
+
+    foreach ([2, 4, 8] as $size) {
+        $else = '';
+
+        for ($level = $size; $level >= 1; $level--) {
+            $else .= " : new Mode{$level}()";
+        }
+
+        $source = "<?php\n\nclass TernaryChainProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
+            . '        $this->mode = ' . str_repeat('$flag ? ', $size) . 'new Deepest()' . $else . ";\n    }\n}\n";
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getWarningCount())->toBe($size, "n={$size}: every level's condition is still reported")
+            ->and($counted['ternarySides.walks'])->toBe(
+                1,
+                "n={$size}: the chain is walked once, not once per level"
+            )
+            ->and($counted['ternarySides.hits'])->toBe(
+                $size - 1,
+                "n={$size}: every level after the first answers from the walk already run"
+            );
+    }
+});
+
+/**
+ * A ternary the walk finds no `:` for is settled too, rather than left to be
+ * re-walked.
+ *
+ * PHPCS reads a file whether or not PHP would run it, so a chain of `?` with no
+ * `:` under any of them reaches the walk. Every level of it ends at the same
+ * `;`, so recording only the levels that matched would leave this whole shape
+ * uncached and quadratic — the very cost the cache exists to remove, reachable
+ * on a file that merely fails to parse.
+ *
+ * This is also the assertion that reaches the null half of the cached answer.
+ * The test above only ever reads a settled `:` back; without this one, a
+ * ternarySides() that recorded nothing for an unmatched `?` would still pass
+ * every other test in this file.
+ *
+ * Mutation-checked the same way as the test above, and additionally by dropping
+ * the closing `foreach ($opened as $unmatched)` record: `composer test` then
+ * fails here alone, reading n walks / 0 hits against the 1 / n-1 asserted, with
+ * the chain test above still green.
+ */
+it('settles an unterminated ternary chain in one walk', function (): void {
+    $sniff = sniffInstance(COMBINED_CONSTRUCTOR);
+
+    foreach ([2, 4, 8] as $size) {
+        $source = "<?php\n\nclass TruncatedTernaryProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
+            . '        $this->mode = ' . str_repeat('$flag ? ', $size) . "new Deepest();\n    }\n}\n";
+
+        $before = $sniff->cacheCounts();
+        $file = analyzeStdinSource([COMBINED_CONSTRUCTOR], $source);
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
+        expect($file->getWarningCount())->toBe($size, "n={$size}: every level's condition is still reported")
+            ->and($counted['ternarySides.walks'])->toBe(
+                1,
+                "n={$size}: the chain is walked once, not once per level"
+            )
+            ->and($counted['ternarySides.hits'])->toBe(
+                $size - 1,
+                "n={$size}: every level after the first answers from the walk already run"
+            );
+    }
 });
 
 /**

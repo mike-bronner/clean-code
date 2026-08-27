@@ -253,7 +253,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 187, 'column' => 17],
     ],
     'tests/Standards/DisallowCombinedConstructorTest.php' => [
-        ['line' => 558, 'column' => 27],
+        ['line' => 568, 'column' => 27],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
         ['line' => 110, 'column' => 17],
