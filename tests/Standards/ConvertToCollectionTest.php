@@ -91,7 +91,7 @@ const CONVERT_TO_COLLECTION_MESSAGES = [
  * per-site claim above is deliberately scoped to that set rather than widened to
  * cover reviews nobody performed. Two of the 62 are the exception, read here
  * rather than pinned on the package-level fact alone: this file's own sibling,
- * tests/Standards/OnlyUseCollectionMethodsTest.php:378 and :424, each compares
+ * tests/Standards/OnlyUseCollectionMethodsTest.php:390 and :436, each compares
  * array_map('strtolower', ...) against a native array by identity, which a
  * Collection does not satisfy.
  *
@@ -341,8 +341,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 37, 'column' => 42],
     ],
     'tests/Standards/OnlyUseCollectionMethodsTest.php' => [
-        ['line' => 378, 'column' => 28],
-        ['line' => 424, 'column' => 28],
+        ['line' => 390, 'column' => 28],
+        ['line' => 436, 'column' => 28],
     ],
     'tests/Standards/OperatorLineBreakTest.php' => [
         ['line' => 110, 'column' => 33],

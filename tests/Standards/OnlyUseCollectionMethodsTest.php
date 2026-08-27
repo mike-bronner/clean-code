@@ -74,10 +74,10 @@ it('produces no violations on the compliant fixture', function (): void {
 it('lets an imported function shadow the builtin but not a qualified call', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-function.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        33 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        51 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        63 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+    expect(violationTuples($file))->toBe([
+        ['line' => 33, 'column' => 13, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 51, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 63, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -113,73 +113,85 @@ it('escapes a variable handed to a shadowed call spelled like a mapped function'
 it('lets an imported collect() shadow the helper but not a qualified call', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-collect.php');
 
-    expect(violationSourcesByLine($file->getErrors()))
-        ->toBe([33 => [ONLY_USE_COLLECTION_METHODS . '.Found']])
+    expect(violationTuples($file))
+        ->toBe([['line' => 33, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found']])
         ->and(violationFixableLines($file->getErrors()))->toBe([33]);
 });
 
-it('flags every violation at its own line with the expected code', function (): void {
+/**
+ * The whole census, pinned by line, column and source rather than by line
+ * alone. The column is the mapped function's own name token, which is what
+ * makes it worth asserting: a line can carry the call plus the receiver that
+ * feeds it, so a report landing on the wrong token of the right line is a real
+ * regression that a line-keyed assertion cannot see. Shifting every report one
+ * token left leaves the line map byte-identical and reddens this.
+ *
+ * Column also discriminates *within* a line here — 92, 93, 297 and the nested
+ * shapes report well past the indent — so the values are evidence rather than
+ * a repeated constant.
+ */
+it('flags every violation at its own line and column with the expected code', function (): void {
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        13 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        14 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        15 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        16 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        17 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        18 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        19 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        20 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        31 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        32 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        33 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        40 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        41 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        42 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        49 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        50 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        58 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        67 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        68 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        69 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        70 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        71 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        81 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        82 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        92 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        93 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        103 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        104 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        121 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        122 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        146 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        157 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        166 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        180 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        190 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        191 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        198 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        205 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        222 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        223 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        231 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        236 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        259 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        266 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        279 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        287 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        297 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        316 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        325 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        335 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        344 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        359 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        370 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        377 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        396 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        406 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        418 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
-        430 => [ONLY_USE_COLLECTION_METHODS . '.Found'],
+    expect(violationTuples($file))->toBe([
+        ['line' => 13, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 14, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 15, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 16, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 17, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 18, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 19, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 20, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 31, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 32, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 33, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 40, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 41, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 42, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 49, 'column' => 10, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 50, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 58, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 67, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 68, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 69, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 70, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 71, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 81, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 82, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 92, 'column' => 46, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 93, 'column' => 30, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 103, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 104, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 121, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 122, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 146, 'column' => 21, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 157, 'column' => 22, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 166, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 180, 'column' => 19, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 190, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 191, 'column' => 11, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 198, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 205, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 222, 'column' => 16, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 223, 'column' => 18, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 231, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 236, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 259, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 266, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 279, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 287, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 297, 'column' => 49, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 316, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 325, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 335, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 344, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 359, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 370, 'column' => 16, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 377, 'column' => 16, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 396, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 406, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 418, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 430, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
 });
 
@@ -460,8 +472,9 @@ it('says nothing about an unterminated call, and still reports the line above it
     }
 
     expect($diagnostics)->toBe([])
-        ->and(allViolationSourcesByLine($file))
-        ->toBe([6 => [ONLY_USE_COLLECTION_METHODS . '.Found']])
+        ->and(violationTuples($file))
+        ->toBe([['line' => 6, 'column' => 10, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found']])
+        ->and(warningTuples($file))->toBe([])
         ->and(violationFixableLines($file->getErrors()))->toBe([6]);
 });
 
@@ -513,7 +526,9 @@ it('declines to rewrite a call whose argument carries a comment', function (): v
         unlink($path);
     }
 
-    expect(violationMessagesByLine($errors))->toHaveKeys([418, 430])
+    expect(violationTuples($file))
+        ->toContain(['line' => 418, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'])
+        ->toContain(['line' => 430, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'])
         ->and(violationFixableLines($errors))->not->toContain(418)
         ->and(violationFixableLines($errors))->not->toContain(430)
         ->and($fixed)->toContain('        $data // the collection being counted')
