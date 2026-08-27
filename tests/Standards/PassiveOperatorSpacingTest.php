@@ -32,38 +32,33 @@ it('produces no violations on the compliant fixture', function (): void {
 });
 
 /**
- * The per-line contract: an exact source-per-line map rather than a count, so
- * a violation that moves, doubles or changes code fails the assertion.
+ * The whole contract: an exact line, column and code for every report, so a
+ * violation that moves, doubles or changes code fails the assertion.
  *
  * Line 13 carries two Execution reports because an interpolated command is
- * several tokens, so the leading and trailing trims are separate fixes. Lines
- * 24 and 25 carry two reports each — the `@` and the sign it suppresses are
- * both spaced, and both are this standard's operators.
+ * several tokens, so the leading and trailing trims are separate fixes — and
+ * the two columns are what tells them apart. Lines 24 and 25 carry two reports
+ * each — the `@` and the sign it suppresses are both spaced, and both are this
+ * standard's operators — each at its own operator's column.
  */
 it('flags every violation at its own line with the expected code', function (): void {
     $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        9 => [PASSIVE_OPERATOR_SPACING . '.Identity'],
-        10 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
-        11 => [PASSIVE_OPERATOR_SPACING . '.ErrorControl'],
-        12 => [PASSIVE_OPERATOR_SPACING . '.Execution'],
-        13 => [
-            PASSIVE_OPERATOR_SPACING . '.Execution',
-            PASSIVE_OPERATOR_SPACING . '.Execution',
-        ],
-        14 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
-        15 => [PASSIVE_OPERATOR_SPACING . '.Identity'],
-        24 => [
-            PASSIVE_OPERATOR_SPACING . '.ErrorControl',
-            PASSIVE_OPERATOR_SPACING . '.Negation',
-        ],
-        25 => [
-            PASSIVE_OPERATOR_SPACING . '.ErrorControl',
-            PASSIVE_OPERATOR_SPACING . '.Identity',
-        ],
-        35 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
-        38 => [PASSIVE_OPERATOR_SPACING . '.Negation'],
+    expect(violationTuples($file))->toBe([
+        ['line' => 9, 'column' => 17, 'source' => PASSIVE_OPERATOR_SPACING . '.Identity'],
+        ['line' => 10, 'column' => 17, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation'],
+        ['line' => 11, 'column' => 19, 'source' => PASSIVE_OPERATOR_SPACING . '.ErrorControl'],
+        ['line' => 12, 'column' => 17, 'source' => PASSIVE_OPERATOR_SPACING . '.Execution'],
+        ['line' => 13, 'column' => 21, 'source' => PASSIVE_OPERATOR_SPACING . '.Execution'],
+        ['line' => 13, 'column' => 31, 'source' => PASSIVE_OPERATOR_SPACING . '.Execution'],
+        ['line' => 14, 'column' => 24, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation'],
+        ['line' => 15, 'column' => 24, 'source' => PASSIVE_OPERATOR_SPACING . '.Identity'],
+        ['line' => 24, 'column' => 27, 'source' => PASSIVE_OPERATOR_SPACING . '.ErrorControl'],
+        ['line' => 24, 'column' => 29, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation'],
+        ['line' => 25, 'column' => 27, 'source' => PASSIVE_OPERATOR_SPACING . '.ErrorControl'],
+        ['line' => 25, 'column' => 29, 'source' => PASSIVE_OPERATOR_SPACING . '.Identity'],
+        ['line' => 35, 'column' => 5, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation'],
+        ['line' => 38, 'column' => 5, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation'],
     ]);
 });
 
@@ -90,11 +85,17 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
  * still be the one reporting them.
  */
 it('owns a sign that opens a statement or a PHP block', function (): void {
-    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
-    $sources = violationSourcesByLine($file->getErrors());
+    $tuples = violationTuples(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php'));
 
-    expect($sources[35])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation'])
-        ->and($sources[38])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation']);
+    $atLine = static fn (int $line): array => array_values(array_filter(
+        $tuples,
+        static fn (array $violation): bool => $violation['line'] === $line
+    ));
+
+    expect($atLine(35))
+        ->toBe([['line' => 35, 'column' => 5, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation']])
+        ->and($atLine(38))
+        ->toBe([['line' => 38, 'column' => 5, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation']]);
 });
 
 /**
@@ -119,11 +120,17 @@ it('leaves a same-direction sign pair untouched', function (): void {
  * the guard to all four sign tokens would silently drop these two.
  */
 it('still reports a cross-direction sign pair', function (): void {
-    $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
-    $sources = violationSourcesByLine($file->getErrors());
+    $tuples = violationTuples(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php'));
 
-    expect($sources[14])->toBe([PASSIVE_OPERATOR_SPACING . '.Negation'])
-        ->and($sources[15])->toBe([PASSIVE_OPERATOR_SPACING . '.Identity']);
+    $atLine = static fn (int $line): array => array_values(array_filter(
+        $tuples,
+        static fn (array $violation): bool => $violation['line'] === $line
+    ));
+
+    expect($atLine(14))
+        ->toBe([['line' => 14, 'column' => 24, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation']])
+        ->and($atLine(15))
+        ->toBe([['line' => 15, 'column' => 24, 'source' => PASSIVE_OPERATOR_SPACING . '.Identity']]);
 });
 
 /**

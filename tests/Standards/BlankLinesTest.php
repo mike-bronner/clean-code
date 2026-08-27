@@ -5,8 +5,9 @@
  *
  * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness, which
  * expressed its expectations as a line => error-count map keyed off the fixture
- * name. Those maps are preserved verbatim below; what changes is only that each
- * fixture now names what it exercises instead of carrying a numeric suffix:
+ * name. Every line those maps carried is preserved below, now with the column
+ * and code of each report beside it; the fixtures also name what they exercise
+ * instead of carrying a numeric suffix:
  *
  *   BlankLinesUnitTest.inc    => failing.php     (+ autofixed.php)
  *   BlankLinesUnitTest.2.inc  => after-open-tag-two-blanks.php
@@ -20,6 +21,50 @@
 declare(strict_types=1);
 
 const BLANK_LINES = 'CleanCode.WhiteSpace.BlankLines';
+
+/**
+ * Every violation failing.php carries, as line / column / message-code triples,
+ * read off a live parse of the fixture rather than counted against its source.
+ *
+ * Both fixture-wide assertions below expand this one table. They were a count
+ * map and a code map before #363 wired every column assertion through
+ * violationTuples(); asserting a column makes each of them the whole tuple, so
+ * they now overlap. The overlap is inherited from that split, and each stays its
+ * own `it()` — the count check also pins that the fixture raises no warnings,
+ * which the code check never asserted.
+ *
+ * Every column is 1: the sniff reports a blank line, which has no content for a
+ * column to point into.
+ *
+ * @var array<int, array{0: int, 1: int, 2: string}>
+ */
+const BLANK_LINES_FAILING_SITES = [
+    [41, 1, 'ConsecutiveBlankLines'],
+    [48, 1, 'ConsecutiveBlankLines'],
+    [52, 1, 'ConsecutiveBlankLines'],
+    [60, 1, 'AfterOpeningBrace'],
+    [71, 1, 'BeforeClosingBrace'],
+    [76, 1, 'AfterOpeningBrace'],
+    [78, 1, 'BeforeClosingBrace'],
+    [83, 1, 'AfterOpeningBrace'],
+    [87, 1, 'BeforeClosingBrace'],
+    [94, 1, 'AfterOpeningBrace'],
+    [98, 1, 'BeforeClosingBrace'],
+    [104, 1, 'AfterOpeningBrace'],
+    [106, 1, 'BeforeClosingBrace'],
+    [110, 1, 'AfterOpeningBrace'],
+    [112, 1, 'BeforeClosingBrace'],
+    [117, 1, 'AfterOpeningBrace'],
+    [122, 1, 'AfterOpeningBrace'],
+    [131, 1, 'ConsecutiveBlankLines'],
+    [135, 1, 'AfterOpeningBrace'],
+    [142, 1, 'AfterOpeningBrace'],
+    [144, 1, 'BeforeClosingBrace'],
+    [148, 1, 'AfterOpeningBrace'],
+    [152, 1, 'BeforeClosingBrace'],
+    [157, 1, 'BeforeClosingBrace'],
+    [165, 1, 'BeforeClosingBrace'],
+];
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -43,33 +88,14 @@ it('produces no violations on the compliant fixture', function (): void {
 it('flags every superfluous blank line at its own line', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        41 => 1,
-        48 => 1,
-        52 => 1,
-        60 => 1,
-        71 => 1,
-        76 => 1,
-        78 => 1,
-        83 => 1,
-        87 => 1,
-        94 => 1,
-        98 => 1,
-        104 => 1,
-        106 => 1,
-        110 => 1,
-        112 => 1,
-        117 => 1,
-        122 => 1,
-        131 => 1,
-        135 => 1,
-        142 => 1,
-        144 => 1,
-        148 => 1,
-        152 => 1,
-        157 => 1,
-        165 => 1,
-    ])->and($file->getWarnings())->toBe([]);
+    expect(violationTuples($file))->toBe(array_map(
+        static fn (array $site): array => [
+            'line' => $site[0],
+            'column' => $site[1],
+            'source' => BLANK_LINES . '.' . $site[2],
+        ],
+        BLANK_LINES_FAILING_SITES
+    ))->and($file->getWarnings())->toBe([]);
 });
 
 /**
@@ -88,33 +114,14 @@ it('flags every superfluous blank line at its own line', function (): void {
 it('labels every violation with the code for the edge it sits at', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        41 => [BLANK_LINES . '.ConsecutiveBlankLines'],
-        48 => [BLANK_LINES . '.ConsecutiveBlankLines'],
-        52 => [BLANK_LINES . '.ConsecutiveBlankLines'],
-        60 => [BLANK_LINES . '.AfterOpeningBrace'],
-        71 => [BLANK_LINES . '.BeforeClosingBrace'],
-        76 => [BLANK_LINES . '.AfterOpeningBrace'],
-        78 => [BLANK_LINES . '.BeforeClosingBrace'],
-        83 => [BLANK_LINES . '.AfterOpeningBrace'],
-        87 => [BLANK_LINES . '.BeforeClosingBrace'],
-        94 => [BLANK_LINES . '.AfterOpeningBrace'],
-        98 => [BLANK_LINES . '.BeforeClosingBrace'],
-        104 => [BLANK_LINES . '.AfterOpeningBrace'],
-        106 => [BLANK_LINES . '.BeforeClosingBrace'],
-        110 => [BLANK_LINES . '.AfterOpeningBrace'],
-        112 => [BLANK_LINES . '.BeforeClosingBrace'],
-        117 => [BLANK_LINES . '.AfterOpeningBrace'],
-        122 => [BLANK_LINES . '.AfterOpeningBrace'],
-        131 => [BLANK_LINES . '.ConsecutiveBlankLines'],
-        135 => [BLANK_LINES . '.AfterOpeningBrace'],
-        142 => [BLANK_LINES . '.AfterOpeningBrace'],
-        144 => [BLANK_LINES . '.BeforeClosingBrace'],
-        148 => [BLANK_LINES . '.AfterOpeningBrace'],
-        152 => [BLANK_LINES . '.BeforeClosingBrace'],
-        157 => [BLANK_LINES . '.BeforeClosingBrace'],
-        165 => [BLANK_LINES . '.BeforeClosingBrace'],
-    ]);
+    expect(violationTuples($file))->toBe(array_map(
+        static fn (array $site): array => [
+            'line' => $site[0],
+            'column' => $site[1],
+            'source' => BLANK_LINES . '.' . $site[2],
+        ],
+        BLANK_LINES_FAILING_SITES
+    ));
 });
 
 /**
@@ -155,7 +162,8 @@ it('auto-fixes the failing fixture into the autofixed fixture', function (): voi
 it('collapses blank lines after the open tag', function (string $fixture, string $fixedFixture): void {
     $file = analyzeFixture(BLANK_LINES, $fixture);
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([3 => 1])
+    expect(violationTuples($file))
+        ->toBe([['line' => 3, 'column' => 1, 'source' => BLANK_LINES . '.ConsecutiveBlankLines']])
         ->and($file->getWarnings())->toBe([])
         ->and(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('BlankLinesSniff', $fixedFixture)));

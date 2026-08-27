@@ -20,6 +20,10 @@ native array-manipulation functions (`array_map()`, `array_filter()`,
 `array_reduce()`) are token-visible — a function-name token followed by an
 open parenthesis, not preceded by `->`, `::`, `new`, or `function` — and each
 has a direct Collection equivalent (`collect()->map()/filter()/reduce()`).
+Its mirror image — the same functions applied to a value that is *already* a
+Collection — is [Collections: Only Use Collection
+Methods](collections-only-use-collection-methods.md), enforced by
+`CleanCode.Collections.OnlyUseCollectionMethods`.
 
 That slice is the custom **`CleanCode.Arrays.ConvertToCollection`** sniff
 ([#165](https://github.com/mike-bronner/phpcs-rules/issues/165)). No existing
@@ -79,10 +83,10 @@ rather than about which API does the manipulating.
 warning this sniff raises against `CleanCode/` and `tests/` one site at a time:
 65 warnings in 37 files, 19 in the shipped sniffs and 46 in the test suite.
 Every one is a native call kept on purpose. The pinned set has since grown with
-the sniffs that landed after that review — 83 warnings in 50 files, 27 in the
-shipped sniffs and 56 in the test suite.
+the sniffs that landed after that review — 127 warnings in 69 files, 39 in the
+shipped sniffs and 88 in the test suite.
 
-The reason is a single package-level fact rather than 83 separate judgements.
+The reason is a single package-level fact rather than 127 separate judgements.
 This package is a PHP_CodeSniffer standard; `illuminate/collections` is absent
 from its `composer.json` by design, and adding it to `require` so a linter could
 call `collect()` would put Laravel's collections in every downstream consumer's
@@ -102,7 +106,7 @@ return, or a strict comparison against an array literal. The other two —
 `Collection` satisfies through `Countable`; for those two the package-level fact
 is the whole reason rather than a reinforcement of the site's own usage.
 
-The 18 sites added since #312 are pinned on the package-level fact alone. They
+The 43 sites added since #312 are pinned on the package-level fact alone. They
 have not been walked one at a time the way that PR walked the first 65, so the
 per-site tally above stays scoped to that set rather than widened to cover
 reviews nobody performed.

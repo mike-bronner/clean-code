@@ -879,7 +879,9 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        return $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
+        $this->foreachClauseAsPtrs[$closerPtr] = $asPtr;
+
+        return $asPtr;
     }
 
     /**

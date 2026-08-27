@@ -3,8 +3,9 @@
 /**
  * Tests the custom CleanCode.Conditionals.OneConditionPerLine sniff.
  *
- * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the line =>
- * error-count map below is preserved verbatim from that test's getErrorList().
+ * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the lines
+ * pinned below are preserved verbatim from that test's getErrorList(), with the
+ * column and violation code of each report added.
  * Fixtures moved from
  * CleanCode/Tests/Conditionals/OneConditionPerLineUnitTest.inc (+ .inc.fixed)
  * to tests/fixtures/OneConditionPerLineSniff/failing.php (+ autofixed.php).
@@ -35,18 +36,18 @@ it('produces no violations on the compliant fixture', function (): void {
 it('flags every violation at its own line', function (): void {
     $file = analyzeFixture(ONE_CONDITION_PER_LINE, 'failing.php');
 
-    expect(violationCountsByLine($file->getErrors()))->toBe([
-        68 => 1,
-        75 => 1,
-        84 => 1,
-        89 => 1,
-        90 => 1,
-        97 => 1,
-        104 => 1,
-        110 => 1,
-        117 => 1,
-        124 => 1,
-        129 => 1,
+    expect(violationTuples($file))->toBe([
+        ['line' => 68, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ['line' => 75, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ['line' => 84, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.MultipleConditionsOnOneLine'],
+        ['line' => 89, 'column' => 15, 'source' => ONE_CONDITION_PER_LINE . '.BooleanOperatorNotLeading'],
+        ['line' => 90, 'column' => 17, 'source' => ONE_CONDITION_PER_LINE . '.BooleanOperatorNotLeading'],
+        ['line' => 97, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ['line' => 104, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ['line' => 110, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.MultipleConditionsOnOneLine'],
+        ['line' => 117, 'column' => 3, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ['line' => 124, 'column' => 3, 'source' => ONE_CONDITION_PER_LINE . '.MultipleConditionsOnOneLine'],
+        ['line' => 129, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
     ])->and($file->getWarnings())->toBe([]);
 });
 
@@ -72,7 +73,9 @@ it('auto-fixes the failing fixture into the autofixed fixture', function (): voi
 it('reports but does not fix a split single condition wrapping a comment', function (): void {
     $file = analyzeFixture(ONE_CONDITION_PER_LINE, 'autofixed.php');
 
-    expect(violationSourcesByLine($file->getErrors()))
-        ->toBe([121 => [ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine']])
+    expect(violationTuples($file))
+        ->toBe([
+            ['line' => 121, 'column' => 1, 'source' => ONE_CONDITION_PER_LINE . '.SingleConditionNotOnOneLine'],
+        ])
         ->and($file->getFixableCount())->toBe(0);
 });

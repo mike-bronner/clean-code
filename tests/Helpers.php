@@ -986,6 +986,40 @@ function violationFixableFlags(LocalFile $file): array
 }
 
 /**
+ * The sorted, de-duplicated lines carrying a violation the fixer would rewrite.
+ *
+ * The line-level counterpart of violationFixableFlags(), for a partial fixer
+ * whose contract is *which* lines it will act on. A count cannot express that:
+ * a line that loses fixability and another that gains it leave the total
+ * unmoved, so a sniff whose fixer silently relocated would still pass.
+ *
+ * Takes the messages array rather than the file, so a caller can ask the same
+ * question of getWarnings() as of getErrors().
+ *
+ * @param array<int, array<int, array<int, array<string, mixed>>>> $messages
+ *
+ * @return array<int, int>
+ */
+function violationFixableLines(array $messages): array
+{
+    $lines = [];
+
+    foreach ($messages as $line => $columns) {
+        foreach ($columns as $violations) {
+            foreach ($violations as $violation) {
+                if ($violation['fixable'] === true) {
+                    $lines[$line] = $line;
+                }
+            }
+        }
+    }
+
+    ksort($lines);
+
+    return array_values($lines);
+}
+
+/**
  * Writes source to a file outside the repository and returns its path, for a
  * case that varies one detail of a view or too large a body to keep on disk.
  * Staged paths are purged after each test by tests/Pest.php.
@@ -1575,4 +1609,45 @@ function analyzeFileset(array $sniffCodes, string $directory): array
     ksort($files);
 
     return $files;
+}
+
+/**
+ * Loads the shim twice in a fresh interpreter and reports what it saw.
+ *
+ * Diagnostics are collected rather than displayed: PHP writes a warning to
+ * stdout under the CLI's default display_errors, where it would land in the
+ * middle of the JSON this reads back.
+ *
+ * @return array{diagnostics: array<int, string>, first: array<string, mixed>, second: array<string, mixed>}
+ */
+function backportedTokensDoubleLoad(): array
+{
+    $shim = var_export(cleanCodeRoot() . '/CleanCode/Support/BackportedTokens.php', true);
+    $script = <<<PHP
+    \$diagnostics = [];
+    set_error_handler(static function (int \$number, string \$message) use (&\$diagnostics): bool {
+        \$diagnostics[] = \$message;
+
+        return true;
+    });
+    require {$shim};
+    \$first = ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE];
+    require {$shim};
+    echo json_encode([
+        'diagnostics' => \$diagnostics,
+        'first' => \$first,
+        'second' => ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE],
+    ]);
+    PHP;
+
+    [$stdout, $stderr] = runOutsidePackage(
+        implode(' ', array_map('escapeshellarg', [PHP_BINARY, '-d', 'error_reporting=-1', '-r', $script]))
+    );
+    $decoded = json_decode($stdout, true);
+
+    if (is_array($decoded) === false) {
+        throw new RuntimeException("the shim subprocess produced no JSON; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    return $decoded;
 }
