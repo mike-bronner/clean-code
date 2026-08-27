@@ -193,7 +193,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     /**
      * How many times the indexes were built, and how many times the key guard
-     * answered a read from the indexes already built.
+     * answered a read from the indexes already built, plus the same pair for
+     * the ternary-decision map specifically.
      *
      * The indexes exist to absorb many reads per token stream into one pass,
      * and nothing a black-box test can observe tells "built once, read n times"
@@ -206,11 +207,20 @@ class DisallowTypeIntrospectionSniff implements Sniff
      * cumulative for the life of the sniff instance and are read as a delta
      * around a single run.
      *
+     * `ternaryDecisions.builds`/`.hits` split the one backward pass that
+     * resolves every forward scan in the stream from the reads that answer
+     * from it. The forward walk it replaced ran once per check, so a long
+     * boolean chain cost its own square; the build count is what states
+     * "once per file" directly, where the scale test used to state it as
+     * elapsed seconds against a fixed budget (#354).
+     *
      * @var array<string, int>
      */
     private array $cacheCounts = [
         'indexes.builds' => 0,
         'indexes.hits' => 0,
+        'ternaryDecisions.builds' => 0,
+        'ternaryDecisions.hits' => 0,
     ];
 
     /**
@@ -859,7 +869,20 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $limit = $scope === null ? $phpcsFile->numTokens : $scope['end'];
         $this->index($phpcsFile);
-        $this->ternaryDecisions ??= $this->buildTernaryDecisions($phpcsFile);
+
+        // The same guard the `??=` this replaces expressed, written out so the
+        // build and the read that answers from it can be counted apart. The
+        // scale test in tests/Standards/DisallowTypeIntrospectionTest.php reads
+        // that pair: one backward pass per file against one per check is the
+        // difference between linear and quadratic here, and it has no observable
+        // other than these counts or the elapsed time they replace (#354).
+        if ($this->ternaryDecisions === null) {
+            $this->cacheCounts['ternaryDecisions.builds']++;
+            $this->ternaryDecisions = $this->buildTernaryDecisions($phpcsFile);
+        } else {
+            $this->cacheCounts['ternaryDecisions.hits']++;
+        }
+
         $decision = $this->ternaryDecisions[$stackPtr + 1] ?? $phpcsFile->numTokens;
 
         return $decision < $limit

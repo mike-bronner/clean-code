@@ -304,19 +304,40 @@ it('does not treat a name declared as a function in the file as the global one',
  * caller branches on). A fix that bounded only the reported path would leave
  * the other quadratic.
  *
- * An asymptotic fix has no observable but time, so the budget sits an order of
- * magnitude above the measured cost rather than near it. Measured in this
- * harness at 2400 links per chain: 6.913s before the walk was resolved once per
- * file, 0.196s after — and 0.480s / 1.768s before at 600 / 1200, the ~4x per
- * doubling that names the growth as quadratic, against 0.054s / 0.095s after,
- * which is the 2x that names it linear. A 2.0s cap leaves a slow runner 10x
- * room while still failing the quadratic walk by 3.4x.
+ * Measured in this harness at 2400 links per chain when the fix landed: 6.913s
+ * before the walk was resolved once per file, 0.196s after — and 0.480s /
+ * 1.768s before at 600 / 1200, the ~4x per doubling that names the growth as
+ * quadratic, against 0.054s / 0.095s after, which is the 2x that names it
+ * linear. Those readings are kept as provenance for what the fix is worth;
+ * nothing here is timed any more.
  *
- * The violation assertion is what stops the timing from passing vacuously: a
- * file the tokenizer gives up on is both fast and silent, and so is a sniff
+ * The claim is counted rather than timed (#354, extending #321). A wall-clock
+ * budget states an asymptotic fix only as far as a shared CI runner allows —
+ * #321 recorded the same assertion shape failing twice and passing on a third
+ * run with no code change — so the fix is read from
+ * DisallowTypeIntrospectionSniff::cacheCounts(), as a delta around this one
+ * run. `ternaryDecisions.builds` is incremented in the
+ * `$this->ternaryDecisions === null` branch of isATernaryCondition(), where the
+ * one backward pass over the stream is made, and `ternaryDecisions.hits` in
+ * that branch's `else`, where a check answers from the pass already made.
+ *
+ * Both are asserted, and the pair is what makes the claim: a build count of 1
+ * alone would also hold for a sniff that stopped resolving ternaries at all,
+ * and a hit count alone says nothing about how often the pass was repeated.
+ * The two chains hold 2400 and 2401 checks, so the 4801 reads between them are
+ * one build and 2 * $links hits. No replacement bound is derived from the old
+ * 2.0s cap, because none is needed: both counts are exact consequences of the
+ * fixture's own $links, so they are asserted as 1 and `2 * $links` rather than
+ * as a budget with headroom. The per-check walk this replaced would report
+ * 4801 builds and 0 hits — the quadratic shape, stated as a count.
+ *
+ * Mutation-checked by reverting the memoization to a build on every read; the
+ * diff hunk and the resulting failure are in this PR's description.
+ *
+ * The violation assertion is what stops the counts from passing vacuously: a
+ * file the tokenizer gives up on is both cheap and silent, and so is a sniff
  * that stopped reporting. Every link of the ternary chain is pinned, not a
- * count. The ruleset is built before the clock starts so the first parse of
- * rules.xml is not charged to the measurement.
+ * count.
  */
 it('stays linear on long boolean chains of checks', function (): void {
     $links = 2400;
@@ -346,11 +367,13 @@ it('stays linear on long boolean chains of checks', function (): void {
     $lines = array_merge($lines, ['            || $value instanceof Other;', '    }', '}', '']);
     $fixture = stageGeneratedFixture('boolean-chain.php', implode("\n", $lines));
 
-    buildRuleset([TYPE_INTROSPECTION_SNIFF]);
-
-    $started = hrtime(true);
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(TYPE_INTROSPECTION_SNIFF);
+    $before = $sniff->cacheCounts();
     $file = analyzeWithSniffs([TYPE_INTROSPECTION_SNIFF], $fixture);
-    $elapsed = (hrtime(true) - $started) / 1e9;
+    $counted = cacheCountsDelta($before, $sniff->cacheCounts());
 
     $expected = [];
 
@@ -367,7 +390,14 @@ it('stays linear on long boolean chains of checks', function (): void {
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([])
-        ->and($elapsed)->toBeLessThan(2.0);
+        ->and($counted['ternaryDecisions.builds'])->toBe(
+            1,
+            'the forward scans resolve in one backward pass over the file, not one per check'
+        )
+        ->and($counted['ternaryDecisions.hits'])->toBe(
+            (2 * $links),
+            'every check after the first answers from that one pass'
+        );
 });
 
 /**
