@@ -482,11 +482,33 @@ it('accounts for every scope opener PHPCS defines', function (): void {
  * linear implementation from a quadratic one in the thousands, and a committed
  * 10,000-line file is a worse thing for this repository to carry.
  *
- * The budget is wall clock and set generously against measured numbers: the
- * carried state answers n=10,000 in about a third of a second here, while
- * scanning back needs 11s for the same file — so the assertion has an order of
- * magnitude of headroom on a loaded runner and still cannot pass against a
- * rescan by being lucky.
+ * The claim is counted rather than timed (#354, extending #321). A wall-clock
+ * budget states it only as far as a shared CI runner allows — #321 recorded
+ * this exact assertion shape failing twice and passing on a third run with no
+ * code change — so the cost is read from the sniff's own
+ * `commentStaysOpen.evaluations` counter, as a delta around this one run. The
+ * numbers the budget was set against are kept as provenance for what the
+ * carried state is worth: n=10,000 answers in about a third of a second, while
+ * scanning back needs 11s for the same file.
+ *
+ * The counter is the unit of work the quadratic shape multiplies. Whether a
+ * fragment continues the one above it is asked once per fragment when the
+ * answer is carried forward, and once per fragment *per line read* when it is
+ * recovered by replaying the comment. Two passes ask it here — mapLines() over
+ * the file's comment tokens, and checkStatement() over the statement's own
+ * non-whitespace tokens — and each is one pass, so the total is linear in $size
+ * with a coefficient of two. A replay is $size * ($size + 1) / 2 for the same
+ * file: 50 million against 20 thousand.
+ *
+ * Asserted as a coefficient and a constant rather than as a bare number,
+ * because it is linearity that is being pinned, not a magic total.
+ *
+ * The error count is what stops the count passing vacuously: a sniff that gave
+ * up on the file early would also be cheap, and would report nothing either.
+ *
+ * Mutation-checked by replacing checkStatement()'s carried $commentOpen with a
+ * rescan from the statement start; the hunk and the failure are in this PR's
+ * description.
  */
 it('reads a long comment inside a statement in linear time', function (): void {
     $size = 10000;
@@ -497,16 +519,25 @@ it('reads a long comment inside a statement in linear time', function (): void {
     $path = sys_get_temp_dir() . '/' . uniqid('cleancode-comment-scale-', true) . '.php';
     file_put_contents($path, $source);
 
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(MULTI_LINE_STATEMENT_INDENT);
+    $before = $sniff->scanCounts();
+
     try {
-        $startedAt = hrtime(true);
         $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
-        $elapsed = (hrtime(true) - $startedAt) / 1e9;
     } finally {
         unlink($path);
     }
 
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
+
     expect($file->getErrorCount())->toBe(0, 'the comment holds its own lines')
-        ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
+        ->and($counted['commentStaysOpen.evaluations'])->toBe(
+            ((2 * $size) + 10),
+            'the open state is carried along two single passes, not replayed per line'
+        );
 });
 
 /**
@@ -524,9 +555,29 @@ it('reads a long comment inside a statement in linear time', function (): void {
  * *starts* on the line the comment closes on, and a chain hangs below it, so
  * every line measured runs back through the comment.
  *
- * Same generated fixture and same generous budget as above: the carried state
- * answers n=10,000 in about a tenth of a second here, while replaying needs
- * upwards of a minute.
+ * Same generated fixture, counted rather than timed for the reason the test
+ * above gives. The numbers the old budget was set against are kept as
+ * provenance: the map answers n=10,000 in about a tenth of a second, while
+ * replaying needs upwards of a minute.
+ *
+ * Three counters make the claim, and no one of them makes it alone. The three
+ * readings that run back through the comment are pinned as a constant, because
+ * a reading count that grew with $size would be a different sniff; the hops are
+ * pinned because a hop is what replaces the replay, and a reading that stopped
+ * making them would be one that never reached the comment's opening line at
+ * all; and the steps are pinned to exactly one per reading plus one per hop,
+ * which is the linearity itself — a replay costs one step per token of the
+ * comment instead, so the same file reads 50,020 steps against 8.
+ *
+ * The fragment count is asserted alongside them because the map's own pass has
+ * to stay single too: a doc comment is five tokens per line here, and mapLines()
+ * asks the open/closed question of each of them once.
+ *
+ * The error count is the non-vacuity half, as above.
+ *
+ * Mutation-checked by replacing lineStart()'s map lookup with a walk back token
+ * by token, and lineFirstToken()'s commentOpeners hop with a replay of the
+ * comment; the hunks and the failures are in this PR's description.
  */
 it('anchors lines on a long comment\'s opening line in linear time', function (): void {
     $size = 10000;
@@ -537,16 +588,34 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
     $path = sys_get_temp_dir() . '/' . uniqid('cleancode-anchor-scale-', true) . '.php';
     file_put_contents($path, $source);
 
+    $sniff = sniffInstance(MULTI_LINE_STATEMENT_INDENT);
+    $before = $sniff->scanCounts();
+
     try {
-        $startedAt = hrtime(true);
         $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
-        $elapsed = (hrtime(true) - $startedAt) / 1e9;
     } finally {
         unlink($path);
     }
 
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
+
     expect($file->getErrorCount())->toBe(0, 'the chain hangs below the line the comment opened')
-        ->and($elapsed)->toBeLessThan(3.0, "a {$size}-line comment took {$elapsed}s");
+        ->and($counted['lineFirstToken.readings'])->toBe(
+            5,
+            'the three chain lines and the statement start are read once each, whatever the comment costs'
+        )
+        ->and($counted['lineFirstToken.commentHops'])->toBe(
+            3,
+            'each line that opens inside the comment reaches its opening line in one step'
+        )
+        ->and($counted['lineStart.steps'])->toBe(
+            ($counted['lineFirstToken.readings'] + $counted['lineFirstToken.commentHops']),
+            'every reading and every hop examines exactly one token, never a line or a comment'
+        )
+        ->and($counted['commentStaysOpen.evaluations'])->toBe(
+            ((5 * $size) + 20),
+            'the map asks the open/closed question of each doc-comment token once'
+        );
 });
 
 /**
@@ -563,9 +632,25 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
  * Both halves have to grow together for the cost to show — a long opener line
  * alone is walked once, and many sibling lines alone are cheap to walk back
  * from. So the fixture scales n tokens before the opener against n lines under
- * it, and the budget is set against measured numbers the same way the two tests
- * above are: the map answers n=4,000 in about a fifth of a second here, while
- * walking back needs 2.3s for the same file and 8s at n=8,000.
+ * it. Counted rather than timed for the reason the two tests above give; the
+ * numbers the old budget was set against are kept as provenance: the map
+ * answers n=4,000 in about a fifth of a second, while walking back needs 2.3s
+ * for the same file and 8s at n=8,000.
+ *
+ * This is the shape that needs no comment, so the two counters are the whole
+ * claim. The readings grow with the file, as they must — one per sibling line,
+ * plus the statement's own base indent read once per line as well. What must
+ * not grow is what each reading *costs*, and that is the second assertion:
+ * exactly one token examined per reading, no hop, whatever the opener line
+ * carries in front of it. Walking back examines one per token already on that
+ * line instead, which is 4,000 for most of these readings — 32 million against
+ * 8,003 for the same file.
+ *
+ * The readings are asserted as a coefficient and a constant, not a bare number,
+ * so it is the growth being pinned rather than a total.
+ *
+ * Mutation-checked with the same lineStart() walk-back as the test above; the
+ * hunk and the failure are in this PR's description.
  */
 it('anchors sibling lines on a long opener line in linear time', function (): void {
     $size = 4000;
@@ -582,16 +667,30 @@ it('anchors sibling lines on a long opener line in linear time', function (): vo
     $path = sys_get_temp_dir() . '/' . uniqid('cleancode-opener-scale-', true) . '.php';
     file_put_contents($path, $source);
 
+    $sniff = sniffInstance(MULTI_LINE_STATEMENT_INDENT);
+    $before = $sniff->scanCounts();
+
     try {
-        $startedAt = hrtime(true);
         $file = analyzeWithSniffs([MULTI_LINE_STATEMENT_INDENT], $path);
-        $elapsed = (hrtime(true) - $startedAt) / 1e9;
     } finally {
         unlink($path);
     }
 
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
+
     expect($file->getErrorCount())->toBe(0, 'every argument sits a level in from the line `compute(` opens on')
-        ->and($elapsed)->toBeLessThan(1.0, "a {$size}-token opener line over {$size} lines took {$elapsed}s");
+        ->and($counted['lineFirstToken.readings'])->toBe(
+            ((2 * $size) + 3),
+            'each of the wrapped lines is read once as itself and once as the anchor it hangs on'
+        )
+        ->and($counted['lineStart.steps'])->toBe(
+            $counted['lineFirstToken.readings'],
+            'each reading examines one token, not the whole line the opener sits at the end of'
+        )
+        ->and($counted['lineFirstToken.commentHops'])->toBe(
+            0,
+            'nothing here opens inside a comment'
+        );
 });
 
 /**

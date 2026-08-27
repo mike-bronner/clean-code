@@ -254,11 +254,59 @@ class MultiLineStatementIndentSniff implements Sniff
     private array $lineStarts = [];
 
     /**
+     * The work each of this sniff's three per-line readings costs, cumulative
+     * for the life of this instance.
+     *
+     * Every one of them used to be a scan whose length was the thing being
+     * read — the comment replayed from its start, the line walked back token by
+     * token — and each was therefore quadratic over a file that grows the
+     * comment or the line. mapLines() answers all three from one pass, and the
+     * only observable of that is these counts or the elapsed time they replace,
+     * which a shared CI runner's jitter can carry across any fixed budget with
+     * no code change (#321, #354).
+     *
+     * Each counter names the unit of work its reading is charged in, so a
+     * reading that went back to scanning raises it without the counter moving:
+     *
+     * - `commentStaysOpen.evaluations` — one per fragment the open/closed
+     *   question is asked of. Carrying the answer forward asks it once per
+     *   fragment; recovering it by replaying the comment asks it once per
+     *   fragment *per line read*.
+     * - `lineFirstToken.readings` — one per line whose first token is asked
+     *   for, which is the number of readings the cost is multiplied by.
+     * - `lineStart.steps` — tokens examined to answer one of those readings.
+     *   The map answers in one; walking back examines one per token already on
+     *   the line.
+     * - `lineFirstToken.commentHops` — steps taken from a line that opens
+     *   inside a comment to the line that comment opened on. The map makes that
+     *   one step whatever the comment's length.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'commentStaysOpen.evaluations' => 0,
+        'lineFirstToken.readings' => 0,
+        'lineFirstToken.commentHops' => 0,
+        'lineStart.steps' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_OPEN_TAG];
+    }
+
+    /**
+     * What each per-line reading has cost, cumulative for the life of this
+     * instance. See $scanCounts.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -616,6 +664,8 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function commentStaysOpen(bool $open, int|string $code, string $content): bool
     {
+        $this->scanCounts['commentStaysOpen.evaluations']++;
+
         if (isset(Tokens::$commentTokens[$code]) === false) {
             return false;
         }
@@ -711,9 +761,11 @@ class MultiLineStatementIndentSniff implements Sniff
     private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
         $tokens = $phpcsFile->getTokens();
+        $this->scanCounts['lineFirstToken.readings']++;
         $first = $this->lineStart($tokens, $ptr);
 
         while (isset($this->commentOpeners[$first]) === true) {
+            $this->scanCounts['lineFirstToken.commentHops']++;
             $first = $this->lineStart($tokens, $this->commentOpeners[$first]);
         }
 
@@ -727,6 +779,8 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function lineStart(array $tokens, int $ptr): int
     {
+        // One token examined: the line's first is recorded, not searched for.
+        $this->scanCounts['lineStart.steps']++;
         $first = $this->lineStarts[$tokens[$ptr]['line']];
 
         if ($tokens[$first]['code'] === T_WHITESPACE) {
