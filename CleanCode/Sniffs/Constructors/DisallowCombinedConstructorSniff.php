@@ -1505,7 +1505,9 @@ class DisallowCombinedConstructorSniff implements Sniff
             $throws ? $verdicts['throwing']++ : $verdicts['surviving']++;
         }
 
-        return $this->branchVerdicts[$construct] = $verdicts;
+        $this->branchVerdicts[$construct] = $verdicts;
+
+        return $verdicts;
     }
 
     /**
