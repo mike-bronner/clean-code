@@ -149,11 +149,58 @@ class CombinableConditionsSniff implements Sniff
     private const BRACELESS_BODY_OWNERS = [T_IF, T_ELSEIF, T_WHILE, T_FOR, T_FOREACH, T_DECLARE];
 
     /**
+     * How often each of the two cost guards below did its job, over the life of
+     * this sniff instance.
+     *
+     * The scale test in tests/Standards/CombinableConditionsTest.php reads
+     * these instead of timing the sniff: both guards are asymptotic, and the
+     * only observable an asymptotic guard used to have was elapsed time, which
+     * a shared CI runner's jitter can move across any fixed budget with no code
+     * change (#321, #354). A count states the guard directly.
+     *
+     * Every increment sits inside the branch of the guard it counts, so a guard
+     * that stopped working cannot leave its count intact:
+     *
+     * - `run.memberSkips` — an `if` the outer walk skipped because an earlier
+     *   run already claimed it. Without the skip, each member re-measures the
+     *   rest of its own run.
+     * - `braceless.nestingRefusals` — a brace-less body refused for opening
+     *   another control structure, before findEndOfStatement() was asked for
+     *   its end.
+     * - `braceless.endScans` — a findEndOfStatement() walk actually made from
+     *   the brace-less path. That walk runs to the end of everything nested
+     *   inside the body, so it is the cost the refusal above exists to avoid,
+     *   and the two move in opposite directions.
+     *
+     * The totals are cumulative — tests/Helpers.php's buildRuleset() memoises
+     * the sniff instance, so every test in one file shares one — and are read
+     * as a delta around a single process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'run.memberSkips' => 0,
+        'braceless.nestingRefusals' => 0,
+        'braceless.endScans' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return self::OPEN_TAGS;
+    }
+
+    /**
+     * How often each cost guard fired, cumulative for the life of this
+     * instance. See $scanCounts for what each counter is coupled to.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -177,7 +224,13 @@ class CombinableConditionsSniff implements Sniff
         $grouped = [];
 
         foreach ($tokens as $pointer => $token) {
-            if ($token['code'] !== T_IF || isset($grouped[$pointer]) === true) {
+            if ($token['code'] !== T_IF) {
+                continue;
+            }
+
+            if (isset($grouped[$pointer]) === true) {
+                $this->scanCounts['run.memberSkips']++;
+
                 continue;
             }
 
@@ -412,7 +465,13 @@ class CombinableConditionsSniff implements Sniff
         // on the statement's first real token, never the whitespace before it.
         $bodyStart = $phpcsFile->findNext(Tokens::$emptyTokens, $afterCondition, null, true);
 
-        if ($bodyStart === false || in_array($tokens[$bodyStart]['code'], self::NESTING_STATEMENTS, true) === true) {
+        if ($bodyStart === false) {
+            return null;
+        }
+
+        if (in_array($tokens[$bodyStart]['code'], self::NESTING_STATEMENTS, true) === true) {
+            $this->scanCounts['braceless.nestingRefusals']++;
+
             return null;
         }
 
@@ -424,6 +483,7 @@ class CombinableConditionsSniff implements Sniff
             return null;
         }
 
+        $this->scanCounts['braceless.endScans']++;
         $bodyEnd = $phpcsFile->findEndOfStatement($bodyStart);
 
         if ($bodyEnd <= $bodyStart || $tokens[$bodyEnd]['code'] !== T_SEMICOLON) {

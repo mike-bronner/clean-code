@@ -286,18 +286,51 @@ it('still reports a comparable pair when the branch after it is truncated', func
  * ("Maximum nesting level reached", Tokenizers/Tokenizer.php), while a
  * brace-less body opens no scope and nothing caps it.
  *
- * An asymptotic fix has no observable but time, so the budget sits an order of
- * magnitude above the measured cost rather than near it. Both regressions were
- * measured, not assumed, by making them: at 1200 guards and 2400 levels this
- * test takes 0.34s as written; with the nesting refusal removed the same file
- * measures 13.25s against the 3.0s budget, and with the run dedupe removed it
- * exhausts PHP's 128 MB memory limit before finishing, because the run is also
- * reported once per member per position. A 3.0s cap therefore leaves a slow
- * runner nine times the measured cost while still failing the surviving
- * regression by more than four times.
+ * Both regressions were measured, not assumed, by making them: at 1200 guards
+ * and 2400 levels this test takes 0.34s with both guards in place; with the
+ * nesting refusal removed the same file measured 13.25s against the 3.0s
+ * budget this test used to carry, and with the run dedupe removed it exhausts
+ * PHP's 128 MB memory limit before finishing, because the run is also reported
+ * once per member per position. Those readings are kept as provenance for what
+ * the guards are worth; nothing here is timed any more.
  *
- * The warning assertion is what stops the timing from passing vacuously: a file
- * the tokenizer gives up on is both fast and silent.
+ * The claim is counted rather than timed (#354, extending #321). A wall-clock
+ * budget states an asymptotic guard only as far as a shared CI runner allows —
+ * #321 recorded the same assertion shape failing twice and passing on a third
+ * run with no code change — so each guard is read from its own counter in
+ * CombinableConditionsSniff::scanCounts(), as a delta around this one run:
+ *
+ * - `run.memberSkips`, incremented in process()'s `isset($grouped[$pointer])`
+ *   branch. The 1200 adjacent guards are one run, collected from its head, so
+ *   the walk skips the other 1199 members. Without the skip each member
+ *   re-measures the rest of its own run, and the count reads 0.
+ * - `braceless.nestingRefusals`, incremented in clauseExtent()'s
+ *   NESTING_STATEMENTS branch. Each of the 2400 nested `if`s but the innermost
+ *   has another `if` for a body, so 2399 are refused before their end is asked
+ *   for.
+ * - `braceless.endScans`, incremented immediately before the
+ *   findEndOfStatement() call in that same method. That walk runs to the end of
+ *   everything nested inside the body, so it is the cost the refusal avoids:
+ *   with the refusal in place exactly one body — the innermost `return 0;` —
+ *   reaches it. Removing the refusal moves 2399 refusals into 2399 further
+ *   scans, which is what the 13.25s above is made of.
+ *
+ * The last two are the pair that makes the nesting claim, and they are asserted
+ * together for that reason: a refusal count alone could hold while the scans
+ * happened anyway through some other path, and a scan count alone could read 1
+ * because the file stopped being walked at all. No replacement bound is
+ * derived from the old 3.0s cap, because none is needed: the counts are exact
+ * consequences of the fixture's own 1200 and 2400, so they are asserted as
+ * `$size - 1`, `$depth - 1` and 1 rather than as a budget with headroom.
+ *
+ * Mutation-checked one guard at a time by reverting it and running
+ * `composer test`; the diff hunks and the resulting failures are in this PR's
+ * description. Removing the nesting refusal reddens `braceless.nestingRefusals`
+ * (0 against 2399) and `braceless.endScans` (2400 against 1); removing the run
+ * dedupe reddens `run.memberSkips` (0 against 1199).
+ *
+ * The warning assertion is what stops the counts from passing vacuously: a file
+ * the tokenizer gives up on is both cheap and silent.
  */
 it('stays linear on long runs and deep nesting', function (): void {
     $size = 1200;
@@ -323,11 +356,14 @@ it('stays linear on long runs and deep nesting', function (): void {
     $lines = array_merge($lines, ['        return 0;', '    }', '}', '']);
     $fixture = stageGeneratedFixture('scale.php', implode("\n", $lines));
 
-    buildRuleset([COMBINABLE_CONDITIONS]);
-
-    $started = hrtime(true);
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives. Its counters are cumulative across all of them, which is why the
+    // reading below is a delta rather than a total.
+    $sniff = sniffInstance(COMBINABLE_CONDITIONS);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([COMBINABLE_CONDITIONS], $fixture);
-    $elapsed = (hrtime(true) - $started) / 1e9;
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     $expected = [];
 
@@ -340,7 +376,18 @@ it('stays linear on long runs and deep nesting', function (): void {
     }
 
     expect(warningTuples($file))->toBe($expected)
-        ->and($elapsed)->toBeLessThan(3.0);
+        ->and($counted['run.memberSkips'])->toBe(
+            ($size - 1),
+            "the run's other {$size} members are skipped by the walk, not re-measured"
+        )
+        ->and($counted['braceless.nestingRefusals'])->toBe(
+            ($depth - 1),
+            "every nested level but the innermost is refused before its end is asked for"
+        )
+        ->and($counted['braceless.endScans'])->toBe(
+            1,
+            'only the innermost body, which opens no control structure, is walked to its end'
+        );
 });
 
 /**
