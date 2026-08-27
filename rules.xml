@@ -2331,6 +2331,60 @@
     -->
 
     <!--
+        PHPMD Design: NumberOfChildren (#110) —
+        docs/phpmd/design-numberofchildren.md.
+
+        Nothing in PHPCS, Slevomat, or Generic counts a class's subclasses, and
+        nothing could without leaving the file: PHPCS hands a sniff one file at a
+        time, and a parent's children are declared in files of their own. So this
+        is the custom CleanCode.Metrics.NumberOfChildren sniff, picked up
+        automatically via the ./CleanCode/ruleset.xml ref above, and
+        tests/Standards/NumberOfChildrenTest.php asserts it resolves from this
+        master ruleset.
+
+        This is the ruleset's first cross-file rule. The sniff reads the run's
+        own file list — PHP_CodeSniffer\Files\FileList over the paths phpcs was
+        invoked with — once per run, and answers every file from the map it
+        builds. Using PHPCS's file list rather than a walk of its own is what
+        keeps the scanned set and the linted set identical: the configured
+        extensions, the ignore patterns, and this ruleset's exclude-patterns all
+        apply to both. The cost is one extra read and tokenize per file in the
+        run, once; run in parallel, each worker builds its own copy.
+
+        Running phpcs on a single file therefore reports only the children
+        declared in it. That is PHPMD's behaviour too, measured against a live
+        2.15.0 install: the same parent reports "3 children" when its directory
+        is scanned and "2 children" when only its own file is.
+
+        No <properties> are configured: the sniff ships PHPMD's own default of
+        minimum=15, spelled with PHPMD's own property name, so a consuming
+        ruleset that already tunes PHPMD's rule can paste its value here.
+
+        The threshold is inclusive, matching PHPMD: its rule class reports when
+        `$nocc >= $threshold`, so exactly 15 children is already a violation.
+        phpmd.org's "maximum number of acceptable child classes" and #110's
+        acceptance criteria — which ask outright for 15 to be silent — both read
+        like a strict `>`; a live PHPMD 2.15.0 run disagrees with them, and the
+        tool is what this package replaces. The same call was made for
+        ExcessiveParameterList and CouplingBetweenObjects above.
+        tests/fixtures/NumberOfChildrenSniff/ pins 14 silent and 15 reported.
+
+        As with the sniffs above, no <type> override is needed: the sniff raises
+        errors already, so a violation fails a phpcs run the way it fails a
+        phpmd run.
+
+        Only `extends` counts, and only directly — interface implementors,
+        grandchildren, and anonymous subclasses are all silent, and passing.php
+        carries each of them. All are measured against the live install except
+        `new readonly class`: PDepend 2.16.2 cannot parse that spelling, so
+        PHPMD returns no verdict on it to compare against.
+
+        Detection only: rebalancing a hierarchy means moving behaviour between
+        classes, which is a design decision and not a mechanical rewrite. PHPMD
+        offers no fix either.
+    -->
+
+    <!--
         PHPMD CodeSize: ExcessivePublicCount (#96) —
         docs/phpmd/codesize-excessivepubliccount.md.
 
