@@ -178,14 +178,29 @@ class ArrayAccessorsSniff implements Sniff
     private ?string $enclosureMapKey = null;
 
     /**
-     * How many times the maps were built, and how many times the key guard
-     * answered a read from the maps already built.
+     * How many times the maps were built, how many times the key guard answered
+     * a read from the maps already built, and what the outward walk those maps
+     * serve costs.
      *
      * The maps exist to absorb many reads per token stream into one pass, and
      * nothing a black-box test can observe tells "built once, read n times"
      * from "rebuilt on every read": both report the same violations. These two
      * counters are what tell them apart, and
      * tests/Standards/ArrayAccessorsTest.php pins both numbers.
+     *
+     * The four walk counters state the other half, which the build/hit pair
+     * cannot: the maps made each outward step a lookup (#239) without reducing
+     * how many steps a read takes, and n reads at n increasing depths still
+     * walked n depths between them — O(n²) with every map hit intact (#292).
+     * So the walk is counted in the unit its cost is charged in:
+     *
+     * - `enclosureVerdict.walks` — one per read whose enclosure is decided.
+     * - `enclosureVerdict.steps` — one per construct that walk steps out of.
+     * - `decidingStep.hops` — one per construct crossed looking for the next
+     *   step that decides anything. This is the count #292 is about: crossing a
+     *   transparent run hop by hop charges one per construct per read, while
+     *   recording the answer for the whole run charges the first read only.
+     * - `decidingStep.hits` — one per crossing answered from that record.
      *
      * Each increment sits inside the same branch as the guard it counts, so a
      * guard that stopped working cannot leave the counts intact. The totals are
@@ -198,6 +213,10 @@ class ArrayAccessorsSniff implements Sniff
     private array $cacheCounts = [
         'enclosureMap.builds' => 0,
         'enclosureMap.hits' => 0,
+        'enclosureVerdict.walks' => 0,
+        'enclosureVerdict.steps' => 0,
+        'decidingStep.hops' => 0,
+        'decidingStep.hits' => 0,
     ];
 
     /**
@@ -287,9 +306,9 @@ class ArrayAccessorsSniff implements Sniff
     }
 
     /**
-     * How many times the enclosure maps were built and how many times the key
-     * guard answered from the maps already built, cumulative for the life of
-     * this instance.
+     * How many times the enclosure maps were built, how many times the key guard
+     * answered from the maps already built, and what the outward walk cost,
+     * cumulative for the life of this instance. See $cacheCounts.
      *
      * @return array<string, int>
      */
@@ -603,11 +622,14 @@ class ArrayAccessorsSniff implements Sniff
     private function enclosureVerdict(File $phpcsFile, int $rootPtr): ?string
     {
         $this->buildEnclosureMap($phpcsFile);
+        $this->cacheCounts['enclosureVerdict.walks']++;
 
         $searchPtr = $rootPtr;
         $closerPtr = $this->innermostCloser[$rootPtr] ?? null;
 
         while ($closerPtr !== null) {
+            $this->cacheCounts['enclosureVerdict.steps']++;
+
             // An unterminated construct standing between the walk and this
             // closer cannot be stepped over, and the walk cannot tell what
             // encloses the chain past it. It ends here and the read is
@@ -665,11 +687,13 @@ class ArrayAccessorsSniff implements Sniff
 
         while (true) {
             if (array_key_exists($ptr, $this->decidingSteps) === true) {
+                $this->cacheCounts['decidingStep.hits']++;
                 $steppedPtr = $this->decidingSteps[$ptr];
 
                 break;
             }
 
+            $this->cacheCounts['decidingStep.hops']++;
             $walkedPtrs[] = $ptr;
             $parentPtr = $this->parentCloser[$ptr] ?? null;
 

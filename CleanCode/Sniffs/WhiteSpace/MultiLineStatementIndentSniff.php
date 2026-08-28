@@ -254,11 +254,62 @@ class MultiLineStatementIndentSniff implements Sniff
     private array $lineStarts = [];
 
     /**
+     * The work each of this sniff's three per-line readings costs, cumulative
+     * for the life of this instance.
+     *
+     * Every one of them used to be a scan whose length was the thing being
+     * read — the comment replayed from its start, the line walked back token by
+     * token — and each was therefore quadratic over a file that grows the
+     * comment or the line. mapLines() answers all three from one pass, and the
+     * only observable of that is these counts or the elapsed time they replace,
+     * which a shared CI runner's jitter can carry across any fixed budget with
+     * no code change (#321, #354).
+     *
+     * Each counter names the unit of work its reading is charged in, so a
+     * reading that went back to scanning raises it without the counter moving:
+     *
+     * - `commentStaysOpen.evaluations` — one per fragment the open/closed
+     *   question is asked of. Carrying the answer forward asks it once per
+     *   fragment; recovering it by replaying the comment asks it once per
+     *   fragment *per line read*.
+     * - `lineFirstToken.readings` — one per line whose first token is asked
+     *   for, which is the number of readings the cost is multiplied by.
+     * - `lineStart.steps` — tokens examined to answer one of those readings,
+     *   counted at step(), the read itself, not at the head of lineStart().
+     *   The map answers in two; walking back examines one per token already on
+     *   the line. step() is the only token the reading path can reach —
+     *   lineStart() is handed no token array — so this count is charged per
+     *   token examined and cannot be left behind by a walk that examines many.
+     * - `lineFirstToken.commentHops` — steps taken from a line that opens
+     *   inside a comment to the line that comment opened on. The map makes that
+     *   one step whatever the comment's length.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'commentStaysOpen.evaluations' => 0,
+        'lineFirstToken.readings' => 0,
+        'lineFirstToken.commentHops' => 0,
+        'lineStart.steps' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_OPEN_TAG];
+    }
+
+    /**
+     * What each per-line reading has cost, cumulative for the life of this
+     * instance. See $scanCounts.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -616,6 +667,8 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function commentStaysOpen(bool $open, int|string $code, string $content): bool
     {
+        $this->scanCounts['commentStaysOpen.evaluations']++;
+
         if (isset(Tokens::$commentTokens[$code]) === false) {
             return false;
         }
@@ -710,11 +763,12 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function lineFirstToken(File $phpcsFile, int $ptr): int
     {
-        $tokens = $phpcsFile->getTokens();
-        $first = $this->lineStart($tokens, $ptr);
+        $this->scanCounts['lineFirstToken.readings']++;
+        $first = $this->lineStart($phpcsFile, $ptr);
 
         while (isset($this->commentOpeners[$first]) === true) {
-            $first = $this->lineStart($tokens, $this->commentOpeners[$first]);
+            $this->scanCounts['lineFirstToken.commentHops']++;
+            $first = $this->lineStart($phpcsFile, $this->commentOpeners[$first]);
         }
 
         return $first;
@@ -722,18 +776,65 @@ class MultiLineStatementIndentSniff implements Sniff
 
     /**
      * The first token past the indent on the line the token at $ptr sits on.
-     *
-     * @param array<int, array<string, mixed>> $tokens
      */
-    private function lineStart(array $tokens, int $ptr): int
+    private function lineStart(File $phpcsFile, int $ptr): int
     {
-        $first = $this->lineStarts[$tokens[$ptr]['line']];
+        // Two tokens examined, both through step(): the one asked about, to get
+        // its line, and the line's recorded first, to see whether it is indent.
+        // Neither is searched for, and this method binds no token array of its
+        // own to search one in.
+        $first = $this->lineStarts[$this->step($phpcsFile, $ptr)['line']];
 
-        if ($tokens[$first]['code'] === T_WHITESPACE) {
+        if ($this->step($phpcsFile, $first)['code'] === T_WHITESPACE) {
             $first++;
         }
 
         return $first;
+    }
+
+    /**
+     * The token at $ptr, counted as one step of a line-start reading.
+     *
+     * The count sits on the read rather than at the head of lineStart(), and
+     * that placement is the whole of what `lineStart.steps` asserts. A counter
+     * at the head of the method counts calls: a reading that walked back token
+     * by token to find its line's first makes exactly as many calls as one that
+     * reads the map, so the walk could return with the count unmoved. Counting
+     * the read counts what a walk repeats instead, because the walk has to look
+     * at each token it steps over to know it has not left the line.
+     *
+     * Counting the read is not enough on its own, though, and that is why
+     * lineStart() binds no token array: a walk written against an array already
+     * sitting in its own scope steps over each token without this method being
+     * called at all, leaving the count telling the truth about nothing. That is
+     * the shape this class shipped with, and it is why reverting the map to a
+     * walk used to be a drop-in replacement the count did not see. Reading the
+     * stream a token at a time through here is the only access the reading path
+     * has, so a walk put back in its place either steps through this counter or
+     * has to fetch the whole array first — a statement that is not part of the
+     * walk and has to be added on purpose.
+     *
+     * The token array is fetched per read rather than held on this instance.
+     * Holding it does make step() reachable without a File, but PHP_CodeSniffer
+     * writes into its own token array in place, so a second live reference to
+     * it separates the two copies on the next write — measured on the sibling
+     * LogicalGroupings sniff's 600-level test, enough to exhaust the default
+     * 128 MB memory limit during tokenizing. Fetching returns the same array by
+     * reference-count and indexes it, which copies nothing.
+     *
+     * mapLines()'s own pass over the stream is deliberately not counted here:
+     * it runs once per file, and pooling it with the per-reading count would
+     * hide a walk inside a total that grows with the file anyway. It iterates
+     * the array in mapLines(), which is the one place the whole stream is read
+     * at once.
+     *
+     * @return array<string, mixed>
+     */
+    private function step(File $phpcsFile, int $ptr): array
+    {
+        $this->scanCounts['lineStart.steps']++;
+
+        return $phpcsFile->getTokens()[$ptr];
     }
 
     /**

@@ -605,12 +605,32 @@ it('saturates instead of overflowing on an astronomically branching callable', f
  * therefore stalled a run for a meaningful multiple of a CI budget, and nothing
  * in this tree bounded it.
  *
- * An asymptotic fix has no observable but time, so the budget sits well above
- * the measured cost rather than near it, exactly as the sibling nesting-scale
- * test in MappingArrayCandidateTest does.
+ * Those readings are kept as provenance for what the memo is worth; nothing
+ * here is timed any more. The claim is counted rather than timed (#354,
+ * extending #321). A wall-clock budget states an asymptotic fix only as far as
+ * a shared CI runner allows — #321 recorded the same assertion shape failing
+ * twice and passing on a third run with no code change — so the memo is read
+ * from NPathComplexitySniff::scanCounts(), as a delta around this one run.
+ * `expressionEnd.scans` is incremented immediately after the
+ * `isset($this->branchEnds[$elsePtr])` guard, on the path that runs the forward
+ * walk, and `expressionEnd.hits` inside that guard, where a link answers from
+ * the walk already made.
  *
- * The measurement assertion is what stops the stopwatch from passing vacuously:
- * a file the sniff silently gave up on would also be fast. It is load-bearing in
+ * Both are asserted, and the pair is what makes the claim: a scan count of 1
+ * alone would also hold for a sniff that stopped measuring the chain, and a hit
+ * count alone says nothing about how often the walk was repeated. The chain's
+ * 4800 links are read by one scan — which records every position it steps over,
+ * not only the one it was asked about — and 4799 reads back. The unmemoised
+ * walk reports 4800 scans and 0 hits, which is the quadratic shape stated as a
+ * count. No replacement bound is derived from the old 2.0s cap, because none is
+ * needed: both counts are exact consequences of the fixture's own $links, so
+ * they are asserted as 1 and `$links - 1` rather than as a budget with headroom.
+ *
+ * Mutation-checked by deleting the memo's isset() guard so every link scans;
+ * the diff hunk and the resulting failure are in this PR's description.
+ *
+ * The measurement assertion is what stops the counts from passing vacuously:
+ * a file the sniff silently gave up on would also be cheap. It is load-bearing in
  * a second way. A chain nests to the right, so each link adds 2 and the whole
  * chain is 2n — 9600 here, confirmed against a live PHPMD run at 100 links,
  * which reports 200. Truncating the scan at the next `?` instead of memoising
@@ -619,14 +639,24 @@ it('saturates instead of overflowing on an astronomically branching callable', f
  * the fix to one that keeps the measurement PHPMD's.
  */
 it('stays linear on a long chain of ternaries', function (): void {
-    $fixture = stageGeneratedFixture('ternaries.php', ternaryChainFixture(4800));
+    $links = 4800;
+    $fixture = stageGeneratedFixture('ternaries.php', ternaryChainFixture($links));
 
-    buildRuleset([NPATH_COMPLEXITY]);
-
-    $started = hrtime(true);
+    // buildRuleset() memoises the ruleset, and so the sniff instance, per
+    // sniff-code key: this is the same instance every other test in this file
+    // drives, so the counters are read as a delta rather than as a total.
+    $sniff = sniffInstance(NPATH_COMPLEXITY);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([NPATH_COMPLEXITY], $fixture);
-    $elapsed = ((hrtime(true) - $started) / 1e9);
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
-    expect(measuredNPathComplexities($file))->toBe(['chainedTernaries' => 9600])
-        ->and($elapsed)->toBeLessThan(2.0);
+    expect(measuredNPathComplexities($file))->toBe(['chainedTernaries' => (2 * $links)])
+        ->and($counted['expressionEnd.scans'])->toBe(
+            1,
+            'the whole chain resolves in one forward walk, not one per link'
+        )
+        ->and($counted['expressionEnd.hits'])->toBe(
+            ($links - 1),
+            'every later link answers from the terminator that walk recorded'
+        );
 });

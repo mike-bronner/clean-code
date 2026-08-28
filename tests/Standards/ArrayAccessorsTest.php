@@ -61,20 +61,28 @@ $arrayAccessorsStaircaseSource = static function (string $shape, int $size): str
 };
 
 /**
- * Runs one staircase through the sniff and returns
- * [reported reads, PHP_CodeSniffer's own parse seconds, the sniff's seconds].
+ * Runs one staircase through the sniff and returns [reported reads, what the
+ * outward walk cost as a delta of the sniff's own counters].
  *
- * The two halves are timed apart because only one of them is this sniff's:
- * PHP_CodeSniffer records the whole chain of enclosing parentheses on every
- * token inside them, so the nested-call staircase costs it O(depth²) time and
- * memory in the tokenizer -- about 1.1 GB at n=4,000 -- before any sniff runs.
- * Measuring the sniff against that parse is what keeps the assertions about the
- * sniff. The memory limit is raised for the measurement and put back, so the
- * tokenizer's own appetite cannot turn this into a fatal on a 128M php.ini.
+ * Nothing here is timed any more (#354, extending #321): a wall-clock budget
+ * states an asymptotic claim only as far as a shared CI runner allows, and #321
+ * recorded the same assertion shape failing twice and passing on a third run
+ * with no code change. The counters say the same thing exactly, and say it
+ * about this sniff alone -- which is what the old parse/sniff timing split was
+ * for. PHP_CodeSniffer records the whole chain of enclosing parentheses on
+ * every token inside them, so the nested-call staircase costs its tokenizer
+ * O(depth²) time and memory -- about 1.1 GB at n=4,000 -- before any sniff
+ * runs, and a count of this sniff's own steps is untouched by that where an
+ * elapsed time is not.
  *
- * @return array{int, float, float}
+ * The tokenizer's appetite is why parse() and process() are still driven by
+ * hand rather than through analyzeWithSniffs(): the memory limit is raised
+ * around them and put back, so it cannot turn this into a fatal on a 128M
+ * php.ini.
+ *
+ * @return array{int, array<string, int>}
  */
-$arrayAccessorsStaircaseTiming = static function (
+$arrayAccessorsStaircaseCounts = static function (
     string $shape,
     int $size
 ) use ($arrayAccessorsStaircaseSource): array {
@@ -85,16 +93,19 @@ $arrayAccessorsStaircaseTiming = static function (
     $limit = ini_get('memory_limit');
     ini_set('memory_limit', '2G');
 
+    $sniff = sniffInstance(ARRAY_ACCESSORS);
+
     try {
         $file = new LocalFile($path, $ruleset, $config);
-
-        $parseAt = hrtime(true);
         $file->parse();
-        $parsed = (hrtime(true) - $parseAt) / 1e9;
 
-        $sniffAt = hrtime(true);
+        // buildRuleset() memoises the ruleset, and so the sniff instance, per
+        // sniff-code key: this is the same instance every other test in this
+        // file drives, so the counters are read as a delta rather than as a
+        // total.
+        $before = $sniff->cacheCounts();
         $file->process();
-        $sniffed = (hrtime(true) - $sniffAt) / 1e9;
+        $counted = cacheCountsDelta($before, $sniff->cacheCounts());
         $reported = $file->getErrorCount();
     } finally {
         unlink($path);
@@ -120,7 +131,7 @@ $arrayAccessorsStaircaseTiming = static function (
         ini_set('memory_limit', $limit);
     }
 
-    return [$reported, $parsed, $sniffed];
+    return [$reported, $counted];
 };
 
 it('is registered in the master ruleset', function (): void {
@@ -344,12 +355,38 @@ it('steps over a closer whose opener was never typed', function (): void {
  *   asserted so that a future rewrite cannot make depth quadratic unnoticed,
  *   and it would not have failed against the rescan.
  *
- * The budget is wall clock, so it is set generously: the map answers n=4,000
- * in about a fifth of a second here, which leaves better than an order of
- * magnitude of headroom for a loaded CI runner, while the rescan needs tens of
- * seconds for the same file and cannot pass by being unlucky.
+ * Counted rather than timed (#354, extending #321). The numbers the old
+ * wall-clock budget was set against are kept above as provenance for what the
+ * map is worth; the assertion itself now reads the sniff's own counters, as a
+ * delta around this one run, because a shared CI runner's jitter can carry any
+ * fixed budget with no code change -- #321 recorded this exact assertion shape
+ * failing twice and passing on a third run.
+ *
+ * Each shape is pinned to the walk it actually makes, which is why the expected
+ * counts come from the dataset rather than from one formula:
+ *
+ * - `reads` walks n independent roots at the same depth. Each is one step out,
+ *   and the transparent run above them is crossed by the *first* read and read
+ *   back by the other n-1 -- one hop for the whole file. Hop by hop it is one
+ *   crossing per construct per read, which is the O(n²) this replaced.
+ * - `nesting` walks one chain n levels deep. Every step is decided at the
+ *   construct it reaches, so the compressing walk is never entered at all, and
+ *   the n-1 steps are the pin: a rewrite that made depth quadratic would take
+ *   more of them.
+ *
+ * The reported-read count stays alongside as the non-vacuity half: a file the
+ * sniff silently gave up on would be cheap by every counter here.
+ *
+ * Mutation-checked by recording no answer for the constructs a crossing walks
+ * over, so each read crosses the run itself; the hunk and the failure are in
+ * this PR's description.
  */
-it('decides enclosing constructs in linear time', function (string $shape, int $size): void {
+it('decides enclosing constructs in linear time', function (
+    string $shape,
+    int $size,
+    int $expectedSteps,
+    int $expectedHops
+): void {
     $source = $shape === 'nesting'
         ? "<?php\n\n\$out = " . str_repeat('$target[', $size) . '$key' . str_repeat(']', $size) . ";\n"
         : "<?php\n\nfunction sink(\$row): void\n{\n"
@@ -359,103 +396,174 @@ it('decides enclosing constructs in linear time', function (string $shape, int $
     $path = sys_get_temp_dir() . '/' . uniqid('cleancode-scale-', true) . '.php';
     file_put_contents($path, $source);
 
+    $sniff = sniffInstance(ARRAY_ACCESSORS);
+    $before = $sniff->cacheCounts();
+
     try {
-        $startedAt = hrtime(true);
         $file = analyzeWithSniffs([ARRAY_ACCESSORS], $path);
-        $elapsed = (hrtime(true) - $startedAt) / 1e9;
     } finally {
         unlink($path);
     }
 
+    $counted = cacheCountsDelta($before, $sniff->cacheCounts());
+
     expect($file->getErrorCount())->toBe($size, 'every read is still reported')
-        ->and($elapsed)->toBeLessThan(3.0, "{$shape} at n={$size} took {$elapsed}s");
+        ->and($counted['enclosureVerdict.walks'])->toBe(
+            $size,
+            "{$shape}: one walk per read, and every read walked"
+        )
+        ->and($counted['enclosureVerdict.steps'])->toBe(
+            $expectedSteps,
+            "{$shape}: the outward steps stay linear in n={$size}"
+        )
+        ->and($counted['decidingStep.hops'])->toBe(
+            $expectedHops,
+            "{$shape}: a transparent run is crossed once for the file, not once per read"
+        );
 })->with([
-    'n reads in one body' => ['reads', 4000],
-    'n levels of computed offset' => ['nesting', 2000],
+    'n reads in one body' => ['reads', 4000, 4000, 1],
+    'n levels of computed offset' => ['nesting', 2000, 1999, 0],
 ]);
 
 /**
  * The staircase the enclosure map did not fix (#292). The map made each step
  * outward O(1); it did not reduce the number of steps, so n reads at n
- * increasing depths still walked n depths between them -- O(n²), measured here
- * at 8.4s for n=4,000 nested calls, matching the 8.136-8.363s #292 reports.
+ * increasing depths still walked n depths between them -- O(n²), measured at
+ * 8.4s for n=4,000 nested calls, matching the 8.136-8.363s #292 reports.
  *
- * Two things are asserted per size, and they answer different questions:
+ * This test carries both wall-clock assertions the pre-#354 `decides a
+ * staggered staircase within the cost of parsing it` made, so it carries the
+ * provenance of both. The figures below are that test's own, verbatim; they are
+ * the record of why each threshold sat where it did, and no counter here can be
+ * read back into seconds to recover them.
  *
- * - Every read is still reported. A staircase whose reads went missing would
- *   run fast for the wrong reason.
- * - The sniff costs less than twice PHP_CodeSniffer's own parse of the same
- *   file. That is the scale-free half of the claim: the parse is the work the
- *   file inherently needs, so a sniff that stays within a constant factor of it
- *   at every size is not walking anything quadratic. Measured here at 0.41-0.90
- *   with the fix, against 7.4-29.6 without it -- an order of magnitude clear of
- *   the bound at every one of the four sizes, in both shapes.
+ * - The parse-relative assertion held the sniff under twice PHP_CodeSniffer's
+ *   own parse of the same file. "Measured here at 0.41-0.90 with the fix,
+ *   against 7.4-29.6 without it -- an order of magnitude clear of the bound at
+ *   every one of the four sizes, in both shapes."
+ * - The fixed budget was the one #292 named. "The n=4,000 budget is wall clock
+ *   and set where #292 asks for it: 3.0s, which the hop-by-hop walk cannot pass
+ *   (8.4s and 7.3s for the two shapes) and the fix passes with better than five
+ *   times the headroom (0.51s and 0.15s)."
  *
- * The n=4,000 budget is wall clock and set where #292 asks for it: 3.0s, which
- * the hop-by-hop walk cannot pass (8.4s and 7.3s for the two shapes) and the
- * fix passes with better than five times the headroom (0.51s and 0.15s).
+ * Counted rather than timed (#354, extending #321), and the count is what the
+ * hazard is actually made of: the number of constructs a read crosses. The
+ * compressing walk crosses the run above a read once for the whole file and
+ * reads the answer back for every read under it, so the crossings are n. Hop by
+ * hop they are n(n+1)/2 -- eight million against four thousand at n=4,000,
+ * which is the same claim the seconds were making, stated where a loaded runner
+ * cannot reach it.
+ *
+ * Four sizes, because a single size states a total and not a growth. The counts
+ * are asserted exactly at each of them. The growth between them is asserted
+ * separately, by `grows linearly across each doubling of a staggered
+ * staircase` below, which is where the old 2.5x per-doubling bound lives on.
+ * The two are not the same claim: an exact count pins what this walk does
+ * today, and a bound on the ratio between two of them pins what a rewrite may
+ * do tomorrow without having to predict its constant.
+ *
+ * Both shapes carry every size here, which the wall-clock form could not do.
+ * PHP_CodeSniffer records the chain of enclosing parentheses on every token
+ * inside them, so its own tokenizer is O(depth²) in time and memory for nested
+ * calls -- 30MB, 84MB, 290MB, 1,128MB at the four sizes, and 2.4x, 2.4x, 2.9x
+ * in parse time alone, before a sniff is reached. That arithmetic used to force
+ * the per-doubling ratio onto the array-literal shape alone, and the call shape
+ * onto a looser parse-relative bound. A count of this sniff's own steps is
+ * untouched by the tokenizer's heap, so both shapes are held to the same exact
+ * numbers.
+ *
+ * Every read still being reported is the non-vacuity half: a staircase whose
+ * reads went missing would be cheap by every counter here.
+ *
+ * Mutation-checked by recording no answer for the constructs a crossing walks
+ * over; the hunk and the failure are in this PR's description.
  */
-it('decides a staggered staircase within the cost of parsing it', function (string $shape) use (
-    $arrayAccessorsStaircaseTiming
+it('crosses a staggered staircase once per read at every size', function (string $shape) use (
+    $arrayAccessorsStaircaseCounts
 ): void {
-    $totals = [];
-
     foreach ([500, 1000, 2000, 4000] as $size) {
-        [$errors, $parsed, $sniffed] = $arrayAccessorsStaircaseTiming($shape, $size);
-        $totals[$size] = $parsed + $sniffed;
+        [$errors, $counted] = $arrayAccessorsStaircaseCounts($shape, $size);
 
         expect($errors)->toBe($size, "{$shape} at n={$size} reports every read")
-            ->and($sniffed)->toBeLessThan(
-                ($parsed * 2.0),
-                "{$shape} at n={$size}: sniff {$sniffed}s against a parse of {$parsed}s"
+            ->and($counted['enclosureVerdict.walks'])->toBe(
+                $size,
+                "{$shape} at n={$size}: one walk per read, and every read walked"
+            )
+            ->and($counted['decidingStep.hops'])->toBe(
+                $size,
+                "{$shape} at n={$size}: each read crosses the one construct above it, not the run"
+            )
+            ->and($counted['decidingStep.hits'])->toBe(
+                ($size - 1),
+                "{$shape} at n={$size}: every crossing but the first reads back a recorded answer"
             );
     }
-
-    expect($totals[4000])->toBeLessThan(3.0, "{$shape} at n=4000 took {$totals[4000]}s");
 })->with([
     'nested call arguments' => 'calls',
     'nested array literals' => 'array-literals',
 ]);
 
 /**
- * The per-doubling half of #292's budget: 500 -> 1,000 -> 2,000 -> 4,000, each
- * step under 2.5x, against the ~3.7-4.1x per step #292 measured throughout.
- * The fix runs 1.97x, 2.01x, 2.08x here; the hop-by-hop walk runs 2.09x, 3.82x,
- * 4.01x on the same shape and fails the second and third steps.
+ * The same staircase, held to a growth bound rather than to four exact totals
+ * (#292, and the `toBeLessThan(2.5, ...)` this replaces).
  *
- * The nested-array-literal staircase carries this one, and the nested-call
- * staircase deliberately does not, because a wall-clock ratio cannot measure
- * this sniff on the call shape at these sizes. PHP_CodeSniffer records the
- * chain of enclosing parentheses on every token inside them, so its own
- * tokenizer is O(depth²) in time and memory for nested calls -- 30MB, 84MB,
- * 290MB, 1,128MB at the four sizes, and 2.4x, 2.4x, 2.9x in parse time alone,
- * before a sniff is reached. The sniff's own share on that shape does the same
- * O(n) work it does here (0.24s at n=4,000 against 0.06s, for identical logic)
- * and simply pays for a heap 35 times larger. A 2.5x cap there would fail on
- * the tokenizer's arithmetic, and a cap loose enough to pass (3.6x) would no
- * longer separate the fix from the 4.1x it replaced -- so the call shape is
- * pinned by the parse-relative bound and the 3.0s budget above, which separate
- * the two by an order of magnitude, and the ratio is asserted here where it
- * means what it says.
+ * The sibling test above says what the walk costs at each size. This one says
+ * what doubling the size may cost, which is the claim the removed wall-clock
+ * assertion was making and the one an exact count cannot make on its own: a
+ * rewrite is free to change the constant, and only the ratio between two sizes
+ * tells a new constant from a new exponent.
+ *
+ * How the bound was derived, from the 2.5x it replaces. The old assertion
+ * compared elapsed seconds per doubling against 2.5x, chosen against the
+ * ~3.7-4.1x #292 measured for the quadratic walk. The count analogue is the
+ * same number against the same two behaviours, with the runner taken out of
+ * it. Crossings are n when the run above a read is crossed once for the file,
+ * so a doubling multiplies them by exactly 2.0. Hop by hop they are n(n+1)/2,
+ * so a doubling multiplies them by 2(2n+1)/(n+1) -- 3.996 at 500 to 1,000,
+ * rising to 3.999 at 2,000 to 4,000, which is where #292's 3.7-4.1x came from.
+ * 2.5 sits between 2.0 and 3.99 exactly as it sat between the two timings, and
+ * the count has no jitter term to widen either side.
+ *
+ * decidingStep.hops is the counter, not enclosureVerdict.walks: walks is one
+ * per read and therefore n by construction, so its ratio is 2.0 for any
+ * implementation at all. hops is what the walk actually performs.
+ *
+ * Every read still being reported is the non-vacuity half, and it is asserted
+ * before the ratio so that a staircase whose reads went missing fails as a
+ * dropped violation rather than as a cheap ratio.
+ *
+ * Mutation-checked by recording no answer for the constructs a crossing walks
+ * over, which is the quadratic walk itself: the ratio bound is the assertion
+ * that reddens, at 3.99x against 2.5x, and the hunk and the failure output are
+ * in this PR's description.
  */
-it('grows linearly across each doubling of a staggered staircase', function () use (
-    $arrayAccessorsStaircaseTiming
+it('grows linearly across each doubling of a staggered staircase', function (string $shape) use (
+    $arrayAccessorsStaircaseCounts
 ): void {
-    $totals = [];
+    $sizes = [500, 1000, 2000, 4000];
+    $hops = [];
 
-    foreach ([500, 1000, 2000, 4000] as $size) {
-        [$errors, $parsed, $sniffed] = $arrayAccessorsStaircaseTiming('array-literals', $size);
-        $totals[$size] = $parsed + $sniffed;
+    foreach ($sizes as $size) {
+        [$errors, $counted] = $arrayAccessorsStaircaseCounts($shape, $size);
 
-        expect($errors)->toBe($size, "n={$size} reports every read");
+        expect($errors)->toBe($size, "{$shape} at n={$size} reports every read");
+
+        $hops[$size] = $counted['decidingStep.hops'];
     }
 
-    foreach ([[500, 1000], [1000, 2000], [2000, 4000]] as [$from, $to]) {
-        $growth = $totals[$to] / $totals[$from];
+    foreach (array_slice($sizes, 1) as $size) {
+        $previous = intdiv($size, 2);
 
-        expect($growth)->toBeLessThan(2.5, "n={$from} -> n={$to} grew {$growth}x");
+        expect($hops[$size] / $hops[$previous])->toBeLessThan(
+            2.5,
+            "{$shape}: crossings from n={$previous} to n={$size} grow by"
+            . " {$hops[$size]}/{$hops[$previous]}, which a quadratic walk cannot do"
+        );
     }
-});
+})->with([
+    'nested call arguments' => 'calls',
+    'nested array literals' => 'array-literals',
+]);
 
 /**
  * The staggered shape decided against fixtures rather than a clock: the
