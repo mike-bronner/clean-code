@@ -525,31 +525,33 @@ it('warns on every branching, declaration, and argument-reader shape', function 
  *
  * No fixture reddens on any of the four caches, since they change only how long
  * the answers take to reach; these are the assertions that pin them, one per
- * shape, so a cache lost from one walk cannot hide behind another. The first
- * three are bounded on the wall clock. Every bound below sits between the two
- * costs measured on the machine that wrote it,
- * and each was confirmed to redden with its own cache removed and to pass with
- * it — measured, not derived:
+ * shape, so a cache lost from one walk cannot hide behind another.
  *
- *   repeated use in one expression  n=4000   0.09s cached, 7.7s without, bound 3s
- *   `match` arms                    n=4000   0.24s cached, 23.0s without, bound 4s
- *   `if`/`elseif` chain             n=4000   0.75s cached, 7.8s without, bound 3s
+ * All four are counted rather than timed. Each was bounded on the wall clock
+ * once, between the two costs measured on the machine that wrote it — n=4000
+ * repeated uses at 0.09s cached against 7.7s without, `match` arms at 0.24s
+ * against 23.0s, an `if`/`elseif` chain at 0.75s against 7.8s. A bound of that
+ * shape states the claim only as far as a shared runner allows, and it was
+ * never the whole claim anyway: PHP_CodeSniffer's own tokenizer is quadratic on
+ * a `switch` body or a nested ternary chain of this size, so most of the time
+ * measured on either was PHPCS's rather than this sniff's (n=4000: 10.54s with
+ * the ternary cache, 23.97s without — and PSR2.ControlStructures.SwitchDeclaration
+ * alone costs 10.37s on the very same file). That is why the `switch` shape was
+ * never asserted on at all, and why the ternary pair below was counted from the
+ * start. The sniff now counts every one of the four, the way ArrayAccessorsSniff
+ * counts its enclosure map, and each test pins both numbers of its pair:
  *
- * A `switch` of the same size is deliberately not asserted on: PHP_CodeSniffer's
- * own tokenizer is quadratic on a `switch` body that large — measured at
- * 2.5s/9.4s for n=2000/4000 with *any* single sniff, this one included and
- * PSR2.ControlStructures.SwitchDeclaration alike — so a wall-clock bound there
- * would assert PHPCS's behaviour rather than the sniff's. The case walk shares
- * the per-construct cache the `match` assertion below pins, and the count
- * assertion in each test proves the walk still reports every branch.
+ *   repeated use in one expression  $selectorCache   steps / hits
+ *   `match` arms                    $branchVerdicts  walks / hits
+ *   `if`/`elseif` chain             $chainHeadCache  steps / hits
+ *   nested ternary chain            $ternaryElse     walks / hits
  *
- * The fourth shape — a nested ternary chain — is bounded the same way, and for
- * the same reason: PHPCS's tokenizer is quadratic on that chain too. At n=4000
- * the whole run costs 10.54s with the ternary cache and 23.97s without, but
- * PSR2.ControlStructures.SwitchDeclaration alone costs 10.37s on the very same
- * file, so all but ~0.2s of the passing time is PHPCS's. A wall-clock bound
- * there would be four fifths tokenizer. The two counter assertions below pin
- * that walk instead, exactly as ArrayAccessorsTest pins its enclosure map.
+ * The second number of each pair is what keeps the first from passing
+ * vacuously: a sniff that stopped consulting its cache would report no hits at
+ * all, and one that stopped walking would report neither. The `switch` shape is
+ * still not asserted on separately — its case walk shares the per-construct
+ * cache the `match` test below pins, and the warning count in each test proves
+ * the walk still reports every branch.
  */
 it('scans repeated uses of one parameter in linear time', function (): void {
     $size = 4000;
@@ -557,10 +559,20 @@ it('scans repeated uses of one parameter in linear time', function (): void {
         . '        $this->mode = ' . implode(' . ', array_fill(0, $size, '$flag')) . "\n"
         . "            ? new Mailer()\n            : new NullLogger();\n    }\n}\n";
 
-    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
+    $sniff = sniffInstance(COMBINED_CONSTRUCTOR);
+    $before = $sniff->cacheCounts();
+    $file = analyzeWithSniffs([COMBINED_CONSTRUCTOR], stageGeneratedFixture('repeated-uses.php', $source));
+    $counted = cacheCountsDelta($before, $sniff->cacheCounts());
 
     expect($file->getWarningCount())->toBe($size, 'every use is still reported')
-        ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
+        ->and($counted['selectorCache.hits'])->toBe(
+            $size - 1,
+            "n={$size}: every use after the first stops on a scan already run"
+        )
+        ->and($counted['selectorCache.steps'])->toBeLessThan(
+            $file->numTokens,
+            "n={$size}: the scan steps once per position of the body, not once per use"
+        );
 });
 
 it('scans a many-armed match in linear time', function (): void {
@@ -573,10 +585,20 @@ it('scans a many-armed match in linear time', function (): void {
         . "        \$this->mode = match (true) {\n{$arms}\n"
         . "            default => throw new LogicException('unreachable'),\n        };\n    }\n}\n";
 
-    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
+    $sniff = sniffInstance(COMBINED_CONSTRUCTOR);
+    $before = $sniff->cacheCounts();
+    $file = analyzeWithSniffs([COMBINED_CONSTRUCTOR], stageGeneratedFixture('many-armed-match.php', $source));
+    $counted = cacheCountsDelta($before, $sniff->cacheCounts());
 
     expect($file->getWarningCount())->toBe($size, 'every arm condition is still reported')
-        ->and($elapsed)->toBeLessThan(4.0, "n={$size} took {$elapsed}s");
+        ->and($counted['branchVerdicts.walks'])->toBe(
+            1,
+            "n={$size}: the arms are enumerated once for the match, not once per arm"
+        )
+        ->and($counted['branchVerdicts.hits'])->toBe(
+            $size - 1,
+            "n={$size}: every arm after the first reads the enumeration already run"
+        );
 });
 
 it('scans a long if chain in linear time', function (): void {
@@ -590,10 +612,20 @@ it('scans a long if chain in linear time', function (): void {
     $source = "<?php\n\nclass ScaleProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
         . $links . " else {\n            throw new LogicException('unreachable');\n        }\n    }\n}\n";
 
-    [$file, $elapsed] = analyzeSourceTimed([COMBINED_CONSTRUCTOR], $source);
+    $sniff = sniffInstance(COMBINED_CONSTRUCTOR);
+    $before = $sniff->cacheCounts();
+    $file = analyzeWithSniffs([COMBINED_CONSTRUCTOR], stageGeneratedFixture('long-if-chain.php', $source));
+    $counted = cacheCountsDelta($before, $sniff->cacheCounts());
 
     expect($file->getWarningCount())->toBe($size, 'every link condition is still reported')
-        ->and($elapsed)->toBeLessThan(3.0, "n={$size} took {$elapsed}s");
+        ->and($counted['chainHead.steps'])->toBe(
+            $size,
+            "n={$size}: each link is stepped over once, not once per link in front of it"
+        )
+        ->and($counted['chainHead.hits'])->toBe(
+            $size - 1,
+            "n={$size}: every link after the first reads the head a walk already recorded"
+        );
 });
 
 /**

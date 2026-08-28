@@ -147,6 +147,15 @@ class NumberOfChildrenSniff implements Sniff
     private const UNKNOWN_PATH = 'STDIN';
 
     /**
+     * The PHP_CodeSniffer config value that turns the ordinal-index diagnostic
+     * on, set for one run with `--runtime-set`.
+     *
+     * Absent from an ordinary run, so the diagnostic below costs a null read
+     * per declaration and reports nothing.
+     */
+    private const ORDINAL_DIAGNOSTIC = 'cleancode_ordinal_index_diagnostic';
+
+    /**
      * The tokens that carry no meaning for this parse and are skipped wherever
      * a "next token" is read.
      *
@@ -334,6 +343,30 @@ class NumberOfChildrenSniff implements Sniff
     private array $ordinals = [];
 
     /**
+     * How many times the ordinal index was built for the token stream being
+     * read, and how many of its declarations have asked for an ordinal.
+     *
+     * The index only shortens a walk, so it changes no report: a file is
+     * reported the same way whether the index is built once for it or once per
+     * declaration in it. Nothing an out-of-process phpcs run can observe
+     * separates the two, and the wall clock that used to be asked instead is a
+     * loaded CI runner's jitter as much as it is the sniff's cost. These two
+     * counts state the mechanism directly, and reportOrdinalIndex() writes them
+     * into the run's own report so a subprocess test can read them back.
+     *
+     * Both increments sit inside buildOrdinals(), on either side of the guard
+     * they describe, so a guard that stopped working cannot leave them intact.
+     * They are cleared as each stream's pair is reported, so what a report
+     * carries is that file's own tally rather than the run's.
+     *
+     * @var array<string, int>
+     */
+    private array $ordinalCounts = [
+        'builds' => 0,
+        'reads' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
@@ -369,7 +402,9 @@ class NumberOfChildrenSniff implements Sniff
 
         $line = $phpcsFile->getTokens()[$stackPtr]['line'];
         $candidates = $this->declarations[$this->realPath($path)][$line][strtolower($name)] ?? [];
-        $fullyQualified = $candidates[$this->declarationOrdinal($phpcsFile, $stackPtr)] ?? null;
+        $ordinal = $this->declarationOrdinal($phpcsFile, $stackPtr);
+        $this->reportOrdinalIndex($phpcsFile, $stackPtr);
+        $fullyQualified = $candidates[$ordinal] ?? null;
 
         if ($fullyQualified === null) {
             return;
@@ -389,6 +424,45 @@ class NumberOfChildrenSniff implements Sniff
             'Found',
             [$name, $children, $minimum]
         );
+    }
+
+    /**
+     * Reports what the ordinal index cost this token stream, once the last
+     * declaration in it has read one.
+     *
+     * tests/Standards/NumberOfChildrenTest.php drives the phpcs binary as a
+     * real subprocess over a real directory, because that is the half of this
+     * sniff nothing in-process reaches: the CLI's own file discovery across
+     * files. A counter read off the sniff instance is therefore out of that
+     * test's reach, and the report is the only channel back — so the counts
+     * travel in it.
+     *
+     * Reported at the stream's last indexed declaration, so one file yields one
+     * message however many declarations it holds. An index nothing consulted
+     * holds no declarations at all and yields no message, which is what keeps
+     * the pair from being read off a sniff that stopped resolving ordinals.
+     *
+     * Silent unless `--runtime-set cleancode_ordinal_index_diagnostic 1` asks
+     * for it: an ordinary run reports the hierarchy and nothing else.
+     */
+    private function reportOrdinalIndex(File $phpcsFile, int $stackPtr): void
+    {
+        if (Config::getConfigData(self::ORDINAL_DIAGNOSTIC) === null) {
+            return;
+        }
+
+        if ($stackPtr !== array_key_last($this->ordinals)) {
+            return;
+        }
+
+        $phpcsFile->addWarning(
+            'Ordinal index: %s builds, %s reads over this file.',
+            $stackPtr,
+            'OrdinalIndex',
+            [$this->ordinalCounts['builds'], $this->ordinalCounts['reads']]
+        );
+
+        $this->ordinalCounts = ['builds' => 0, 'reads' => 0];
     }
 
     /**
@@ -456,10 +530,13 @@ class NumberOfChildrenSniff implements Sniff
             . '|' . count($tokens)
             . '|' . ($phpcsFile->fixer->loops ?? 0);
 
+        $this->ordinalCounts['reads']++;
+
         if ($this->ordinalsKey === $key) {
             return;
         }
 
+        $this->ordinalCounts['builds']++;
         $this->ordinalsKey = $key;
         $this->ordinals = [];
         $counts = [];

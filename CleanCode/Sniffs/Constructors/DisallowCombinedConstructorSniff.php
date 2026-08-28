@@ -448,18 +448,24 @@ class DisallowCombinedConstructorSniff implements Sniff
     private array $ternaryElse = [];
 
     /**
-     * How many forward walks {@see self::ternarySides()} ran, and how many
-     * calls answered from a walk already run, cumulative for the life of this
-     * instance.
+     * What each of the four caches above cost and what it saved, cumulative for
+     * the life of this instance.
      *
      * A cache that only shortens a walk changes no violation, so nothing a
      * black-box test can observe tells "one walk settles the whole chain" from
      * "one walk per level" — both report the same warnings, and the wall clock
-     * that separates them at this chain's size is PHP_CodeSniffer's own
-     * quadratic tokenizer rather than the sniff's (see the docblock over the
-     * linearity assertions in tests/Standards/DisallowCombinedConstructorTest.php).
-     * These two counters are what tell them apart, and that file pins both
-     * numbers.
+     * that separates them at these sizes is PHP_CodeSniffer's own quadratic
+     * tokenizer rather than the sniff's (see the docblock over the linearity
+     * assertions in tests/Standards/DisallowCombinedConstructorTest.php). These
+     * counters are what tell them apart, and that file pins both numbers of
+     * every pair.
+     *
+     * A pair reads one of two ways, and which one depends on what its cache
+     * bounds. `walks`/`hits` counts whole answers: how many calls had to derive
+     * one against how many read one already derived. `steps`/`hits` counts the
+     * positions a walk stepped on instead, because the scan it describes is
+     * resumable — a call can step a little way and then meet an answer already
+     * recorded, so a whole-answer count would not state what the cache buys.
      *
      * Each increment sits inside the same branch as the guard it counts, so a
      * guard that stopped working cannot leave the counts intact. The totals are
@@ -472,6 +478,12 @@ class DisallowCombinedConstructorSniff implements Sniff
     private array $cacheCounts = [
         'ternarySides.walks' => 0,
         'ternarySides.hits' => 0,
+        'selectorCache.steps' => 0,
+        'selectorCache.hits' => 0,
+        'branchVerdicts.walks' => 0,
+        'branchVerdicts.hits' => 0,
+        'chainHead.steps' => 0,
+        'chainHead.hits' => 0,
     ];
 
     /**
@@ -483,8 +495,8 @@ class DisallowCombinedConstructorSniff implements Sniff
     }
 
     /**
-     * How many times the ternary walk ran and how many times a call answered
-     * from a walk already run, cumulative for the life of this instance.
+     * What each of this instance's caches cost and saved, cumulative for its
+     * life. See $cacheCounts for what each counter is coupled to.
      *
      * @return array<string, int>
      */
@@ -1274,6 +1286,8 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         for ($next = $pointer + 1; $next < $closer; $next++) {
             if (array_key_exists($next, $this->selectorCache)) {
+                $this->cacheCounts['selectorCache.hits']++;
+
                 return $this->remember($visited, $this->selectorCache[$next]);
             }
 
@@ -1327,6 +1341,12 @@ class DisallowCombinedConstructorSniff implements Sniff
      */
     private function remember(array $visited, ?int $selector): ?int
     {
+        // Every position this scan stepped on, whether it ran to a selector or
+        // stopped on one already recorded. Summed over a constructor, this is
+        // the whole of what $selectorCache buys: one step per position of the
+        // body rather than one full-length scan per parameter use.
+        $this->cacheCounts['selectorCache.steps'] += count($visited);
+
         foreach ($visited as $position) {
             $this->selectorCache[$position] = $selector;
         }
@@ -1551,9 +1571,12 @@ class DisallowCombinedConstructorSniff implements Sniff
     private function branchVerdicts(File $phpcsFile, int $construct, int $closer): array
     {
         if (isset($this->branchVerdicts[$construct])) {
+            $this->cacheCounts['branchVerdicts.hits']++;
+
             return $this->branchVerdicts[$construct];
         }
 
+        $this->cacheCounts['branchVerdicts.walks']++;
         $verdicts = ['throws' => [], 'throwing' => 0, 'surviving' => 0];
 
         foreach ($this->branchStarts($phpcsFile, $construct, $closer) as $pointer => $start) {
@@ -1640,9 +1663,15 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         while (true) {
             if (isset($this->chainHeadCache[$head])) {
+                $this->cacheCounts['chainHead.hits']++;
+
                 return $this->rememberChainHead($visited, $this->chainHeadCache[$head]);
             }
 
+            // One link stepped over. Summed across a chain, this is the whole
+            // of what $chainHeadCache buys: one step per link rather than one
+            // walk of the chain per link in it.
+            $this->cacheCounts['chainHead.steps']++;
             $visited[] = $head;
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $head - 1, null, true);
 

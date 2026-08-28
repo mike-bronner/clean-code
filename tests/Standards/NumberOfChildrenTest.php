@@ -538,10 +538,18 @@ it('reads a group import without recursing once per brace', function (): void {
  * this size, on input a CI job, a pre-commit hook, or a lint service is handed
  * by whoever opened the pull request.
  *
- * Ten seconds separates the two by a wide margin rather than a fine one —
- * twenty times the fixed cost, under a third of the unfixed one — so the
- * assertion is about the shape of the curve and not about the speed of the
- * machine it runs on.
+ * A wall-clock bound between the two — ten seconds, twenty times the fixed cost
+ * and under a third of the unfixed one — states that as far as a shared CI
+ * runner allows and no further. The index only shortens a walk, so it changes
+ * no report and no fixture reddens on it either. The sniff counts the index
+ * instead, and because this case drives the phpcs binary as a real subprocess
+ * over a real directory — which is the half of this sniff nothing in-process
+ * reaches — the counts travel back in the run's own JSON report, asked for with
+ * `--runtime-set` and reported once per file at its last indexed declaration.
+ *
+ * Both numbers are pinned per file. One build per token stream is the claim
+ * itself; the reads are what keep it from passing vacuously, since an index
+ * nothing consulted would be built no times and reported not at all.
  *
  * Base's fifteen children are read back out of the report, so this is a
  * completed analysis of the whole directory at the shipped default and not a
@@ -562,32 +570,47 @@ it('indexes a packed line of declarations once, not once per declaration', funct
         'Base.php' => "<?php\n\nnamespace Fixture\\Packed;\n\nclass Base\n{\n}\n\n" . $children . "\n",
         'Packed.php' => '<?php ' . $packed . "\n",
     ]);
-    $started = microtime(true);
     [$stdout, , $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', [
         PHP_BINARY,
         cleanCodeRoot() . '/vendor/bin/phpcs',
         '--standard=' . cleanCodeRoot() . '/rules.xml',
         '--sniffs=' . NUMBER_OF_CHILDREN,
+        '--runtime-set',
+        'cleancode_ordinal_index_diagnostic',
+        '1',
         '--report=json',
         '--no-cache',
         dirname($project),
     ])));
-    $elapsed = (microtime(true) - $started);
     $report = json_decode($stdout, true);
     $reported = [];
+    $indexed = [];
 
     foreach (($report['files'] ?? []) as $path => $file) {
         foreach ($file['messages'] as $message) {
+            if ($message['source'] === NUMBER_OF_CHILDREN . '.OrdinalIndex') {
+                $indexed[basename((string) $path)] = $message['message'];
+
+                continue;
+            }
+
             $reported[] = basename((string) $path) . ':' . $message['line'] . ' ' . $message['message'];
         }
     }
+
+    // The run reports the files in its own order, which is not this assertion's
+    // subject: one entry per file, holding that file's own tally, is.
+    ksort($indexed);
 
     expect($status)->toBe(1);
     expect($reported)->toBe([
         'Base.php:5 The class Base has 15 children.'
             . ' Consider to rebalance this class hierarchy to keep number of children under 15.',
     ]);
-    expect($elapsed)->toBeLessThan(10.0);
+    expect($indexed)->toBe([
+        'Base.php' => 'Ordinal index: 1 builds, 16 reads over this file.',
+        'Packed.php' => 'Ordinal index: 1 builds, 8000 reads over this file.',
+    ]);
 });
 
 /**
