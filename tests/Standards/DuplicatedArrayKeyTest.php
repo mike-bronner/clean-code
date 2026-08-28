@@ -383,10 +383,11 @@ it('stays silent on an unterminated construct inside an array', function (): voi
  * itself elsewhere cannot pass quietly), and the two files named above are in
  * the very variable the loop below iterates.
  *
- * The token count is asserted per file, and per file rather than in aggregate,
- * because a file PHP_CodeSniffer cannot open reads as clean: it yields no
- * tokens, so the sniff never runs and no `.Found` violation can be reported.
- * The test underneath measures that rather than asserting it here.
+ * The token count is asserted per file, and per file rather than in
+ * aggregate, because a file that produces no tokens reads as clean: the sniff
+ * never runs over it, so no `.Found` violation can be reported and the
+ * violation assertion below passes on it. The test underneath measures that
+ * rather than asserting it here.
  */
 it('leaves the package own test source alone', function (): void {
     $paths = glob(cleanCodeRoot() . '/tests/Standards/*.php');
@@ -409,20 +410,31 @@ it('leaves the package own test source alone', function (): void {
 });
 
 /**
- * What the token-count guard above is for, measured on the one input that
- * trips it. Every file in tests/Standards/ tokenises today, so the sweep alone
- * never reaches the guard and could not show that it discriminates.
+ * What the token-count guard above is for, measured on the two inputs that
+ * trip it. Every file in tests/Standards/ tokenises today, so the sweep alone
+ * never reaches that guard and could not show that it discriminates.
  *
- * A path PHP_CodeSniffer cannot open reads as clean twice over: it records
- * Internal.LocalFile rather than anything this sniff reports, so the
- * `.Found` assertion below passes on it, exactly as it would inside the sweep.
- * The token count is the only assertion that tells the two apart.
+ * An empty file is the case the sweep can actually meet: it exists, it is
+ * readable, and glob returns it, yet it produces no tokens. It is not wholly
+ * silent — PHP_CodeSniffer records Internal.NoCodeFound against it — but that
+ * is a *warning*, and the sweep asserts on errors, so the file arrives there
+ * carrying nothing the sweep looks at. Nothing but the token count separates
+ * it from a file that was read and found clean. It is staged outside the
+ * repository so that the sweep above does not collect it.
+ *
+ * A path that is not there produces no tokens either, and what it records is
+ * Internal.LocalFile — an error this time, but not the `.Found` code the
+ * sweep names, so that assertion passes on it just the same.
  */
-it('reads no tokens from a path it cannot open', function (): void {
-    $file = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], cleanCodeRoot() . '/tests/Standards/no-such-file.php');
+it('reads no tokens from a source the sweep would otherwise call clean', function (): void {
+    $empty = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], stageGeneratedFixture('empty-source.php', ''));
+    $missing = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], cleanCodeRoot() . '/tests/Standards/no-such-file.php');
 
-    expect($file->numTokens)->toBe(0)
-        ->and(violationSourcesByLine($file->getErrors()))->toBe([1 => ['Internal.LocalFile']])
-        ->and(array_column(violationTuples($file), 'source'))
+    expect($empty->numTokens)->toBe(0)
+        ->and($empty->getErrors())->toBe([])
+        ->and(violationSourcesByLine($empty->getWarnings()))->toBe([1 => ['Internal.NoCodeFound']])
+        ->and($missing->numTokens)->toBe(0)
+        ->and(violationSourcesByLine($missing->getErrors()))->toBe([1 => ['Internal.LocalFile']])
+        ->and(array_column(violationTuples($missing), 'source'))
         ->not->toContain(DUPLICATED_ARRAY_KEY . '.Found');
 });
