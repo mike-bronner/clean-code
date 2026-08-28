@@ -563,16 +563,26 @@ it('reads a long comment inside a statement in linear time', function (): void {
  * Three counters make the claim, and no one of them makes it alone. The three
  * readings that run back through the comment are pinned as a constant, because
  * a reading count that grew with $size would be a different sniff; the hops are
- * pinned because a hop is what replaces the replay, and a reading that stopped
- * making them would be one that never reached the comment's opening line at
- * all; and the steps are pinned to exactly two per reading and two per hop,
- * which is the linearity itself — a replay costs one step per token of the
- * comment instead, so the same file reads 35 steps against 16. Two is what
- * a reading costs because lineStart() looks at two tokens: the one it was asked
- * about, and the line's recorded first. The step is counted at that read (the
- * sniff's step() helper), not at the head of lineStart(), so the constant is a
- * statement about tokens examined and not about times called — a walk back to
- * the line start calls lineStart() exactly as often as the map does.
+ * pinned because a hop is what reaches the comment's opening line at all, so a
+ * reading that stopped making them would be anchoring on the comment's own body
+ * instead; and the steps are pinned to exactly two per reading and two per hop,
+ * which is the linearity itself. Two is what a reading costs because lineStart()
+ * looks at two tokens: the one it was asked about, and the line's recorded
+ * first. The step is counted at that read (the sniff's step() helper), not at
+ * the head of lineStart(), so the constant is a statement about tokens examined
+ * and not about times called — a walk back to the line start calls lineStart()
+ * exactly as often as the map does.
+ *
+ * The hop count and the step count divide that work, and the division is worth
+ * stating because it bounds what each one can catch. `commentHops` counts hops
+ * and not what a hop costs: a replay that still enters the comment once per
+ * reading hops three times exactly as the map does, so the replay leaves this
+ * counter reading 3. What the replay moves is `lineStart.steps`, because every
+ * token it steps back over is fetched through step(). So the cost of reaching
+ * the opening line is pinned by the step count, and the hop count pins that the
+ * reading reaches that line at all — which is what makes the step count's 16
+ * mean 5 readings and 3 real hops rather than 8 readings that never entered the
+ * comment. Each is falsifiable on its own, by a different reversion.
  *
  * The fragment count is asserted alongside them because the map's own pass has
  * to stay single too: a doc comment is five tokens per line here, and mapLines()
@@ -580,9 +590,15 @@ it('reads a long comment inside a statement in linear time', function (): void {
  *
  * The error count is the non-vacuity half, as above.
  *
- * Mutation-checked by replacing lineStart()'s map lookup with a walk back token
- * by token, and lineFirstToken()'s commentOpeners hop with a replay of the
- * comment; the hunks and the failures are in this PR's description.
+ * Mutation-checked three ways, across the two counters that carry the comment
+ * path's claim here — the hop count and the step count. Dropping
+ * mapLines()'s record of which comment each token sits in reddens the hop count
+ * (0 against 3) and takes four of this file's verdict assertions with it.
+ * Replacing lineStart()'s map lookup with a walk back token by token reddens the
+ * step count (35 against 16), and replaying the comment token by token instead
+ * of hopping reddens the same counter far harder (150,028 against 16) while
+ * leaving the hop count at 3 — the two halves described above, each falsified
+ * where it is claimed. The hunks and the failures are in this PR's description.
  */
 it('anchors lines on a long comment\'s opening line in linear time', function (): void {
     $size = 10000;
