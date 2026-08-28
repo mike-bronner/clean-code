@@ -902,3 +902,291 @@ it('reports correctly wrapped components when the wrapper tags cannot be read at
 
     expect(allViolationSourcesByLine($control))->toBe([]);
 });
+
+/**
+ * The gap between the root element and the first component can fail to read,
+ * and a failed read must not be mistaken for an empty gap.
+ *
+ * opensOnAComponent() answers one question — does anything but `<template>`
+ * tags and whitespace stand between the view's first element tag and its first
+ * component tag — by stripping the wrappers out of that gap with
+ * TEMPLATE_WRAPPER and testing what is left. `true` tells checkRootElement()
+ * there is no root of this view's own to judge, and the root-element check is
+ * dropped.
+ *
+ * TEMPLATE_WRAPPER fails the way TEMPLATE_TAG fails and not the way
+ * ELEMENT_TAG/COMPONENT_TAG fail: its tag name is the literal word `template`,
+ * so there is no tag-name/attribute-run alternation to split and no backtrack
+ * blow-up. What gives out is the attribute-run group, which recurses once per
+ * character.
+ *
+ * Which constant that is depends on the PCRE JIT, and the fixture is sized to
+ * fail either way. Measured on PHP 8.4's defaults, against this pattern on the
+ * fixture's own gap: with the JIT off the failure starts at an attribute run of
+ * 99,996 characters and reports PREG_RECURSION_LIMIT_ERROR
+ * (pcre.recursion_limit's default is 100,000, the number that threshold is
+ * really tracking); with the JIT on the JIT's own stack gives out first, from
+ * 8,191 characters, and reports PREG_JIT_STACKLIMIT_ERROR. Those are
+ * TEMPLATE_WRAPPER's own numbers, re-measured rather than carried over: it
+ * fails one character later than TEMPLATE_TAG does on the same subject, because
+ * it adds the `<\/?` closing-tag alternative and drops the capturing group. The
+ * fixture's run is 600,000 characters — ~6.0x above the higher of the two
+ * thresholds, the same margin unreadable-template-tags.php keeps. Neither
+ * constant is PREG_BACKTRACK_LIMIT_ERROR, and the assertion below pins that in
+ * both directions.
+ *
+ * **Unlike the three unreadable-*-tags cases above, this one does tell the
+ * fixed code from the pre-fix code, which is the point of it.** The pre-fix
+ * line cast the failed read with `(string)`, so `null` became `''` and
+ * `trim('') === ''` answered `true`: the root check was dropped and the
+ * fixture's `wire:model` root — a genuine RootElementAttributes violation —
+ * escaped in silence. Restore that cast and this case goes red on an empty
+ * violation map where it expected the error. That is a detection bypass, not a
+ * false positive, reachable by anyone authoring the view the sniff lints.
+ *
+ * The fixture is built so that this call site is the *only* read that fails.
+ * The oversized run sits on a closing `</template …>` tag: ELEMENT_TAG,
+ * TEMPLATE_TAG and COMPONENT_TAG all require `<` followed by a letter, so none
+ * of them begins a match there and none of them ever walks the run —
+ * isComponentView() and componentTags() both finish, and the root-element check
+ * is genuinely reached. TEMPLATE_WRAPPER is the only pattern that matches the
+ * closing form. Without that isolation the fixture would prove nothing: an
+ * ELEMENT_TAG failure would make isComponentView() return false and drop the
+ * root check for a different reason entirely.
+ *
+ * The precondition is the other layer, and it pins the fixture rather than the
+ * branch: it proves, without the sniff, that this gap really does drive
+ * TEMPLATE_WRAPPER to a depth failure — so the fixture cannot rot into one that
+ * exercises nothing, and a green run cannot come from the read quietly starting
+ * to succeed. It calls preg_replace(), not preg_match_all(), because
+ * preg_replace() is what the sniff calls and `null` — not `false` — is how
+ * preg_replace() reports failure. The call is unsuppressed: a PHP warning or
+ * error escaping it reddens this case through phpunit.xml.dist's failOnWarning,
+ * as does one escaping the sniff run below it.
+ *
+ * Two controls sit at the end, because the verdict alone cannot carry the
+ * proof here. Shrink the same run and the read finishes, at which point the
+ * sniff reaches the very same verdict — the error above is the fixed code
+ * answering correctly despite the failed read. That step cannot flip the
+ * verdict, and no step could: opensOnAComponent() measures its gap from the
+ * root element's *own* tag (ComponentMarkupSniff.php:448, off the ELEMENT_TAG
+ * match offset at :376-384), and TEMPLATE_WRAPPER's tag name is the literal
+ * word `template`, so the root's opening tag — the disallowed attribute
+ * included — survives every strip, readable run or not. `trim($stripped)` is
+ * never `''` for a fixture that carries a real root violation, which this one
+ * must. So the second control moves that attribute off the root, onto an inner
+ * element, and the file falls silent. Moved rather than deleted because the
+ * same attribute is what makes isComponentView() call this a component's own
+ * view at all: delete it and the silence would be checkRootElement() bailing at
+ * its first line, which says nothing about the root. Between them the two
+ * controls answer both halves — the verdict is a judgement this sniff reached
+ * about this root, not a report it would file about any root it is handed.
+ *
+ * The pattern is read off the sniff rather than transcribed, following
+ * unreadable-element-tags.php's own case above: a transcription would keep
+ * passing after TEMPLATE_WRAPPER was rewritten into a pattern the fixture no
+ * longer breaks.
+ */
+it('judges the root when the gap before the first component cannot be read', function (): void {
+    $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_WRAPPER'))->getValue();
+    $markup = file_get_contents(
+        fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-root.php')
+    );
+
+    // The gap opensOnAComponent() reads: the first element tag's start to the
+    // first component tag's start.
+    $elementStart = strpos($markup, '<div');
+    $componentStart = strpos($markup, '<livewire:');
+    $gap = substr($markup, $elementStart, ($componentStart - $elementStart));
+
+    // The oversized run, located without a regex — the search starts inside the
+    // gap, so the fixture's own prose comment (which names the tag) cannot be
+    // found instead — and pinned past both measured thresholds, so the failure
+    // below cannot depend on the running PHP's pcre.jit setting.
+    $runStart = (strpos($markup, '</template ', $elementStart) + strlen('</template '));
+    $runLength = (strpos($markup, '>', $runStart) - $runStart);
+
+    expect($runLength)->toBeGreaterThan(99996);
+
+    // Read immediately: preg_last_error() is process-global and any later
+    // preg_* call — including one inside expect() — would overwrite it.
+    $stripped = preg_replace($pattern, '', $gap);
+    $error = preg_last_error();
+    $jitted = (ini_get('pcre.jit') === '1');
+
+    expect($stripped)->toBeNull()
+        ->and($error)->toBe($jitted ? PREG_JIT_STACKLIMIT_ERROR : PREG_RECURSION_LIMIT_ERROR)
+        ->and($error)->not->toBe(PREG_BACKTRACK_LIMIT_ERROR);
+
+    $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-wrapper-gap-root.php');
+
+    expect(allViolationSourcesByLine($file))->toBe([33 => [ROOT_ELEMENT_ATTRIBUTES]])
+        ->and($file->getWarnings())->toBe([]);
+
+    // The same markup with the oversized run shrunk to one repetition: the gap
+    // now reads, and the sniff reports the same violation off a gap it saw.
+    //
+    // Cut with substr_replace() rather than preg_replace(): a pattern walking
+    // the run is itself liable to the depth failure this fixture is built to
+    // cause, and a failed cut returns null, which casts to '' and would leave
+    // the control asserting against an empty file that trivially reports
+    // nothing.
+    $readable = substr_replace($markup, 'data-column-', $runStart, $runLength);
+
+    expect($readable)->not->toBe($markup)
+        ->and(strlen($readable))->toBeLessThan(strlen($markup));
+
+    $control = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($readable));
+
+    expect(allViolationSourcesByLine($control))->toBe([33 => [ROOT_ELEMENT_ATTRIBUTES]])
+        ->and($control->getWarnings())->toBe([]);
+
+    // The readable markup with the root's own disallowed attribute moved off
+    // the root and onto an inner element: the gap still reads, the root is
+    // still judged, and it now has nothing to answer for — so the file falls
+    // silent. That is the flip the control above cannot make.
+    //
+    // Moved rather than deleted, and this is the whole care of the step.
+    // wire:model is also the OWN_WIRE_DIRECTIVE that makes isComponentView()
+    // call this a component's own view; delete it and checkRootElement() bails
+    // at its first line, so the silence would come from the view no longer
+    // being one this sniff judges at all — the same verdict off a different
+    // path, which proves nothing about the root check. Kept in the file, on an
+    // element that is not the root, the view is still a component's own view
+    // and the root check still runs.
+    //
+    // Both cuts are by literal and pinned to one occurrence each, so a later
+    // edit that spells either of them a second time reddens here rather than
+    // widening the replacement in silence.
+    $root = '<div wire:model="query" class="editor">';
+    $close = '</div>';
+
+    expect(substr_count($readable, $root))->toBe(1)
+        ->and(substr_count($readable, $close))->toBe(1);
+
+    $compliant = str_replace(
+        [$root, $close],
+        ['<div class="editor">', '    <span wire:model="query"></span>' . PHP_EOL . $close],
+        $readable
+    );
+
+    // The gate proved open, not assumed: without this the step below would pass
+    // just as well on the deleted-attribute markup this one is written to avoid.
+    $isComponentView = new ReflectionMethod(ComponentMarkupSniff::class, 'isComponentView');
+
+    expect($isComponentView->invoke(new ComponentMarkupSniff(), $compliant))->toBeTrue();
+
+    $judged = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($compliant));
+
+    expect(allViolationSourcesByLine($judged))->toBe([])
+        ->and($judged->getWarnings())->toBe([]);
+});
+
+/**
+ * The gap between two sibling components can fail to read too, and there the
+ * mistake runs the other way.
+ *
+ * areAdjacent() answers whether nothing but whitespace and the components' own
+ * `<template>` wrappers separates one sibling's element from the next, by the
+ * same strip-and-trim over TEMPLATE_WRAPPER. `true` sends both siblings to
+ * reportUnwrapped(), which is where AdjacentComponentNotWrapped and
+ * TemplateKeyMismatch come from.
+ *
+ * The failure mechanism, the two measured thresholds and the fixture's
+ * 600,000-character sizing are the root-gap case's above, and hold for the same
+ * reason: one pattern, one call, one depth limit. The fixture uses the same
+ * closing-`</template …>` isolation, so ELEMENT_TAG, TEMPLATE_TAG and
+ * COMPONENT_TAG all finish and TEMPLATE_WRAPPER is the only read that fails.
+ *
+ * **This case tells the fixed code from the pre-fix code as well.** The pre-fix
+ * `(string)` cast turned the failed read into `''`, and `trim('') === ''` said
+ * the two components had nothing between them — so the sniff reported
+ * AdjacentComponentNotWrapped against a pair separated by a whole paragraph
+ * element. Restore that cast and this case goes red on two errors it did not
+ * expect. That is a false positive on correct code, the opposite direction from
+ * the root-gap case's detection bypass, and it is why one fix needs both
+ * fixtures.
+ *
+ * Two controls sit at the end, because a silence needs both halves proved.
+ * Shrink the run and the gap reads: the paragraph is still there, the pair is
+ * still not adjacent, and the sniff stays quiet — the fixed code's answer on the
+ * unreadable gap is the same answer the readable gap earns. Then take the
+ * paragraph out of that readable markup and the pair *is* adjacent, and both
+ * components are reported. So this fixture does hold a pair the sniff has
+ * something to say about, and the silence above is the guard's doing rather
+ * than a file the sniff was never going to speak about.
+ */
+it('leaves siblings alone when the gap between them cannot be read', function (): void {
+    $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_WRAPPER'))->getValue();
+    $markup = file_get_contents(
+        fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-siblings.php')
+    );
+
+    // The gap areAdjacent() reads: the first component's element end to the
+    // next component's start.
+    $previousEnd = (strpos($markup, '>', strpos($markup, '<livewire:')) + 1);
+    $currentStart = strpos($markup, '<livewire:', $previousEnd);
+    $gap = substr($markup, $previousEnd, ($currentStart - $previousEnd));
+
+    // The oversized run, located without a regex — the search starts inside the
+    // gap, so the fixture's own prose comment (which names the tag) cannot be
+    // found instead — and pinned past both measured thresholds, so the failure
+    // below cannot depend on the running PHP's pcre.jit setting.
+    $runStart = (strpos($markup, '</template ', $previousEnd) + strlen('</template '));
+    $runLength = (strpos($markup, '>', $runStart) - $runStart);
+
+    expect($runLength)->toBeGreaterThan(99996);
+
+    // Read immediately: preg_last_error() is process-global and any later
+    // preg_* call — including one inside expect() — would overwrite it.
+    $stripped = preg_replace($pattern, '', $gap);
+    $error = preg_last_error();
+    $jitted = (ini_get('pcre.jit') === '1');
+
+    expect($stripped)->toBeNull()
+        ->and($error)->toBe($jitted ? PREG_JIT_STACKLIMIT_ERROR : PREG_RECURSION_LIMIT_ERROR)
+        ->and($error)->not->toBe(PREG_BACKTRACK_LIMIT_ERROR);
+
+    $file = analyzeFixture(COMPONENT_MARKUP, 'unreadable-wrapper-gap-siblings.php');
+
+    expect(allViolationSourcesByLine($file))->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+
+    // The same markup with the oversized run shrunk to one repetition: the gap
+    // now reads, the paragraph between the two is seen, and the pair is still
+    // left alone — the same answer the guard gives above.
+    //
+    // Cut with substr_replace() rather than preg_replace(), for the reason the
+    // root-gap case above spells out: a pattern walking the run is liable to
+    // the very failure the fixture causes.
+    $readable = substr_replace($markup, 'data-column-', $runStart, $runLength);
+
+    expect($readable)->not->toBe($markup)
+        ->and(strlen($readable))->toBeLessThan(strlen($markup));
+
+    $control = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($readable));
+
+    expect(allViolationSourcesByLine($control))->toBe([])
+        ->and($control->getWarnings())->toBe([]);
+
+    // The readable markup with the paragraph taken out as well: nothing but
+    // whitespace and wrappers is left between the two, so they really are
+    // adjacent and both are reported. The silence above is the guard's, not the
+    // fixture's.
+    $paragraph = substr(
+        $readable,
+        strpos($readable, '<p>'),
+        ((strpos($readable, '</p>') + strlen('</p>')) - strpos($readable, '<p>'))
+    );
+    $adjacent = str_replace($paragraph, '', $readable);
+
+    expect($adjacent)->not->toBe($readable)
+        ->and($paragraph)->toStartWith('<p>')
+        ->and($paragraph)->toEndWith('</p>');
+
+    $pair = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($adjacent));
+
+    expect(array_merge(...array_values(allViolationSourcesByLine($pair))))
+        ->toBe([ADJACENT_COMPONENT_NOT_WRAPPED, ADJACENT_COMPONENT_NOT_WRAPPED])
+        ->and($pair->getWarnings())->toBe([]);
+});

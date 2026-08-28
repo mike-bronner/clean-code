@@ -411,12 +411,52 @@ class ComponentMarkupSniff implements Sniff
      * TemplateKeyMismatch requires. Read by testing whether anything but
      * `<template>` tags and whitespace separates the start of the first
      * element tag from the first component tag.
+     *
+     * That read can fail outright. TEMPLATE_WRAPPER's tag name is the literal
+     * word `template`, so there is no tag-name/attribute-run alternation to
+     * split and no backtrack blow-up. What gives out is the attribute-run
+     * group itself: it repeats over single characters, one level of recursion
+     * per character, so a long enough attribute list exhausts the engine's
+     * depth instead of its step budget. Measured against this pattern on PHP
+     * 8.4's defaults, on the gap unreadable-wrapper-gap-root.php holds: with
+     * the PCRE JIT off the failure starts at an attribute run of 99,996
+     * characters and reports PREG_RECURSION_LIMIT_ERROR (pcre.recursion_limit
+     * defaults to 100,000, which is the number that threshold tracks); with
+     * the JIT on the JIT's own stack gives out first, from 8,191 characters,
+     * and reports PREG_JIT_STACKLIMIT_ERROR. Neither is
+     * PREG_BACKTRACK_LIMIT_ERROR. Those two numbers are TEMPLATE_WRAPPER's
+     * own, re-measured rather than carried over from TEMPLATE_TAG: this
+     * pattern adds the `<\/?` closing-tag alternative and drops the capturing
+     * group, and it fails one character later than TEMPLATE_TAG does on the
+     * same subject.
+     *
+     * preg_replace() reports that failure by returning null, and null is the
+     * one answer this question cannot be asked of. Casting it to a string
+     * gives `''`, and `trim('') === ''` reads as "nothing but wrappers and
+     * whitespace stands between the first element tag and the first component"
+     * — so a failed read would say the view opens on a component, and the
+     * caller would drop the root-element check entirely. A genuinely
+     * non-compliant root then escapes RootElementAttributes with the sniff
+     * silent, which is a detection bypass anyone authoring the linted view can
+     * reach. Returning false instead closes that direction: a gap that could
+     * not be read is not a gap proven to hold only wrappers, so the root is
+     * judged on its own attributes as it would have been had no wrapper been
+     * there at all.
      */
     private function opensOnAComponent(string $markup, int $elementStart, int $componentStart): bool
     {
         $gap = substr($markup, $elementStart, ($componentStart - $elementStart));
+        $stripped = preg_replace(self::TEMPLATE_WRAPPER, '', $gap);
 
-        return trim((string) preg_replace(self::TEMPLATE_WRAPPER, '', $gap)) === '';
+        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
+        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
+        // gave out, so nothing is known about what the gap holds. Not the same
+        // answer as the finished read below, which returns from a gap it saw.
+        if ($stripped === null) {
+            return false;
+        }
+
+        return trim($stripped) === '';
     }
 
     /**
@@ -595,6 +635,36 @@ class ComponentMarkupSniff implements Sniff
      * The gap starts at the *element's* end, so a wrapping component's own
      * `</livewire:…>` closing tag is behind it rather than inside it.
      *
+     * That read can fail outright. TEMPLATE_WRAPPER's tag name is the literal
+     * word `template`, so there is no tag-name/attribute-run alternation to
+     * split and no backtrack blow-up. What gives out is the attribute-run
+     * group itself: it repeats over single characters, one level of recursion
+     * per character, so a long enough attribute list exhausts the engine's
+     * depth instead of its step budget. Measured against this pattern on PHP
+     * 8.4's defaults, on the gap unreadable-wrapper-gap-siblings.php holds:
+     * with the PCRE JIT off the failure starts at an attribute run of 99,996
+     * characters and reports PREG_RECURSION_LIMIT_ERROR (pcre.recursion_limit
+     * defaults to 100,000, which is the number that threshold tracks); with
+     * the JIT on the JIT's own stack gives out first, from 8,191 characters,
+     * and reports PREG_JIT_STACKLIMIT_ERROR. Neither is
+     * PREG_BACKTRACK_LIMIT_ERROR. Those two numbers are TEMPLATE_WRAPPER's
+     * own, re-measured rather than carried over from TEMPLATE_TAG: this
+     * pattern adds the `<\/?` closing-tag alternative and drops the capturing
+     * group, and it fails one character later than TEMPLATE_TAG does on the
+     * same subject.
+     *
+     * preg_replace() reports that failure by returning null, and null is the
+     * one answer this question cannot be asked of. Casting it to a string
+     * gives `''`, and `trim('') === ''` reads as "nothing separates them" — so
+     * a failed read would call any two siblings adjacent no matter what lies
+     * between them, and the caller would report
+     * AdjacentComponentNotWrapped/TemplateKeyMismatch against a pair the
+     * source never showed as adjacent. That is a false positive on correct
+     * code, the opposite direction from opensOnAComponent()'s own failure.
+     * Returning false instead closes it: a gap that could not be read is not a
+     * gap proven empty, and the pair is left alone the same way a gap holding
+     * an element leaves it alone.
+     *
      * @param array{offset: int, end: int, elementEnd: int, line: int, parent: int,
      *     name: string, attributes: string} $previous
      * @param array{offset: int, end: int, elementEnd: int, line: int, parent: int,
@@ -604,8 +674,17 @@ class ComponentMarkupSniff implements Sniff
     {
         $start = $previous['elementEnd'];
         $gap = substr($markup, $start, ($current['offset'] - $start));
+        $stripped = preg_replace(self::TEMPLATE_WRAPPER, '', $gap);
 
-        return trim((string) preg_replace(self::TEMPLATE_WRAPPER, '', $gap)) === '';
+        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
+        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
+        // gave out, so nothing is known about what the gap holds. Not the same
+        // answer as the finished read below, which returns from a gap it saw.
+        if ($stripped === null) {
+            return false;
+        }
+
+        return trim($stripped) === '';
     }
 
     /**
