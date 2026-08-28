@@ -361,3 +361,68 @@ it('stays silent on an unterminated construct inside an array', function (): voi
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * The sniff run over this package's own test source, which is the coverage
+ * this rule never had. Every top-level `.php` file under tests/Standards/ has
+ * to come back with no duplicate key — including this file and
+ * ConvertToCollectionTest.php, whose CONVERT_TO_COLLECTION_REVIEWED_SITES
+ * ledger is the array a merge has damaged twice (#356, #369).
+ *
+ * Unlike that ledger, this guard holds at zero rather than pinning a list of
+ * accepted findings: a duplicate top-level key here is a defect to remove or
+ * rename, never one to record. It is silent today because there are none —
+ * all 96 files come back clean.
+ *
+ * The target set is a real filesystem scan rather than a written-out list, so
+ * a file added to the directory is swept the day it lands. The glob does not
+ * recurse, which is what keeps tests/Standards/Fixtures/ out: `*.php` matches
+ * no directory. Three assertions stop the scan from passing for the wrong
+ * reason — the paths are an array (glob answers false on failure), there are
+ * at least 70 of them (96 today, so a scan that collected nothing or rooted
+ * itself elsewhere cannot pass quietly), and the two files named above are in
+ * the very variable the loop below iterates.
+ *
+ * The token count is asserted per file, and per file rather than in aggregate,
+ * because a file PHP_CodeSniffer cannot open reads as clean: it yields no
+ * tokens, so the sniff never runs and no `.Found` violation can be reported.
+ * The test underneath measures that rather than asserting it here.
+ */
+it('leaves the package own test source alone', function (): void {
+    $paths = glob(cleanCodeRoot() . '/tests/Standards/*.php');
+
+    expect($paths)->toBeArray()
+        ->and(count($paths))->toBeGreaterThanOrEqual(70)
+        ->and($paths)->toContain(
+            cleanCodeRoot() . '/tests/Standards/ConvertToCollectionTest.php',
+            cleanCodeRoot() . '/tests/Standards/DuplicatedArrayKeyTest.php',
+        );
+
+    foreach ($paths as $path) {
+        $file = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], $path);
+        $relative = basename($path);
+
+        expect($file->numTokens)->toBeGreaterThan(0, "{$relative} produced no tokens")
+            ->and(array_column(violationTuples($file), 'source'))
+            ->not->toContain(DUPLICATED_ARRAY_KEY . '.Found');
+    }
+});
+
+/**
+ * What the token-count guard above is for, measured on the one input that
+ * trips it. Every file in tests/Standards/ tokenises today, so the sweep alone
+ * never reaches the guard and could not show that it discriminates.
+ *
+ * A path PHP_CodeSniffer cannot open reads as clean twice over: it records
+ * Internal.LocalFile rather than anything this sniff reports, so the
+ * `.Found` assertion below passes on it, exactly as it would inside the sweep.
+ * The token count is the only assertion that tells the two apart.
+ */
+it('reads no tokens from a path it cannot open', function (): void {
+    $file = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], cleanCodeRoot() . '/tests/Standards/no-such-file.php');
+
+    expect($file->numTokens)->toBe(0)
+        ->and(violationSourcesByLine($file->getErrors()))->toBe([1 => ['Internal.LocalFile']])
+        ->and(array_column(violationTuples($file), 'source'))
+        ->not->toContain(DUPLICATED_ARRAY_KEY . '.Found');
+});
