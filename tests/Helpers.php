@@ -1133,6 +1133,142 @@ function stageProjectOutsideTests(array $files): string
 }
 
 /**
+ * Copies PHP_CodeSniffer into a staging root and returns the path of the copy's
+ * own phpcs entry point, so a test can persist config into *that* install's
+ * CodeSniffer.conf rather than the real one.
+ *
+ * Config::setConfigData() writes to `dirname(__DIR__) . '/CodeSniffer.conf'`
+ * resolved from its own src/ directory, and PHPCS reads no environment
+ * variable that redirects it. Giving PHPCS a different install to write into is
+ * therefore the only way to exercise the persisted config-set route honestly.
+ * The alternative — letting a test run config-set against vendor/ — writes the
+ * shared file ConfigDouble exists to keep this suite off, and would leave in
+ * the developer's working copy exactly the stale value #378 is about.
+ *
+ * A copy rather than a tree of symlinks: PHPCS derives that path from __DIR__,
+ * which resolves symlinks and would lead straight back to the real install.
+ * Two entries are skipped. The package's own tests/ directory is a third of the
+ * bytes and nothing a phpcs subprocess loads reaches it. Its CodeSniffer.conf
+ * is skipped so the copy starts with no config at all: inheriting the real one
+ * would carry over Composer's relative installed_paths, which resolve against
+ * the install directory and so point nowhere from a staging root.
+ *
+ * The staging root is registered for the afterEach purge, so the copy is
+ * removed even when the test that asked for it fails part way through.
+ */
+function stageThrowawayPhpcsInstall(): string
+{
+    $vendor = stagingDirectory('vendor');
+    $source = cleanCodeRoot() . '/vendor/squizlabs/php_codesniffer';
+    $install = $vendor . '/squizlabs/php_codesniffer';
+
+    if (mkdir($install, 0700, true) === false) {
+        throw new RuntimeException("could not stage a PHP_CodeSniffer install at {$install}");
+    }
+
+    $entries = new RecursiveCallbackFilterIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        // getSubPathname() is the path below $source, so these two match the
+        // top-level entries only and leave any same-named descendant alone.
+        static fn (SplFileInfo $entry, string $key, RecursiveDirectoryIterator $directory): bool
+            => in_array($directory->getSubPathname(), ['tests', 'CodeSniffer.conf'], true) === false
+    );
+    $offset = strlen($source) + 1;
+
+    foreach (new RecursiveIteratorIterator($entries, RecursiveIteratorIterator::SELF_FIRST) as $entry) {
+        $target = $install . '/' . substr($entry->getPathname(), $offset);
+
+        if ($entry->isDir() === true) {
+            if (mkdir($target, 0700, true) === false) {
+                throw new RuntimeException("could not stage {$target}");
+            }
+
+            continue;
+        }
+
+        if (copy($entry->getPathname(), $target) === false) {
+            throw new RuntimeException("could not stage {$target}");
+        }
+    }
+
+    // PHPCS looks two directories above its own for a Composer autoloader, and
+    // needs to find one: the CleanCode sniffs are PSR-4 classes, and
+    // CleanCode/Support/BackportedTokens.php is a Composer `files` entry that
+    // no other loader reads. A shim returning the real ClassLoader satisfies
+    // the `instanceof ClassLoader` check in the package's own autoload.php
+    // without a symlink, which removeStagedDirectory() would follow.
+    file_put_contents(
+        $vendor . '/autoload.php',
+        '<?php' . "\n\n" . 'return require ' . var_export(cleanCodeRoot() . '/vendor/autoload.php', true) . ';' . "\n"
+    );
+
+    return $install . '/bin/phpcs';
+}
+
+/**
+ * The Ruleset PHPCS builds for an arbitrary standard, for a test whose subject
+ * is what the shipped rulesets *declare* rather than what a sniff does.
+ *
+ * buildRuleset() answers the same question for rules.xml alone. This one takes
+ * the path because CleanCode/ruleset.xml is independently loadable — a consumer
+ * may point a standard argument straight at it — so a rule declared for
+ * consumers has two entry points to hold at, not one.
+ *
+ * Not memoised: the callers compare whole rulesets, and a shared instance
+ * across standards is the one thing that would make that comparison vacuous.
+ */
+function buildRulesetForStandard(string $standard): Ruleset
+{
+    // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
+    // installed standards have to be put back before the parse reads them.
+    $config = new ConfigDouble(['--standard=' . $standard]);
+    $config->cache = false;
+
+    restoreInstalledPaths();
+
+    return new Ruleset($config);
+}
+
+/**
+ * Stages a consumer-style ruleset that loads rules.xml and then gives
+ * CleanCode.Metrics.NumberOfChildren.OrdinalIndex back a reporting severity,
+ * and returns its path.
+ *
+ * CleanCode/ruleset.xml ships that message code at severity 0, because a config
+ * value alone cannot keep an instrumentation diagnostic away from a consumer
+ * (#378). The suppression is total by design and covers the runtime-set route
+ * as well, so the one test that reads the sniff's counters out of a real run's
+ * report has to ask for them back the way a consumer would. PHPCS applies rules
+ * in document order, so the declaration below wins over the one it inherits.
+ *
+ * This is therefore both the compensating override for that test and the live
+ * proof that the escape hatch CleanCode/ruleset.xml documents actually works —
+ * a consumer who does want the numbers is not locked out.
+ *
+ * Staged in a root of its own rather than beside the fixtures, because the
+ * caller hands PHPCS a whole directory to scan and a ruleset is not a file
+ * under test.
+ */
+function stageOrdinalDiagnosticRuleset(): string
+{
+    $standard = stagingDirectory() . '/ordinal-diagnostic.xml';
+
+    file_put_contents($standard, implode("\n", [
+        '<?xml version="1.0"?>',
+        '<ruleset name="OrdinalIndexDiagnostic">',
+        '    <description>Consumer ruleset built by the test suite.</description>',
+        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="CleanCode.Metrics.NumberOfChildren.OrdinalIndex">',
+        '        <severity>5</severity>',
+        '    </rule>',
+        '</ruleset>',
+        '',
+    ]));
+
+    return $standard;
+}
+
+/**
  * Writes $source to a file named $filename in a directory outside the
  * repository and returns the path, so a test can compare a sniff's verdict on
  * the same bytes at a real path and with no path at all.

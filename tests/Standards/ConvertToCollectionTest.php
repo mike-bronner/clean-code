@@ -205,7 +205,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Helpers.php' => [
         ['line' => 657, 'column' => 66],
         ['line' => 826, 'column' => 36],
-        ['line' => 1644, 'column' => 22],
+        ['line' => 1780, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -213,6 +213,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Rules/BladeNoCodeFoundTest.php' => [
         ['line' => 33, 'column' => 29],
+    ],
+    'tests/Ruleset/NumberOfChildrenTest.php' => [
+        ['line' => 47, 'column' => 33],
+        ['line' => 67, 'column' => 59],
     ],
     'tests/Ruleset/TypeHintsRulesetTest.php' => [
         ['line' => 173, 'column' => 26],
@@ -343,12 +347,12 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Standards/NumberOfChildrenTest.php' => [
         ['line' => 491, 'column' => 33],
         ['line' => 499, 'column' => 66],
-        ['line' => 561, 'column' => 33],
-        ['line' => 565, 'column' => 27],
-        ['line' => 573, 'column' => 59],
-        ['line' => 736, 'column' => 75],
-        ['line' => 776, 'column' => 75],
-        ['line' => 846, 'column' => 25],
+        ['line' => 574, 'column' => 33],
+        ['line' => 578, 'column' => 27],
+        ['line' => 586, 'column' => 59],
+        ['line' => 749, 'column' => 75],
+        ['line' => 789, 'column' => 75],
+        ['line' => 859, 'column' => 25],
     ],
     'tests/Standards/OneThoughtPerLineTest.php' => [
         ['line' => 37, 'column' => 42],
