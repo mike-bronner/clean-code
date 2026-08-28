@@ -158,8 +158,18 @@ class NumberOfChildrenSniff implements Sniff
      * every later run against that install reads — a consumer's ordinary run
      * included — until `--config-delete` removes it.
      *
-     * Ordinarily set by none of the three, so the diagnostic below costs a
-     * null read per declaration and reports nothing.
+     * Ordinarily none of the three sets it, so the diagnostic below costs a
+     * null read per declaration and reports nothing. That is not what keeps it
+     * away from consumers, and this gate must not be read as if it were: two of
+     * those routes outlive the run that set them, and a stale `--config-set` on
+     * a shared install arms every later ordinary run against it (#378).
+     *
+     * The backstop that does keep it away is `<severity>0</severity>` on the
+     * OrdinalIndex message code, declared in CleanCode/ruleset.xml. Its
+     * suppression is total: it covers all three routes above, no command-line
+     * severity flag reopens it, and a consumer who wants these numbers has to
+     * restore the severity in their own ruleset. reportOrdinalIndex() carries
+     * the mechanism and the escape hatch in full.
      */
     private const ORDINAL_DIAGNOSTIC = 'cleancode_ordinal_index_diagnostic';
 
@@ -454,12 +464,30 @@ class NumberOfChildrenSniff implements Sniff
      * the pair from being read off a sniff that stopped resolving ordinals.
      *
      * Silent until ORDINAL_DIAGNOSTIC is set by any of the three routes that
-     * docblock names, so an ordinary run reports the hierarchy and nothing
-     * else. Under `--runtime-set` the exception is the single run that asked.
-     * Under a ruleset `<config>` or a persisted `--config-set` it is every run
-     * loading that ruleset or sharing that install, a consumer's included:
-     * PHP_CodeSniffer reports warnings unless the run opts out, and neither
-     * rules.xml nor CleanCode/ruleset.xml excludes this one.
+     * docblock names, and silent even then unless the ruleset in force asks for
+     * the message. CleanCode/ruleset.xml ships the OrdinalIndex message code at
+     * `<severity>0</severity>`, so a consumer loading this package by either
+     * entry point — rules.xml, or CleanCode/ruleset.xml direct — never sees it
+     * (#378). That backstop is what keeps a stale `--config-set` on a shared
+     * install from leaking warnings into every later ordinary run; the config
+     * gate above cannot do it, because it cannot tell that route from the two
+     * that a single run asked for.
+     *
+     * The suppression is total, by design and not by omission. PHPCS resolves a
+     * ruleset-declared severity per message code in File::addMessage(),
+     * statically, and blind to which route supplied the gate value — so it
+     * covers `--runtime-set` and a downstream consumer's own deliberate
+     * `<config>` opt-in alike. No command-line severity flag reopens it either:
+     * `--warning-severity=0` suppresses every warning outright, and any higher
+     * value still loses the `$configSeverity > $severity` comparison against 0.
+     *
+     * A consumer who does want these numbers overrides the severity in their
+     * own ruleset — reference the message code after the rule ref that pulls
+     * this package in, and give it a nonzero severity; PHPCS applies rules in
+     * document order, so the later declaration wins. That is the only route
+     * back, and stageOrdinalDiagnosticRuleset() in tests/Helpers.php is the
+     * worked example: it is how the performance test named above still reads
+     * these counts, and it fails if the escape hatch ever stops working.
      */
     private function reportOrdinalIndex(File $phpcsFile, int $stackPtr): void
     {

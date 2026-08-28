@@ -3,4 +3,50 @@
          name="CleanCode"
          xsi:noNamespaceSchemaLocation="../vendor/squizlabs/php_codesniffer/phpcs.xsd">
     <description>Custom sniffs implementing the clean-code standards defined at mikebronner.dev/clean-code. Every sniff in this standard's Sniffs/ directory is included automatically when the standard is referenced.</description>
+
+    <!--
+        CleanCode.Metrics.NumberOfChildren.OrdinalIndex is instrumentation, not
+        a standard: it reports what the ordinal index cost a token stream, for
+        the benefit of one test that can only read the sniff's counters out of
+        a real run's own report. Nothing a consumer installs this package for
+        asks for it.
+
+        The sniff gates it on the cleancode_ordinal_index_diagnostic config
+        value, and a config value is not a safe gate on its own. PHPCS merges
+        three routes into one store, and the sniff cannot tell them apart: the
+        runtime-set flag, a ruleset `config` element, and the config-set
+        command, which *persists* into the install's shared CodeSniffer.conf. A
+        stale config-set on a shared install (a CI runner, a monorepo, a cached
+        Docker layer) therefore leaks this diagnostic into every later ordinary
+        run against that install, on every file holding a class declaration,
+        until someone runs config-delete. That is a warning a downstream
+        consumer cannot diagnose from their own repository.
+
+        Severity 0 closes the hazard at the ruleset layer instead of
+        documenting it. PHPCS resolves a ruleset-declared severity per message
+        code in File::addMessage(), statically, and blind to which route
+        supplied the gate value, so this one declaration covers all three of
+        them. The suppression is deliberately total: no command-line severity
+        flag can undo it, because a warning-severity of 0 hides every warning
+        outright and any higher value still loses the `configSeverity` greater
+        than `severity` comparison against 0.
+
+        This is why the declaration lives here rather than in rules.xml.
+        CleanCode/ruleset.xml is independently loadable, so a consumer may
+        point a standard argument straight at it, and a backstop that lived
+        only in rules.xml would leave that path exposed. rules.xml pulls this
+        file in by reference and must not re-declare a nonzero severity for the
+        code afterwards, or the hazard reopens on the very file consumers
+        install.
+
+        The escape hatch is a consumer's own ruleset, which is the one place
+        that can legitimately want the numbers back: reference the message code
+        after the rule ref to rules.xml and give it a nonzero severity. PHPCS
+        applies rules in document order, so the later declaration wins.
+        tests/Standards/NumberOfChildrenTest.php does exactly that, and is the
+        worked example.
+    -->
+    <rule ref="CleanCode.Metrics.NumberOfChildren.OrdinalIndex">
+        <severity>0</severity>
+    </rule>
 </ruleset>
