@@ -431,6 +431,21 @@ it('decides enclosing constructs in linear time', function (
  * increasing depths still walked n depths between them -- O(n²), measured at
  * 8.4s for n=4,000 nested calls, matching the 8.136-8.363s #292 reports.
  *
+ * This test carries both wall-clock assertions the pre-#354 `decides a
+ * staggered staircase within the cost of parsing it` made, so it carries the
+ * provenance of both. The figures below are that test's own, verbatim; they are
+ * the record of why each threshold sat where it did, and no counter here can be
+ * read back into seconds to recover them.
+ *
+ * - The parse-relative assertion held the sniff under twice PHP_CodeSniffer's
+ *   own parse of the same file. "Measured here at 0.41-0.90 with the fix,
+ *   against 7.4-29.6 without it -- an order of magnitude clear of the bound at
+ *   every one of the four sizes, in both shapes."
+ * - The fixed budget was the one #292 named. "The n=4,000 budget is wall clock
+ *   and set where #292 asks for it: 3.0s, which the hop-by-hop walk cannot pass
+ *   (8.4s and 7.3s for the two shapes) and the fix passes with better than five
+ *   times the headroom (0.51s and 0.15s)."
+ *
  * Counted rather than timed (#354, extending #321), and the count is what the
  * hazard is actually made of: the number of constructs a read crosses. The
  * compressing walk crosses the run above a read once for the whole file and
