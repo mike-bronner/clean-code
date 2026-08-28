@@ -243,21 +243,52 @@ it('inserts the break when no spacing separates the opener from the condition', 
  *
  * Two counters carry the claim, and neither carries it alone. The jumps are
  * what make the walk linear — skipNested() says why — so a walk that stopped
- * jumping is the regression, and 599 of them is one crossing per nested group,
+ * jumping is the regression, and n-1 of them is one crossing per nested group,
  * by the walk of the group holding it. The steps are what that buys: the three
  * walks over a condition touch a fixed number of tokens per level rather than
  * every token below it. Measured at n=150, 300 and 600 the steps are 4,966,
  * 9,916 and 19,816 — exactly 33 more per level each time, which is the linear
  * form asserted here. Stepping through each nested region instead of jumping
- * it makes the same file quadratic: 2,357,114 steps at n=600, against 19,816.
+ * it makes the same file quadratic.
  *
- * For provenance, the timings the old ratio was set against: 1.06x for the
- * walk that jumps each nested region against 15.5x for the walk that stepped
- * through it (0.06s/0.05s against 0.93s/0.06s, measured in-process here).
+ * Where the old x4 bound went, stated plainly because it did not survive the
+ * translation the AC asked for. `$grouped < $skipped * 4` compared the two
+ * files' elapsed times, and it could only ever have been a comparison between
+ * *those two files*: the control existed to cancel what PHP_CodeSniffer's own
+ * tokenizer charges for depth, which both files pay identically and which
+ * dwarfs what this sniff spends. A count of this sniff's own work does not
+ * include the tokenizer, so there is nothing left for the control to cancel —
+ * and, measured, the control walks 13 steps and takes 0 jumps against the
+ * grouped file's 19,816 and 599, because a call is refused whole at its
+ * opening parenthesis. `19,816 < 13 * 4` is unsatisfiable for any correct
+ * implementation. This is the same arithmetic the AC already ruled out for a
+ * counter reading 0 on the control, arriving at 13 instead of 0; the counter
+ * is scoped to the grouping walk including its early-exit path, which is why
+ * it reads 13 rather than nothing, and that still does not make it a baseline.
+ *
+ * So the ratio is kept and its denominator is changed: the bound now sits
+ * between two sizes of the grouped file rather than between two files. Both
+ * bounds answer the same question — is the cost linear or quadratic in n —
+ * and the doubling form answers it without a control file at all. The control
+ * stays, and its counts are now asserted rather than discarded, because they
+ * are what proves a call is skipped whole rather than walked into.
+ *
+ * How the bound was derived from the x4. The old 4 sat between the two
+ * behaviours it had to separate, log-symmetrically: 1.06x for the walk that
+ * jumps each nested region against 15.5x for the walk that steps through it
+ * (0.06s/0.05s against 0.93s/0.06s, measured in-process here), and 4 is within
+ * 3% of sqrt(1.06 * 15.5) = 4.05. Per doubling of n the same two behaviours
+ * are 1.997 and 1.998 for the jumping walk (4,966 -> 9,916 -> 19,816) against
+ * 3.943 and 3.971 for the stepping one (150,539 -> 593,564 -> 2,357,114, all
+ * six measured, the second three under the mutation below). The log-symmetric
+ * points are sqrt(1.997 * 3.943) = 2.81 and sqrt(1.998 * 3.971) = 2.82, and
+ * the bound is the tighter of the two rounded down: 2.8, the old number's own
+ * construction on the new axis.
  *
  * Mutation-checked by walking each nested region token by token instead of
- * jumping to its closer, leaving every verdict identical; the hunk and the
- * failure are in this PR's description.
+ * jumping to its closer, leaving every verdict identical. The ratio bound is
+ * the assertion that reddens; the hunk and the failure output are in this
+ * PR's description.
  *
  * The count is capped at 600 by PHP_CodeSniffer itself, not by taste: past
  * roughly a thousand levels of nesting its tokenizer exhausts PHP's default
@@ -271,13 +302,13 @@ it('inserts the break when no spacing separates the opener from the condition', 
 it('stays linear as groupings nest', function (): void {
     $count = 600;
 
-    // The same file either way: $count parentheses nested to the same depth,
+    // The same file either way: $levels parentheses nested to the same depth,
     // opened by `&& (` for the groupings and by `&& check(` for the control.
-    $build = function (string $opener) use ($count): string {
+    $build = function (string $opener, int $levels): string {
         $lines = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {'];
         $lines[] = '        if (';
 
-        for ($level = 0; $level < $count; $level++) {
+        for ($level = 0; $level < $levels; $level++) {
             // Every group but the outermost opens its first condition two
             // spaces shallow, so each level contributes exactly one violation.
             $indent = (12 + (4 * $level));
@@ -285,10 +316,10 @@ it('stays linear as groupings nest', function (): void {
             $lines[] = str_repeat(' ', $indent) . $opener;
         }
 
-        $lines[] = str_repeat(' ', ((12 + (4 * $count)) - 2)) . '$this->first';
-        $lines[] = str_repeat(' ', (12 + (4 * $count))) . '&& $this->second';
+        $lines[] = str_repeat(' ', ((12 + (4 * $levels)) - 2)) . '$this->first';
+        $lines[] = str_repeat(' ', (12 + (4 * $levels))) . '&& $this->second';
 
-        for ($level = ($count - 1); $level >= 0; $level--) {
+        for ($level = ($levels - 1); $level >= 0; $level--) {
             $lines[] = str_repeat(' ', (12 + (4 * $level))) . ')';
         }
 
@@ -312,8 +343,20 @@ it('stays linear as groupings nest', function (): void {
         return [cacheCountsDelta($before, $sniff->cacheCounts()), violationTuples($file)];
     };
 
-    [$groupedCounts, $groupedViolations] = $measure('nested-groupings.php', $build('&& ('));
-    [, $skippedViolations] = $measure('nested-calls.php', $build('&& check('));
+    // Three sizes, each a doubling of the one before it, so the growth between
+    // them is measured rather than inferred from a single total.
+    $sizes = [150, 300, 600];
+    $counts = [];
+    $violations = [];
+
+    foreach ($sizes as $levels) {
+        [$counts[$levels], $violations[$levels]] = $measure(
+            "nested-groupings-{$levels}.php",
+            $build('&& (', $levels)
+        );
+    }
+
+    [$skippedCounts, $skippedViolations] = $measure('nested-calls.php', $build('&& check(', $count));
 
     $expected = [];
 
@@ -331,16 +374,54 @@ it('stays linear as groupings nest', function (): void {
         'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
     ];
 
-    expect($groupedViolations)->toBe($expected)
-        ->and($skippedViolations)->toBe([])
-        ->and($groupedCounts['conditionWalk.jumps'])->toBe(
-            ($count - 1),
-            'each nested grouping is crossed whole once, by the walk of the group holding it'
-        )
-        ->and($groupedCounts['conditionWalk.steps'])->toBe(
-            ((33 * $count) + 16),
-            'the walks touch a fixed number of tokens per level, not the condition below it'
+    // The verdicts first, so a walk that gave up early fails as a dropped
+    // violation rather than as a cheap count.
+    expect($violations[$count])->toBe($expected)
+        ->and($skippedViolations)->toBe([]);
+
+    foreach ($sizes as $levels) {
+        expect($violations[$levels])->toHaveCount(
+            $levels,
+            "n={$levels}: one violation per level, and every level reached"
         );
+    }
+
+    // The bound the old x4 became; the docblock derives the 2.8.
+    foreach (array_slice($sizes, 1) as $levels) {
+        $previous = intdiv($levels, 2);
+        $grown = ($counts[$levels]['conditionWalk.steps'] / $counts[$previous]['conditionWalk.steps']);
+
+        expect($grown)->toBeLessThan(
+            2.8,
+            "steps from n={$previous} to n={$levels} grow by {$counts[$levels]['conditionWalk.steps']}"
+            . "/{$counts[$previous]['conditionWalk.steps']}, which a walk into each nested region cannot do"
+        );
+    }
+
+    foreach ($sizes as $levels) {
+        expect($counts[$levels]['conditionWalk.jumps'])->toBe(
+            ($levels - 1),
+            "n={$levels}: each nested grouping is crossed whole once,"
+            . ' by the walk of the group holding it'
+        )->and($counts[$levels]['conditionWalk.steps'])->toBe(
+            ((33 * $levels) + 16),
+            "n={$levels}: the walks touch a fixed number of tokens per level,"
+            . ' not the condition below it'
+        );
+    }
+
+    // Asserted, not discarded: the control is no longer a baseline for a ratio,
+    // so what it is still worth saying about it has to be said here. 13 steps
+    // and no jumps over 600 nested calls is a call refused at its opening
+    // parenthesis rather than walked into -- and 13, not 0, is what shows the
+    // counter covers the early-exit path the AC asks about.
+    expect($skippedCounts['conditionWalk.steps'])->toBe(
+        13,
+        'the control is refused whole: its cost does not scale with its nesting'
+    )->and($skippedCounts['conditionWalk.jumps'])->toBe(
+        0,
+        'a call is never entered, so no nested region inside one is ever crossed'
+    );
 });
 
 /**
@@ -427,14 +508,31 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
  * would count calls, and a walk back makes exactly as many calls as an indexed
  * read does, so it could return with the count unmoved.
  *
- * For provenance, the timings the old ratio was set against: 5.34x for the
- * per-call backward walk against 1.02x for the indexed lookup (0.4224s/0.0791s
- * against 0.0742s/0.0730s, measured in-process here on the same run of this
- * test against each implementation).
+ * Where the old x2 bound went. `$grouped < $skipped * 2` compared two files'
+ * elapsed times, and the control was there to cancel the tokenizer, exactly as
+ * in the test above. A count of this sniff's own work carries no tokenizer to
+ * cancel, and the control -- measured -- reads 0 line-start steps and 0
+ * readings, because a call is refused before a line start is ever asked for.
+ * `600 < 0 * 2` is unsatisfiable for any implementation, which is the case the
+ * AC rules out by name. So the denominator changes and the ratio stays: the
+ * bound sits between two sizes of the stacked file rather than between two
+ * files, and the control's counts are asserted rather than discarded, because
+ * a control that reads nothing is exactly what proves a call is skipped.
+ *
+ * How the bound was derived from the x2. The old 2 sat between 1.02x for the
+ * indexed lookup and 5.34x for the per-call backward walk (0.0742s/0.0730s
+ * against 0.4224s/0.0791s, measured in-process here on the same run of this
+ * test against each implementation); sqrt(1.02 * 5.34) = 2.33, and 2 is below
+ * it. Doubling the whole line -- 1,000 leading conditions and 300 openers
+ * against 2,000 and 600 -- the same two behaviours are 2.0 for the indexed
+ * lookup (300 steps against 600) and 3.998 for the backward walk (2,117,550
+ * against 8,465,100, both measured under the mutation below). sqrt(2.0 *
+ * 3.998) = 2.83, and the bound is 2.6: below that point by roughly the margin
+ * the old 2 sat below its own 2.33.
  *
  * Mutation-checked by answering a line start with a backward walk again,
- * leaving every verdict identical; the hunk and the failure are in this PR's
- * description.
+ * leaving every verdict identical. The ratio bound is the assertion that
+ * reddens; the hunk and the failure output are in this PR's description.
  *
  * The 2,000 leading conditions are not decoration. The nesting depth is what
  * caps this shape — PHP_CodeSniffer records the full parenthesis nesting on
@@ -457,6 +555,7 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
  */
 it('stays linear as group openers stack on one line', function () use ($stackedGroupings): void {
     [$groupedSource, $reported] = $stackedGroupings('&& (', 2000, 600);
+    [$halfSource] = $stackedGroupings('&& (', 1000, 300);
     [$controlSource] = $stackedGroupings('&& check(', 2000, 600);
 
     buildRuleset([LOGICAL_GROUPINGS]);
@@ -476,7 +575,8 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
     };
 
     [$groupedCounts, $groupedViolations, $groupedMessages] = $measure('stacked-groupings.php', $groupedSource);
-    [, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
+    [$halfCounts, $halfViolations] = $measure('stacked-groupings-half.php', $halfSource);
+    [$skippedCounts, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
 
     $expected = array_map(
         static fn (int $column): array => [
@@ -487,21 +587,46 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
         $reported
     );
 
+    // The verdicts first, so a walk that gave up early fails as a dropped
+    // violation rather than as a cheap count.
     expect($groupedViolations)->toBe($expected)
         ->and($skippedViolations)->toBe([])
+        ->and($halfViolations)->toHaveCount(299, 'the half-size file reaches every level too')
         ->and(array_values(array_unique($groupedMessages[7])))->toBe([
             'The first condition of a parenthesized group must start on its own line,'
             . ' indented one level deeper than its enclosing condition; expected 12 spaces',
-        ])
-        ->and($groupedCounts['lineStarts.hits'])->toBe(
-            599,
-            'the index is read once per reported group and built once for the stream'
-        )
-        ->and($groupedCounts['lineStarts.steps'])->toBe(
-            600,
-            'the 600 readings examine 600 tokens between them — one each, from the index,'
-            . ' not an ever-growing prefix of the line the openers stack on'
-        );
+        ]);
+
+    // The bound the old x2 became; the docblock derives the 2.6.
+    expect($groupedCounts['lineStarts.steps'] / $halfCounts['lineStarts.steps'])->toBeLessThan(
+        2.6,
+        "doubling the line grows the tokens examined by {$groupedCounts['lineStarts.steps']}"
+        . "/{$halfCounts['lineStarts.steps']}, which a walk back along it cannot do"
+    );
+
+    expect($groupedCounts['lineStarts.hits'])->toBe(
+        599,
+        'the index is read once per reported group and built once for the stream'
+    )->and($groupedCounts['lineStarts.steps'])->toBe(
+        600,
+        'the 600 readings examine 600 tokens between them — one each, from the index,'
+        . ' not an ever-growing prefix of the line the openers stack on'
+    )->and($halfCounts['lineStarts.steps'])->toBe(
+        300,
+        'and 300 readings examine 300, on a line half as long'
+    );
+
+    // Asserted, not discarded: the control is no longer a baseline for a ratio,
+    // so what is still worth saying about it has to be said here. A call never
+    // reaches a line-start reading at all, which is why it cannot be a
+    // denominator and why its silence is worth pinning.
+    expect($skippedCounts['lineStarts.hits'])->toBe(
+        0,
+        'a call is refused before any line start is asked for'
+    )->and($skippedCounts['lineStarts.steps'])->toBe(
+        0,
+        'so no token is examined on its behalf'
+    );
 });
 
 /**
