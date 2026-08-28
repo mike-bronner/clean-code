@@ -144,6 +144,14 @@ out-of-range cast and a malformed literal raise abort the whole file only under
 the Runner the binary uses. The sniff is also in the
 generic three-fixture sweep in `tests/Contract/SniffContractTest.php`.
 
+Two further tests point the sniff at this package's own test source rather
+than at a fixture. The first runs it over every top-level `.php` file under
+`tests/Standards/`, discovered by a filesystem scan rather than a written-out
+list, and holds at zero findings — a duplicate key there is a defect to remove,
+not one to record. The second pins what that sweep's per-file token-count guard
+discriminates: a file that produces no tokens reports nothing this sniff
+raises, so it would otherwise read as clean.
+
 Its fixtures follow the contract CONTRIBUTING.md prescribes, under
 `tests/fixtures/DuplicatedArrayKeySniff/`: `passing.php` for code the rule must
 stay silent on and `failing.php` for the parity set, plus `divergences.php` for
