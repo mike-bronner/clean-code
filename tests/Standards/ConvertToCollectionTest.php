@@ -224,8 +224,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 278, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
-        ['line' => 542, 'column' => 22],
-        ['line' => 564, 'column' => 25],
+        ['line' => 604, 'column' => 22],
+        ['line' => 626, 'column' => 25],
     ],
     'tests/Standards/AvoidConditionalsTest.php' => [
         ['line' => 127, 'column' => 23],

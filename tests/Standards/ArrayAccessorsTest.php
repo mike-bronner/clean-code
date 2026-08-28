@@ -440,12 +440,12 @@ it('decides enclosing constructs in linear time', function (
  * cannot reach it.
  *
  * Four sizes, because a single size states a total and not a growth. The counts
- * are asserted exactly at each of them, and being exactly n at 500, 1,000,
- * 2,000 and 4,000 is the per-doubling claim as well: this is the assertion the
- * separate `grows linearly across each doubling` test used to make against the
- * clock, at 2.5x per step against the ~3.7-4.1x #292 measured. A ratio between
- * two exact counts adds nothing to the counts themselves, so it is not
- * asserted twice.
+ * are asserted exactly at each of them. The growth between them is asserted
+ * separately, by `grows linearly across each doubling of a staggered
+ * staircase` below, which is where the old 2.5x per-doubling bound lives on.
+ * The two are not the same claim: an exact count pins what this walk does
+ * today, and a bound on the ratio between two of them pins what a rewrite may
+ * do tomorrow without having to predict its constant.
  *
  * Both shapes carry every size here, which the wall-clock form could not do.
  * PHP_CodeSniffer records the chain of enclosing parentheses on every token
@@ -482,6 +482,68 @@ it('crosses a staggered staircase once per read at every size', function (string
                 ($size - 1),
                 "{$shape} at n={$size}: every crossing but the first reads back a recorded answer"
             );
+    }
+})->with([
+    'nested call arguments' => 'calls',
+    'nested array literals' => 'array-literals',
+]);
+
+/**
+ * The same staircase, held to a growth bound rather than to four exact totals
+ * (#292, and the `toBeLessThan(2.5, ...)` this replaces).
+ *
+ * The sibling test above says what the walk costs at each size. This one says
+ * what doubling the size may cost, which is the claim the removed wall-clock
+ * assertion was making and the one an exact count cannot make on its own: a
+ * rewrite is free to change the constant, and only the ratio between two sizes
+ * tells a new constant from a new exponent.
+ *
+ * How the bound was derived, from the 2.5x it replaces. The old assertion
+ * compared elapsed seconds per doubling against 2.5x, chosen against the
+ * ~3.7-4.1x #292 measured for the quadratic walk. The count analogue is the
+ * same number against the same two behaviours, with the runner taken out of
+ * it. Crossings are n when the run above a read is crossed once for the file,
+ * so a doubling multiplies them by exactly 2.0. Hop by hop they are n(n+1)/2,
+ * so a doubling multiplies them by 2(2n+1)/(n+1) -- 3.996 at 500 to 1,000,
+ * rising to 3.999 at 2,000 to 4,000, which is where #292's 3.7-4.1x came from.
+ * 2.5 sits between 2.0 and 3.99 exactly as it sat between the two timings, and
+ * the count has no jitter term to widen either side.
+ *
+ * decidingStep.hops is the counter, not enclosureVerdict.walks: walks is one
+ * per read and therefore n by construction, so its ratio is 2.0 for any
+ * implementation at all. hops is what the walk actually performs.
+ *
+ * Every read still being reported is the non-vacuity half, and it is asserted
+ * before the ratio so that a staircase whose reads went missing fails as a
+ * dropped violation rather than as a cheap ratio.
+ *
+ * Mutation-checked by recording no answer for the constructs a crossing walks
+ * over, which is the quadratic walk itself: the ratio bound is the assertion
+ * that reddens, at 3.99x against 2.5x, and the hunk and the failure output are
+ * in this PR's description.
+ */
+it('grows linearly across each doubling of a staggered staircase', function (string $shape) use (
+    $arrayAccessorsStaircaseCounts
+): void {
+    $sizes = [500, 1000, 2000, 4000];
+    $hops = [];
+
+    foreach ($sizes as $size) {
+        [$errors, $counted] = $arrayAccessorsStaircaseCounts($shape, $size);
+
+        expect($errors)->toBe($size, "{$shape} at n={$size} reports every read");
+
+        $hops[$size] = $counted['decidingStep.hops'];
+    }
+
+    foreach (array_slice($sizes, 1) as $size) {
+        $previous = intdiv($size, 2);
+
+        expect($hops[$size] / $hops[$previous])->toBeLessThan(
+            2.5,
+            "{$shape}: crossings from n={$previous} to n={$size} grow by"
+            . " {$hops[$size]}/{$hops[$previous]}, which a quadratic walk cannot do"
+        );
     }
 })->with([
     'nested call arguments' => 'calls',
