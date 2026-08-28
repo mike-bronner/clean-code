@@ -191,11 +191,65 @@ class ComponentMarkupSniff implements Sniff
     ];
 
     /**
+     * What each of this sniff's once-per-file scans cost, cumulative for the
+     * life of this instance.
+     *
+     * Four passes over a view were quadratic before they were rewritten, and
+     * none of the rewrites changed a single violation: a view is reported the
+     * same way whether the pass reads it once or once per tag in it. Nothing a
+     * black-box test can observe separates the two, and the wall clock that
+     * used to be asked instead is a shared CI runner's jitter as much as it is
+     * the sniff's cost. These counters state the mechanism directly, and
+     * tests/Standards/ComponentMarkupTest.php pins both numbers of each pair.
+     *
+     * Each counter sits inside the branch it describes, so a pass that went
+     * back to re-reading the view cannot leave its count intact:
+     *
+     * - `componentTags.lineBytes` — markup bytes the line walk in
+     *   componentTags() read. One pass over the file totals its length; a
+     *   count from offset 0 per tag totals the sum of the tags' offsets.
+     * - `templateTags.reads` — times the `<template>` wrapper list was matched
+     *   out of the markup. Once per file, not once per component tag.
+     * - `loopRegions.steps` — forward-cursor advances in checkLoopKeys(). One
+     *   pass over the regions totals their count, whatever the tags number.
+     * - `comments.closerScans` / `comments.unterminatedSkips` — closer searches
+     *   blankComments() ran, against openers its unterminated guard answered
+     *   for. An unclosed comment costs one scan for the file, not one per
+     *   opener, and the skips are what keep that from reading as a pass which
+     *   simply stopped looking.
+     *
+     * The totals are cumulative for the life of the sniff instance —
+     * tests/Helpers.php's buildRuleset() memoises the instance, so every test
+     * in one file shares one — and are read as a delta around a single
+     * process() run.
+     *
+     * @var array<string, int>
+     */
+    private array $scanCounts = [
+        'componentTags.lineBytes' => 0,
+        'templateTags.reads' => 0,
+        'loopRegions.steps' => 0,
+        'comments.closerScans' => 0,
+        'comments.unterminatedSkips' => 0,
+    ];
+
+    /**
      * @return array<int|string>
      */
     public function register(): array
     {
         return [T_INLINE_HTML];
+    }
+
+    /**
+     * What each of this instance's once-per-file scans cost, cumulative for its
+     * life. See $scanCounts for what each counter is coupled to.
+     *
+     * @return array<string, int>
+     */
+    public function scanCounts(): array
+    {
+        return $this->scanCounts;
     }
 
     /**
@@ -283,9 +337,12 @@ class ComponentMarkupSniff implements Sniff
             $offset = ($start + 1);
 
             if (isset($unterminated[$close]) === true) {
+                $this->scanCounts['comments.unterminatedSkips']++;
+
                 continue;
             }
 
+            $this->scanCounts['comments.closerScans']++;
             $end = strpos($markup, $close, ($start + strlen($open)));
 
             if ($end === false) {
@@ -560,6 +617,7 @@ class ComponentMarkupSniff implements Sniff
 
         foreach ($tags as $tag) {
             while ($cursor < $total && $regions[$cursor][1] <= $tag['offset']) {
+                $this->scanCounts['loopRegions.steps']++;
                 $cursor++;
             }
 
@@ -840,6 +898,7 @@ class ComponentMarkupSniff implements Sniff
             // Counted from the previous tag rather than from offset 0. The
             // segments are disjoint, so the whole walk costs one pass over the
             // file; asking lineAt() per tag instead made it quadratic.
+            $this->scanCounts['componentTags.lineBytes'] += ($offset - $cursor);
             $line += substr_count($markup, "\n", $cursor, ($offset - $cursor));
             $cursor = $offset;
 
@@ -927,6 +986,7 @@ class ComponentMarkupSniff implements Sniff
      */
     private function templateTags(string $markup): array
     {
+        $this->scanCounts['templateTags.reads']++;
         $matched = preg_match_all(
             self::TEMPLATE_TAG,
             $markup,

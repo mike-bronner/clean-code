@@ -421,12 +421,22 @@ it('flags a real .blade.php view through the master ruleset', function (): void 
  * happened whether or not anything was ever reported, and a large generated
  * view was enough to stall a lint run for minutes.
  *
- * A wall-clock budget is a blunt instrument, so the margin is deliberately
- * enormous rather than tight. Measured on this fixture (8,000 components,
- * ~750 KB): the quadratic implementation took **22.7s**, the linear one
- * **0.11s**. Five seconds sits ~45x above the linear cost and ~4.5x below the
- * quadratic one, so the case fails on a genuine regression to n² and does not
- * fail on a slow or loaded runner.
+ * Measured on this fixture (8,000 components, ~750 KB), the quadratic
+ * implementation took **22.7s** and the linear one **0.11s** — but a wall-clock
+ * budget between the two states the claim only as far as a shared CI runner
+ * allows, and a rewrite that only shortens a walk changes no violation, so no
+ * fixture reddens on it either. The sniff counts both passes instead, and this
+ * is where both counts are pinned:
+ *
+ * - the wrapper list is matched out of the view once, not once per component
+ *   tag;
+ * - the line walk reads the view once end to end, not from offset 0 per tag.
+ *   One pass totals at most the view's own length, whatever the tags number;
+ *   a count from offset 0 per tag totals the sum of the tags' offsets, which
+ *   at this size is thousands of times the view.
+ *
+ * The reported violation is the second half of each: a pass that had stopped
+ * reading the view would count right for the wrong reason.
  */
 it('scans a large well-formed view in linear time', function (): void {
     $components = 8000;
@@ -446,15 +456,23 @@ it('scans a large well-formed view in linear time', function (): void {
     stagedFixtures($path);
     file_put_contents($path, $view . "</div>\n");
 
-    $started = microtime(true);
+    $sniff = sniffInstance(COMPONENT_MARKUP);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
-    $elapsed = (microtime(true) - $started);
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     // Wrapped and keyed throughout, so the only report is the root element's
     // own wire:poll. Asserting it pins that the run really did analyse the
-    // view rather than bailing out early and finishing fast for free.
+    // view rather than bailing out early and counting nothing for free.
     expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]])
-        ->and($elapsed)->toBeLessThan(5.0);
+        ->and($counted['templateTags.reads'])->toBe(
+            1,
+            'the wrapper list is matched out of the view once, not once per component tag'
+        )
+        ->and($counted['componentTags.lineBytes'])->toBeLessThan(
+            strlen($view) + 7,
+            'the line walk reads the view once end to end, not from offset 0 per tag'
+        );
 });
 
 /**
@@ -466,11 +484,13 @@ it('scans a large well-formed view in linear time', function (): void {
  * loops is quadratic in N and reports nothing, so the cost again fell on
  * well-formed input, and again on input a downstream consumer lints in CI.
  *
- * Measured on this fixture (20,000 loops, ~1.8 MB): rescanning took **17.2s**,
- * the forward cursor **0.30s**. Five seconds sits ~17x above the linear cost
- * and ~3.4x below the quadratic one — the same deliberately wide margin as
- * above, for the same reason: the case must fail on a real regression to n²
- * and not on a loaded runner.
+ * Measured on this fixture (20,000 loops, ~1.8 MB), rescanning took **17.2s**
+ * and the forward cursor **0.30s** — and the same objection as above applies to
+ * putting a budget between them, so the cursor's advances are counted instead.
+ * A cursor that only moves forward advances once per region it steps past over
+ * the whole pass, which is n-1 for n loops each holding one component: every
+ * tag but the first steps past exactly the region in front of it. Asking each
+ * tag which of all the regions it falls in totals n²/2 advances instead.
  */
 it('scans a large view of keyed loops in linear time', function (): void {
     $loops = 20000;
@@ -484,15 +504,19 @@ it('scans a large view of keyed loops in linear time', function (): void {
 
     $path = stageSource($view . "</div>\n");
 
-    $started = microtime(true);
+    $sniff = sniffInstance(COMPONENT_MARKUP);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
-    $elapsed = (microtime(true) - $started);
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     // Every component in a loop is keyed, so the only report is the root's own
     // wire:poll — which also pins that the loops were really walked rather than
     // skipped for free.
     expect(violationSourcesByLine($file->getErrors()))->toBe([1 => [ROOT_ELEMENT_ATTRIBUTES]])
-        ->and($elapsed)->toBeLessThan(5.0);
+        ->and($counted['loopRegions.steps'])->toBe(
+            $loops - 1,
+            'the cursor steps past each region once over the whole pass, not once per tag'
+        );
 });
 
 /**
@@ -566,14 +590,16 @@ it('flags a keyless component inside nested loops', function (): void {
  * — and on a downstream consumer's CI, which is what lints unreviewed content.
  *
  * Measured on this fixture (16,000 openers, ~480 KB) through the sniff in
- * process: the lazy pattern took **34.7s**, the forward scan **0.06s**. Five
- * seconds sits ~80x above the linear cost and ~7x below the quadratic one —
- * the same deliberately wide margin the two cases above take, for the same
- * reason.
+ * process, the lazy pattern took **34.7s** and the forward scan **0.06s** — and
+ * again the counts state it where a budget between the two only approximates
+ * it. A closer looked for once and then remembered as absent costs one search
+ * for the file; the openers after the first are answered by the guard that
+ * remembered it. Both numbers are pinned, because the search count alone would
+ * read the same on a scan that had stopped finding the openers at all.
  *
- * The reported violations are the second half of the case, and they are why
- * this is not only a timing test: an unclosed comment must leave the markup
- * after it readable rather than swallow the file to its end.
+ * The reported violations are the third half of the case: an unclosed comment
+ * must leave the markup after it readable rather than swallow the file to its
+ * end.
  */
 it('scans a view of unclosed comments in linear time', function (): void {
     $openers = 16000;
@@ -586,14 +612,23 @@ it('scans a view of unclosed comments in linear time', function (): void {
 
     $path = stageSource($view);
 
-    $started = microtime(true);
+    $sniff = sniffInstance(COMPONENT_MARKUP);
+    $before = $sniff->scanCounts();
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
-    $elapsed = (microtime(true) - $started);
+    $counted = cacheCountsDelta($before, $sniff->scanCounts());
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         1 => [ROOT_ELEMENT_ATTRIBUTES],
         ($openers + 3) => [MISSING_WIRE_KEY_IN_LOOP],
-    ])->and($elapsed)->toBeLessThan(5.0);
+    ])
+        ->and($counted['comments.closerScans'])->toBe(
+            1,
+            'the absent closer is looked for once for the file, not once per opener'
+        )
+        ->and($counted['comments.unterminatedSkips'])->toBe(
+            $openers - 1,
+            'every opener after the first is answered by the guard that remembered it'
+        );
 });
 
 /**
@@ -634,26 +669,48 @@ it('blanks a Blade comment below an unclosed HTML comment', function (): void {
  * two thirds as much, which is the point: this is a second, independent
  * quadratic rather than another face of the same one. Reverting either fix
  * alone reddens only its own case.
+ *
+ * The cost here is PCRE's, not the sniff's, so there is no branch in this file
+ * to count — but PCRE keeps the count itself. Every match attempt is bounded by
+ * `pcre.backtrack_limit`, and that budget is the exact quantity the two classes
+ * differ in: the bounded one abandons an unfinishable tag at the next `<` and
+ * needs a fixed handful of steps whatever the run in front of it, while the
+ * unbounded one splits the run every way between the tag name and the attribute
+ * list and needs steps proportional to it. So the budget is lowered to a
+ * hundredth of PHP's default for the duration and the same two assertions are
+ * made at two sizes: one small enough that even the unbounded class fits, one
+ * that only a fixed cost fits. Deterministic on any machine — a step count is
+ * not a stopwatch — and the assertion is unchanged otherwise.
+ *
+ * Measured against this fixture at the lowered budget: the bounded class
+ * completes at every size, the unbounded one exhausts the budget from 2,000
+ * openers up. preg_match_all() then returns false, isComponentView() answers
+ * off nothing rather than off a fragment, and the root element goes unreported
+ * — so the violation list below is what reddens.
  */
-it('scans a view of unparseable tags in linear time', function (): void {
-    $openers = 16000;
-    $view = "<div wire:poll class=\"feed\">\n"
-        . str_repeat("<a x\n", $openers)
-        . "\"\n"
-        . "@foreach (\$rows as \$row)\n"
-        . "<livewire:row-item :row=\"\$row\" />\n"
-        . "@endforeach\n";
+it('scans a view of unparseable tags without backtracking that grows with it', function (): void {
+    $budget = (string) ini_get('pcre.backtrack_limit');
+    ini_set('pcre.backtrack_limit', '10000');
 
-    $path = stageSource($view);
+    try {
+        foreach ([200, 16000] as $openers) {
+            $view = "<div wire:poll class=\"feed\">\n"
+                . str_repeat("<a x\n", $openers)
+                . "\"\n"
+                . "@foreach (\$rows as \$row)\n"
+                . "<livewire:row-item :row=\"\$row\" />\n"
+                . "@endforeach\n";
 
-    $started = microtime(true);
-    $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
-    $elapsed = (microtime(true) - $started);
+            $file = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($view, "view-{$openers}.blade.php"));
 
-    expect(violationSourcesByLine($file->getErrors()))->toBe([
-        1 => [ROOT_ELEMENT_ATTRIBUTES],
-        ($openers + 4) => [MISSING_WIRE_KEY_IN_LOOP],
-    ])->and($elapsed)->toBeLessThan(5.0);
+            expect(violationSourcesByLine($file->getErrors()))->toBe([
+                1 => [ROOT_ELEMENT_ATTRIBUTES],
+                ($openers + 4) => [MISSING_WIRE_KEY_IN_LOOP],
+            ], "n={$openers}: the tag read completes within a budget that does not grow with the view");
+        }
+    } finally {
+        ini_set('pcre.backtrack_limit', $budget);
+    }
 });
 
 /**
