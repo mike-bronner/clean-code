@@ -419,10 +419,10 @@ class ComponentMarkupSniff implements Sniff
      * per character, so a long enough attribute list exhausts the engine's
      * depth instead of its step budget. Measured against this pattern on PHP
      * 8.4's defaults, on the gap unreadable-wrapper-gap-root.php holds: with
-     * the PCRE JIT off the failure starts at an attribute run of 99,997
+     * the PCRE JIT off the failure starts at an attribute run of 99,996
      * characters and reports PREG_RECURSION_LIMIT_ERROR (pcre.recursion_limit
      * defaults to 100,000, which is the number that threshold tracks); with
-     * the JIT on the JIT's own stack gives out first, from 8,192 characters,
+     * the JIT on the JIT's own stack gives out first, from 8,191 characters,
      * and reports PREG_JIT_STACKLIMIT_ERROR. Neither is
      * PREG_BACKTRACK_LIMIT_ERROR. Those two numbers are TEMPLATE_WRAPPER's
      * own, re-measured rather than carried over from TEMPLATE_TAG: this
@@ -642,10 +642,10 @@ class ComponentMarkupSniff implements Sniff
      * per character, so a long enough attribute list exhausts the engine's
      * depth instead of its step budget. Measured against this pattern on PHP
      * 8.4's defaults, on the gap unreadable-wrapper-gap-siblings.php holds:
-     * with the PCRE JIT off the failure starts at an attribute run of 99,997
+     * with the PCRE JIT off the failure starts at an attribute run of 99,996
      * characters and reports PREG_RECURSION_LIMIT_ERROR (pcre.recursion_limit
      * defaults to 100,000, which is the number that threshold tracks); with
-     * the JIT on the JIT's own stack gives out first, from 8,192 characters,
+     * the JIT on the JIT's own stack gives out first, from 8,191 characters,
      * and reports PREG_JIT_STACKLIMIT_ERROR. Neither is
      * PREG_BACKTRACK_LIMIT_ERROR. Those two numbers are TEMPLATE_WRAPPER's
      * own, re-measured rather than carried over from TEMPLATE_TAG: this

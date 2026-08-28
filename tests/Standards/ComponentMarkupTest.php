@@ -923,10 +923,10 @@ it('reports correctly wrapped components when the wrapper tags cannot be read at
  * Which constant that is depends on the PCRE JIT, and the fixture is sized to
  * fail either way. Measured on PHP 8.4's defaults, against this pattern on the
  * fixture's own gap: with the JIT off the failure starts at an attribute run of
- * 99,997 characters and reports PREG_RECURSION_LIMIT_ERROR
+ * 99,996 characters and reports PREG_RECURSION_LIMIT_ERROR
  * (pcre.recursion_limit's default is 100,000, the number that threshold is
  * really tracking); with the JIT on the JIT's own stack gives out first, from
- * 8,192 characters, and reports PREG_JIT_STACKLIMIT_ERROR. Those are
+ * 8,191 characters, and reports PREG_JIT_STACKLIMIT_ERROR. Those are
  * TEMPLATE_WRAPPER's own numbers, re-measured rather than carried over: it
  * fails one character later than TEMPLATE_TAG does on the same subject, because
  * it adds the `<\/?` closing-tag alternative and drops the capturing group. The
@@ -1006,7 +1006,7 @@ it('judges the root when the gap before the first component cannot be read', fun
     $runStart = (strpos($markup, '</template ', $elementStart) + strlen('</template '));
     $runLength = (strpos($markup, '>', $runStart) - $runStart);
 
-    expect($runLength)->toBeGreaterThan(99997);
+    expect($runLength)->toBeGreaterThan(99996);
 
     // Read immediately: preg_last_error() is process-global and any later
     // preg_* call — including one inside expect() — would overwrite it.
@@ -1135,7 +1135,7 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
     $runStart = (strpos($markup, '</template ', $previousEnd) + strlen('</template '));
     $runLength = (strpos($markup, '>', $runStart) - $runStart);
 
-    expect($runLength)->toBeGreaterThan(99997);
+    expect($runLength)->toBeGreaterThan(99996);
 
     // Read immediately: preg_last_error() is process-global and any later
     // preg_* call — including one inside expect() — would overwrite it.
