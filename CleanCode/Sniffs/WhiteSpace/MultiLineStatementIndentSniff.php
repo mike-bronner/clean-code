@@ -274,7 +274,8 @@ class MultiLineStatementIndentSniff implements Sniff
      *   fragment *per line read*.
      * - `lineFirstToken.readings` — one per line whose first token is asked
      *   for, which is the number of readings the cost is multiplied by.
-     * - `lineStart.steps` — tokens examined to answer one of those readings.
+     * - `lineStart.steps` — tokens examined to answer one of those readings,
+     *   counted at step(), the read itself, not at the head of lineStart().
      *   The map answers in one; walking back examines one per token already on
      *   the line.
      * - `lineFirstToken.commentHops` — steps taken from a line that opens
@@ -779,15 +780,43 @@ class MultiLineStatementIndentSniff implements Sniff
      */
     private function lineStart(array $tokens, int $ptr): int
     {
-        // One token examined: the line's first is recorded, not searched for.
-        $this->scanCounts['lineStart.steps']++;
-        $first = $this->lineStarts[$tokens[$ptr]['line']];
+        // Two tokens examined, both through step(): the one asked about, to get
+        // its line, and the line's recorded first, to see whether it is indent.
+        // Neither is searched for.
+        $first = $this->lineStarts[$this->step($tokens, $ptr)['line']];
 
-        if ($tokens[$first]['code'] === T_WHITESPACE) {
+        if ($this->step($tokens, $first)['code'] === T_WHITESPACE) {
             $first++;
         }
 
         return $first;
+    }
+
+    /**
+     * The token at $ptr, counted as one step of a line-start reading.
+     *
+     * The count sits on the read rather than at the head of lineStart(), and
+     * that placement is the whole of what `lineStart.steps` asserts. A counter
+     * at the head of the method counts calls: a reading that walked back token
+     * by token to find its line's first makes exactly as many calls as one that
+     * reads the map, so the walk could return with the count unmoved. Counting
+     * the read counts what a walk repeats instead, because the walk has to look
+     * at each token it steps over to know it has not left the line.
+     *
+     * This is lineStart()'s only token accessor. mapLines()'s own pass over the
+     * stream is deliberately not counted here: it runs once per file, and
+     * pooling it with the per-reading count would hide a walk inside a total
+     * that grows with the file anyway.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return array<string, mixed>
+     */
+    private function step(array $tokens, int $ptr): array
+    {
+        $this->scanCounts['lineStart.steps']++;
+
+        return $tokens[$ptr];
     }
 
     /**

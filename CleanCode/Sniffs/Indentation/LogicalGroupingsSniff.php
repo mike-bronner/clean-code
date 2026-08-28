@@ -121,7 +121,8 @@ class LogicalGroupingsSniff implements Sniff
      *   one step whatever the region holds; walking the region instead costs
      *   one step per token in it, which is the quadratic shape, and the two
      *   counters move in opposite directions when it returns.
-     * - `lineStarts.steps` — tokens examined to answer one line-start reading.
+     * - `lineStarts.steps` — tokens examined to answer one line-start reading,
+     *   counted at step(), the read itself, not at the head of lineStart().
      *   This is the other axis, and the builds/hits pair cannot see it: those
      *   say the index is built once per stream, not that reading it is cheap.
      *   The index answers in one; stepping back to the start of the line costs
@@ -607,9 +608,34 @@ class LogicalGroupingsSniff implements Sniff
         }
 
         // One token examined: the line's first is recorded, not walked back to.
+        return ($this->lineStarts[$this->step($tokens, $stackPtr)['line']] ?? $stackPtr);
+    }
+
+    /**
+     * The token at $pointer, counted as one step of a line-start reading.
+     *
+     * The count sits on the read rather than at the head of lineStart(), and
+     * that placement is the whole of what `lineStarts.steps` asserts. A counter
+     * at the head of the method counts calls: a reading that walked back token
+     * by token to find its line's first makes exactly as many calls as one that
+     * reads the index, so the walk could return with the count unmoved.
+     * Counting the read counts what a walk repeats instead, because the walk
+     * has to look at each token it steps over to know it has not left the line.
+     *
+     * This is lineStart()'s only token accessor. The index build reads every
+     * token in the stream and is deliberately not counted here — that pass is
+     * what `lineStarts.builds` says happens once per stream, and pooling the
+     * two would hide a per-reading walk inside a per-stream total.
+     *
+     * @param array<int, array<string, mixed>> $tokens
+     *
+     * @return array<string, mixed>
+     */
+    private function step(array $tokens, int $pointer): array
+    {
         $this->cacheCounts['lineStarts.steps']++;
 
-        return ($this->lineStarts[$tokens[$stackPtr]['line']] ?? $stackPtr);
+        return $tokens[$pointer];
     }
 
     /**

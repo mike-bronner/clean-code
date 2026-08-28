@@ -296,9 +296,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     ],
     'tests/Standards/LogicalGroupingsTest.php' => [
         ['line' => 206, 'column' => 37],
-        ['line' => 475, 'column' => 17],
-        ['line' => 686, 'column' => 27],
-        ['line' => 692, 'column' => 12],
+        ['line' => 481, 'column' => 17],
+        ['line' => 693, 'column' => 27],
+        ['line' => 699, 'column' => 12],
     ],
     'tests/Standards/ManipulationOperatorPlacementTest.php' => [
         ['line' => 181, 'column' => 29],

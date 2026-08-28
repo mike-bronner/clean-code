@@ -419,7 +419,13 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
  * assertion is that the steps equal the readings — a build and 599 hits, 600
  * readings, 600 tokens examined — and the 2,000 leading conditions are what
  * makes that assertion mean something, because a walk examines an ever-growing
- * prefix of them per reading: 8,464,500 steps for the same file, against 600.
+ * prefix of them per reading: 8,465,100 steps for the same file, against 600.
+ *
+ * What makes that a claim about work and not about arithmetic is where the
+ * sniff counts: the step is counted at the token read itself, in step(), which
+ * is lineStart()'s only token accessor. A counter at the head of lineStart()
+ * would count calls, and a walk back makes exactly as many calls as an indexed
+ * read does, so it could return with the count unmoved.
  *
  * For provenance, the timings the old ratio was set against: 5.34x for the
  * per-call backward walk against 1.02x for the indexed lookup (0.4224s/0.0791s
@@ -489,7 +495,8 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
         ])
         ->and($groupedCounts['lineStarts.steps'])->toBe(
             ($groupedCounts['lineStarts.builds'] + $groupedCounts['lineStarts.hits']),
-            'each line-start reading examines one token, not the line the openers stack on'
+            'each line-start reading examines one token — counted at the read, not per call —'
+            . ' not the line the openers stack on'
         )
         ->and($groupedCounts['lineStarts.hits'])->toBe(
             599,

@@ -565,9 +565,14 @@ it('reads a long comment inside a statement in linear time', function (): void {
  * a reading count that grew with $size would be a different sniff; the hops are
  * pinned because a hop is what replaces the replay, and a reading that stopped
  * making them would be one that never reached the comment's opening line at
- * all; and the steps are pinned to exactly one per reading plus one per hop,
+ * all; and the steps are pinned to exactly two per reading and two per hop,
  * which is the linearity itself — a replay costs one step per token of the
- * comment instead, so the same file reads 50,020 steps against 8.
+ * comment instead, so the same file reads 35 steps against 16. Two is what
+ * a reading costs because lineStart() looks at two tokens: the one it was asked
+ * about, and the line's recorded first. The step is counted at that read (the
+ * sniff's step() helper), not at the head of lineStart(), so the constant is a
+ * statement about tokens examined and not about times called — a walk back to
+ * the line start calls lineStart() exactly as often as the map does.
  *
  * The fragment count is asserted alongside them because the map's own pass has
  * to stay single too: a doc comment is five tokens per line here, and mapLines()
@@ -609,8 +614,8 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
             'each line that opens inside the comment reaches its opening line in one step'
         )
         ->and($counted['lineStart.steps'])->toBe(
-            ($counted['lineFirstToken.readings'] + $counted['lineFirstToken.commentHops']),
-            'every reading and every hop examines exactly one token, never a line or a comment'
+            (2 * ($counted['lineFirstToken.readings'] + $counted['lineFirstToken.commentHops'])),
+            'every reading and every hop examines two tokens, never a line or a comment'
         )
         ->and($counted['commentStaysOpen.evaluations'])->toBe(
             ((5 * $size) + 20),
@@ -641,10 +646,13 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
  * claim. The readings grow with the file, as they must — one per sibling line,
  * plus the statement's own base indent read once per line as well. What must
  * not grow is what each reading *costs*, and that is the second assertion:
- * exactly one token examined per reading, no hop, whatever the opener line
- * carries in front of it. Walking back examines one per token already on that
- * line instead, which is 4,000 for most of these readings — 32 million against
- * 8,003 for the same file.
+ * exactly two tokens examined per reading — the token asked about and the
+ * line's recorded first — no hop, whatever the opener line carries in front of
+ * it. Walking back examines one per token already on that line instead, which
+ * is 4,000 for most of these readings — 48,072,017 against 16,006 for the same
+ * file. The step is counted at the read (the sniff's step() helper), not at the
+ * head of lineStart(), so what is pinned is tokens examined and not times
+ * called: a walk back calls lineStart() exactly as often as the map does.
  *
  * The readings are asserted as a coefficient and a constant, not a bare number,
  * so it is the growth being pinned rather than a total.
@@ -684,8 +692,8 @@ it('anchors sibling lines on a long opener line in linear time', function (): vo
             'each of the wrapped lines is read once as itself and once as the anchor it hangs on'
         )
         ->and($counted['lineStart.steps'])->toBe(
-            $counted['lineFirstToken.readings'],
-            'each reading examines one token, not the whole line the opener sits at the end of'
+            (2 * $counted['lineFirstToken.readings']),
+            'each reading examines two tokens, not the whole line the opener sits at the end of'
         )
         ->and($counted['lineFirstToken.commentHops'])->toBe(
             0,
