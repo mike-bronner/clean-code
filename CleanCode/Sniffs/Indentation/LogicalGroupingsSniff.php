@@ -127,7 +127,10 @@ class LogicalGroupingsSniff implements Sniff
      *   say the index is built once per stream, not that reading it is cheap.
      *   The index answers in one; stepping back to the start of the line costs
      *   one per token already on it, so a line carrying n stacked openers pays
-     *   an ever-growing prefix of that one line per reading.
+     *   an ever-growing prefix of that one line per reading. step() is the only
+     *   token the reading path can reach — lineStart() is handed no token array
+     *   — so this count is charged per token examined and cannot be left behind
+     *   by a walk that examines many.
      *
      * Each increment sits inside the same branch as the guard it counts, so a
      * guard that stopped working cannot leave the counts intact. The totals are
@@ -590,25 +593,40 @@ class LogicalGroupingsSniff implements Sniff
      */
     private function lineStart(File $phpcsFile, int $stackPtr): int
     {
-        $tokens = $phpcsFile->getTokens();
-        $key = TokenStreams::key($phpcsFile);
-
-        if ($this->lineStartsKey !== $key) {
-            $this->cacheCounts['lineStarts.builds']++;
-            $this->lineStartsKey = $key;
-            $this->lineStarts = [];
-
-            foreach ($tokens as $pointer => $token) {
-                // Token lines never decrease, so the first pointer seen for a
-                // line is the same one the backward walk used to land on.
-                $this->lineStarts[$token['line']] ??= $pointer;
-            }
-        } else {
-            $this->cacheCounts['lineStarts.hits']++;
-        }
+        $this->indexLineStarts($phpcsFile);
 
         // One token examined: the line's first is recorded, not walked back to.
-        return ($this->lineStarts[$this->step($tokens, $stackPtr)['line']] ?? $stackPtr);
+        return ($this->lineStarts[$this->step($phpcsFile, $stackPtr)['line']] ?? $stackPtr);
+    }
+
+    /**
+     * Builds the line-start index for the stream $phpcsFile currently holds,
+     * unless the one already held describes it.
+     *
+     * Separated from lineStart() so that the token array is iterated here,
+     * where the index is built from it, and is bound to no variable in the
+     * reading path. That is what leaves step() as the token accessor a reading
+     * has — see step() for why the reading path is kept that way.
+     */
+    private function indexLineStarts(File $phpcsFile): void
+    {
+        $key = TokenStreams::key($phpcsFile);
+
+        if ($this->lineStartsKey === $key) {
+            $this->cacheCounts['lineStarts.hits']++;
+
+            return;
+        }
+
+        $this->cacheCounts['lineStarts.builds']++;
+        $this->lineStartsKey = $key;
+        $this->lineStarts = [];
+
+        foreach ($phpcsFile->getTokens() as $pointer => $token) {
+            // Token lines never decrease, so the first pointer seen for a
+            // line is the same one the backward walk used to land on.
+            $this->lineStarts[$token['line']] ??= $pointer;
+        }
     }
 
     /**
@@ -622,20 +640,38 @@ class LogicalGroupingsSniff implements Sniff
      * Counting the read counts what a walk repeats instead, because the walk
      * has to look at each token it steps over to know it has not left the line.
      *
-     * This is lineStart()'s only token accessor. The index build reads every
-     * token in the stream and is deliberately not counted here — that pass is
-     * what `lineStarts.builds` says happens once per stream, and pooling the
-     * two would hide a per-reading walk inside a per-stream total.
+     * Counting the read is not enough on its own, though, and that is why
+     * lineStart() binds no token array: a walk written against an array
+     * already sitting in its own scope steps over each token without this
+     * method being called at all, leaving the count telling the truth about
+     * nothing. That is the shape this class shipped with, and it is why
+     * reverting the index to a walk used to be a drop-in replacement the count
+     * did not see. Reading the stream a token at a time through here is the
+     * only access the reading path has, so a walk put back in its place either
+     * steps through this counter or has to fetch the whole array first — a
+     * statement that is not part of the walk and has to be added on purpose.
      *
-     * @param array<int, array<string, mixed>> $tokens
+     * The token array is fetched per read rather than held on this instance.
+     * Holding it does make step() reachable without a File, but PHP_CodeSniffer
+     * writes into its own token array in place, so a second live reference to
+     * it separates the two copies on the next write: measured on this file's
+     * own 600-level stacked-opener test, that exhausts the default 128 MB
+     * memory limit during tokenizing. Fetching returns the same array by
+     * reference-count and indexes it, which copies nothing.
+     *
+     * The index build reads every token in the stream and is deliberately not
+     * counted here — that pass is what `lineStarts.builds` says happens once
+     * per stream, and pooling the two would hide a per-reading walk inside a
+     * per-stream total. It iterates the array in indexLineStarts(), which is
+     * the one place the whole stream is read at once.
      *
      * @return array<string, mixed>
      */
-    private function step(array $tokens, int $pointer): array
+    private function step(File $phpcsFile, int $pointer): array
     {
         $this->cacheCounts['lineStarts.steps']++;
 
-        return $tokens[$pointer];
+        return $phpcsFile->getTokens()[$pointer];
     }
 
     /**

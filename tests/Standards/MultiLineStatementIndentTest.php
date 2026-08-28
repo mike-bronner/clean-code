@@ -614,8 +614,9 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
             'each line that opens inside the comment reaches its opening line in one step'
         )
         ->and($counted['lineStart.steps'])->toBe(
-            (2 * ($counted['lineFirstToken.readings'] + $counted['lineFirstToken.commentHops'])),
-            'every reading and every hop examines two tokens, never a line or a comment'
+            16,
+            'the 5 readings and 3 hops examine 16 tokens between them — two each, from the map,'
+            . ' never a line walked back along nor a comment replayed'
         )
         ->and($counted['commentStaysOpen.evaluations'])->toBe(
             ((5 * $size) + 20),
@@ -692,8 +693,9 @@ it('anchors sibling lines on a long opener line in linear time', function (): vo
             'each of the wrapped lines is read once as itself and once as the anchor it hangs on'
         )
         ->and($counted['lineStart.steps'])->toBe(
-            (2 * $counted['lineFirstToken.readings']),
-            'each reading examines two tokens, not the whole line the opener sits at the end of'
+            ((4 * $size) + 6),
+            'the 2n+3 readings examine 4n+6 tokens between them — two each, from the map, not the'
+            . ' whole line the opener sits at the end of'
         )
         ->and($counted['lineFirstToken.commentHops'])->toBe(
             0,

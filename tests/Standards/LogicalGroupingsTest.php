@@ -493,14 +493,14 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
             'The first condition of a parenthesized group must start on its own line,'
             . ' indented one level deeper than its enclosing condition; expected 12 spaces',
         ])
-        ->and($groupedCounts['lineStarts.steps'])->toBe(
-            ($groupedCounts['lineStarts.builds'] + $groupedCounts['lineStarts.hits']),
-            'each line-start reading examines one token — counted at the read, not per call —'
-            . ' not the line the openers stack on'
-        )
         ->and($groupedCounts['lineStarts.hits'])->toBe(
             599,
             'the index is read once per reported group and built once for the stream'
+        )
+        ->and($groupedCounts['lineStarts.steps'])->toBe(
+            600,
+            'the 600 readings examine 600 tokens between them — one each, from the index,'
+            . ' not an ever-growing prefix of the line the openers stack on'
         );
 });
 
