@@ -158,16 +158,18 @@ class NumberOfChildrenSniff implements Sniff
      * every later run against that install reads — a consumer's ordinary run
      * included — until `--config-delete` removes it.
      *
-     * Ordinarily set by none of the three, so the diagnostic below costs a
-     * null read per declaration and reports nothing.
+     * Ordinarily none of the three sets it, so the diagnostic below costs a
+     * null read per declaration and reports nothing. That is not what keeps it
+     * away from consumers, and this gate must not be read as if it were: two of
+     * those routes outlive the run that set them, and a stale `--config-set` on
+     * a shared install arms every later ordinary run against it (#378).
      *
-     * That is not what keeps it away from consumers, though, and this gate must
-     * not be read as if it were: the last two routes outlive the run that set
-     * them, and a stale `--config-set` on a shared install arms every later
-     * ordinary run against it. CleanCode/ruleset.xml carries the backstop that
-     * closes this — `<severity>0</severity>` on the OrdinalIndex message code —
-     * and #378 records why. See reportOrdinalIndex() for what that suppression
-     * covers.
+     * The backstop that does keep it away is `<severity>0</severity>` on the
+     * OrdinalIndex message code, declared in CleanCode/ruleset.xml. Its
+     * suppression is total: it covers all three routes above, no command-line
+     * severity flag reopens it, and a consumer who wants these numbers has to
+     * restore the severity in their own ruleset. reportOrdinalIndex() carries
+     * the mechanism and the escape hatch in full.
      */
     private const ORDINAL_DIAGNOSTIC = 'cleancode_ordinal_index_diagnostic';
 

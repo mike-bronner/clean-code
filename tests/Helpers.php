@@ -54,25 +54,41 @@ function sniffFixtureDirectory(string $sniffCode): string
 }
 
 /**
+ * Every third-party standard rules.xml references, as an absolute path.
+ *
+ * Composer registers these in CodeSniffer.conf relative to the PHP_CodeSniffer
+ * install it wrote them for, and absolute is what the callers here need: the
+ * throwaway install in tests/Ruleset/NumberOfChildrenTest.php is a copy at an
+ * unrelated path, where a relative entry points nowhere. Kept in one place
+ * because a missing entry does not fail loudly — it makes the referenced sniffs
+ * fail to resolve and takes the whole ruleset parse down with it, which is a
+ * confusing failure to meet twice.
+ *
+ * tests/Ruleset/UndefinedVariableTest.php deliberately lists one of these on
+ * its own rather than calling this: its subject is VariableAnalysis without
+ * rules.xml, so the shorter list is the point of the test, not a copy of this
+ * one that drifted.
+ *
+ * @return array<int, string>
+ */
+function installedStandardPaths(): array
+{
+    return [
+        cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+        cleanCodeRoot() . '/vendor/slevomat/coding-standard',
+    ];
+}
+
+/**
  * Puts the third-party standards' installed paths back into PHPCS's config.
  *
  * ConfigDouble blanks CodeSniffer.conf, where Composer registers them, and
- * every ruleset built here references at least one of those standards. Every
- * standard a ruleset depends on has to be listed — a missing entry does not
- * fail loudly, it makes the referenced sniffs fail to resolve and takes the
- * whole ruleset parse down with it. In memory only; CodeSniffer.conf on disk
- * is never written.
+ * every ruleset built here references at least one of those standards. In
+ * memory only; CodeSniffer.conf on disk is never written.
  */
 function restoreInstalledPaths(): void
 {
-    Config::setConfigData(
-        'installed_paths',
-        implode(',', [
-            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
-        ]),
-        true
-    );
+    Config::setConfigData('installed_paths', implode(',', installedStandardPaths()), true);
 }
 
 /**
@@ -539,14 +555,7 @@ function analyzeWithConfiguredRuleset(
     $config = new ConfigDouble(['--standard=' . $standard]);
     $config->cache = false;
 
-    Config::setConfigData(
-        'installed_paths',
-        implode(',', [
-            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
-        ]),
-        true
-    );
+    restoreInstalledPaths();
 
     $ruleset = new Ruleset($config);
     unlink($standard);

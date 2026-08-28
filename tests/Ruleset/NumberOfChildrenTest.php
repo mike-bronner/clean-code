@@ -206,13 +206,13 @@ it('stays silent on an ordinary run against an install carrying a persisted conf
     $shared = cleanCodeRoot() . '/vendor/squizlabs/php_codesniffer/CodeSniffer.conf';
     $before = is_file($shared) === true ? hash_file('sha256', $shared) : null;
 
+    // Absolute, and set rather than inherited: the copy's own CodeSniffer.conf
+    // is deliberately not carried over, and Composer's entries in the real one
+    // are relative to the install they were written for.
     $runThrowawayPhpcs($binary, [
         '--config-set',
         'installed_paths',
-        implode(',', [
-            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-            cleanCodeRoot() . '/vendor/slevomat/coding-standard',
-        ]),
+        implode(',', installedStandardPaths()),
     ]);
     $runThrowawayPhpcs($binary, ['--config-set', 'cleancode_ordinal_index_diagnostic', '1']);
 
