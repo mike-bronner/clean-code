@@ -964,11 +964,23 @@ it('reports correctly wrapped components when the wrapper tags cannot be read at
  * error escaping it reddens this case through phpunit.xml.dist's failOnWarning,
  * as does one escaping the sniff run below it.
  *
- * The control at the end is what keeps the assertion from being vacuous. Shrink
- * the same run and the read finishes, at which point the sniff reaches the very
- * same verdict — so the error above is the fixed code answering correctly
- * despite the failed read, not an artefact of a fixture that would report
- * whatever happened.
+ * Two controls sit at the end, because the verdict alone cannot carry the
+ * proof here. Shrink the same run and the read finishes, at which point the
+ * sniff reaches the very same verdict — the error above is the fixed code
+ * answering correctly despite the failed read. That step cannot flip the
+ * verdict, and no step could: opensOnAComponent() measures its gap from the
+ * root element's *own* tag (ComponentMarkupSniff.php:448, off the ELEMENT_TAG
+ * match offset at :376-384), and TEMPLATE_WRAPPER's tag name is the literal
+ * word `template`, so the root's opening tag — the disallowed attribute
+ * included — survives every strip, readable run or not. `trim($stripped)` is
+ * never `''` for a fixture that carries a real root violation, which this one
+ * must. So the second control moves that attribute off the root, onto an inner
+ * element, and the file falls silent. Moved rather than deleted because the
+ * same attribute is what makes isComponentView() call this a component's own
+ * view at all: delete it and the silence would be checkRootElement() bailing at
+ * its first line, which says nothing about the root. Between them the two
+ * controls answer both halves — the verdict is a judgement this sniff reached
+ * about this root, not a report it would file about any root it is handed.
  *
  * The pattern is read off the sniff rather than transcribed, following
  * unreadable-element-tags.php's own case above: a transcription would keep
@@ -1028,6 +1040,46 @@ it('judges the root when the gap before the first component cannot be read', fun
 
     expect(allViolationSourcesByLine($control))->toBe([33 => [ROOT_ELEMENT_ATTRIBUTES]])
         ->and($control->getWarnings())->toBe([]);
+
+    // The readable markup with the root's own disallowed attribute moved off
+    // the root and onto an inner element: the gap still reads, the root is
+    // still judged, and it now has nothing to answer for — so the file falls
+    // silent. That is the flip the control above cannot make.
+    //
+    // Moved rather than deleted, and this is the whole care of the step.
+    // wire:model is also the OWN_WIRE_DIRECTIVE that makes isComponentView()
+    // call this a component's own view; delete it and checkRootElement() bails
+    // at its first line, so the silence would come from the view no longer
+    // being one this sniff judges at all — the same verdict off a different
+    // path, which proves nothing about the root check. Kept in the file, on an
+    // element that is not the root, the view is still a component's own view
+    // and the root check still runs.
+    //
+    // Both cuts are by literal and pinned to one occurrence each, so a later
+    // edit that spells either of them a second time reddens here rather than
+    // widening the replacement in silence.
+    $root = '<div wire:model="query" class="editor">';
+    $close = '</div>';
+
+    expect(substr_count($readable, $root))->toBe(1)
+        ->and(substr_count($readable, $close))->toBe(1);
+
+    $compliant = str_replace(
+        [$root, $close],
+        ['<div class="editor">', '    <span wire:model="query"></span>' . PHP_EOL . $close],
+        $readable
+    );
+
+    // The gate proved open, not assumed: without this the step below would pass
+    // just as well on the deleted-attribute markup this one is written to avoid.
+    $isComponentView = new ReflectionMethod(ComponentMarkupSniff::class, 'isComponentView');
+
+    expect($isComponentView->invoke(new ComponentMarkupSniff(), $compliant))->toBeTrue();
+
+    $judged = analyzeWithSniffs([COMPONENT_MARKUP], stageSource($compliant));
+
+    expect(allViolationSourcesByLine($judged))->toBe([])
+        ->and($judged->getWarnings())->toBe([]);
 });
 
 /**
