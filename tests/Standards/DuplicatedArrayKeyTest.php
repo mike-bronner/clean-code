@@ -415,16 +415,30 @@ it('leaves the package own test source alone', function (): void {
  * never reaches that guard and could not show that it discriminates.
  *
  * An empty file is the case the sweep can actually meet: it exists, it is
- * readable, and glob returns it, yet it produces no tokens. It is not wholly
- * silent — PHP_CodeSniffer records Internal.NoCodeFound against it — but that
- * is a *warning*, and the sweep asserts on errors, so the file arrives there
- * carrying nothing the sweep looks at. Nothing but the token count separates
- * it from a file that was read and found clean. It is staged outside the
- * repository so that the sweep above does not collect it.
+ * readable, and glob returns it, yet it produces no tokens. Nothing but the
+ * token count separates it from a file that was read and found clean, and it
+ * is staged outside the repository so that the sweep above does not collect
+ * it.
+ *
+ * What such a file records is not the same everywhere, so it is not asserted
+ * here. PHP_CodeSniffer raises Internal.NoCodeFound against it only when the
+ * *running* PHP reads short_open_tag as off (Files/File.php), and that setting
+ * is PHP_INI_PERDIR — a test cannot turn it off in its own process, which is
+ * why tests/Rules/BladeNoCodeFoundTest.php shells out to a child process with
+ * `-d short_open_tag=Off` to pin that warning at all. Pinned here it would
+ * assert the ambient ini rather than the sniff: green on CI, red on any
+ * machine with short tags on.
+ *
+ * Either way it is a *warning*, and the sweep asserts on errors, so what the
+ * sweep sees holds under both settings and is what this test pins: no tokens,
+ * and no errors of any kind. The zero-error assertion is the sharper of the
+ * two — it says the file reaches the sweep's violation check carrying nothing
+ * that check can see.
  *
  * A path that is not there produces no tokens either, and what it records is
- * Internal.LocalFile — an error this time, but not the `.Found` code the
- * sweep names, so that assertion passes on it just the same.
+ * Internal.LocalFile — an error this time, unconditional rather than
+ * short-tag-gated, but not the `.Found` code the sweep names, so that
+ * assertion passes on it just the same.
  */
 it('reads no tokens from a source the sweep would otherwise call clean', function (): void {
     $empty = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], stageGeneratedFixture('empty-source.php', ''));
@@ -432,7 +446,6 @@ it('reads no tokens from a source the sweep would otherwise call clean', functio
 
     expect($empty->numTokens)->toBe(0)
         ->and($empty->getErrors())->toBe([])
-        ->and(violationSourcesByLine($empty->getWarnings()))->toBe([1 => ['Internal.NoCodeFound']])
         ->and($missing->numTokens)->toBe(0)
         ->and(violationSourcesByLine($missing->getErrors()))->toBe([1 => ['Internal.LocalFile']])
         ->and(array_column(violationTuples($missing), 'source'))
