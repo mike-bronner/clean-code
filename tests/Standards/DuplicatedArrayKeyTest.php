@@ -361,3 +361,93 @@ it('stays silent on an unterminated construct inside an array', function (): voi
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
 });
+
+/**
+ * The sniff run over this package's own test source, which is the coverage
+ * this rule never had. Every top-level `.php` file under tests/Standards/ has
+ * to come back with no duplicate key — including this file and
+ * ConvertToCollectionTest.php, whose CONVERT_TO_COLLECTION_REVIEWED_SITES
+ * ledger is the array a merge has damaged twice (#356, #369).
+ *
+ * Unlike that ledger, this guard holds at zero rather than pinning a list of
+ * accepted findings: a duplicate top-level key here is a defect to remove or
+ * rename, never one to record. It is silent today because there are none —
+ * all 96 files come back clean.
+ *
+ * The target set is a real filesystem scan rather than a written-out list, so
+ * a file added to the directory is swept the day it lands. The glob does not
+ * recurse, which is what keeps tests/Standards/Fixtures/ out: `*.php` matches
+ * no directory. Three assertions stop the scan from passing for the wrong
+ * reason — the paths are an array (glob answers false on failure), there are
+ * at least 70 of them (96 today, so a scan that collected nothing or rooted
+ * itself elsewhere cannot pass quietly), and the two files named above are in
+ * the very variable the loop below iterates.
+ *
+ * The token count is asserted per file, and per file rather than in
+ * aggregate, because a file that produces no tokens reads as clean: the sniff
+ * never runs over it, so no `.Found` violation can be reported and the
+ * violation assertion below passes on it. The test underneath measures that
+ * rather than asserting it here.
+ */
+it('leaves the package own test source alone', function (): void {
+    $paths = glob(cleanCodeRoot() . '/tests/Standards/*.php');
+
+    expect($paths)->toBeArray()
+        ->and(count($paths))->toBeGreaterThanOrEqual(70)
+        ->and($paths)->toContain(
+            cleanCodeRoot() . '/tests/Standards/ConvertToCollectionTest.php',
+            cleanCodeRoot() . '/tests/Standards/DuplicatedArrayKeyTest.php',
+        );
+
+    foreach ($paths as $path) {
+        $file = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], $path);
+        $relative = basename($path);
+
+        expect($file->numTokens)->toBeGreaterThan(0, "{$relative} produced no tokens")
+            ->and(array_column(violationTuples($file), 'source'))
+            ->not->toContain(DUPLICATED_ARRAY_KEY . '.Found');
+    }
+});
+
+/**
+ * What the token-count guard above is for, measured on the two inputs that
+ * trip it. Every file in tests/Standards/ tokenises today, so the sweep alone
+ * never reaches that guard and could not show that it discriminates.
+ *
+ * An empty file is the case the sweep can actually meet: it exists, it is
+ * readable, and glob returns it, yet it produces no tokens. Nothing but the
+ * token count separates it from a file that was read and found clean, and it
+ * is staged outside the repository so that the sweep above does not collect
+ * it.
+ *
+ * What such a file records is not the same everywhere, so it is not asserted
+ * here. PHP_CodeSniffer raises Internal.NoCodeFound against it only when the
+ * *running* PHP reads short_open_tag as off (Files/File.php), and that setting
+ * is PHP_INI_PERDIR — a test cannot turn it off in its own process, which is
+ * why tests/Rules/BladeNoCodeFoundTest.php shells out to a child process with
+ * `-d short_open_tag=Off` to pin that warning at all. Pinned here it would
+ * assert the ambient ini rather than the sniff: green on CI, red on any
+ * machine with short tags on.
+ *
+ * Either way it is a *warning*, and the sweep asserts on errors, so what the
+ * sweep sees holds under both settings and is what this test pins: no tokens,
+ * and no errors of any kind. The zero-error assertion is the sharper of the
+ * two — it says the file reaches the sweep's violation check carrying nothing
+ * that check can see.
+ *
+ * A path that is not there produces no tokens either, and what it records is
+ * Internal.LocalFile — an error this time, unconditional rather than
+ * short-tag-gated, but not the `.Found` code the sweep names, so that
+ * assertion passes on it just the same.
+ */
+it('reads no tokens from a source the sweep would otherwise call clean', function (): void {
+    $empty = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], stageGeneratedFixture('empty-source.php', ''));
+    $missing = analyzeWithSniffs([DUPLICATED_ARRAY_KEY], cleanCodeRoot() . '/tests/Standards/no-such-file.php');
+
+    expect($empty->numTokens)->toBe(0)
+        ->and($empty->getErrors())->toBe([])
+        ->and($missing->numTokens)->toBe(0)
+        ->and(violationSourcesByLine($missing->getErrors()))->toBe([1 => ['Internal.LocalFile']])
+        ->and(array_column(violationTuples($missing), 'source'))
+        ->not->toContain(DUPLICATED_ARRAY_KEY . '.Found');
+});
