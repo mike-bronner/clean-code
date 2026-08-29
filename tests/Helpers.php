@@ -1205,7 +1205,9 @@ function stageThrowawayPhpcsInstall(): string
     // CleanCode/Support/BackportedTokens.php is a Composer `files` entry that
     // no other loader reads. A shim returning the real ClassLoader satisfies
     // the `instanceof ClassLoader` check in the package's own autoload.php
-    // without a symlink, which removeStagedDirectory() would follow.
+    // without a symlink into the real install. Teardown is no longer a reason
+    // to avoid one: removeStagedDirectory() unlinks a symlink rather than
+    // descending through it since #380.
     file_put_contents(
         $vendor . '/autoload.php',
         '<?php' . "\n\n" . 'return require ' . var_export(cleanCodeRoot() . '/vendor/autoload.php', true) . ';' . "\n"
@@ -1333,15 +1335,35 @@ function purgeStagedFixtures(): void
 /**
  * Removes a staging root and everything below it. Recursive because a staged
  * fixture may sit in a nested directory the sniff's path scoping requires.
+ *
+ * A symlink is unlinked, never descended into, at the root and at every entry
+ * below it alike. is_dir() answers for a link's target rather than the link, so
+ * without that guard a staged link to a real directory would turn this teardown
+ * into a recursive delete of the target's contents, outside the staging root it
+ * was asked to remove (#380). The unlink is unconditional, never gated on the
+ * target still existing: a dangling link has no contents to keep either way,
+ * and leaving one behind would only make the closing rmdir() fail.
  */
 function removeStagedDirectory(string $directory): void
 {
+    if (is_link($directory) === true) {
+        unlink($directory);
+
+        return;
+    }
+
     if (is_dir($directory) === false) {
         return;
     }
 
     foreach (array_diff((array) scandir($directory), ['.', '..']) as $entry) {
         $path = $directory . '/' . $entry;
+
+        if (is_link($path) === true) {
+            unlink($path);
+
+            continue;
+        }
 
         if (is_dir($path) === true) {
             removeStagedDirectory($path);
@@ -1353,6 +1375,81 @@ function removeStagedDirectory(string $directory): void
     }
 
     rmdir($directory);
+}
+
+/**
+ * The four helpers below serve tests/Helpers/RemoveStagedDirectoryTest.php,
+ * which is the one test that reads this file rather than a class under
+ * CleanCode/. They live here because a Pest test file that declares functions
+ * and runs tests both fails the PSR-12 side-effects rule composer lint applies.
+ */
+
+/**
+ * A real directory, with one file in it, outside every staging root — the thing
+ * a symlinked fixture would point at. Deliberately not registered through
+ * stagedFixtures(): the purge under test must have no claim on it, or its
+ * survival proves nothing.
+ */
+function directoryOutsideEveryStagingRoot(): string
+{
+    $directory = sys_get_temp_dir() . '/' . uniqid('cleancode-outside-', true);
+
+    if (mkdir($directory, 0700, true) === false) {
+        throw new RuntimeException("could not create {$directory}");
+    }
+
+    file_put_contents($directory . '/keep.php', '<?php' . "\n");
+
+    return $directory;
+}
+
+/**
+ * Removes the directory above, without going through the function under test.
+ */
+function removeDirectoryOutsideEveryStagingRoot(string $directory): void
+{
+    unlink($directory . '/keep.php');
+    rmdir($directory);
+}
+
+/**
+ * Creates a symlink, or reports the failure where it happened rather than as
+ * three puzzling assertions later. Checked for the same reason the mkdir()
+ * and copy() calls above are.
+ */
+function stageSymlink(string $target, string $link): void
+{
+    if (symlink($target, $link) === false) {
+        throw new RuntimeException("could not stage a symlink at {$link}");
+    }
+}
+
+/**
+ * Runs $callback with every PHP diagnostic it raises collected and returned
+ * rather than reported, so "the call raises no warning" is an assertion a test
+ * makes rather than a property of the suite's error handling.
+ *
+ * @param Closure(): void $callback
+ *
+ * @return array<int, string>
+ */
+function diagnosticsRaisedBy(Closure $callback): array
+{
+    $diagnostics = [];
+
+    set_error_handler(static function (int $severity, string $message) use (&$diagnostics): bool {
+        $diagnostics[] = $message;
+
+        return true;
+    });
+
+    try {
+        $callback();
+    } finally {
+        restore_error_handler();
+    }
+
+    return $diagnostics;
 }
 
 /**

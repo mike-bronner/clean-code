@@ -20,7 +20,9 @@
         <!--
             tests/Helpers/ covers the shared classes under CleanCode/Helpers/.
             It is a different thing from tests/Helpers.php, which holds the
-            Pest helper functions every suite here calls.
+            Pest helper functions every suite here calls — with one exception,
+            RemoveStagedDirectoryTest.php, which covers that file's staging
+            teardown.
         -->
         <testsuite name="Helpers">
             <directory>tests/Helpers</directory>
