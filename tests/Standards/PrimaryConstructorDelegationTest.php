@@ -24,6 +24,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const DELEGATION = 'CleanCode.Constructors.PrimaryConstructorDelegation';
 
 const DELEGATION_WARNING = DELEGATION . '.Missing';
@@ -301,4 +303,33 @@ it('reports detection-only warnings', function (): void {
     expect($file->getWarningCount())->toBe(7)
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
+});
+
+/**
+ * returnsDeclaringClass() splits a union return type on `|` and `&`. A failed
+ * split is false, and iterating a boolean is a TypeError that takes the run
+ * down on the file. The guard falls back to the unsplit type, which is what a
+ * type carrying no separator already reduces to — so `self` still answers
+ * correctly and only a union goes unread.
+ *
+ * A union going unread is visible: the delegation warning at the union-returning
+ * constructor disappears while every other warning in the fixture stays. That
+ * is the guard's documented direction, and the empty diagnostics are what
+ * separate it from an unguarded read reaching the same silence by warning its
+ * way through a false.
+ */
+it('reads an unsplittable union return type as a single member', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(DELEGATION, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_split',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(DELEGATION, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/[|&]/'
+        );
+    });
+
+    expect(array_keys($expected))->toContain(59)
+        ->and(array_keys($degraded))->not->toContain(59)
+        ->and($diagnostics)->toBe([]);
 });

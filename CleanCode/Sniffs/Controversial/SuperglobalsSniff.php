@@ -194,11 +194,12 @@ class SuperglobalsSniff implements Sniff
         // Its own exit, kept apart from the "nothing interpolated" one below.
         // This read can genuinely fail — interpolationPattern()'s leading
         // `(?:\\\\)*` is a quantified group, so a long enough run of
-        // backslashes in the string backtracks until pcre.backtrack_limit stops
-        // it — and it reports that with false, not 0. The `=== 0` test this
-        // replaces let false through under a strict comparison, so the failure
-        // fell into the loop instead of the exit written for it and read a
-        // `name` key that is not there. Nothing can be reported off a string
+        // backslashes in the string exhausts PCRE's recursion limit, measured
+        // at a million of them — and it reports that with false, not 0. The
+        // `=== 0` test this replaces let false through under a strict
+        // comparison, so the failure fell into the loop written to be skipped
+        // and read a `name` key that is empty, or absent when the pattern never
+        // compiled. Nothing can be reported off a string
         // that was not read, so a superglobal interpolated into it goes
         // unreported rather than crashing the run.
         if ($matched === false) {

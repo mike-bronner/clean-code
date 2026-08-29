@@ -307,6 +307,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const COMBINED_CONSTRUCTOR = 'CleanCode.Constructors.DisallowCombinedConstructor';
 
 it('is registered in the master ruleset', function (): void {
@@ -1240,4 +1242,31 @@ it('reads a ternary\'s sides no further than the constructor holding it', functi
     expect(tuplesFromMessages($file->getWarnings()))->toBe([
         ['line' => 7, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
     ]);
+});
+
+/**
+ * The parameter's type hint is normalised before it is read for `bool`. A
+ * failed read cast to a string is '', which resolves to no members at all and
+ * reads exactly like a hint that is not boolean — the failure would silently
+ * drop the parameter's mode signal. The guard falls back to the written hint,
+ * which resolves identically for every hint PHPCS hands over.
+ *
+ * So the assertion is that the forced failure changes nothing the sniff
+ * reports, and that it changed nothing by taking the guard's exit rather than
+ * passing null on to strtolower().
+ */
+it('reads a type hint that cannot be normalised as written', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(COMBINED_CONSTRUCTOR, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(COMBINED_CONSTRUCTOR, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

@@ -25,6 +25,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const UNUSED_PRIVATE_ELEMENTS = 'CleanCode.DeadCode.UnusedPrivateElements';
 
 it('is registered in the master ruleset', function (): void {
@@ -140,4 +142,32 @@ it('does not let a property read excuse a same-named method, or the reverse', fu
         ->and($lines[41])->toBe(UNUSED_PRIVATE_ELEMENTS . '.UnusedMethod')
         ->and($lines)->toHaveKey(53)
         ->and($lines[53])->toBe(UNUSED_PRIVATE_ELEMENTS . '.UnusedProperty');
+});
+
+/**
+ * The words inside a string literal are collected so an element named by one of
+ * them is not reported as unused. A failed read that is not guarded iterates
+ * `$matches[0]` off an untouched $matches — null here — so the guard skips the
+ * token instead.
+ *
+ * Skipping sends the failure the way this walk already leans: a word that was
+ * not collected is a word no element is proven to use, so an element can be
+ * reported as unused, which is a report to argue with rather than a silence to
+ * miss. The fixture's verdict does not move either way, so the diagnostics are
+ * what hold the guard to account.
+ */
+it('skips a string literal whose words cannot be read', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_match_all',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

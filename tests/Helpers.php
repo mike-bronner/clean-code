@@ -1796,3 +1796,46 @@ function backportedTokensDoubleLoad(): array
 
     return $decoded;
 }
+
+/**
+ * Runs $body and returns both its result and every PHP diagnostic raised while
+ * it ran, as `[$result, $diagnostics]`.
+ *
+ * This is what makes #376's `preg_match_all()` guards testable. A failed read
+ * leaves $matches untouched — see tests/PregOverrides.php for the two failure
+ * modes and which one is reproduced — so a guard that is deleted does not
+ * change the verdict the sniff reports: it reads an offset off null on the way
+ * to the same answer. The read itself is the difference, and PHP announces it.
+ *
+ * Deprecations are dropped rather than collected. They are a property of the
+ * runtime the suite happens to run on (PHP 8.5 deprecates several reflection
+ * calls this package's own dependencies make), not of the code under test, so
+ * collecting them would make every assertion here fail on a runtime upgrade
+ * that changed nothing.
+ *
+ * @template T
+ *
+ * @param Closure(): T $body
+ *
+ * @return array{T, array<int, string>}
+ */
+function withPhpDiagnostics(Closure $body): array
+{
+    $diagnostics = [];
+
+    set_error_handler(static function (int $severity, string $message) use (&$diagnostics): bool {
+        if (in_array($severity, [E_DEPRECATED, E_USER_DEPRECATED], true) === false) {
+            $diagnostics[] = $message;
+        }
+
+        return true;
+    });
+
+    try {
+        $result = $body();
+    } finally {
+        restore_error_handler();
+    }
+
+    return [$result, $diagnostics];
+}

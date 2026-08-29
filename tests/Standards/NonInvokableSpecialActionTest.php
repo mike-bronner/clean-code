@@ -29,6 +29,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const SPECIAL_ACTION = 'CleanCode.Routes.NonInvokableSpecialAction';
 
 const SPECIAL_ACTION_FOUND = SPECIAL_ACTION . '.Found';
@@ -405,3 +407,45 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
 });
+
+/**
+ * literalValue() evaluates a string literal's escapes so the method name after
+ * the `@` can be read, and it is declared to return a string. A failed read is
+ * null: unguarded, the two branches return it straight out of a `: string`
+ * method and take the run down on the route file. The guard falls back to the
+ * body as the source spells it.
+ *
+ * The two quoting styles take separate branches and each gets its own arming,
+ * because a test that only drives one leaves the other guard shipped untested.
+ * What the fallback buys differs between them, and both are asserted as they
+ * are rather than as the guard's comment would like them to be:
+ *
+ * - The single-quoted branch keeps its report. A name with nothing to unescape
+ *   survives the fallback unchanged, so the route is still classified.
+ * - The double-quoted branch loses its report. `PostController@reh\x6fme` read
+ *   without evaluating `\x6f` names no method PHP would call, so the route goes
+ *   unpoliced. That is a report lost, not a wrong report gained, and it is the
+ *   direction a read that failed can honestly take.
+ */
+it('survives an escaped action whose literal cannot be evaluated', function (
+    string $source,
+    string $pattern,
+    bool $survives
+) use ($routeSource): void {
+    $expected = allViolationSourcesByLine($routeSource($source));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function () use ($routeSource, $source, $pattern): array {
+        return PregFailure::during(
+            'preg_replace_callback',
+            static fn (): array => allViolationSourcesByLine($routeSource($source)),
+            static fn (string $armed): bool => $armed === $pattern
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($survives ? $expected : [])
+        ->and($diagnostics)->toBe([]);
+})->with([
+    'single-quoted' => ["Route::get('/posts/rehome', 'PostController@rehome');", '/\\\\(.)/s', true],
+    'double-quoted' => ['Route::get("/posts/rehome", "PostController@reh\x6fme");', '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s', false],
+]);

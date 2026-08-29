@@ -486,9 +486,10 @@ class UnusedFormalParameterSniff implements Sniff
 
         // This read can genuinely fail: INTERPOLATION_PATTERN's leading
         // `(?:\\\\)*` is a quantified group, so a long enough run of
-        // backslashes in the string backtracks until pcre.backtrack_limit stops
-        // it. $matches then has no `name` key and array_fill_keys() below
-        // throws a TypeError, which takes the whole run down. The empty list is
+        // backslashes in the string exhausts a PCRE limit. A runtime failure
+        // leaves $matches with an empty `name` key; a compile failure leaves it
+        // unwritten, and array_fill_keys() is then handed an offset read off
+        // null against a parameter it declared as an array. The empty list is
         // the exit for it: names this read did not collect are names the
         // parameter is not proven to use, so the failure reports a parameter
         // that may be used rather than crashing the sniff on the file.

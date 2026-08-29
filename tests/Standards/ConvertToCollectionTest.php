@@ -124,16 +124,16 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 178, 'column' => 34],
     ],
     'CleanCode/Sniffs/Controversial/SuperglobalsSniff.php' => [
-        ['line' => 233, 'column' => 18],
+        ['line' => 234, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 962, 'column' => 16],
+        ['line' => 963, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
     ],
     'CleanCode/Sniffs/Livewire/ComponentMarkupSniff.php' => [
-        ['line' => 1125, 'column' => 29],
+        ['line' => 1126, 'column' => 29],
     ],
     'CleanCode/Sniffs/Models/DisallowAlwaysOnEagerLoadingSniff.php' => [
         ['line' => 160, 'column' => 34],
@@ -228,7 +228,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 239, 'column' => 15],
     ],
     'tests/Standards/ActionMethodReturnTest.php' => [
-        ['line' => 278, 'column' => 17],
+        ['line' => 280, 'column' => 17],
     ],
     'tests/Standards/ArrayAccessorsTest.php' => [
         ['line' => 619, 'column' => 22],
@@ -264,7 +264,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 187, 'column' => 17],
     ],
     'tests/Standards/DisallowCombinedConstructorTest.php' => [
-        ['line' => 580, 'column' => 27],
+        ['line' => 582, 'column' => 27],
     ],
     'tests/Standards/DisallowCountInLoopExpressionTest.php' => [
         ['line' => 112, 'column' => 17],
@@ -302,10 +302,10 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 373, 'column' => 17],
     ],
     'tests/Standards/LogicalGroupingsTest.php' => [
-        ['line' => 206, 'column' => 37],
-        ['line' => 581, 'column' => 17],
-        ['line' => 818, 'column' => 27],
-        ['line' => 824, 'column' => 12],
+        ['line' => 208, 'column' => 37],
+        ['line' => 583, 'column' => 17],
+        ['line' => 820, 'column' => 27],
+        ['line' => 826, 'column' => 12],
     ],
     'tests/Standards/ManipulationOperatorPlacementTest.php' => [
         ['line' => 181, 'column' => 29],
@@ -368,25 +368,25 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 110, 'column' => 33],
     ],
     'tests/Standards/PassiveOperatorSpacingTest.php' => [
-        ['line' => 90, 'column' => 60],
-        ['line' => 125, 'column' => 60],
+        ['line' => 92, 'column' => 60],
+        ['line' => 127, 'column' => 60],
     ],
     'tests/Standards/RequirePropertiesTest.php' => [
         ['line' => 198, 'column' => 25],
     ],
     'tests/Standards/ShortVariableTest.php' => [
-        ['line' => 509, 'column' => 25],
+        ['line' => 511, 'column' => 25],
     ],
     'tests/Standards/SuperglobalsTest.php' => [
-        ['line' => 99, 'column' => 18],
-        ['line' => 313, 'column' => 33],
-        ['line' => 370, 'column' => 18],
-        ['line' => 410, 'column' => 37],
-        ['line' => 444, 'column' => 29],
-        ['line' => 462, 'column' => 15],
-        ['line' => 466, 'column' => 16],
-        ['line' => 492, 'column' => 17],
-        ['line' => 504, 'column' => 34],
+        ['line' => 101, 'column' => 18],
+        ['line' => 315, 'column' => 33],
+        ['line' => 372, 'column' => 18],
+        ['line' => 412, 'column' => 37],
+        ['line' => 446, 'column' => 29],
+        ['line' => 464, 'column' => 15],
+        ['line' => 468, 'column' => 16],
+        ['line' => 494, 'column' => 17],
+        ['line' => 506, 'column' => 34],
     ],
     'tests/Standards/TooManyFieldsTest.php' => [
         ['line' => 208, 'column' => 25],

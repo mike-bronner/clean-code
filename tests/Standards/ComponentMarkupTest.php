@@ -1257,9 +1257,11 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
  *
  * The assertion is a reported line number rather than "the sniff still runs",
  * because the shift is silent: the sniff reports the same violation, at the
- * wrong line, and only a fixture whose violation sits *after* a comment can
- * tell the two apart. failing.php carries both. Drop the `?? $comment`
- * fallback and the same run reports its violations several lines early.
+ * wrong line. Only a fixture whose violation sits *after* a comment can tell
+ * the two apart, and comment-before-violation.php is that fixture —
+ * failing.php carries no comment at all, so it cannot. The two adjacent
+ * components sit at lines 10 and 11, below a comment spanning lines 2 to 8:
+ * drop the `?? $comment` fallback and the same run reports them at 3 and 4.
  *
  * The failure is forced at the call boundary rather than by an adversarial
  * fixture because `/[^\r\n]/` has no quantifier to backtrack over and no `/u`
@@ -1267,13 +1269,17 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
  * seam to be readable at all.
  */
 it('keeps every line number after an unreadable comment where it was', function (): void {
-    $expected = violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+    $expected = violationSourcesByLine(
+        analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+    );
 
     $blanked = PregFailure::during('preg_replace', static function (): array {
-        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+        return violationSourcesByLine(
+            analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+        );
     }, static fn (string $pattern): bool => $pattern === '/[^\r\n]/');
 
-    expect($expected)->not->toBe([])
+    expect(array_keys($expected))->toBe([1, 10, 11])
         ->and($blanked)->toBe($expected);
 });
 
@@ -1308,29 +1314,36 @@ it('still reports a root attribute when the attribute list cannot be read', func
 ]);
 
 /**
- * loopRegions() pairs each loop directive's opener with its closer. A read that
- * gave out partway leaves openers without closers, and pairing that fragment
- * invents regions that are not in the file — components inside one are then
- * reported for a wire:key the standard never asked of them.
+ * loopRegions() drops a directive whose read gave out, so the loop it opens is
+ * one the sniff does not police rather than one it polices off a fragment.
  *
- * The fixture is the one that already reports MissingWireKeyInLoop, so the
- * assertion is that the failed read reports *nothing* there rather than
- * reporting something else: dropping the directive unread is the exit, and
- * without the guard the same run reports off a fragment.
+ * Two things are asserted, and the second is the load-bearing one. The verdict
+ * is that MissingWireKeyInLoop goes unreported, which is the direction the
+ * guard's comment names. That much also holds without the guard, because a
+ * failed read leaves $matches null and `foreach (null)` contributes no regions
+ * either — so the verdict alone cannot tell a guard from its absence. What
+ * separates them is the read itself: without the guard PHP announces the null
+ * offset and the null foreach, and with it neither happens. See
+ * withPhpDiagnostics() and tests/PregOverrides.php for why that is the honest
+ * discriminator here.
  */
 it('reports no loop key violation when the loop directives cannot be read', function (): void {
     $pattern = '/@(foreach|endforeach)\b/i';
-    $reported = PregFailure::during('preg_match_all', static function (): array {
-        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
-    }, static fn (string $armed): bool => $armed === $pattern);
+
+    [$reported, $diagnostics] = withPhpDiagnostics(static function () use ($pattern): array {
+        return PregFailure::during('preg_match_all', static function (): array {
+            return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+        }, static fn (string $armed): bool => $armed === $pattern);
+    });
 
     $sources = [];
 
-    foreach ($reported as $line => $violations) {
+    foreach ($reported as $violations) {
         foreach ($violations as $source) {
             $sources[] = $source;
         }
     }
 
-    expect($sources)->not->toContain('CleanCode.Livewire.ComponentMarkup.MissingWireKeyInLoop');
+    expect($sources)->not->toContain('CleanCode.Livewire.ComponentMarkup.MissingWireKeyInLoop')
+        ->and($diagnostics)->toBe([]);
 });

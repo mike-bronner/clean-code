@@ -266,9 +266,10 @@ class UnusedPrivateElementsSniff implements Sniff
                     $matches
                 );
 
-                // A failed read leaves $matches without its [0] key, and the
-                // foreach below then throws a TypeError that takes the run
-                // down. Skipping the token sends the failure the way the rest
+                // A failed read leaves $matches holding an empty [0] key, or
+                // — when the pattern never compiled — not writing to it at all,
+                // so the foreach below iterates an offset read off null.
+                // Skipping the token sends the failure the way the rest
                 // of this walk already leans: a word this read did not collect
                 // is a word no element is proven to use, so a used element can
                 // be reported as unused — a report to argue with, not a

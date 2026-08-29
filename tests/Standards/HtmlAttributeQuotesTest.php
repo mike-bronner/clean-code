@@ -15,6 +15,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const HTML_ATTRIBUTE_QUOTES = 'CleanCode.Strings.HtmlAttributeQuotes';
 
 it('is registered in the master ruleset', function (): void {
@@ -197,4 +199,30 @@ it('leaves apostrophes outside a tag span alone', function (): void {
 
     expect(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('HtmlAttributeQuotesSniff', 'passing.php')));
+});
+
+/**
+ * rewriteAttributes() re-delimits every attribute value inside a tag span. The
+ * inner read is cast to a string, so a failure would become '' — an attribute
+ * list silently emptied inside a span the method then reports as safely
+ * rewritten. The guard keeps the span as written and sets the file's existing
+ * $unsafe flag, which is the same answer an unconvertible value already earns:
+ * report the violation, fix nothing.
+ *
+ * So the assertion is on the whole rewrite, not on the inner replace: the
+ * forced failure must leave the file exactly as it was on disk.
+ */
+it('treats the whole rewrite as unsafe when an attribute list cannot be read', function (): void {
+    $path = fixturePath('HtmlAttributeQuotesSniff', 'failing.php');
+
+    [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
+        return PregFailure::during(
+            'preg_replace_callback',
+            static fn (): string => autofixedContents(analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php')),
+            static fn (string $pattern): bool => str_starts_with($pattern, '#([a-zA-Z_:]')
+        );
+    });
+
+    expect($fixed)->toBe(file_get_contents($path))
+        ->and($diagnostics)->toBe([]);
 });

@@ -17,12 +17,24 @@
  * When armed, it reports the failure the way PHP reports it — null from the
  * two replace functions, false from the two reading ones.
  *
- * `preg_match_all()` runs the real call first and then reports false. That is
- * deliberate and it is the harder case to pass: $matches is left holding a
- * complete, entirely plausible result, exactly as a real backtrack-limit
- * failure leaves it holding a plausible fragment. A guard that is deleted
- * therefore does not merely crash — the sniff carries on and answers off
- * $matches, which is the silent wrong answer every guard here exists to stop.
+ * `preg_match_all()` fails without touching $matches, which is what PHP does
+ * when the pattern never compiled. That choice is worth stating, because PHP
+ * has two failure modes here and they leave $matches in different states:
+ *
+ * - A *runtime* failure — the backtrack or recursion limit, or malformed UTF-8
+ *   under `/u` — sets $matches to the pattern's group structure with every
+ *   group empty. Reading it unguarded then answers "the subject holds none of
+ *   these", which is wrong but not loud, and is byte-for-byte what the guarded
+ *   exits here return. Nothing distinguishes a guard from its absence in that
+ *   mode, so nothing here pretends to test it.
+ * - A *compile* failure leaves $matches exactly as the caller left it —
+ *   untouched, which for every call site in this package means null. Reading
+ *   it unguarded then reads an offset off null and hands the result to code
+ *   that declared it would receive an array.
+ *
+ * The second is the mode these overrides reproduce, because it is the only one
+ * a test can hold a guard to account for. A guard that is deleted does not
+ * quietly return the same answer — it takes the run down on the file.
  *
  * One override per namespace-and-function pair actually reached by a sniff.
  * A pair not listed here is one no guard needs; adding a call site to a sniff
@@ -91,9 +103,11 @@ namespace MikeBronner\CleanCode\Sniffs\Controversial {
 
     function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
     {
-        $matched = \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
 
-        return pregArmed('preg_match_all', $pattern) ? false : $matched;
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
     }
 }
 
@@ -102,9 +116,11 @@ namespace MikeBronner\CleanCode\Sniffs\DeadCode {
 
     function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
     {
-        $matched = \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
 
-        return pregArmed('preg_match_all', $pattern) ? false : $matched;
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
     }
 }
 
@@ -142,9 +158,11 @@ namespace MikeBronner\CleanCode\Sniffs\Livewire {
 
     function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
     {
-        $matched = \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
 
-        return pregArmed('preg_match_all', $pattern) ? false : $matched;
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
     }
 }
 
@@ -178,9 +196,11 @@ namespace MikeBronner\CleanCode\Sniffs\Naming {
 
     function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
     {
-        $matched = \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
 
-        return pregArmed('preg_match_all', $pattern) ? false : $matched;
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
     }
 }
 

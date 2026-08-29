@@ -30,6 +30,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const BOOLEAN_GET_METHOD_NAME = 'CleanCode.Naming.BooleanGetMethodName';
 
 const BOOLEAN_GET_METHOD_NAME_ERROR = BOOLEAN_GET_METHOD_NAME . '.Found';
@@ -235,4 +237,55 @@ it('reports detection-only errors', function (): void {
         ->and($file->getWarningCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->each->toBeFalse();
+});
+
+/**
+ * A docblock annotation is split on whitespace so its first piece can be read
+ * as the type. A failed split is false, and `false[0]` reads an offset off a
+ * boolean rather than failing loudly. The guard falls back to the whole
+ * annotation, which still starts with the written type — only a trailing
+ * description rides along, and a description is enough to stop the annotated
+ * method reading as `bool`.
+ *
+ * That is visible: the method typed only by its annotation stops being
+ * reported, while every method with a native `bool` return stays reported.
+ */
+it('reads an unsplittable annotation as one piece', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_split',
+            static fn (): array => violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect(array_keys($expected))->toContain(28)
+        ->and(array_keys($degraded))->not->toContain(28)
+        ->and($diagnostics)->toBe([]);
+});
+
+/**
+ * isBooleanType() normalises a type before deciding whether it is `bool`. A
+ * failed read cast to a string is '', which resolves to no members and reads
+ * exactly like a type that is not boolean, so the failure would silently exempt
+ * the method from the check. The guard falls back to the written type, which
+ * resolves identically for every type PHPCS hands over — so every boolean
+ * getter stays reported.
+ */
+it('reads a type that cannot be normalised as written', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

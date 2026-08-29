@@ -412,9 +412,10 @@ class ShortVariableSniff implements Sniff
             $matches
         );
 
-        // A failed read leaves $matches without its [1] key, and returning it
-        // violates this method's declared array<int, string> under
-        // strict_types. The empty list is the exit for it, and it is the only
+        // A failed read leaves $matches holding an empty [1] key, or — when
+        // the pattern never compiled — not writing to it at all, so returning
+        // it hands back an offset read off null against this method's declared
+        // array<int, string>. The empty list is the exit for it, and the only
         // honest one: names that were not read cannot be checked, so a short
         // name interpolated into this string goes unreported. The pattern's
         // lookbehind is fixed-width and its one quantifier is a character class

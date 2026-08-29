@@ -839,14 +839,15 @@ class ComponentMarkupSniff implements Sniff
             $pattern = '/@(' . $directive . '|end' . $directive . ')\b/i';
             $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE);
 
-            // The read gave out partway, so $matches holds a fragment of the
-            // view: some openers without their closers, or the reverse. Pairing
-            // a fragment produces regions that are not in the file, and a
-            // component inside one of those is then reported for a wire:key the
-            // standard never asked it for. Dropping this directive's regions
-            // unread sends the failure the other way — a loop the sniff could
-            // not read is a loop it does not police, so MissingWireKeyInLoop
-            // goes unreported for it rather than misreported.
+            // The read reports failure two ways, and neither leaves anything
+            // worth pairing: a runtime failure sets $matches to empty groups,
+            // and a compile failure never writes to it at all, leaving the null
+            // the caller declared. Reading the second unguarded takes an offset
+            // off null on the way to the same empty answer. Dropping this
+            // directive's regions unread states that answer outright — a loop
+            // the sniff could not read is a loop it does not police, so
+            // MissingWireKeyInLoop goes unreported for it rather than
+            // misreported.
             if ($matched === false) {
                 continue;
             }
@@ -1097,8 +1098,8 @@ class ComponentMarkupSniff implements Sniff
         $names = preg_replace('/=\s*(?:"[^"]*"|\'[^\']*\')/', '=', $attributes) ?? $attributes;
         $matched = preg_match_all('/(?:^|\s)([^\s=<>"\'\/]+)/', $names, $matches);
 
-        // The name read gave out partway, so $matches[1] is a fraction of the
-        // list presented as the whole — and a missing name is what
+        // The name read failed, so $matches[1] is either empty or, when the
+        // pattern never compiled, not there at all — and an empty list is what
         // checkRootElement() reads as "this root carries no framework
         // attribute", the RootElementAttributes bypass #366 closed by a
         // different path. Splitting the list on whitespace without PCRE keeps

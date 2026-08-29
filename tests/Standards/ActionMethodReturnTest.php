@@ -23,6 +23,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const ACTION_METHOD_RETURN = 'CleanCode.Naming.ActionMethodReturn';
 
 const ACTION_METHOD_RETURN_WARNING = ACTION_METHOD_RETURN . '.Found';
@@ -506,4 +508,26 @@ it('ships the suggested prefix list and the exemption switched on', function ():
         'update',
     ])
         ->and($sniff->allowFluentInterface)->toBeTrue();
+});
+
+/**
+ * declaredReturnType() returns '' when a method declares no return type, so ''
+ * is the one answer a failed read must not be allowed to give: it would exempt
+ * the declaration from the check outright. The guard falls back to the written
+ * type, which normalises identically for every type PHPCS hands over.
+ */
+it('reads a return type that cannot be normalised as written', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(ACTION_METHOD_RETURN, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(ACTION_METHOD_RETURN, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });
