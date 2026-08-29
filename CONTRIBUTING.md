@@ -48,7 +48,7 @@ tests/
 │   ├── <Name>/                            # per-helper fixtures, named for the helper class
 │   └── _rulesets/<Standard>/              # fixtures for standards carried by several sniffs
 ├── Contract/                              # the generic three-fixture sweep
-├── Helpers/                               # the shared classes under CleanCode/Helpers/
+├── Helpers/                               # the shared classes under CleanCode/Helpers/, plus the staging teardown
 ├── Standards/                             # a custom sniff's own behaviour — one file per sniff
 ├── Rules/                                 # four older files doing tests/Ruleset/'s job — closed to new work
 ├── Ruleset/                               # a standard as rules.xml wires and configures it, plus its own fixtures/
@@ -189,7 +189,9 @@ once is fixed everywhere.
 `tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
 the only thing they share: the directory is a suite covering the shared classes
 under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite
-here calls.
+here calls. One test in the directory covers the file instead —
+`RemoveStagedDirectoryTest.php`, over the staging teardown that runs after every
+test (#380). It is the only one.
 
 A helper carries its own fixtures under `tests/fixtures/<Name>/` and its own
 tests under `tests/Helpers/<Name>Test.php`, driven by `parseFixture()` — it

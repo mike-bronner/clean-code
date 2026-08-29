@@ -208,7 +208,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Helpers.php' => [
         ['line' => 666, 'column' => 66],
         ['line' => 835, 'column' => 36],
-        ['line' => 1789, 'column' => 22],
+        ['line' => 1888, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
