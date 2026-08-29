@@ -493,9 +493,59 @@ is intentional, and they are only useful if they explain themselves.
 ```bash
 composer install
 composer test     # the full Pest suite
-composer lint     # PSR-12 self-lint of the sniff/test code (fixtures excluded)
+composer lint     # PSR-12 self-lint of the sniff/test/tool code (fixtures excluded)
+composer dogfood  # rules.xml against CleanCode/, held to tools/dogfood-baseline.json
 
 vendor/bin/pest --testsuite=Standards      # one suite
 vendor/bin/pest --filter='flags every'     # one test
 vendor/bin/phpcs --standard=rules.xml <file>   # run the master ruleset
+```
+
+### The dogfood ratchet
+
+`composer dogfood` runs the master ruleset over the package's own sniff sources
+and holds every file to the error count recorded in
+`tools/dogfood-baseline.json`. CI runs it on every pull request.
+
+It ratchets rather than demanding zero, because zero is not currently reachable.
+Measured on `main` at `aa0f02e`, `phpcs --standard=rules.xml CleanCode/` reports
+**3052 errors across 105 of 107 files**. Over half of those are
+`CleanCode.Arrays.ArrayAccessors`, whose sanctioned fix is `data_get()` — a
+Laravel helper this package deliberately does not ship (`rules.xml:658-660`) —
+and most of the rest are the complexity metrics firing on token walking, which
+is inherently branch-heavy. Clearing them is sniff redesign, not a formatting
+sweep, and is tracked separately under #229.
+
+What the ratchet does buy is that the number cannot grow in silence:
+
+- a file over its recorded count fails;
+- a file **absent** from the baseline is held at zero, so a newly added sniff
+  carrying `rules.xml` errors fails the moment it lands;
+- a file *below* its recorded count fails too, asking for a regenerate. A
+  baseline left above the real count hands back the ground the cleanup won — a
+  later regression up to the stale pin would pass unnoticed.
+
+Cleaned a file, or have a violation you believe is genuinely unavoidable? Re-record
+and commit the baseline, so the change is visible in the diff and gets reviewed:
+
+```bash
+composer dogfood -- --generate
+```
+
+Only errors are counted. Warnings do not gate `phpcs`, and
+`CleanCode.Conditionals.AvoidConditionals` alone reports 1984 of the tree's
+3334 — admitting warnings would be a far larger decision than the gate itself.
+
+### `process()` and the untyped `$stackPtr`
+
+Settled convention, established by PR #168 — not a per-sniff judgement call.
+`Sniff::process(File $phpcsFile, $stackPtr)` leaves `$stackPtr` untyped because
+narrowing an inherited parameter to `int` breaks contravariance with the
+PHP_CodeSniffer `Sniff` interface, which is a fatal error. Silence
+`SlevomatCodingStandard.TypeHints.ParameterTypeHint` at the signature and say
+why, as `CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php` does:
+
+```php
+// phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint
+public function process(File $phpcsFile, $stackPtr): void
 ```
