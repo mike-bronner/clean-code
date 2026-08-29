@@ -164,7 +164,9 @@ it('leaves backtick content alone when it cannot be trimmed', function (): void 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_replace',
-            static fn (): array => violationSourcesByLine(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => str_contains($pattern, '[ \t]+')
         );
     });

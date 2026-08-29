@@ -256,7 +256,9 @@ it('reads an unsplittable annotation as one piece', function (): void {
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_split',
-            static fn (): array => violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => $pattern === '/\s+/'
         );
     });
@@ -280,7 +282,9 @@ it('reads a type that cannot be normalised as written', function (): void {
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_replace',
-            static fn (): array => violationSourcesByLine(analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => $pattern === '/\s+/'
         );
     });

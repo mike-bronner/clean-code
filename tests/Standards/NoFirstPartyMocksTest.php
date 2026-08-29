@@ -35,7 +35,6 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
-
 use MikeBronner\CleanCode\Sniffs\Testing\NoFirstPartyMocksSniff;
 
 const FIRST_PARTY_MOCKS = 'CleanCode.Testing.NoFirstPartyMocks';

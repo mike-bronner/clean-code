@@ -409,7 +409,9 @@ it('counts an unsplittable union type as a single member', function (): void {
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_split',
-            static fn (): array => violationSourcesByLine(analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => $pattern === '/[|&]/'
         );
     });

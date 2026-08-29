@@ -316,7 +316,9 @@ it('reads a type hint that cannot be normalised as written', function (): void {
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_replace',
-            static fn (): array => violationSourcesByLine(analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => $pattern === '/\s+/'
         );
     });

@@ -375,7 +375,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 198, 'column' => 25],
     ],
     'tests/Standards/ShortVariableTest.php' => [
-        ['line' => 511, 'column' => 25],
+        ['line' => 510, 'column' => 25],
     ],
     'tests/Standards/SuperglobalsTest.php' => [
         ['line' => 101, 'column' => 18],

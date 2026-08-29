@@ -65,7 +65,6 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
-
 use PHP_CodeSniffer\Files\LocalFile;
 
 const UNUSED_FORMAL_PARAMETER = 'CleanCode.DeadCode.UnusedFormalParameter';
@@ -947,7 +946,9 @@ it('collects no interpolated name when the string cannot be read', function (): 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
             'preg_match_all',
-            static fn (): array => violationSourcesByLine(analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors()),
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors()
+            ),
             static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
         );
     });

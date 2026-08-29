@@ -24,7 +24,6 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
-
 use PHP_CodeSniffer\Ruleset;
 
 const SHORT_VARIABLE = 'CleanCode.Naming.ShortVariable';
