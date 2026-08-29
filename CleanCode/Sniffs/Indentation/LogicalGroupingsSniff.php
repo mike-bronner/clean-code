@@ -713,12 +713,20 @@ class LogicalGroupingsSniff implements Sniff
 
         $existing = $tokens[$first]['content'];
 
-        // A failed read is null, and `null . $padding` would drop the line
-        // breaks this method exists to preserve, joining the line to the one
-        // above it. The token is whitespace throughout, so rtrim() answers the
-        // same question without PCRE and is the fallback. `/[^\r\n]+$/`
-        // quantifies one character class against an anchor and carries no `/u`
-        // modifier.
+        // Guarded, and nothing here can tell the guard from its absence —
+        // measured, not assumed, and pinned by the test in
+        // tests/Standards/LogicalGroupingsTest.php that says so in its own
+        // docblock. PHPCS ends a whitespace token at its newline, so the
+        // first token of a line that carries code is that line's indentation
+        // and nothing else (a blank line's token is the newline alone, and
+        // this method is only ever pointed at a line holding a condition);
+        // stripping it, rtrim()ing it, and concatenating a failed read's null
+        // all leave the same empty prefix. The fallback is written
+        // for the shape the docblock above promises to preserve — a token that
+        // does carry a leading break — so a tokenizer that ever hands one over
+        // finds the failure already answered. `/[^\r\n]+$/` quantifies one
+        // character class against an anchor and carries no `/u` modifier, so
+        // nothing is known to reach it in the first place.
         $eol = preg_replace('/[^\r\n]+$/', '', $existing) ?? rtrim($existing, " \t\x0B\f");
         $phpcsFile->fixer->replaceToken($first, $eol . $padding);
     }
