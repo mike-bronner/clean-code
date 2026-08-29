@@ -25,6 +25,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const COUPLING_BETWEEN_OBJECTS = 'CleanCode.Metrics.CouplingBetweenObjects';
 
 const COUPLING_BETWEEN_OBJECTS_ERROR = 'CleanCode.Metrics.CouplingBetweenObjects.Found';
@@ -387,4 +389,34 @@ it('reads a hooked property without charging the hook body', function (): void {
         ['line' => 13, 'column' => 1, 'source' => COUPLING_BETWEEN_OBJECTS_ERROR],
     ]);
     expect(violationTuples($silent))->toBe([]);
+});
+
+/**
+ * Each declared type is split on `|` and `&` so every member of a union counts
+ * as its own dependency. A failed split is false, and iterating a boolean takes
+ * the run down. The guard falls back to the unsplit type: a plain class name is
+ * still counted and only a union goes unread, which undercounts coupling rather
+ * than miscounting an unrelated type.
+ *
+ * The undercount is visible — the class whose count only clears the threshold
+ * through its union members stops being reported — and the empty diagnostics
+ * are what separate that from an unguarded read warning its way to the same
+ * number.
+ */
+it('counts an unsplittable union type as a single member', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_split',
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors()
+            ),
+            static fn (string $pattern): bool => $pattern === '/[|&]/'
+        );
+    });
+
+    expect(array_keys($expected))->toContain(16)
+        ->and(array_keys($degraded))->not->toContain(16)
+        ->and($diagnostics)->toBe([]);
 });

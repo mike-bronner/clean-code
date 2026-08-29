@@ -24,6 +24,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const BOOLEAN_ARGUMENT_FLAG = 'CleanCode.Functions.DisallowBooleanArgumentFlag';
 
 const BOOLEAN_ARGUMENT_FLAG_ERROR = BOOLEAN_ARGUMENT_FLAG . '.Found';
@@ -298,4 +300,30 @@ it('reports detection-only errors', function (): void {
     expect($file->getErrorCount())->toBe(15)
         ->and($file->getWarningCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
+});
+
+/**
+ * isBooleanType() normalises a hint before deciding whether it is `bool`. A
+ * failed read cast to a string is '', which resolves to no members and reads
+ * exactly like a hint that is not boolean — the failure would silently exempt
+ * the parameter from the check. The guard falls back to the written hint, which
+ * resolves identically for every hint PHPCS hands over from a native
+ * declaration, so every flag argument stays flagged.
+ */
+it('reads a type hint that cannot be normalised as written', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors()
+            ),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

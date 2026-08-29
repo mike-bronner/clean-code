@@ -333,11 +333,24 @@ class ActionMethodReturnSniff implements Sniff
      * The declaration's return type, normalised — whitespace removed, folded to
      * lower case (PHP type names are case-insensitive), and stripped of the
      * nullable marker. An empty string means none was declared.
+     *
+     * The normalising read falls back to the written type rather than to '',
+     * which is this method's own "none was declared" answer and the one a
+     * failed read must not be allowed to give: it would exempt the declaration
+     * from the check outright. Nothing is known to reach that fallback —
+     * `/\s+/` is a single quantifier over a character class at the end of the
+     * pattern, which PCRE auto-possessifies, and it carries no `/u` modifier —
+     * so the branch is exercised through the call boundary in
+     * tests/PregOverrides.php instead. Written here rather than beside the call
+     * because a standalone comment inside a method body is what
+     * CleanCode.ClearCode.SectionComment reports, and the assertion in
+     * tests/Standards/ActionMethodReturnTest.php pins this file's warning list
+     * exactly.
      */
     private function declaredReturnType(File $phpcsFile, int $stackPtr): string
     {
         $written = (string) $phpcsFile->getMethodProperties($stackPtr)['return_type'];
-        $normalized = ltrim(strtolower((string) preg_replace('/\s+/', '', $written)), '?');
+        $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $written) ?? $written), '?');
         $members = array_values(array_diff(explode('|', $normalized), ['']));
 
         return implode('|', $this->withoutNullability($members));

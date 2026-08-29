@@ -16,6 +16,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const PASSIVE_OPERATOR_SPACING = 'CleanCode.WhiteSpace.PassiveOperatorSpacing';
 
 it('is registered in the master ruleset', function (): void {
@@ -142,4 +144,34 @@ it('never reports a binary sign', function (): void {
     $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'passing.php');
 
     expect($file->getErrorCount())->toBe(0);
+});
+
+/**
+ * The backtick fixer compares a trimmed copy of the content against the
+ * original to decide whether there is anything to trim. A failed read is null,
+ * and `null === $content` is false — so the failure would fall past that guard
+ * and hand null to the fixer as the replacement text, emptying the backticks.
+ *
+ * The content itself is the guard's fallback: it reads as "nothing to trim",
+ * so the backtick content is left as written and the violation that depended on
+ * the trim goes unreported. That is what is asserted — not that the fixer
+ * leaves the whole file alone, which it does not: this sniff's other reports on
+ * the same fixture are untouched by the failed read and still get fixed.
+ */
+it('leaves backtick content alone when it cannot be trimmed', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors()
+            ),
+            static fn (string $pattern): bool => str_contains($pattern, '[ \t]+')
+        );
+    });
+
+    expect(array_keys($expected))->toContain(12)
+        ->and(array_keys($degraded))->not->toContain(12)
+        ->and($diagnostics)->toBe([]);
 });

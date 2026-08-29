@@ -20,6 +20,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const DISALLOW_ELSE = 'CleanCode.Conditionals.DisallowElse';
 
 const DISALLOW_ELSE_FOUND = DISALLOW_ELSE . '.Found';
@@ -206,4 +208,31 @@ it('rewrites the behaviour fixture into its committed fixed sibling', function (
 
     expect(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath(sniffFixtureDirectory(DISALLOW_ELSE), 'behaviour.fixed.php')));
+});
+
+/**
+ * fixElse() removes one level of indentation from every line it lifts out of
+ * the else branch. A failed read cast to a string is '', which would delete the
+ * line's whole indentation instead of one level of it, so the guard keeps the
+ * line as written and the fix stays conservative rather than becoming wrong.
+ *
+ * `/^    /` is four literal spaces against an anchor and cannot be driven to
+ * failure by any input, so the failure is armed at the call boundary — see
+ * tests/PregOverrides.php. The lifted line keeps the indentation it was written
+ * with, one level deeper than the fix would have left it, rather than losing
+ * all of it: dropping the `?? $indent` fallback hands the fixer a null and the
+ * same line comes back flush against the margin.
+ */
+it('keeps a lifted line as written when its indentation cannot be read', function (): void {
+    [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): string => autofixedContents(analyzeFixture(DISALLOW_ELSE, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/^    /'
+        );
+    });
+
+    expect($fixed)->toContain("\n            return 2;")
+        ->and($fixed)->not->toContain("\nreturn 2;")
+        ->and($diagnostics)->toBe([]);
 });

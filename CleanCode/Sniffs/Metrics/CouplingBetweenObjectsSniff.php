@@ -379,7 +379,17 @@ class CouplingBetweenObjectsSniff implements Sniff
             return;
         }
 
-        foreach (preg_split('/[|&]/', str_replace(['?', '(', ')'], '', $type)) as $member) {
+        $stripped = str_replace(['?', '(', ')'], '', $type);
+
+        // A failed split is false and the foreach then throws a TypeError. The
+        // unsplit type is the honest fallback: a single-member union is what a
+        // type carrying no separator already reduces to, so a plain class name
+        // is still counted as a dependency and only a union goes unread — an
+        // undercount of coupling, never a miscount of an unrelated type.
+        // `/[|&]/` is a literal character class with no quantifier and no `/u`
+        // modifier, so preg_split() cannot fail; the ?: states that outright
+        // rather than leaning on it, as MemberOrderingSniff does.
+        foreach (preg_split('/[|&]/', $stripped) ?: [$stripped] as $member) {
             $this->addResolved($dependencies, $member, $namespace, $aliases);
         }
     }

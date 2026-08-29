@@ -326,7 +326,20 @@ class MultilineStringsSniff implements Sniff
             $opener = $prefix . '<<<' . self::MARKER;
         }
 
-        foreach (preg_split('/\r\n|\n|\r/', $body) as $line) {
+        $lines = preg_split('/\r\n|\n|\r/', $body);
+
+        // A failed split is false and the foreach then throws a TypeError. The
+        // marker-collision check below is the only thing standing between this
+        // fixer and a heredoc whose own body closes it, so a body whose lines
+        // could not be read is a body this fixer must not rewrite: null is the
+        // same "leave the file alone" answer a real collision earns. `/\r\n|\n|\r/`
+        // is a literal alternation with no quantifier and no `/u` modifier, so
+        // preg_split() cannot fail.
+        if ($lines === false) {
+            return null;
+        }
+
+        foreach ($lines as $line) {
             if ($this->collidesWithMarker($line)) {
                 return null;
             }

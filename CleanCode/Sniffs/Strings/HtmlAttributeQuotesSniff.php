@@ -117,6 +117,21 @@ class HtmlAttributeQuotesSniff implements Sniff
      * quotes, escaped as the PHP string context requires, or returns null when
      * any such value is unsafe to re-delimit (see isSafeToConvert()). Text
      * outside tag spans is preserved verbatim.
+     *
+     * Both reads here can genuinely fail. tagSpanPattern()'s span body is a
+     * quantified alternation closed by `>`, and attributePattern()'s value
+     * group `([^']*)` is followed by a delimiter the group does not exclude, so
+     * a long enough unterminated tag or attribute value makes either backtrack
+     * until pcre.backtrack_limit stops it — the same failure tagSpans() below
+     * already guards for. Neither pattern carries a `/u` modifier.
+     *
+     * The two failures need different answers, because they sit on opposite
+     * sides of this method's own sentinel. The outer one returns null straight
+     * into $rewritten, which is already what "unsafe, do not rewrite" is
+     * spelled as here, so it needs nothing added. The inner one is cast to a
+     * string and would become '' — an attribute list silently emptied inside a
+     * span this method then reports as safely rewritten — so it sets $unsafe
+     * and leaves the span as written.
      */
     private function rewriteAttributes(string $content, string $apostrophe): ?string
     {
@@ -125,10 +140,15 @@ class HtmlAttributeQuotesSniff implements Sniff
         $quote = $apostrophe === "\\'" ? '"' : '\\"';
         $unsafe = false;
 
+        // Audited, unguarded on purpose: a failed span read returns null, and
+        // null is already this method's "unsafe, leave the file alone"
+        // sentinel — the same value the return below hands back. Safe by
+        // circumstance rather than by construction, so it is written down here:
+        // change that sentinel and this call needs a guard of its own.
         $rewritten = preg_replace_callback(
             Markup::tagSpanPattern(),
             function (array $match) use ($apostrophe, $quote, &$unsafe): string {
-                return (string) preg_replace_callback(
+                $span = preg_replace_callback(
                     $this->attributePattern($apostrophe),
                     static function (array $attr) use ($quote, &$unsafe): string {
                         if (self::isSafeToConvert($attr[2]) === false) {
@@ -141,6 +161,20 @@ class HtmlAttributeQuotesSniff implements Sniff
                     },
                     $match[0]
                 );
+
+                // The attribute read gave out inside this span. Casting the
+                // null to a string would replace the whole tag with '' and say
+                // nothing, so the span is kept as written and the rewrite is
+                // marked unsafe — the same answer an unconvertible value earns
+                // above, and the one the caller reads as "report the violation,
+                // fix nothing".
+                if ($span === null) {
+                    $unsafe = true;
+
+                    return $match[0];
+                }
+
+                return $span;
             },
             $content
         );

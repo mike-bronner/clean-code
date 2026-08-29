@@ -23,6 +23,7 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
 use PHP_CodeSniffer\Ruleset;
 
 const SHORT_VARIABLE = 'CleanCode.Naming.ShortVariable';
@@ -515,4 +516,30 @@ it('reports through the master ruleset', function (): void {
         22, 24, 31, 36, 43, 51, 53, 55, 57, 61, 66,
         68, 78, 82, 89, 101, 102, 108, 109, 119, 120, 124,
     ]);
+});
+
+/**
+ * interpolatedNames() reads the variable names out of a string literal so a
+ * short one interpolated there is reported like any other. A failed read that
+ * is not guarded returns `$matches[1]` off an untouched $matches — null here —
+ * from a method that declared it returns an array.
+ *
+ * The empty list is the guard's exit: a name that was not read cannot be
+ * checked, so the short names inside that string go unreported. The fixture's
+ * interpolated reports disappearing is that exit made visible.
+ */
+it('reports no interpolated name when the string cannot be read', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(SHORT_VARIABLE, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_match_all',
+            static fn (): array => violationSourcesByLine(analyzeFixture(SHORT_VARIABLE, 'failing.php')->getErrors()),
+            static fn (string $pattern): bool => str_contains($pattern, '\$\{?([a-zA-Z_')
+        );
+    });
+
+    expect(array_keys($expected))->toContain(101)
+        ->and(array_keys($degraded))->not->toContain(101)
+        ->and($diagnostics)->toBe([]);
 });

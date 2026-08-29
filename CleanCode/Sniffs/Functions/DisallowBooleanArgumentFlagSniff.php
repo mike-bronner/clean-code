@@ -227,7 +227,14 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
      */
     private function isBooleanType(string $typeHint): bool
     {
-        $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $typeHint) ?? ''), '?');
+        // The written hint rather than '' on a failed read: '' resolves to no
+        // members at all, which reads exactly like a hint that is not boolean,
+        // so the failure would silently exempt the parameter from the check.
+        // The written hint still resolves correctly whenever it carries no
+        // internal whitespace, which is every hint PHPCS hands over from a
+        // native declaration. `/\s+/` is one auto-possessified quantifier, no
+        // `/u` modifier, so preg_replace() cannot fail.
+        $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $typeHint) ?? $typeHint), '?');
         $types = array_values(array_diff(explode('|', $normalized), ['null', '']));
 
         return $types === ['bool'];

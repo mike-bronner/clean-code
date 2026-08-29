@@ -13,6 +13,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const MULTILINE_STRINGS = 'CleanCode.Strings.MultilineStrings';
 
 it('is registered in the master ruleset', function (): void {
@@ -158,4 +160,33 @@ it('never rewrites a string the tokenizer could not resolve', function (): void 
     expect(violationTuples($file))->toBe([])
         ->and(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('MultilineStringsSniff', 'unresolved-binary-string.php')));
+});
+
+/**
+ * The heredoc fixer reads the string's body line by line, and the
+ * marker-collision check over those lines is the only thing standing between it
+ * and a heredoc whose own body closes it. A failed split is false, and
+ * iterating a boolean takes the run down.
+ *
+ * So a body whose lines could not be read is a body this fixer must not
+ * rewrite: null is the same "leave the file alone" answer a real collision
+ * already earns, and leaving the file alone is what is asserted.
+ *
+ * This sniff's tests live here rather than under tests/Standards/, which is
+ * where its existing suite is — one file per sniff, not one directory per
+ * criterion.
+ */
+it('rewrites nothing when a string body cannot be split into lines', function (): void {
+    $path = fixturePath('MultilineStringsSniff', 'failing.php');
+
+    [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
+        return PregFailure::during(
+            'preg_split',
+            static fn (): string => autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/\r\n|\n|\r/'
+        );
+    });
+
+    expect($fixed)->toBe(file_get_contents($path))
+        ->and($diagnostics)->toBe([]);
 });

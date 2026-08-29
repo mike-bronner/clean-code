@@ -15,6 +15,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const HTML_ATTRIBUTE_QUOTES = 'CleanCode.Strings.HtmlAttributeQuotes';
 
 it('is registered in the master ruleset', function (): void {
@@ -197,4 +199,46 @@ it('leaves apostrophes outside a tag span alone', function (): void {
 
     expect(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('HtmlAttributeQuotesSniff', 'passing.php')));
+});
+
+/**
+ * rewriteAttributes() re-delimits every attribute value inside a tag span. The
+ * inner read is cast to a string, so a failure would become '' — an attribute
+ * list silently emptied inside a span the method then reports as safely
+ * rewritten. The guard keeps the span as written and sets the file's existing
+ * $unsafe flag, which is the same answer an unconvertible value already earns:
+ * report the violation, fix nothing.
+ *
+ * The message is what holds the guard to account, and the unchanged file on its
+ * own does not. Returning the span unrewritten without setting $unsafe leaves
+ * the rewrite byte-identical to the file on disk as well, so the fixer writes
+ * nothing either way — the two worlds differ only in what the sniff says. With
+ * the flag set, process() takes the null branch and reports the manual-conversion
+ * error; without it, the same lines are reported as fixable, promising a fix
+ * that silently does nothing.
+ */
+it('treats the whole rewrite as unsafe when an attribute list cannot be read', function (): void {
+    $path = fixturePath('HtmlAttributeQuotesSniff', 'failing.php');
+
+    [[$fixed, $messages], $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace_callback',
+            static function (): array {
+                $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
+
+                return [autofixedContents($file), violationMessagesByLine($file->getErrors())];
+            },
+            static fn (string $pattern): bool => str_starts_with($pattern, '#([a-zA-Z_:]')
+        );
+    });
+
+    $reported = array_values(array_unique(array_merge(...array_values($messages))));
+
+    expect($fixed)->toBe(file_get_contents($path))
+        ->and($messages)->not->toBe([])
+        ->and($reported)->toBe([
+            'HTML attributes must use double quotes, not apostrophes; the value contains a'
+                . ' double quote or a backslash, so convert this attribute manually',
+        ])
+        ->and($diagnostics)->toBe([]);
 });

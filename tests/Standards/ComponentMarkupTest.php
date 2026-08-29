@@ -23,6 +23,7 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Livewire\ComponentMarkupSniff;
+use MikeBronner\CleanCode\Tests\PregFailure;
 
 const COMPONENT_MARKUP = 'CleanCode.Livewire.ComponentMarkup';
 
@@ -1246,4 +1247,103 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
     expect(array_merge(...array_values(allViolationSourcesByLine($pair))))
         ->toBe([ADJACENT_COMPONENT_NOT_WRAPPED, ADJACENT_COMPONENT_NOT_WRAPPED])
         ->and($pair->getWarnings())->toBe([]);
+});
+
+/**
+ * blankComments() substitutes same-length blanks for a comment so that every
+ * offset and line number after it stays where it was. A failed read cast to a
+ * string is '', which shortens the blanked copy by the whole comment and drags
+ * every later line number up with it.
+ *
+ * The assertion is a reported line number rather than "the sniff still runs",
+ * because the shift is silent: the sniff reports the same violation, at the
+ * wrong line. Only a fixture whose violation sits *after* a comment can tell
+ * the two apart, and comment-before-violation.php is that fixture —
+ * failing.php carries no comment at all, so it cannot. The two adjacent
+ * components sit at lines 10 and 11, below a comment spanning lines 2 to 8:
+ * drop the `?? $comment` fallback and the same run reports them at 3 and 4.
+ *
+ * The failure is forced at the call boundary rather than by an adversarial
+ * fixture because `/[^\r\n]/` has no quantifier to backtrack over and no `/u`
+ * modifier — no input drives it to failure, which is why the guard needs this
+ * seam to be readable at all.
+ */
+it('keeps every line number after an unreadable comment where it was', function (): void {
+    $expected = violationSourcesByLine(
+        analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+    );
+
+    $blanked = PregFailure::during('preg_replace', static function (): array {
+        return violationSourcesByLine(
+            analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+        );
+    }, static fn (string $pattern): bool => $pattern === '/[^\r\n]/');
+
+    expect(array_keys($expected))->toBe([1, 10, 11])
+        ->and($blanked)->toBe($expected);
+});
+
+/**
+ * attributeNames() reads the root element's attributes, and an empty list is
+ * what checkRootElement() reads as "this root carries no Livewire, Blade or
+ * Alpine attribute" — the RootElementAttributes bypass #366 closed by another
+ * path. A failed value-strip must therefore not empty the list.
+ *
+ * Asserted through the sniff, on a fixture whose root does carry such an
+ * attribute, so the answer read is the report itself and not an intermediate
+ * value. Both guards are exercised: the value-strip by arming preg_replace,
+ * the name read by arming preg_match_all. Remove either and the fixture's
+ * RootElementAttributes error disappears.
+ */
+it('still reports a root attribute when the attribute list cannot be read', function (
+    string $function,
+    string $pattern
+): void {
+    $expected = violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'root-alpine-attribute.php')->getErrors());
+
+    expect($expected)->not->toBe([]);
+
+    $degraded = PregFailure::during($function, static function (): array {
+        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'root-alpine-attribute.php')->getErrors());
+    }, static fn (string $armed): bool => $armed === $pattern);
+
+    expect($degraded)->toBe($expected);
+})->with([
+    'value strip' => ['preg_replace', '/=\s*(?:"[^"]*"|\'[^\']*\')/'],
+    'name read' => ['preg_match_all', '/(?:^|\s)([^\s=<>"\'\/]+)/'],
+]);
+
+/**
+ * loopRegions() drops a directive whose read gave out, so the loop it opens is
+ * one the sniff does not police rather than one it polices off a fragment.
+ *
+ * Two things are asserted, and the second is the load-bearing one. The verdict
+ * is that MissingWireKeyInLoop goes unreported, which is the direction the
+ * guard's comment names. That much also holds without the guard, because a
+ * failed read leaves $matches null and `foreach (null)` contributes no regions
+ * either — so the verdict alone cannot tell a guard from its absence. What
+ * separates them is the read itself: without the guard PHP announces the null
+ * offset and the null foreach, and with it neither happens. See
+ * withPhpDiagnostics() and tests/PregOverrides.php for why that is the honest
+ * discriminator here.
+ */
+it('reports no loop key violation when the loop directives cannot be read', function (): void {
+    $pattern = '/@(foreach|endforeach)\b/i';
+
+    [$reported, $diagnostics] = withPhpDiagnostics(static function () use ($pattern): array {
+        return PregFailure::during('preg_match_all', static function (): array {
+            return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+        }, static fn (string $armed): bool => $armed === $pattern);
+    });
+
+    $sources = [];
+
+    foreach ($reported as $violations) {
+        foreach ($violations as $source) {
+            $sources[] = $source;
+        }
+    }
+
+    expect($sources)->not->toContain('CleanCode.Livewire.ComponentMarkup.MissingWireKeyInLoop')
+        ->and($diagnostics)->toBe([]);
 });

@@ -64,6 +64,7 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
 use PHP_CodeSniffer\Files\LocalFile;
 
 const UNUSED_FORMAL_PARAMETER = 'CleanCode.DeadCode.UnusedFormalParameter';
@@ -925,4 +926,34 @@ it('resolves a namespace-relative exempting call against the enclosing block', f
         // is PHP's own, so it exempts $unusedA and nothing is reported there.
         ['line' => 40, 'column' => 50, 'source' => UNUSED_FORMAL_PARAMETER_ERROR],
     ])->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * interpolatedNames() collects the variable names a string interpolates, and a
+ * parameter named by one of them is a parameter in use. A failed read that is
+ * not guarded reads `$matches['name']` off an untouched $matches — null at
+ * every call site here — and hands the result to array_fill_keys(), which
+ * declared it takes an array.
+ *
+ * The empty list is the guard's exit, and it is the same answer the sniff
+ * reaches without the guard on a runtime failure, so the verdict alone cannot
+ * tell them apart. The read is what differs, and PHP announces it: see
+ * withPhpDiagnostics().
+ */
+it('collects no interpolated name when the string cannot be read', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_match_all',
+            static fn (): array => violationSourcesByLine(
+                analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors()
+            ),
+            static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

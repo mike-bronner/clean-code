@@ -249,7 +249,15 @@ class BooleanGetMethodNameSniff implements Sniff
                 continue;
             }
 
-            $types[] = preg_split('/\s+/', trim($tokens[$next]['content']))[0];
+            $annotation = trim($tokens[$next]['content']);
+
+            // A failed split is false, and `false[0]` reads an offset off a
+            // boolean: null, with a warning, rather than a type. The whole
+            // annotation is the honest fallback — it still starts with the
+            // written type, so `bool` is read as `bool` and only a trailing
+            // description rides along. `/\s+/` is one auto-possessified
+            // quantifier with no `/u` modifier, so preg_split() cannot fail.
+            $types[] = (preg_split('/\s+/', $annotation) ?: [$annotation])[0];
         }
 
         return $types;
@@ -297,7 +305,13 @@ class BooleanGetMethodNameSniff implements Sniff
      */
     private function isBooleanType(string $type): bool
     {
-        $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $type) ?? ''), '?');
+        // The written type rather than '' on a failed read: '' resolves to no
+        // members at all, which reads exactly like a type that is not boolean,
+        // so the failure would silently exempt the method from the check. The
+        // written type still resolves correctly whenever it carries no internal
+        // whitespace, which is every type PHPCS hands over from a native
+        // declaration. `/\s+/` is one auto-possessified quantifier, no `/u`.
+        $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $type) ?? $type), '?');
         $members = array_values(array_diff(explode('|', $normalized), ['null', '']));
 
         return array_map(

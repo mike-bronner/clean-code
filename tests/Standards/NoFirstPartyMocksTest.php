@@ -34,6 +34,7 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
 use MikeBronner\CleanCode\Sniffs\Testing\NoFirstPartyMocksSniff;
 
 const FIRST_PARTY_MOCKS = 'CleanCode.Testing.NoFirstPartyMocks';
@@ -711,4 +712,50 @@ it('reports detection-only warnings', function (): void {
     expect($file->getWarningCount())->toBe(count(FIRST_PARTY_MOCK_LINES))
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
+});
+
+/**
+ * importedAlias() splits a `use` clause on ` as ` to find the alias. A failed
+ * split is false, and `$parts[0]` then reads an offset off a boolean: null,
+ * quietly. The guard falls back to the whole clause, which names no alias —
+ * which is what an import without one already means — so every import is still
+ * read and every first-party mock still reported.
+ */
+it('reads an unsplittable import clause as one piece', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_split',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/\s+as\s+/i'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
+});
+
+/**
+ * statementText() collapses a statement's whitespace so a `use` clause can be
+ * matched against it. A failed collapse cast to a string is '', and an empty
+ * statement text matches no clause at all — every import in the file would go
+ * unread. The guard falls back to the uncollapsed text: the same statement,
+ * with its original spacing, which still matches.
+ */
+it('matches an import whose whitespace cannot be collapsed', function (): void {
+    $expected = allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/\s+/'
+        );
+    });
+
+    expect($expected)->not->toBe([])
+        ->and($degraded)->toBe($expected)
+        ->and($diagnostics)->toBe([]);
 });

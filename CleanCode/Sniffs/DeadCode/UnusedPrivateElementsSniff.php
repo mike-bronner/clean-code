@@ -260,7 +260,25 @@ class UnusedPrivateElementsSniff implements Sniff
             }
 
             if (in_array($code, self::STRING_TOKENS, true) === true) {
-                preg_match_all('/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/', $tokens[$i]['content'], $matches);
+                $matched = preg_match_all(
+                    '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/',
+                    $tokens[$i]['content'],
+                    $matches
+                );
+
+                // A failed read leaves $matches holding an empty [0] key, or
+                // — when the pattern never compiled — not writing to it at all,
+                // so the foreach below iterates an offset read off null.
+                // Skipping the token sends the failure the way the rest
+                // of this walk already leans: a word this read did not collect
+                // is a word no element is proven to use, so a used element can
+                // be reported as unused — a report to argue with, not a
+                // silence to miss. The pattern is two character classes, the
+                // second auto-possessified at the end of the pattern, with no
+                // `/u` modifier, so nothing is known to reach the branch.
+                if ($matched === false) {
+                    continue;
+                }
 
                 foreach ($matches[0] as $word) {
                     $usedProperties[strtolower($word)] = true;

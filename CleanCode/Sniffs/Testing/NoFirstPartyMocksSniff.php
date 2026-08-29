@@ -787,7 +787,13 @@ class NoFirstPartyMocksSniff implements Sniff
      */
     private function importedAlias(string $clause): array
     {
-        $parts = preg_split('/\s+as\s+/i', $clause, 2);
+        // A failed split is false, and $parts[0] then reads an offset off a
+        // boolean: null, quietly, rather than loudly. The whole clause is the
+        // honest fallback — an unsplit clause names no alias, which is what an
+        // import without one already means. `/\s+as\s+/i` puts `\s+` in front
+        // of a character it excludes, which PCRE auto-possessifies, so there is
+        // nothing to backtrack over and no `/u` modifier to fail on.
+        $parts = preg_split('/\s+as\s+/i', $clause, 2) ?: [$clause];
         $qualified = trim((string) $parts[0], '\\');
         $segments = explode('\\', $qualified);
         $alias = $parts[1] ?? end($segments);
@@ -812,7 +818,13 @@ class NoFirstPartyMocksSniff implements Sniff
             $written .= ($isEmpty === true ? ' ' : $tokens[$current]['content']);
         }
 
-        return trim((string) preg_replace('/\s+/', ' ', $written));
+        // A failed collapse cast to a string is '', and an empty statement
+        // text matches no `use` clause at all — every import in the file would
+        // go unread. The uncollapsed text is the honest fallback: it is the
+        // same statement, just with its original spacing. `/\s+/` carries one
+        // quantifier over a character class at the end of the pattern, which
+        // PCRE auto-possessifies, and no `/u` modifier.
+        return trim(preg_replace('/\s+/', ' ', $written) ?? $written);
     }
 
     /**

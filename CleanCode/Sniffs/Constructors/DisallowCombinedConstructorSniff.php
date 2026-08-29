@@ -854,7 +854,14 @@ class DisallowCombinedConstructorSniff implements Sniff
                 continue;
             }
 
-            $normalized = ltrim(strtolower(preg_replace('/\s+/', '', (string) $parameter['type_hint']) ?? ''), '?');
+            $written = (string) $parameter['type_hint'];
+
+            // The written hint rather than '' on a failed read: '' resolves to
+            // no members at all, which reads exactly like a hint that is not
+            // boolean, so the failure would silently drop the parameter's mode
+            // signal. `/\s+/` is one auto-possessified quantifier with no `/u`
+            // modifier, so preg_replace() cannot fail.
+            $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $written) ?? $written), '?');
             $types = array_values(array_diff(explode('|', $normalized), ['null', '']));
             $default = strtolower(trim((string) ($parameter['default'] ?? '')));
 

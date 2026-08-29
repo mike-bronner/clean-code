@@ -13,6 +13,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const LOGICAL_GROUPINGS = 'CleanCode.Indentation.LogicalGroupings';
 
 const LOGICAL_GROUPINGS_NOT_INDENTED = LOGICAL_GROUPINGS . '.GroupNotIndented';
@@ -966,4 +968,42 @@ it('builds its line-start index once per stream, not once per read', function ()
                 "n={$size}: every read after the first answers from the index already built"
             );
     }
+});
+
+/**
+ * NOT a discriminating test, and it is written down here rather than left for a
+ * reviewer to discover. Deleting reindent()'s `?? rtrim(...)` fallback leaves
+ * this green, because the guard's branch cannot be told from the failure it
+ * guards against.
+ *
+ * The reason is in the tokenizer, not in the guard. reindent() only reaches the
+ * read when the line starts with a T_WHITESPACE token, and PHPCS ends every
+ * whitespace token at its newline — so that token holds spaces and tabs and
+ * never an end-of-line character. `/[^\r\n]+$/` therefore strips all of it,
+ * the fallback rtrim() strips all of it, and an unguarded null concatenates as
+ * '': three spellings of the same empty prefix. The line breaks the method's
+ * docblock says it preserves are already behind $first.
+ *
+ * What this does assert is the honest remainder: a failed read changes neither
+ * what the sniff reports nor what its fixer writes. That is worth pinning — it
+ * is what makes the guard safe to keep — but it is not evidence the guard fires,
+ * and no test on this call site can be, short of a tokenizer that hands over a
+ * whitespace token carrying its own newline.
+ */
+it('fixes a group whose leading break cannot be read the same way', function (): void {
+    $expected = autofixedContents(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php'));
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): string {
+        return PregFailure::during(
+            'preg_replace',
+            static fn (): string => autofixedContents(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')),
+            static fn (string $pattern): bool => $pattern === '/[^\r\n]+$/'
+        );
+    });
+
+    $reports = allViolationSourcesByLine(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php'));
+
+    expect($degraded)->toBe($expected)
+        ->and($reports)->not->toBe([])
+        ->and($diagnostics)->toBe([]);
 });

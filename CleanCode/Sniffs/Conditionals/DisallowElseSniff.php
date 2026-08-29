@@ -445,10 +445,15 @@ class DisallowElseSniff implements Sniff
                 continue;
             }
 
-            $phpcsFile->fixer->replaceToken(
-                $ptr,
-                (string) preg_replace('/^    /', '', $tokens[$ptr]['content'])
-            );
+            $indent = $tokens[$ptr]['content'];
+
+            // A failed read cast to a string is '', which would delete the
+            // line's whole indentation instead of one level of it and leave
+            // the fixed file misindented. `/^    /` is four literal spaces
+            // anchored at the start — no quantifier to backtrack over, no
+            // recursion, no `/u` — so nothing is known to reach this fallback;
+            // it keeps the line as written if anything ever does.
+            $phpcsFile->fixer->replaceToken($ptr, preg_replace('/^    /', '', $indent) ?? $indent);
         }
 
         $phpcsFile->fixer->replaceToken($scopeCloser, '');

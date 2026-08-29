@@ -21,6 +21,8 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Tests\PregFailure;
+
 const SUPERGLOBALS = 'CleanCode.Controversial.Superglobals';
 
 it('is registered in the master ruleset', function (): void {
@@ -514,4 +516,32 @@ it('quotes those measurements accurately in the docs and in rules.xml', function
         ->and($reportsCell('Generic.PHP.DisallowRequestSuperglobal'))->toBe('1 of 26')
         ->and($prose)->toContain('it reports 12 of the 26 accesses in failing.php')
         ->and($prose)->toContain('it reports 1 of 26');
+});
+
+/**
+ * processInterpolation() had a guard that could not fire: preg_match_all()
+ * reports failure with false, and `false === 0` is false under a strict
+ * comparison, so a failed read fell into the loop the exit was written to skip
+ * and read a `name` key the failure never wrote.
+ *
+ * A string that could not be read carries no reportable interpolation, so the
+ * superglobals inside it go unreported — that is the direction the guard takes,
+ * and the fixture's interpolated reports disappearing is that direction made
+ * visible. The unguarded read reaches the same silence by reading an offset off
+ * null on the way, which is what the diagnostics assertion holds it to.
+ */
+it('reports nothing from a string whose interpolations cannot be read', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(SUPERGLOBALS, 'failing.php')->getErrors());
+
+    [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
+        return PregFailure::during(
+            'preg_match_all',
+            static fn (): array => violationSourcesByLine(analyzeFixture(SUPERGLOBALS, 'failing.php')->getErrors()),
+            static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
+        );
+    });
+
+    expect(array_keys($expected))->toContain(42)
+        ->and(array_keys($degraded))->not->toContain(42)
+        ->and($diagnostics)->toBe([]);
 });
