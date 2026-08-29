@@ -51,6 +51,15 @@ jobs:
       - name: Master ruleset loads and runs
         run: vendor/bin/phpcs --standard=rules.xml tests/bootstrap.php
 
+      # #229: dogfood the ruleset against the package's own sniff sources.
+      # The step above only proves rules.xml loads, by running it over a single
+      # file; this one runs it over all of CleanCode/ and holds every file to
+      # the error count recorded in tools/dogfood-baseline.json. A file absent
+      # from that baseline is held at zero, so a new sniff cannot land carrying
+      # rules.xml errors without the baseline diff saying so out loud.
+      - name: Dogfood ruleset against sniff sources
+        run: composer dogfood
+
       - name: Self-lint (PSR-12)
         run: composer lint
 

@@ -30,7 +30,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "MikeBronner\\CleanCode\\Tests\\": "tests/"
+            "MikeBronner\\CleanCode\\Tests\\": "tests/",
+            "MikeBronner\\CleanCode\\Tools\\": "tools/"
         }
     },
     "config": {
@@ -40,7 +41,8 @@
         }
     },
     "scripts": {
-        "lint": "phpcs --standard=PSR12 --extensions=php --ignore=*/fixtures/* CleanCode tests",
+        "dogfood": "php tools/dogfood.php",
+        "lint": "phpcs --standard=PSR12 --extensions=php --ignore=*/fixtures/* CleanCode tests tools",
         "test": "pest"
     }
 }
