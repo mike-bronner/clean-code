@@ -1342,7 +1342,9 @@ function purgeStagedFixtures(): void
  * into a recursive delete of the target's contents, outside the staging root it
  * was asked to remove (#380). The unlink is unconditional, never gated on the
  * target still existing: a dangling link has no contents to keep either way,
- * and leaving one behind would only make the closing rmdir() fail.
+ * and leaving one behind fails the closing rmdir() below — or, when the staging
+ * root is itself the dangling link, returns before there is an rmdir() to fail
+ * and leaks the link with no diagnostic at all.
  */
 function removeStagedDirectory(string $directory): void
 {
