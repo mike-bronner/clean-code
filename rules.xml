@@ -652,8 +652,7 @@
         inside a class whose name ends in Controller, so it is already silent
         everywhere else, tests included.
 
-        The sniff's own source passes this ruleset — a phpcs run of
-        ManualModelResolutionSniff.php against rules.xml exits 0 — which is why
+        The sniff's own source was written to pass this ruleset, which is why
         it reads the way it does: match(true) guard chains instead of if
         (CleanCode.Conditionals.AvoidConditionals), the File API instead of the
         token array (CleanCode.Arrays.ArrayAccessors, whose data_get()
@@ -663,11 +662,20 @@
         another helper this package does not ship), and a NOWDOC message
         (CleanCode.Strings.MultilineStrings).
 
-        tests/Standards/ManualModelResolutionTest.php asserts that run reports
-        nothing, warnings included. Until it did, the claim above was only a
-        comment: CleanCode.Arrays.ConvertToCollection landed after this sniff
-        and flagged its array_map()/array_filter() pair, so the run had been
+        tests/Standards/ManualModelResolutionTest.php pins that run's exact
+        output — every source named, nothing else — rather than asserting
+        silence. Until it did, the claim above was only a comment:
+        CleanCode.Arrays.ConvertToCollection landed after this sniff and
+        flagged its array_map()/array_filter() pair, so the run had been
         exiting 1 with nothing to catch it.
+
+        The run no longer exits 0, and that test records why: sniffs landing
+        later added CleanCode.Classes.RequireProperties.MissingProperty and
+        CleanCode.ClearCode.SectionComment.Found here, each out of scope for
+        the issue that introduced it. #229's `composer dogfood` gate now pins
+        this file's error count alongside every other, so the next such
+        addition shows up in a baseline diff instead of quietly falsifying a
+        comment.
 
         One line carries a phpcs:ignore, the only one in the package. PHPCS's
         Sniff interface declares process()'s $stackPtr untyped, and PHP treats
