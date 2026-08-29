@@ -323,6 +323,13 @@ class ComponentMarkupSniff implements Sniff
      * An opener that is never closed is skipped rather than blanked — the same
      * silence the unbalanced-loop and unclosed-component handling take, and the
      * same reading the lazy pattern this replaced gave it.
+     *
+     * The blanking read is guarded rather than trusted, though no input is
+     * known to reach the guard: `/[^\r\n]/` is a single negated character
+     * class carrying no quantifier, so it can neither backtrack nor recurse,
+     * and it has no `/u` modifier, so malformed UTF-8 in the view cannot fail
+     * it either. The branch is exercised through the call boundary in
+     * tests/PregOverrides.php instead.
      */
     private function blankComments(string $markup): string
     {
@@ -352,8 +359,19 @@ class ComponentMarkupSniff implements Sniff
             }
 
             $end += strlen($close);
-            $blanked .= substr($markup, $copied, ($start - $copied))
-                . (string) preg_replace('/[^\r\n]/', ' ', substr($markup, $start, ($end - $start)));
+            $comment = substr($markup, $start, ($end - $start));
+            $blank = preg_replace('/[^\r\n]/', ' ', $comment);
+
+            // A failed read leaves the comment as it stands rather than
+            // dropping it: null cast to a string is '', and an empty
+            // substitution shortens $blanked by the whole comment, so every
+            // offset and reported line number after it in the file shifts. The
+            // comment's own text is the only same-length replacement that also
+            // keeps its line breaks, which str_repeat(' ', ...) would not. The
+            // cost is that the comment is read as markup, which can only add a
+            // report, never silence one. Same shape as the ?? $content fallback
+            // in NoLogicSniff::unescapedContent().
+            $blanked .= substr($markup, $copied, ($start - $copied)) . ($blank ?? $comment);
             $copied = $end;
             $offset = $end;
         }
@@ -804,6 +822,13 @@ class ComponentMarkupSniff implements Sniff
      * arrive in ascending order, so such a region cannot contain a later one
      * either.
      *
+     * Each directive's read is guarded rather than trusted, though no input is
+     * known to reach the guard: `/@(foreach|endforeach)\b/i` and its three
+     * siblings are a literal alternation between two words, carrying no
+     * quantifier to backtrack over and no recursion, and none has a `/u`
+     * modifier. The branch is exercised through the call boundary in
+     * tests/PregOverrides.php instead.
+     *
      * @return array<int, array{int, int}>
      */
     private function loopRegions(string $markup): array
@@ -812,7 +837,20 @@ class ComponentMarkupSniff implements Sniff
 
         foreach (self::LOOP_DIRECTIVES as $directive) {
             $pattern = '/@(' . $directive . '|end' . $directive . ')\b/i';
-            preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE);
+            $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE);
+
+            // The read gave out partway, so $matches holds a fragment of the
+            // view: some openers without their closers, or the reverse. Pairing
+            // a fragment produces regions that are not in the file, and a
+            // component inside one of those is then reported for a wire:key the
+            // standard never asked it for. Dropping this directive's regions
+            // unread sends the failure the other way — a loop the sniff could
+            // not read is a loop it does not police, so MissingWireKeyInLoop
+            // goes unreported for it rather than misreported.
+            if ($matched === false) {
+                continue;
+            }
+
             $open = [];
 
             foreach ($matches[1] as $match) {
@@ -1035,14 +1073,56 @@ class ComponentMarkupSniff implements Sniff
      * as an attribute name of its own — the standard is about attributes an
      * element carries, not about what Blade or Alpine echoes into one.
      *
+     * Both reads are guarded, in the order they run, and the first guard is
+     * what makes the second one reachable at all — see the comments below.
+     * Neither pattern is known to be drivable to failure: every quantifier in
+     * `/=\s*(?:"[^"]*"|'[^']*')/` and in `/(?:^|\s)([^\s=<>"'\/]+)/` is a
+     * character class followed by a character the class excludes, which PCRE
+     * auto-possessifies, so there is nothing to backtrack over; neither carries
+     * a `/u` modifier. The branches are exercised through the call boundary in
+     * tests/PregOverrides.php instead.
+     *
      * @return array<int, string>
      */
     private function attributeNames(string $attributes): array
     {
-        $names = (string) preg_replace('/=\s*(?:"[^"]*"|\'[^\']*\')/', '=', $attributes);
-        preg_match_all('/(?:^|\s)([^\s=<>"\'\/]+)/', $names, $matches);
+        // Guarded before the read below, and not merged into it. Casting a
+        // failed value-strip to a string gives '', preg_match_all() against ''
+        // returns 0 rather than false — a finished read that found nothing —
+        // and this method would then hand back [] with the read below reporting
+        // success. Falling back to the raw attribute list keeps the names
+        // readable; the values come with them, so an interpolated one can be
+        // read as a name of its own, which costs a report that should not have
+        // been made rather than a report that should have been.
+        $names = preg_replace('/=\s*(?:"[^"]*"|\'[^\']*\')/', '=', $attributes) ?? $attributes;
+        $matched = preg_match_all('/(?:^|\s)([^\s=<>"\'\/]+)/', $names, $matches);
+
+        // The name read gave out partway, so $matches[1] is a fraction of the
+        // list presented as the whole — and a missing name is what
+        // checkRootElement() reads as "this root carries no framework
+        // attribute", the RootElementAttributes bypass #366 closed by a
+        // different path. Splitting the list on whitespace without PCRE keeps
+        // every name in play: each piece still carries its own name as its
+        // prefix, which is all frameworkAttribute() and OWN_WIRE_DIRECTIVE ask
+        // of it.
+        if ($matched === false) {
+            return self::whitespaceSeparated($names);
+        }
 
         return $matches[1];
+    }
+
+    /**
+     * $text split on whitespace, empty pieces dropped, without asking PCRE for
+     * anything — this is the fallback for a PCRE read that already failed.
+     *
+     * @return array<int, string>
+     */
+    private static function whitespaceSeparated(string $text): array
+    {
+        $pieces = explode(' ', str_replace(["\t", "\n", "\r", "\v", "\f"], ' ', $text));
+
+        return array_values(array_filter($pieces, static fn (string $piece): bool => $piece !== ''));
     }
 
     /**

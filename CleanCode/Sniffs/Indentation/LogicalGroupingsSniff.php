@@ -711,7 +711,15 @@ class LogicalGroupingsSniff implements Sniff
             return;
         }
 
-        $eol = preg_replace('/[^\r\n]+$/', '', $tokens[$first]['content']);
+        $existing = $tokens[$first]['content'];
+
+        // A failed read is null, and `null . $padding` would drop the line
+        // breaks this method exists to preserve, joining the line to the one
+        // above it. The token is whitespace throughout, so rtrim() answers the
+        // same question without PCRE and is the fallback. `/[^\r\n]+$/`
+        // quantifies one character class against an anchor and carries no `/u`
+        // modifier.
+        $eol = preg_replace('/[^\r\n]+$/', '', $existing) ?? rtrim($existing, " \t\x0B\f");
         $phpcsFile->fixer->replaceToken($first, $eol . $padding);
     }
 }

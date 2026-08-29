@@ -205,7 +205,14 @@ class PrimaryConstructorDelegationSniff implements Sniff
      */
     private function returnsDeclaringClass(File $phpcsFile, string $returnType, ?string $className): bool
     {
-        foreach (preg_split('/[|&]/', $returnType) as $part) {
+        // A failed split is false and the foreach then throws a TypeError. The
+        // unsplit type is the honest fallback: a single-member union is what a
+        // type carrying no separator already reduces to, so a plain `self`
+        // still answers correctly and only a union goes unread. `/[|&]/` is a
+        // literal character class with no quantifier and no `/u` modifier, so
+        // preg_split() cannot fail; the ?: states that outright rather than
+        // leaning on it, as MemberOrderingSniff::isRelationReturnType() does.
+        foreach (preg_split('/[|&]/', $returnType) ?: [$returnType] as $part) {
             $spelling = ltrim(trim($part), '?');
             $type = strtolower(ltrim($spelling, '\\'));
 

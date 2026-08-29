@@ -23,6 +23,7 @@
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Livewire\ComponentMarkupSniff;
+use MikeBronner\CleanCode\Tests\PregFailure;
 
 const COMPONENT_MARKUP = 'CleanCode.Livewire.ComponentMarkup';
 
@@ -1246,4 +1247,90 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
     expect(array_merge(...array_values(allViolationSourcesByLine($pair))))
         ->toBe([ADJACENT_COMPONENT_NOT_WRAPPED, ADJACENT_COMPONENT_NOT_WRAPPED])
         ->and($pair->getWarnings())->toBe([]);
+});
+
+/**
+ * blankComments() substitutes same-length blanks for a comment so that every
+ * offset and line number after it stays where it was. A failed read cast to a
+ * string is '', which shortens the blanked copy by the whole comment and drags
+ * every later line number up with it.
+ *
+ * The assertion is a reported line number rather than "the sniff still runs",
+ * because the shift is silent: the sniff reports the same violation, at the
+ * wrong line, and only a fixture whose violation sits *after* a comment can
+ * tell the two apart. failing.php carries both. Drop the `?? $comment`
+ * fallback and the same run reports its violations several lines early.
+ *
+ * The failure is forced at the call boundary rather than by an adversarial
+ * fixture because `/[^\r\n]/` has no quantifier to backtrack over and no `/u`
+ * modifier — no input drives it to failure, which is why the guard needs this
+ * seam to be readable at all.
+ */
+it('keeps every line number after an unreadable comment where it was', function (): void {
+    $expected = violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+
+    $blanked = PregFailure::during('preg_replace', static function (): array {
+        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+    }, static fn (string $pattern): bool => $pattern === '/[^\r\n]/');
+
+    expect($expected)->not->toBe([])
+        ->and($blanked)->toBe($expected);
+});
+
+/**
+ * attributeNames() reads the root element's attributes, and an empty list is
+ * what checkRootElement() reads as "this root carries no Livewire, Blade or
+ * Alpine attribute" — the RootElementAttributes bypass #366 closed by another
+ * path. A failed value-strip must therefore not empty the list.
+ *
+ * Asserted through the sniff, on a fixture whose root does carry such an
+ * attribute, so the answer read is the report itself and not an intermediate
+ * value. Both guards are exercised: the value-strip by arming preg_replace,
+ * the name read by arming preg_match_all. Remove either and the fixture's
+ * RootElementAttributes error disappears.
+ */
+it('still reports a root attribute when the attribute list cannot be read', function (
+    string $function,
+    string $pattern
+): void {
+    $expected = violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'root-alpine-attribute.php')->getErrors());
+
+    expect($expected)->not->toBe([]);
+
+    $degraded = PregFailure::during($function, static function (): array {
+        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'root-alpine-attribute.php')->getErrors());
+    }, static fn (string $armed): bool => $armed === $pattern);
+
+    expect($degraded)->toBe($expected);
+})->with([
+    'value strip' => ['preg_replace', '/=\s*(?:"[^"]*"|\'[^\']*\')/'],
+    'name read' => ['preg_match_all', '/(?:^|\s)([^\s=<>"\'\/]+)/'],
+]);
+
+/**
+ * loopRegions() pairs each loop directive's opener with its closer. A read that
+ * gave out partway leaves openers without closers, and pairing that fragment
+ * invents regions that are not in the file — components inside one are then
+ * reported for a wire:key the standard never asked of them.
+ *
+ * The fixture is the one that already reports MissingWireKeyInLoop, so the
+ * assertion is that the failed read reports *nothing* there rather than
+ * reporting something else: dropping the directive unread is the exit, and
+ * without the guard the same run reports off a fragment.
+ */
+it('reports no loop key violation when the loop directives cannot be read', function (): void {
+    $pattern = '/@(foreach|endforeach)\b/i';
+    $reported = PregFailure::during('preg_match_all', static function (): array {
+        return violationSourcesByLine(analyzeFixture(COMPONENT_MARKUP, 'failing.php')->getErrors());
+    }, static fn (string $armed): bool => $armed === $pattern);
+
+    $sources = [];
+
+    foreach ($reported as $line => $violations) {
+        foreach ($violations as $source) {
+            $sources[] = $source;
+        }
+    }
+
+    expect($sources)->not->toContain('CleanCode.Livewire.ComponentMarkup.MissingWireKeyInLoop');
 });

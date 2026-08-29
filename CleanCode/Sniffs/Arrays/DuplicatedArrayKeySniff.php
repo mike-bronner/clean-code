@@ -442,6 +442,14 @@ class DuplicatedArrayKeySniff implements Sniff
     {
         $inner = substr($literal, 1, -1);
 
+        // Audited, unguarded on purpose: a failed read returns null, and null
+        // is already this method's "the token stream does not settle it"
+        // sentinel, which the caller reads as "skip this key". Safe by
+        // circumstance rather than by construction, so it is written down here:
+        // change that sentinel and this call needs a guard of its own. The
+        // pattern is a literal backslash followed by a two-member character
+        // class, with no quantifier, no recursion and no `/u` modifier, so
+        // nothing is known to drive it there in the first place.
         if ($literal[0] === "'") {
             return preg_replace('/\\\\([\\\\\'])/', '$1', $inner);
         }

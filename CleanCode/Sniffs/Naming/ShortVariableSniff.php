@@ -406,11 +406,23 @@ class ShortVariableSniff implements Sniff
             return [];
         }
 
-        preg_match_all(
+        $matched = preg_match_all(
             '/(?<!\\\\)\$\{?([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/',
             (string) $token['content'],
             $matches
         );
+
+        // A failed read leaves $matches without its [1] key, and returning it
+        // violates this method's declared array<int, string> under
+        // strict_types. The empty list is the exit for it, and it is the only
+        // honest one: names that were not read cannot be checked, so a short
+        // name interpolated into this string goes unreported. The pattern's
+        // lookbehind is fixed-width and its one quantifier is a character class
+        // auto-possessified at the end of the pattern, with no `/u` modifier,
+        // so nothing is known to reach the branch.
+        if ($matched === false) {
+            return [];
+        }
 
         return $matches[1];
     }

@@ -124,13 +124,16 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 178, 'column' => 34],
     ],
     'CleanCode/Sniffs/Controversial/SuperglobalsSniff.php' => [
-        ['line' => 217, 'column' => 18],
+        ['line' => 233, 'column' => 18],
     ],
     'CleanCode/Sniffs/DeadCode/UnusedFormalParameterSniff.php' => [
-        ['line' => 950, 'column' => 16],
+        ['line' => 962, 'column' => 16],
     ],
     'CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php' => [
         ['line' => 171, 'column' => 18],
+    ],
+    'CleanCode/Sniffs/Livewire/ComponentMarkupSniff.php' => [
+        ['line' => 1125, 'column' => 29],
     ],
     'CleanCode/Sniffs/Models/DisallowAlwaysOnEagerLoadingSniff.php' => [
         ['line' => 160, 'column' => 34],
@@ -146,7 +149,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 105, 'column' => 13],
     ],
     'CleanCode/Sniffs/Naming/BooleanGetMethodNameSniff.php' => [
-        ['line' => 303, 'column' => 16],
+        ['line' => 317, 'column' => 16],
     ],
     'CleanCode/Sniffs/Naming/LongClassNameSniff.php' => [
         ['line' => 148, 'column' => 16],
@@ -179,7 +182,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 423, 'column' => 13],
     ],
     'CleanCode/Sniffs/Testing/NoFirstPartyMocksSniff.php' => [
-        ['line' => 862, 'column' => 44],
+        ['line' => 874, 'column' => 44],
     ],
     'CleanCode/Sniffs/Testing/NoHttpFakesInIntegrationTestsSniff.php' => [
         ['line' => 532, 'column' => 21],
@@ -242,8 +245,8 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 208, 'column' => 27],
     ],
     'tests/Standards/ComponentMarkupTest.php' => [
-        ['line' => 399, 'column' => 16],
-        ['line' => 401, 'column' => 9],
+        ['line' => 400, 'column' => 16],
+        ['line' => 402, 'column' => 9],
     ],
     'tests/Standards/DisallowAlwaysOnEagerLoadingTest.php' => [
         ['line' => 85, 'column' => 15],

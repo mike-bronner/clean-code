@@ -294,7 +294,16 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         $content = $tokens[$contentPtr]['content'];
-        $trimmed = preg_replace($pattern, '', $content);
+
+        // A failed read is null, and `null === $content` is false, so the
+        // failure would fall past the guard below and hand null to the fixer as
+        // the replacement text. The content itself is the honest fallback: it
+        // reads as "nothing to trim", which leaves the file as written and the
+        // violation unreported rather than emptying the backticks. The three
+        // patterns this is called with — `/^[ \t]+|[ \t]+$/`, `/^[ \t]+/` and
+        // `/[ \t]+$/` — each quantify one character class against an anchor,
+        // and none carries a `/u` modifier.
+        $trimmed = preg_replace($pattern, '', $content) ?? $content;
 
         if ($trimmed === $content) {
             return;
