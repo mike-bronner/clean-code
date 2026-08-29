@@ -422,10 +422,17 @@ it('reports the violation end to end through the installed package', function ()
  *
  * - The single-quoted branch keeps its report. A name with nothing to unescape
  *   survives the fallback unchanged, so the route is still classified.
- * - The double-quoted branch loses its report. `PostController@reh\x6fme` read
- *   without evaluating `\x6f` names no method PHP would call, so the route goes
- *   unpoliced. That is a report lost, not a wrong report gained, and it is the
- *   direction a read that failed can honestly take.
+ * - The double-quoted branch loses its report when the name it carries only
+ *   spells a method after its escapes are evaluated. `PostController@reh\x6fme`
+ *   read raw names no method PHP would call, so the route goes unpoliced. That
+ *   is a report lost, not a wrong report gained, and it is the direction a read
+ *   that failed can honestly take.
+ * - The double-quoted branch with nothing to unescape keeps its report, and
+ *   that row is what holds this fallback to account. Both other rows answer the
+ *   same way whether the failure falls back to the body or is cast to '' — the
+ *   defect this guard replaced — so neither can tell the guard from its
+ *   absence. Here the two answers part: the body still names the action, '' does
+ *   not.
  */
 it('survives an escaped action whose literal cannot be evaluated', function (
     string $source,
@@ -447,5 +454,14 @@ it('survives an escaped action whose literal cannot be evaluated', function (
         ->and($diagnostics)->toBe([]);
 })->with([
     'single-quoted' => ["Route::get('/posts/rehome', 'PostController@rehome');", '/\\\\(.)/s', true],
-    'double-quoted' => ['Route::get("/posts/rehome", "PostController@reh\x6fme");', '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s', false],
+    'double-quoted' => [
+        'Route::get("/posts/rehome", "PostController@reh\x6fme");',
+        '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
+        false,
+    ],
+    'double-quoted, nothing to unescape' => [
+        'Route::get("/posts/rehome", "PostController@rehome");',
+        '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
+        true,
+    ],
 ]);
