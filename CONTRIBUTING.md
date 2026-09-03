@@ -493,48 +493,46 @@ is intentional, and they are only useful if they explain themselves.
 ```bash
 composer install
 composer test     # the full Pest suite
-composer lint     # PSR-12 self-lint of the sniff/test/tool code (fixtures excluded)
-composer dogfood  # rules.xml against CleanCode/, held to tools/dogfood-baseline.json
+composer lint      # PSR-12 over the sniff and test code (fixtures excluded)
+composer lint:self # the shipped ruleset against CleanCode/, at zero errors
 
 vendor/bin/pest --testsuite=Standards      # one suite
 vendor/bin/pest --filter='flags every'     # one test
 vendor/bin/phpcs --standard=rules.xml <file>   # run the master ruleset
 ```
 
-### The dogfood ratchet
+### The self-lint, and why CI is red
 
-`composer dogfood` runs the master ruleset over the package's own sniff sources
-and holds every file to the error count recorded in
-`tools/dogfood-baseline.json`. CI runs it on every pull request.
+`composer lint:self` runs the shipped ruleset over the package's own sniff
+sources through `phpcs.self.xml`. No rule is excluded and no file is granted an
+allowance. **Zero errors is the bar**, and CI runs it on every pull request.
 
-It ratchets rather than demanding zero, because zero is not currently reachable.
-Measured on `main` at `aa0f02e`, `phpcs --standard=rules.xml CleanCode/` reports
-**3052 errors across 105 of 107 files**. Over half of those are
-`CleanCode.Arrays.ArrayAccessors`, whose sanctioned fix is `data_get()` — a
-Laravel helper this package deliberately does not ship (`rules.xml:658-660`) —
-and most of the rest are the complexity metrics firing on token walking, which
-is inherently branch-heavy. Clearing them is sniff redesign, not a formatting
-sweep, and is tracked separately under #229.
+**It fails today.** `phpcs --standard=phpcs.self.xml` currently reports
+**3103 errors across 107 files**. Most are `CleanCode.Arrays.ArrayAccessors`,
+whose sanctioned fix is `data_get()` — a Laravel helper this package
+deliberately does not ship — and most of the rest are the complexity metrics
+firing on token walking, which is inherently branch-heavy. Clearing them is
+sniff redesign, not a formatting sweep.
 
-What the ratchet does buy is that the number cannot grow in silence:
+That red is deliberate. An exclusion list tuned to whatever the code currently
+does would move the bar to the code rather than the code to the bar, and could
+be moved again next time. A failing gate states the real distance, and the
+number only goes one way.
 
-- a file over its recorded count fails;
-- a file **absent** from the baseline is held at zero, so a newly added sniff
-  carrying `rules.xml` errors fails the moment it lands;
-- a file *below* its recorded count fails too, asking for a regenerate. A
-  baseline left above the real count hands back the ground the cleanup won — a
-  later regression up to the stale pin would pass unnoticed.
+The step runs **last** in the workflow, after the lint and the test suite, so a
+contributor still sees whether their own change is sound before the job fails on
+the standing debt.
 
-Cleaned a file, or have a violation you believe is genuinely unavoidable? Re-record
-and commit the baseline, so the change is visible in the diff and gets reviewed:
+Scope is set by `<file>CleanCode</file>` rather than by an exclude-pattern.
+PHPCS applies an exclude-pattern even to a path named on the command line, so
+excluding `tests/` would break any run that lints a fixture by explicit path —
+which several suites here do. Naming `CleanCode/` leaves everything else out of
+scope with nothing suppressed. The test tree still gets PSR-12 via
+`composer lint`.
 
-```bash
-composer dogfood -- --generate
-```
-
-Only errors are counted. Warnings do not gate `phpcs`, and
-`CleanCode.Conditionals.AvoidConditionals` alone reports 1984 of the tree's
-3334 — admitting warnings would be a far larger decision than the gate itself.
+Only errors are counted, because only errors gate `phpcs`. Warnings stand at
+3389, and `CleanCode.Conditionals.AvoidConditionals` alone accounts for most of
+them — admitting warnings would be a far larger decision than this gate.
 
 ### `process()` and the untyped `$stackPtr`
 
@@ -546,6 +544,37 @@ PHP_CodeSniffer `Sniff` interface, which is a fatal error. Silence
 why, as `CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php` does:
 
 ```php
-// phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint
+// phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
 public function process(File $phpcsFile, $stackPtr): void
 ```
+
+Name the **sniff**, not the message code. Without a `@param` annotation the
+sniff reports `MissingAnyTypeHint` rather than `MissingNativeTypeHint`, so a
+code-specific suppression stops matching the moment the docblock goes.
+
+### Comments
+
+A comment explains **unexpected behavior** or an **unexpected requirement**.
+Nothing else. There are no PHPDoc blocks in this package.
+
+Keep a comment when a reader would otherwise be surprised:
+
+- "PHPCS applies an `<exclude-pattern>` even to a path named on the command
+  line."
+- "Left unset, this property follows whichever interpreter runs `phpcs`, so a
+  consumer on a newer PHP gets findings their CI did not."
+
+Cut anything that restates what the code or config line already says, narrates
+how a decision was reached, or repeats a `docs/standards/*.md` the line already
+points at. An XML comment and a docblock cannot be tested, so they drift in
+silence — `rules.xml` has shipped three false claims that way.
+
+Never make a comment a test's expected value. An enumeration a test needs is
+data, so it belongs in code: see `MultiLineStatementIndentSniff`'s
+`EXPRESSION_SCOPES` / `NON_EXPRESSION_SCOPES` pair, whose union the suite
+checks against PHPCS's own register.
+
+An XML comment cannot contain `--`, so a CLI flag written inside one makes the
+ruleset unparseable. PHPCS then reports `Comment must not contain '--'` and
+exits 3, and a suite that loads the standard hangs rather than failing. Write
+"the config-set command", not the flag.

@@ -39,22 +39,22 @@
 declare(strict_types=1);
 
 const METHOD_TYPE_HINTS_SNIFFS = [
-    'SlevomatCodingStandard.TypeHints.ParameterTypeHint',
+    'CleanCode.TypeHints.ParameterTypeHint',
     'SlevomatCodingStandard.TypeHints.ReturnTypeHint',
 ];
 
-const PARAMETER_ANY = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
+const PARAMETER_ANY = 'CleanCode.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
 
-const PARAMETER_NATIVE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
+const PARAMETER_NATIVE = 'CleanCode.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
 
 const RETURN_ANY = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint';
 
 const RETURN_NATIVE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint';
 
-const PARAMETER_TRAVERSABLE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint'
+const PARAMETER_TRAVERSABLE = 'CleanCode.TypeHints.ParameterTypeHint'
     . '.MissingTraversableTypeHintSpecification';
 
-const PARAMETER_USELESS = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation';
+const PARAMETER_USELESS = 'CleanCode.TypeHints.ParameterTypeHint.UselessAnnotation';
 
 const RETURN_TRAVERSABLE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint'
     . '.MissingTraversableTypeHintSpecification';
@@ -197,7 +197,7 @@ it('leaves #45 property type-hint violations out of #70 coverage', function () u
         analyzeWithMasterRuleset(fixturePath('_rulesets/MethodTypeHints', 'property-hint-not-counted.php'))
     );
 
-    expect($sources[11])->toContain('SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingAnyTypeHint');
+    expect($sources[11])->toContain('CleanCode.TypeHints.PropertyTypeHint.MissingAnyTypeHint');
 });
 
 it('marks exactly the annotated violations fixable', function (): void {
@@ -207,7 +207,7 @@ it('marks exactly the annotated violations fixable', function (): void {
     foreach ($file->getErrors() as $line => $columns) {
         foreach ($columns as $errors) {
             foreach ($errors as $error) {
-                $isOwned = str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.')
+                $isOwned = str_starts_with($error['source'], 'CleanCode.TypeHints.ParameterTypeHint.')
                     || str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.');
 
                 if ($error['fixable'] === true && $isOwned === true) {

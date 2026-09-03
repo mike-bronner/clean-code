@@ -254,43 +254,13 @@ it('stays silent on a declaration with no name after it', function (): void {
  * Neither side is restated here. The family is read out of PHP_CodeSniffer at
  * run time, from the rejection message getDeclarationName() itself raises, so a
  * PHPCS release that starts accepting a fifth declaration keyword reddens this
- * test instead of slipping past it. The accounting is parsed out of the
- * constant's own docblock, so a keyword added to the map without a reason fails
- * here too.
+ * test instead of slipping past it. The accounting is two constants in the
+ * sniff, DECLARATION_KEYWORDS and NON_DECLARATION_KEYWORDS, read out of its
+ * source: both halves are code, so a keyword added to one without the other
+ * fails here.
  */
 it('accounts for every declaration name PHPCS defines', function (): void {
-    $source = (string) file_get_contents(
-        cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/DisallowRepositoryClassesSniff.php'
-    );
-    $declaration = strpos($source, 'private const DECLARATION_KEYWORDS');
-
-    expect($declaration)->not->toBeFalse('the constant is still declared under that name');
-
-    $commentEnd = (int) strrpos(substr($source, 0, (int) $declaration), '*/');
-    $commentStart = (int) strrpos(substr($source, 0, $commentEnd), '/**');
-    $docblock = substr($source, $commentStart, $commentEnd - $commentStart);
-
-    preg_match_all(
-        '/^\s*\*\s+- `(T_[A-Z_0-9]+)` — (included|excluded): (\S[^\r\n]*)$/m',
-        $docblock,
-        $entries,
-        PREG_SET_ORDER
-    );
-
-    $accounted = [];
-    $shortReasons = [];
-
-    foreach ($entries as [, $name, $disposition, $reason]) {
-        $accounted[$name] = $disposition;
-
-        if (strlen(trim($reason)) < 10) {
-            $shortReasons[] = $name;
-        }
-    }
-
-    expect($accounted)->toHaveCount(count($entries), 'no token is accounted for twice')
-        ->and($shortReasons)->toBe([], 'every member carries a reason, not a placeholder');
-
+    $path = cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/DisallowRepositoryClassesSniff.php';
     $probe = analyzeStdinSource([DISALLOW_REPOSITORY_CLASSES], "<?php\n\necho 'repository';\n");
     $echo = array_keys(array_filter(
         $probe->getTokens(),
@@ -313,25 +283,16 @@ it('accounts for every declaration name PHPCS defines', function (): void {
 
     expect($family)->not->toBeEmpty('getDeclarationName() still names its accepted token types');
 
-    $documented = array_keys($accounted);
-    sort($documented);
     sort($family);
 
-    $included = array_keys(array_filter(
-        $accounted,
-        static fn (string $disposition): bool => $disposition === 'included'
-    ));
-    sort($included);
+    $included = tokenNamesInConstant($path, 'DECLARATION_KEYWORDS', [DISALLOW_REPOSITORY_CLASSES]);
+    $excluded = tokenNamesInConstant($path, 'NON_DECLARATION_KEYWORDS', [DISALLOW_REPOSITORY_CLASSES]);
+    $accounted = array_merge($included, $excluded);
+    sort($accounted);
 
-    $registered = array_map(
-        static fn (int $code): string => (string) token_name($code),
-        array_keys((new ReflectionClassConstant(
-            MikeBronner\CleanCode\Sniffs\Pattern\DisallowRepositoryClassesSniff::class,
-            'DECLARATION_KEYWORDS'
-        ))->getValue())
-    );
-    sort($registered);
-
-    expect($documented)->toBe($family, 'every accepted declaration token is accounted for')
-        ->and($registered)->toBe($included, 'the map holds exactly the tokens documented as included');
+    expect($included)->not->toBeEmpty('DECLARATION_KEYWORDS was found and read')
+        ->and($excluded)->not->toBeEmpty('NON_DECLARATION_KEYWORDS was found and read')
+        ->and(array_values(array_intersect($included, $excluded)))
+        ->toBe([], 'no token is both reported and deliberately unreported')
+        ->and($accounted)->toBe($family, 'every accepted declaration token is accounted for');
 });

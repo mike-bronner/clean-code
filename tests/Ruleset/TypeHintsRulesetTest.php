@@ -31,25 +31,25 @@
 
 declare(strict_types=1);
 
-const PARAMETER_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
+const PARAMETER_MISSING_ANY = 'CleanCode.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
 
-const PARAMETER_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
+const PARAMETER_MISSING_NATIVE = 'CleanCode.TypeHints.ParameterTypeHint.MissingNativeTypeHint';
 
 const RETURN_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingAnyTypeHint';
 
 const RETURN_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingNativeTypeHint';
 
-const PROPERTY_MISSING_ANY = 'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingAnyTypeHint';
+const PROPERTY_MISSING_ANY = 'CleanCode.TypeHints.PropertyTypeHint.MissingAnyTypeHint';
 
-const PROPERTY_MISSING_NATIVE = 'SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingNativeTypeHint';
+const PROPERTY_MISSING_NATIVE = 'CleanCode.TypeHints.PropertyTypeHint.MissingNativeTypeHint';
 
 const TYPE_HINTS_SNIFFS = [
-    'SlevomatCodingStandard.TypeHints.ParameterTypeHint',
+    'CleanCode.TypeHints.ParameterTypeHint',
     'SlevomatCodingStandard.TypeHints.ReturnTypeHint',
-    'SlevomatCodingStandard.TypeHints.PropertyTypeHint',
+    'CleanCode.TypeHints.PropertyTypeHint',
 ];
 
-const PROPERTY_TYPE_HINT_SNIFF = 'SlevomatCodingStandard.TypeHints.PropertyTypeHint';
+const PROPERTY_TYPE_HINT_SNIFF = 'CleanCode.TypeHints.PropertyTypeHint';
 
 /**
  * The two codes rules.xml excludes from PropertyTypeHint. Both police docblock
@@ -72,7 +72,7 @@ $typeHintsReport = static function (string $fixture): array {
     foreach ($file->getErrors() as $line => $columns) {
         foreach ($columns as $errors) {
             foreach ($errors as $error) {
-                if (str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.') === true) {
+                if (isTypeHintsSource($error['source']) === true) {
                     $sources[$line][] = $error['source'];
                 }
             }
@@ -125,7 +125,7 @@ it('marks exactly the inferrable violations fixable', function (): void {
     foreach ($file->getErrors() as $line => $columns) {
         foreach ($columns as $errors) {
             foreach ($errors as $error) {
-                $isTypeHints = str_starts_with($error['source'], 'SlevomatCodingStandard.TypeHints.');
+                $isTypeHints = isTypeHintsSource($error['source']);
 
                 if ($error['fixable'] === true && $isTypeHints === true) {
                     $lines[] = $line;
@@ -172,7 +172,7 @@ it('keeps the excluded property codes silent through the master ruleset', functi
     $warnings = violationSourcesByLine($file->getWarnings());
     $typeHintsWarnings = array_filter(
         $warnings === [] ? [] : array_merge(...array_values($warnings)),
-        static fn (string $source): bool => str_starts_with($source, 'SlevomatCodingStandard.TypeHints.')
+        static fn (string $source): bool => isTypeHintsSource($source)
     );
 
     expect($typeHintsWarnings)->toBe([]);

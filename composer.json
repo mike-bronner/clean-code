@@ -41,8 +41,8 @@
         }
     },
     "scripts": {
-        "dogfood": "php tools/dogfood.php",
-        "lint": "phpcs --standard=PSR12 --extensions=php --ignore=*/fixtures/* CleanCode tests tools",
+        "lint": "phpcs --standard=PSR12 --extensions=php --ignore=*/fixtures/* CleanCode tests",
+        "lint:self": "phpcs --standard=phpcs.self.xml",
         "test": "pest"
     }
 }

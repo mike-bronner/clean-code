@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         name="MikeBronnerCleanCodeSelf"
+         xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
+    <description>Self-lint for mike-bronner/phpcs-rules: the shipped ruleset applied to its own sniff sources, at zero errors. Run with `composer lint:self`. See CONTRIBUTING.md.</description>
+
+    <!--
+        Scope comes from <file>, not <exclude-pattern>: PHPCS applies an
+        exclude-pattern even to a path named on the command line, so excluding
+        tests/ here would silently stop any run that lints a fixture by
+        explicit path.
+    -->
+    <file>CleanCode</file>
+
+    <rule ref="./rules.xml"/>
+
+    <!--
+        Both rules prescribe a Laravel helper this package does not depend on:
+        ArrayAccessors wants data_get(), ConvertToCollection wants collect().
+        Neither exists here, so the sniff sources cannot satisfy them and a
+        fixer run would emit calls to functions that are not defined. They
+        govern Laravel application code, which this package is not.
+    -->
+    <rule ref="CleanCode.Arrays.ArrayAccessors">
+        <severity>0</severity>
+    </rule>
+    <rule ref="CleanCode.Arrays.ConvertToCollection">
+        <severity>0</severity>
+    </rule>
+</ruleset>

@@ -8,60 +8,12 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Replicates PHPMD's Clean Code rule `DuplicatedArrayKey`: an array literal
- * that declares the same key twice. The later entry wins at runtime and the
- * earlier one is dead code, so one of the two is always a mistake.
- *
- * No PHPCS, Generic, Squiz, or Slevomat sniff covers this. `Squiz.Arrays.
- * ArrayDeclaration` is the only bundled sniff that looks at array keys at all,
- * and every code it emits is about layout — whether a key is present, and how
- * keys, arrows, and commas are spaced and aligned — never about two keys
- * naming the same slot. So this is a custom sniff. The mapping and the
- * differences from PHPMD are set out in
- * docs/phpmd/cleancode-duplicatedarraykey.md.
- *
- * Two keys are the same when PHP would store them under the same slot, not
- * when they are spelled the same way. PHP coerces every array key to an int or
- * a string on insertion — `false` and `'0'` are the int key 0, `true` is 1,
- * `null` is the empty string, `'1'` is the int key 1, and every integer base
- * names the same number — so the literal is resolved to its value and that
- * value is used as a key in turn, which applies PHP's own coercion rather than
- * a re-implementation of it.
- *
- * Only a key the sniff can resolve with certainty is compared. A constant, a
- * class constant, a variable, an expression, an interpolated string, and a
- * double-quoted string carrying an escape sequence are all skipped: their
- * values are not in the token stream, and reporting on a guess would be worse
- * than staying silent. An implicit (auto-incrementing) key is skipped for the
- * same reason — no literal in the source names it, since its value depends on
- * every element before it. PHPMD skips all of these too.
- *
- * Detection only. Deleting the overridden entry looks mechanical but is not:
- * its value can carry a side effect (`0 => register($handler)`), and which of
- * the two entries is the mistake is a judgement about intent — the key may be
- * the typo rather than the duplication. PHPMD reports rather than rewrites for
- * the same reason.
- */
 class DuplicatedArrayKeySniff implements Sniff
 {
-    /**
-     * 2**63 and 2**64 as floats, the two bounds floatValue() folds a
-     * non-representable float key against. Both are exact in a double —
-     * a power of two always is — so neither bound is approximate.
-     */
     private const TWO_POW_63 = 9223372036854775808.0;
 
     private const TWO_POW_64 = 18446744073709551616.0;
 
-    /**
-     * Constructs that can nest inside an array element, mapped to the token
-     * index holding their closer. The element walk jumps over each one whole,
-     * so a comma or a `=>` belonging to a nested construct is never mistaken
-     * for the array's own element separator or key separator.
-     *
-     * @var array<int|string, string>
-     */
     private const NESTED_OPENERS = [
         T_OPEN_PARENTHESIS => 'parenthesis_closer',
         T_OPEN_SQUARE_BRACKET => 'bracket_closer',
@@ -69,20 +21,12 @@ class DuplicatedArrayKeySniff implements Sniff
         T_OPEN_CURLY_BRACKET => 'bracket_closer',
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_ARRAY, T_OPEN_SHORT_ARRAY];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $bounds = $this->arrayBounds($tokens, $stackPtr);
@@ -126,7 +70,10 @@ class DuplicatedArrayKeySniff implements Sniff
             // second one here. The first-wins tie-break is what malformed
             // source falls back on, and it keeps the key the span before the
             // earliest `=>` rather than an ever-widening one.
-            if ($code === T_DOUBLE_ARROW && $arrowPtr === null) {
+            if (
+                $code === T_DOUBLE_ARROW
+                && $arrowPtr === null
+            ) {
                 $arrowPtr = $ptr;
             }
 
@@ -143,22 +90,6 @@ class DuplicatedArrayKeySniff implements Sniff
         $this->recordKey($phpcsFile, $seen, $elementStartPtr, $arrowPtr);
     }
 
-    /**
-     * The opener and closer of the array literal at $stackPtr, or null when it
-     * has no closer to walk to.
-     *
-     * Only the long form can reach that null: an unterminated `array(` keeps
-     * its T_ARRAY token and its opener but gains no `parenthesis_closer`,
-     * whereas PHP_CodeSniffer labels an unterminated `[` T_OPEN_SQUARE_BRACKET
-     * rather than T_OPEN_SHORT_ARRAY, so this sniff never registers on it. The
-     * short-array half of the lookup is written defensively all the same,
-     * because the alternative is an undefined-index warning in a linter run
-     * over a file someone is halfway through typing.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array{int, int}|null
-     */
     private function arrayBounds(array $tokens, int $stackPtr): ?array
     {
         $isLongForm = $tokens[$stackPtr]['code'] === T_ARRAY;
@@ -170,17 +101,6 @@ class DuplicatedArrayKeySniff implements Sniff
         return $closerPtr === null ? null : [$openerPtr, $closerPtr];
     }
 
-    /**
-     * Resolves one element's key and either records it as the first
-     * declaration or reports it as a duplicate of one.
-     *
-     * The first declaration is kept and the duplicate discarded, so a key
-     * written three times is reported twice, each time against the same first
-     * declaration. That matches PHPMD, and it keeps the diagnostic pointing at
-     * the entry that survives at runtime.
-     *
-     * @param array<int|string, int> $seen Key => the line it was first declared on.
-     */
     private function recordKey(File $phpcsFile, array &$seen, int $elementStartPtr, ?int $arrowPtr): void
     {
         // No `=>` in the element: an implicit key, which no literal names.
@@ -210,30 +130,23 @@ class DuplicatedArrayKeySniff implements Sniff
         $seen[$key] = $tokens[$keyPtrs[0]]['line'];
     }
 
-    /**
-     * The array key the given tokens name, or null when they are not a literal
-     * this sniff resolves.
-     *
-     * The value is round-tripped through a one-element array so that PHP's own
-     * key coercion decides the result: `'1'` becomes the int key 1 while `'01'`
-     * stays a string, which is the rule this sniff would otherwise have to
-     * restate. Comparing the returned keys is then the same as comparing the
-     * slots PHP would store the entries in.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     * @param array<int, int>                  $keyPtrs
-     */
     private function keyValue(array $tokens, array $keyPtrs): int|string|null
     {
         $isNegated = count($keyPtrs) === 2 && $tokens[$keyPtrs[0]]['code'] === T_MINUS;
 
-        if (count($keyPtrs) !== 1 && $isNegated === false) {
+        if (
+            count($keyPtrs) !== 1
+            && $isNegated === false
+        ) {
             return null;
         }
 
         $token = $tokens[$isNegated === true ? $keyPtrs[1] : $keyPtrs[0]];
 
-        if ($isNegated === true && $token['code'] === T_DNUMBER) {
+        if (
+            $isNegated === true
+            && $token['code'] === T_DNUMBER
+        ) {
             // A negated float carries its sign into the resolution instead of
             // being negated after it. The wrap can land on PHP_INT_MIN, whose
             // negation is not an integer at all, and coercing that back to a
@@ -253,12 +166,6 @@ class DuplicatedArrayKeySniff implements Sniff
         return $value === null ? null : array_key_first([$value => null]);
     }
 
-    /**
-     * The value of a single literal token, or null when the token is not a
-     * literal whose value the token stream settles.
-     *
-     * @param array<string, mixed> $token
-     */
     private function literalValue(array $token): int|string|null
     {
         return match ($token['code']) {
@@ -272,41 +179,6 @@ class DuplicatedArrayKeySniff implements Sniff
         };
     }
 
-    /**
-     * The value of an integer literal, in any base PHP accepts, or null when
-     * its digits are not legal in the base it names.
-     *
-     * No overflow case is needed: PHP tokenises a numeric literal too large for
-     * the integer range as a float whatever its base — `9223372036854775808`,
-     * `0xFFFFFFFFFFFFFFFFF`, and their octal and binary counterparts all arrive
-     * as T_DNUMBER — so a well-formed T_LNUMBER always fits, and floatValue()
-     * takes the rest. It resolves the decimal ones only: see its docblock for
-     * why a literal that names its digits in another base is left unresolved
-     * once it leaves the integer range.
-     *
-     * A T_LNUMBER is not, however, the tokeniser's statement that the digits
-     * are legal in that base. token_get_all() is the lexer alone, and only full
-     * compilation rejects a malformed literal: `089` is a parse error to `php
-     * -l` — "Invalid numeric literal" — yet it arrives here as one T_LNUMBER
-     * with the content `089`, because a file PHP_CodeSniffer reads never has to
-     * compile. Handing those digits to octdec() raises PHP's "Invalid
-     * characters passed for attempted conversion", PHP_CodeSniffer's Runner
-     * rethrows any diagnostic raised inside a sniff, and the whole file is
-     * abandoned with Internal.Exception — the same abort floatValue() exists to
-     * avoid, from a different direction. So the digits are checked against the
-     * base first and an illegal one declines the key, which costs nothing: the
-     * literal names no slot in any array PHP can run.
-     *
-     * The check covers every base rather than the older octal spelling alone,
-     * which is the only one reachable today: `0b12` and `0o89` are lexed as two
-     * tokens apiece, and two tokens are not a key this sniff resolves. Reaching
-     * them turns on where the lexer draws a token boundary for source it will
-     * not compile, which is not a contract PHP publishes.
-     *
-     * Past the check the conversions are exact. hexdec(), bindec() and octdec()
-     * answer an int whenever legal digits fit the integer range, and the
-     * tokeniser's choice of T_LNUMBER over T_DNUMBER says they do.
-     */
     private function integerValue(string $literal): ?int
     {
         $digits = str_replace('_', '', $literal);
@@ -332,56 +204,6 @@ class DuplicatedArrayKeySniff implements Sniff
         };
     }
 
-    /**
-     * The integer key a float literal lands on. PHP truncates a float key
-     * toward zero, which is what the cast does.
-     *
-     * A literal too large to be finite (`1e400`) has no defined integer form,
-     * so it is left unresolved rather than folded onto whatever `(int) INF`
-     * happens to produce.
-     *
-     * A literal that names its digits in another base is left unresolved for a
-     * different reason: nothing available here answers the value PHP gives it.
-     * Such a literal only arrives here once it leaves the integer range, since
-     * integerValue() takes every base below it, and the cast alone is wrong at
-     * that point — it stops at the first character no decimal digit can be, so
-     * `(float) '0x8000000000000000'` is 0.0 where PHP's key is
-     * -9223372036854775808, and the older octal spelling is worse still:
-     * `(float) '01000000000000000000000'` is 1.0E+21 where the literal is
-     * 2**63. The obvious repair is to reuse integerValue()'s hexdec(), bindec()
-     * and octdec(), and it does not hold: PHP's lexer rounds an overflowing
-     * non-decimal literal differently from those functions, often by the one
-     * unit in the last place that decides the key. Measured on 8.5.8 over 400
-     * random overflowing literals per base, they disagreed with the literal on
-     * 40 hexadecimal, 101 octal and 205 binary. The plainest case is 2**63
-     * written in binary: PHP evaluates `0b1` followed by 63 zeros as
-     * 9223372036854774784, which is inside the integer range and needs no wrap
-     * at all, while bindec() of the same digits is 9223372036854775808, which
-     * wraps onto PHP_INT_MIN. So these are declined rather than guessed — a key
-     * that is merely close is a duplicate reported against a slot PHP does not
-     * use. The decimal literals below are not affected: over 1000 random ones,
-     * plain and scientific, the cast agreed with the interpreter every time.
-     *
-     * A finite literal outside the integer range does have a defined form —
-     * PHP wraps it modulo 2**64 and uses the result as the key, which is why
-     * `[9223372036854775808 => 'a', 9223372036854775808 => 'b']` is a genuine
-     * duplicate on key -9223372036854775808. The cast that computes it is the
-     * problem: PHP 8.5 raises `The float ... is not representable as an int,
-     * cast occurred` as an E_WARNING, PHP_CodeSniffer turns every warning
-     * raised inside a sniff into an exception, and the run aborts with
-     * Internal.Exception instead of reporting the duplicate. Suppressing the
-     * warning is not available either — the master ruleset carries
-     * Generic.PHP.NoSilencedErrors, and PHP_CodeSniffer's handler ignores
-     * error_reporting() in any case.
-     *
-     * So the wrap is done here, in arithmetic that raises nothing, and only for
-     * the literals that would warn: anything already inside the integer range
-     * is cast directly, exactly as before. The three steps are PHP's own
-     * zend_dval_to_lval() — take the value modulo 2**64, lift a negative
-     * remainder into [0, 2**64), then fold the top half down into the signed
-     * range — and they reproduce the cast rather than approximate it, which is
-     * asserted against the interpreter itself in DuplicatedArrayKeyTest.
-     */
     private function floatValue(string $literal): ?int
     {
         $digits = str_replace('_', '', $literal);
@@ -396,7 +218,10 @@ class DuplicatedArrayKeySniff implements Sniff
             return null;
         }
 
-        if ($value >= -self::TWO_POW_63 && $value < self::TWO_POW_63) {
+        if (
+            $value >= -self::TWO_POW_63
+            && $value < self::TWO_POW_63
+        ) {
             return (int) $value;
         }
 
@@ -413,31 +238,11 @@ class DuplicatedArrayKeySniff implements Sniff
         return (int) $wrapped;
     }
 
-    /**
-     * Whether the literal names its digits in a base other than ten.
-     *
-     * `0x`, `0b` and `0o` say so in the literal. A leading zero in front of
-     * octal digits alone is PHP's older spelling of the same thing, and it is
-     * recognised by those digits rather than by the zero, because a decimal
-     * float can start with a zero too — `0.5` and `0e5` are decimal, and the
-     * period and the exponent are what say so. The underscores are already out
-     * by the time this is asked, and a leading minus with them.
-     */
     private function isNonDecimal(string $digits): bool
     {
         return preg_match('/^0([xXbBoO]|[0-7]+$)/', $digits) === 1;
     }
 
-    /**
-     * The value of a quoted string literal, or null when the token stream does
-     * not settle it.
-     *
-     * A single-quoted string has exactly two escape sequences, both of which
-     * stand for the character after the backslash. A double-quoted one has the
-     * whole escape table — `\n`, `\x41`, `\u{1F600}`, `\101` — so a backslash
-     * in it means the key is not the source text and resolving it would mean
-     * re-implementing PHP's escaping. Those are skipped instead.
-     */
     private function stringValue(string $literal): ?string
     {
         $inner = substr($literal, 1, -1);
@@ -457,24 +262,11 @@ class DuplicatedArrayKeySniff implements Sniff
         return str_contains($inner, '\\') === true ? null : $inner;
     }
 
-    /**
-     * The key as the message should show it: an integer bare, a string quoted.
-     * The key has already been through PHP's coercion, so the message names the
-     * slot both entries share rather than either entry's spelling.
-     */
     private function describeKey(int|string $key): string
     {
         return is_int($key) === true ? (string) $key : "'" . $key . "'";
     }
 
-    /**
-     * The pointers to every non-whitespace, non-comment token in [$startPtr,
-     * $endPtr).
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array<int, int>
-     */
     private function significantTokens(array $tokens, int $startPtr, int $endPtr): array
     {
         $ptrs = [];

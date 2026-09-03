@@ -8,57 +8,14 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Forbids procedural code in a source file: "only implement classes, never
- * procedural code" (Testing: Development Process (TDD), #57 / #129).
- *
- * The file's top level may hold only a `declare`, a `namespace`, `use`
- * imports, comments, attributes, class modifiers, and exactly one `class`,
- * `interface`, `trait`, or `enum` declaration. Every other top-level construct
- * — a call, an assignment, a control structure, a standalone function, a
- * `const`, a `return`, markup — is reported once, at its own line.
- *
- * Stricter than PSR1.Files.SideEffects, which only forbids *mixing* a
- * declaration with side effects: a file that is nothing but procedural code
- * declares no symbol, so PSR-1 stays silent on it while this sniff reports
- * every statement in it.
- *
- * Scoping is a ruleset concern, not a sniff concern. rules.xml restricts the
- * sniff to `src/` and `app/` with `<include-pattern>`, because entry points,
- * config files, route files and pre-Laravel-9 migrations are legitimately
- * procedural. The sniff itself never looks at the file's path.
- *
- * Two deliberate silences, both stated rather than implied:
- *
- * - A file with no top-level declaration at all is reported only for the
- *   procedural statements it contains. A file that declares nothing and
- *   executes nothing — an empty file, a comment-only placeholder — holds no
- *   procedural code to point at, so there is nothing to report.
- * - A closing tag is left to PSR12.Files.ClosingTag, which owns it. Only the
- *   markup *after* one is procedural, and whitespace-only markup (the newline
- *   a `?>` at the end of a file leaves behind) is not reported.
- *
- * Detection only. Wrapping loose statements in a class is a design decision —
- * which class, which method, which visibility — so there is no mechanical
- * rewrite to offer.
- */
 class NoProceduralCodeSniff implements Sniff
 {
-    /**
-     * The tokens a file can begin with. The sniff runs once per file, on
-     * whichever of these comes first: a `.php` file need not open with
-     * `<?php`, and a file that is nothing but markup has no open tag at all.
-     */
     private const FILE_ENTRY_TOKENS = [
         T_OPEN_TAG,
         T_OPEN_TAG_WITH_ECHO,
         T_INLINE_HTML,
     ];
 
-    /**
-     * The class-like declarations a source file is allowed to carry. Exactly
-     * one of them, in any combination.
-     */
     private const DECLARATION_TOKENS = [
         T_CLASS,
         T_ENUM,
@@ -66,24 +23,11 @@ class NoProceduralCodeSniff implements Sniff
         T_TRAIT,
     ];
 
-    /**
-     * Preamble keywords whose statement ends at either a semicolon or an
-     * opening brace. The braced forms (`namespace App { … }`,
-     * `declare(ticks=1) { … }`) are descended into rather than skipped: their
-     * body *is* the file's top level, so skipping the block would let any
-     * procedural code inside it through unreported.
-     */
     private const PREAMBLE_TOKENS = [
         T_DECLARE,
         T_NAMESPACE,
     ];
 
-    /**
-     * Tokens that carry no statement of their own at the top level.
-     * T_CLOSE_CURLY_BRACKET is here for the closer of a braced namespace,
-     * which is the only curly brace the walk can reach — every declaration is
-     * jumped over via its own scope closer.
-     */
     private const IGNORED_TOKENS = [
         T_ABSTRACT,
         T_CLOSE_CURLY_BRACKET,
@@ -94,11 +38,6 @@ class NoProceduralCodeSniff implements Sniff
         T_SEMICOLON,
     ];
 
-    /**
-     * Keywords that continue a compound statement already reported. Without
-     * them an `if … else` or a `try … catch … finally` would be reported once
-     * per clause instead of once per statement.
-     */
     private const CONTINUATION_TOKENS = [
         T_CATCH,
         T_ELSE,
@@ -106,20 +45,12 @@ class NoProceduralCodeSniff implements Sniff
         T_FINALLY,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return self::FILE_ENTRY_TOKENS;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         if ($phpcsFile->findPrevious(self::FILE_ENTRY_TOKENS, ($stackPtr - 1)) !== false) {
             return;
@@ -177,13 +108,6 @@ class NoProceduralCodeSniff implements Sniff
         $this->reportAdditionalDeclarations($phpcsFile, $declarations);
     }
 
-    /**
-     * Reports every declaration after the first, so a file carrying several
-     * class-like declarations is flagged at each extra one rather than once
-     * for the file.
-     *
-     * @param array<int, int> $declarations
-     */
     private function reportAdditionalDeclarations(File $phpcsFile, array $declarations): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -202,13 +126,6 @@ class NoProceduralCodeSniff implements Sniff
         }
     }
 
-    /**
-     * Whether the token at $pointer carries no top-level statement.
-     *
-     * Markup is the one conditional case: the newline a closing tag leaves at
-     * the end of a file tokenizes as inline HTML exactly like real markup
-     * does, so whitespace-only content is passed over.
-     */
     private function isIgnorable(File $phpcsFile, int $pointer): bool
     {
         $token = $phpcsFile->getTokens()[$pointer];
@@ -220,13 +137,6 @@ class NoProceduralCodeSniff implements Sniff
         return in_array($token['code'], self::IGNORED_TOKENS, true);
     }
 
-    /**
-     * The last token of a class-like declaration. The scope closer is absent
-     * only for a declaration the tokenizer never saw terminated — a file being
-     * edited — and everything after that keyword is the unclosed body, so the
-     * walk ends at the file rather than reading the body as top level and
-     * reporting the class's own name as procedural code.
-     */
     private function endOfDeclaration(File $phpcsFile, int $pointer): int
     {
         $token = $phpcsFile->getTokens()[$pointer];
@@ -234,15 +144,6 @@ class NoProceduralCodeSniff implements Sniff
         return $token['scope_closer'] ?? $this->endOfFile($phpcsFile);
     }
 
-    /**
-     * The last token of a `declare`/`namespace` preamble: its semicolon, or
-     * the opening brace of its braced form. Returning the brace is what makes
-     * the walk continue *inside* a braced namespace instead of over it.
-     *
-     * Neither terminator exists in a file truncated mid-preamble, which ends
-     * the walk for the same reason as an unterminated declaration: the name
-     * that follows the keyword is part of the preamble, not a statement.
-     */
     private function endOfPreamble(File $phpcsFile, int $pointer): int
     {
         $end = $phpcsFile->findNext([T_SEMICOLON, T_OPEN_CURLY_BRACKET], ($pointer + 1));
@@ -250,32 +151,11 @@ class NoProceduralCodeSniff implements Sniff
         return $end === false ? $this->endOfFile($phpcsFile) : $end;
     }
 
-    /**
-     * The last token in the file. Returned by the two truncation paths above,
-     * so the walk's `+ 1` puts the pointer past the end and stops it.
-     */
     private function endOfFile(File $phpcsFile): int
     {
         return ($phpcsFile->numTokens - 1);
     }
 
-    /**
-     * The last token of the statement starting at $pointer, including the
-     * clauses that continue it: `else`/`elseif`, `catch`/`finally`, and the
-     * `while (…)` tail of a `do` block — which is told apart from a `while`
-     * loop by having no scope of its own.
-     *
-     * A continuation is usually the next token *after* the clause before it,
-     * but under the alternative syntax it *is* that clause's end: PHPCS ends
-     * `if (…):` on the `else` rather than past it. Both are picked up, so
-     * `if … else … endif` is one statement exactly like its braced form.
-     *
-     * Reading the end as the next start is also what makes the loop able to
-     * stall: a file cut off right after a continuation keyword gives that
-     * keyword neither a scope nor a statement to end, so its clause ends where
-     * it begins and the walk would measure the same token forever. A clause
-     * that fails to move the end forward returns instead.
-     */
     private function endOfStatement(File $phpcsFile, int $pointer): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -301,7 +181,10 @@ class NoProceduralCodeSniff implements Sniff
 
             $isDoWhileTail = $code === T_WHILE && isset($tokens[$next]['scope_opener']) === false;
 
-            if (in_array($code, self::CONTINUATION_TOKENS, true) === false && $isDoWhileTail === false) {
+            if (
+                in_array($code, self::CONTINUATION_TOKENS, true) === false
+                && $isDoWhileTail === false
+            ) {
                 return $end;
             }
 
@@ -315,38 +198,20 @@ class NoProceduralCodeSniff implements Sniff
         }
     }
 
-    /**
-     * The last token of one clause of a compound statement.
-     *
-     * PHPCS's generic findEndOfStatement() reads every clause correctly except
-     * one: a *spaced* `else if (…) { … }`. PHPCS puts the scope on the trailing
-     * `if`, never on the `else`, so a scan started at the `else` finds no scope
-     * to stop at and runs to its own default end token — past the whole
-     * construct, swallowing the top-level statement that follows it. The
-     * trailing `if` is measured instead, which is where the scope actually is.
-     *
-     * Nothing else needs the detour. A merged `elseif` is one token carrying
-     * its own scope; an alternative-syntax clause ends at `endif`/`endforeach`;
-     * a brace-less `else bar();` ends at its semicolon — findEndOfStatement()
-     * returns all three.
-     */
     private function endOfClause(File $phpcsFile, int $pointer): int
     {
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), null, true);
 
-        if ($next !== false && $phpcsFile->getTokens()[$next]['code'] === T_IF) {
+        if (
+            $next !== false
+            && $phpcsFile->getTokens()[$next]['code'] === T_IF
+        ) {
             return $this->endOfClause($phpcsFile, $next);
         }
 
         return $phpcsFile->findEndOfStatement($pointer);
     }
 
-    /**
-     * A short label naming the offending construct, so the report says which
-     * statement to move. Everything but markup is quoted verbatim from the
-     * source; a call keeps its parentheses so `helper()` does not read as a
-     * bare name.
-     */
     private function constructLabel(File $phpcsFile, int $pointer): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -360,11 +225,14 @@ class NoProceduralCodeSniff implements Sniff
         if ($tokens[$pointer]['code'] === T_STRING) {
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), null, true);
 
-            if ($next !== false && $tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
+            if (
+                $next !== false
+                && $tokens[$next]['code'] === T_OPEN_PARENTHESIS
+            ) {
                 $content .= '()';
             }
         }
 
-        return '"' . $content . '"';
+        return "\"" . $content . "\"";
     }
 }

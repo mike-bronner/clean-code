@@ -8,43 +8,8 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Forbids a closure or arrow function as a route action.
- *
- * The enforceable slice of Routes: Conventions (Do / Do Not) (#65) — see
- * docs/standards/routes-conventions-do-do-not.md. A closure action cannot be
- * serialized, so it breaks `php artisan route:cache`; the standard's "Do Not"
- * is unconditional, which is why this reports an error rather than a warning.
- *
- * Only the route-registration verbs are checked. `Route::group()` — whether
- * called statically or reached through a chain — is deliberately absent from
- * ROUTE_ACTION_METHODS: a group callback is not a route action and caches
- * fine, so it is never flagged.
- *
- * Each of those verbs takes exactly one callable parameter, the action, so
- * *any* closure sitting directly in the argument list is that action. Only a
- * direct argument counts: the scan walks the argument list itself and steps
- * over every nested parenthesis, bracket and scope, so a closure inside
- * another call (`array_map(fn () => …, …)`), inside an array, or inside the
- * body of the action closure is not a second violation.
- *
- * **Boundary — no symbol resolution.** A sniff sees one file's tokens, so it
- * cannot know which `Route` symbol is imported. The check is the Laravel
- * facade convention on the name alone: the class segment immediately before
- * `::` must spell `Route`, whether written bare (`Route::get`), imported, or
- * fully qualified (`\Illuminate\Support\Facades\Route::get`). An unrelated
- * class also named `Route` therefore false-positives, and a router held in a
- * variable (`$router->get(…)`) is never seen at all. Both are accepted in a
- * Laravel-standards ruleset; docs/standards/routes-conventions-do-do-not.md
- * records them.
- */
 class DisallowClosureRoutesSniff implements Sniff
 {
-    /**
-     * The Route facade methods whose action argument becomes a cached route.
-     *
-     * `group` is absent on purpose — its callback is not a route action.
-     */
     private const ROUTE_ACTION_METHODS = [
         'any',
         'delete',
@@ -57,32 +22,18 @@ class DisallowClosureRoutesSniff implements Sniff
         'put',
     ];
 
-    /**
-     * Tokens that open a nested construct the argument scan must step over,
-     * in the order they are probed. A closure carries both a scope and a
-     * parameter list, so `scope_closer` is read first to clear the whole
-     * construct in one jump.
-     */
     private const NESTED_CLOSERS = [
         'scope_closer',
         'parenthesis_closer',
         'bracket_closer',
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_STRING];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $method = strtolower($tokens[$stackPtr]['content']);
@@ -113,16 +64,6 @@ class DisallowClosureRoutesSniff implements Sniff
         );
     }
 
-    /**
-     * Whether the call whose method name sits at $namePtr is rooted in the
-     * `Route` facade.
-     *
-     * Two shapes reach a route verb. A static call names the class directly
-     * (`Route::get`). A chained call reaches it through an earlier call in the
-     * same chain (`Route::middleware('auth')->get`), so the object operator
-     * case hops back over the previous call's parentheses to that call's own
-     * name and asks the same question again.
-     */
     private function resolvesToRouteFacade(File $phpcsFile, int $namePtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -159,22 +100,16 @@ class DisallowClosureRoutesSniff implements Sniff
             true
         );
 
-        if ($callName === false || $tokens[$callName]['code'] !== T_STRING) {
+        if (
+            $callName === false
+            || $tokens[$callName]['code'] !== T_STRING
+        ) {
             return false;
         }
 
         return $this->resolvesToRouteFacade($phpcsFile, $callName);
     }
 
-    /**
-     * Whether the class named immediately before the `::` at $doubleColonPtr
-     * is `Route`.
-     *
-     * PHPCS splits a qualified name back into T_STRING/T_NS_SEPARATOR tokens,
-     * so the token before `::` is the last segment on its own — `Route` for
-     * `\Illuminate\Support\Facades\Route` exactly as for a bare `Route`. PHP
-     * class names are case insensitive, so the comparison is too.
-     */
     private function isRouteClassName(File $phpcsFile, int $doubleColonPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -185,21 +120,16 @@ class DisallowClosureRoutesSniff implements Sniff
             true
         );
 
-        if ($classPtr === false || $tokens[$classPtr]['code'] !== T_STRING) {
+        if (
+            $classPtr === false
+            || $tokens[$classPtr]['code'] !== T_STRING
+        ) {
             return false;
         }
 
         return strtolower($tokens[$classPtr]['content']) === 'route';
     }
 
-    /**
-     * Reports every argument of the call that is itself a closure.
-     *
-     * A named argument (`action: fn () => …`) and a static closure
-     * (`static function () {}`) both put tokens in front of the closure, so
-     * each argument is unwrapped past a `name:` label and a `static` modifier
-     * before its kind is read.
-     */
     private function reportClosureArguments(
         File $phpcsFile,
         int $opener,
@@ -234,12 +164,6 @@ class DisallowClosureRoutesSniff implements Sniff
         }
     }
 
-    /**
-     * The token that decides an argument's kind: the argument itself, minus a
-     * leading `name:` label and a leading `static` modifier.
-     *
-     * @return int|false
-     */
     private function unwrapArgument(File $phpcsFile, int $argument, int $closer)
     {
         $tokens = $phpcsFile->getTokens();
@@ -247,7 +171,10 @@ class DisallowClosureRoutesSniff implements Sniff
         if ($tokens[$argument]['code'] === T_PARAM_NAME) {
             $colon = $phpcsFile->findNext(Tokens::$emptyTokens, ($argument + 1), $closer, true);
 
-            if ($colon === false || $tokens[$colon]['code'] !== T_COLON) {
+            if (
+                $colon === false
+                || $tokens[$colon]['code'] !== T_COLON
+            ) {
                 return false;
             }
 
@@ -265,16 +192,6 @@ class DisallowClosureRoutesSniff implements Sniff
         return $phpcsFile->findNext(Tokens::$emptyTokens, ($argument + 1), $closer, true);
     }
 
-    /**
-     * The comma separating this argument from the next, or false when this is
-     * the last one.
-     *
-     * The scan steps over every nested construct it meets, so a comma inside a
-     * nested call, array, closure body or match expression never reads as an
-     * argument boundary of *this* call.
-     *
-     * @return int|false
-     */
     private function nextArgumentSeparator(File $phpcsFile, int $start, int $closer)
     {
         $tokens = $phpcsFile->getTokens();
@@ -294,12 +211,6 @@ class DisallowClosureRoutesSniff implements Sniff
         return false;
     }
 
-    /**
-     * Where the nested construct opening at $pointer ends, or false when no
-     * construct opens there.
-     *
-     * @return int|false
-     */
     private function nestedCloserAt(File $phpcsFile, int $pointer)
     {
         $token = $phpcsFile->getTokens()[$pointer];

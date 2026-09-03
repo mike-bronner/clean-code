@@ -168,9 +168,15 @@
         (traversable @var specifications, useless-annotation cleanup) police
         doc blocks, which the standard does not mandate.
     -->
-    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
-        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
-        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    <!--
+        CleanCode.TypeHints.PropertyTypeHint extends the Slevomat sniff and
+        skips PHP_CodeSniffer classes, whose properties PHPCS assigns from
+        ruleset XML as strings — a native type there throws TypeError at the
+        consumer's runtime. Referencing both sniffs would report twice.
+    -->
+    <rule ref="CleanCode.TypeHints.PropertyTypeHint">
+        <exclude name="CleanCode.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="CleanCode.TypeHints.PropertyTypeHint.UselessAnnotation"/>
     </rule>
 
     <!-- Exceptions (#63): always reference \Throwable when catching, and use
@@ -271,21 +277,24 @@
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;
         per the #70 scope decision this rule owns parameter/return hints for all
-        callables. The enable* properties are pinned to the package's PHP 8.3
-        floor so behaviour never floats on the PHP version running the check.
-        Every gate the Slevomat sniffs apply sits at or below that floor —
-        object 7.2, mixed/union/static 8.0, intersection/never 8.1, standalone
-        null/true/false 8.2 — so all of them are pinned true. Left unset, each
-        would instead follow whichever interpreter happens to run phpcs, and a
-        consumer on a newer PHP would get findings their CI did not.
+        callables. Left unset, every enable* property follows whichever
+        interpreter runs phpcs, so a consumer on a newer PHP gets findings their
+        CI did not. All are pinned; all sit at or below the 8.3 floor.
         Traversable-specification and useless-annotation codes are excluded:
         they police docblock hygiene, not missing native hints. Property type
         hints and docblock coverage belong to the general Type Hints standard
         (#45), which keeps PropertyTypeHint and docblock hygiene.
     -->
-    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
-        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
-        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+    <!--
+        CleanCode.TypeHints.ParameterTypeHint extends the Slevomat sniff and
+        skips a declaration whose parameters an ancestor leaves untyped. PHP
+        treats the hint the Slevomat sniff asks for as narrowing an inherited
+        parameter, which is a fatal error, so following it stops the class
+        loading. Referencing both sniffs would report twice.
+    -->
+    <rule ref="CleanCode.TypeHints.ParameterTypeHint">
+        <exclude name="CleanCode.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="CleanCode.TypeHints.ParameterTypeHint.UselessAnnotation"/>
         <properties>
             <property name="enableObjectTypeHint" value="true"/>
             <property name="enableMixedTypeHint" value="true"/>
@@ -677,10 +686,9 @@
         The run no longer exits 0, and that test records why: sniffs landing
         later added CleanCode.Classes.RequireProperties.MissingProperty and
         CleanCode.ClearCode.SectionComment.Found here, each out of scope for
-        the issue that introduced it. #229's `composer dogfood` gate now pins
-        this file's error count alongside every other, so the next such
-        addition shows up in a baseline diff instead of quietly falsifying a
-        comment.
+        the issue that introduced it. #229's `composer lint:self` gate holds
+        this file to zero alongside every other, so the next such addition
+        fails a check instead of quietly falsifying a comment.
 
         One line carries a phpcs:ignore, the only one in the package. PHPCS's
         Sniff interface declares process()'s $stackPtr untyped, and PHP treats
@@ -781,14 +789,9 @@
         alone; they have not been walked one at a time the way that PR walked
         the first 65, so the per-site tally stays scoped to that set.
 
-        The reviewed set is pinned by file, line and column in
-        tests/Standards/ConvertToCollectionTest.php
-        (CONVERT_TO_COLLECTION_REVIEWED_SITES), so a native call added, moved or
-        removed anywhere under CleanCode/ or tests/ fails that test. A count
-        alone would not: one site moving while another disappears leaves it
-        unchanged. Nothing is suppressed to reach that state — no phpcs:ignore,
-        no exclude-pattern, and no registration for this sniff, which is picked
-        up through the ./CleanCode/ruleset.xml ref like every other.
+        Nothing is suppressed to reach that state — no phpcs:ignore, no
+        exclude-pattern, and no registration for this sniff, which is picked up
+        through the ./CleanCode/ruleset.xml ref like every other.
 
         Only that trigger is enforced. Whether a given manipulation reads
         better as a pipeline, and foreach loops that accumulate into arrays,

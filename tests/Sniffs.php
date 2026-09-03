@@ -178,6 +178,7 @@ const SWEPT_WARNING_SNIFFS = [
  * fixture, and which exit phpcs at 2 rather than 1 on their failing fixture.
  */
 const AUTOFIXABLE_SNIFFS = [
+    'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',

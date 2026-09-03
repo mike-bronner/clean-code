@@ -35,17 +35,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Every supported interpreter is exercised, floor included. composer.json
-    # requires ^8.3, and a floor no job runs is a claim rather than a
-    # guarantee: the previous single-version job tested 8.4 only, so the ^8.1
-    # this package declared until now was never once verified.
-    #
-    # The suite runs on all three under two different Pest majors, because no
-    # single one spans the range: Pest 5 requires PHP ^8.4, and Pest 4 is the
-    # newest that still installs on 8.3. The `^4.0 || ^5.0` constraint in
-    # composer.json resolves per interpreter with no lock file to pin it —
-    # 8.3 takes Pest 4, 8.4 and 8.5 take Pest 5. Both were verified green
-    # locally against the whole suite before this matrix was written.
+    # No single Pest major spans this range: Pest 5 requires PHP ^8.4, so 8.3
+    # resolves Pest 4 from the `^4.0 || ^5.0` constraint. The suite must stay
+    # green under both.
     strategy:
       fail-fast: false
       matrix:
@@ -68,17 +60,14 @@ jobs:
       - name: Master ruleset loads and runs
         run: vendor/bin/phpcs --standard=rules.xml tests/bootstrap.php
 
-      # #229: dogfood the ruleset against the package's own sniff sources.
-      # The step above only proves rules.xml loads, by running it over a single
-      # file; this one runs it over all of CleanCode/ and holds every file to
-      # the error count recorded in tools/dogfood-baseline.json. A file absent
-      # from that baseline is held at zero, so a new sniff cannot land carrying
-      # rules.xml errors without the baseline diff saying so out loud.
-      - name: Dogfood ruleset against sniff sources
-        run: composer dogfood
-
       - name: Self-lint (PSR-12)
         run: composer lint
 
       - name: Sniff test suite (Pest)
         run: composer test
+
+      # Fails today, deliberately: the sweep to zero has not landed (#229).
+      # Runs last because a failing step ends the job, and the lint and test
+      # results above must report first.
+      - name: Self-lint (full ruleset against CleanCode/)
+        run: composer lint:self

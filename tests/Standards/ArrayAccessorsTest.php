@@ -987,14 +987,135 @@ it('does not report a file ending on a bare variable', function (): void {
 });
 
 /**
- * Pins the detection-only decision: rewriting a chain to a dotted
- * `data_get()` path is a judgement call, so no violation is auto-fixable.
+ * Every read this standard reports is rewritable, so every violation in
+ * failing.php is offered as fixable. The two shapes that are not — an
+ * unclosed bracket pair and a by-reference argument — have fixtures of their
+ * own below, because failing.php holds neither.
  */
-it('reports detection-only violations', function (): void {
+it('offers every reported read as fixable', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'failing.php');
 
     expect($file->getErrorCount())->toBe(47)
-        ->and($file->getFixableCount())->toBe(0);
+        ->and($file->getFixableCount())->toBe(47);
+});
+
+it('rewrites every read to a data_get() call when fixed', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'failing.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('ArrayAccessorsSniff', 'autofixed.php')));
+});
+
+/**
+ * The fixer converges: its own output carries no violation of this standard,
+ * so `phpcbf` settles in one pass rather than rewriting a rewrite.
+ */
+it('produces no violations on the autofixed fixture', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'autofixed.php');
+
+    expect($file->getErrorCount())->toBe(0)
+        ->and($file->getWarningCount())->toBe(0);
+});
+
+/**
+ * Which path form each shape takes, pinned one line at a time.
+ *
+ * The dotted form is only reachable when every segment is identifier-shaped;
+ * a numeric index, a key containing a dot, a variable segment and a dynamic
+ * member each force the array form, which `data_get()` reads as literal
+ * segments instead of splitting on `.`. Getting that boundary wrong is silent:
+ * `data_get($a, 'k.with.dot')` looks right and reads the wrong key.
+ *
+ * Non-vacuous by mutation: making isIdentifierName() return true always
+ * reddens the array-form rows, and returning false always reddens the dotted
+ * ones.
+ */
+it('chooses the dotted path only for identifier-shaped segments', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'path-forms.php');
+    $emitted = [];
+
+    foreach (explode("\n", autofixedContents($file)) as $line) {
+        if (preg_match('/(data_get\(.*?\)),$/', trim($line), $matches) === 1) {
+            $emitted[] = $matches[1];
+        }
+    }
+
+    expect($emitted)->toBe([
+        "data_get(\$payload, 'plain')",
+        "data_get(\$payload, 'address.city')",
+        "data_get(\$payload, ['k.with.dot'])",
+        "data_get(\$payload, ['has space'])",
+        "data_get(\$payload, ['has-dash'])",
+        "data_get(\$payload, [''])",
+        'data_get($payload, [0])',
+        'data_get($payload, [$index])',
+        "data_get(\$order, 'reference')",
+        'data_get($order, [$field])',
+    ]);
+});
+
+/**
+ * A static property roots its own chain, and the `Type::` in front of it is
+ * part of what is read rather than context around it.
+ *
+ * Non-vacuous by mutation: making targetStart() return $rootPtr unconditionally
+ * emits `self::data_get($registry, 'key')`, which is not the same expression
+ * and does not parse as one — this reddens.
+ */
+it('keeps a static property qualifier inside the rewritten subject', function (): void {
+    expect(file_get_contents(fixturePath('ArrayAccessorsSniff', 'autofixed.php')))
+        ->toContain("data_get(self::\$registry, 'key')");
+});
+
+/**
+ * An argument PHP binds by reference is reported and left unfixed.
+ *
+ * `data_get()` returns a value, and a value cannot bind to a reference
+ * parameter: PHP raises "Only variables should be passed by reference" and
+ * drops the callee's write in silence. Reporting stays right — the read is
+ * still direct — but rewriting would change behaviour, which is the one thing
+ * a fixer must never do.
+ *
+ * Non-vacuous by mutation: making isByReferenceArgument() return false always
+ * turns both counts fixable and reddens this.
+ */
+it('reports a by-reference argument without offering to fix it', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'by-reference.php');
+
+    expect($file->getErrorCount())->toBe(4)
+        ->and($file->getFixableCount())->toBe(2);
+});
+
+/**
+ * The by-reference guard asks reflection about the argument's own position, not
+ * about the function as a whole. `preg_match()` binds only its third parameter
+ * by reference, so a read in its first is fixable and a read in its third is
+ * not.
+ *
+ * Non-vacuous by mutation: making argumentPosition() return 0 always makes the
+ * third-argument read fixable, and returning the by-reference index always
+ * makes the first-argument read unfixable. Either reddens.
+ */
+it('leaves a by-value argument of a by-reference function fixable', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'by-reference.php');
+    $fixable = [];
+
+    foreach ($file->getErrors() as $line => $columns) {
+        foreach ($columns as $errors) {
+            foreach ($errors as $error) {
+                $fixable[$line] = $error['fixable'];
+            }
+        }
+    }
+
+    ksort($fixable);
+
+    expect($fixable)->toBe([
+        9 => false,
+        10 => false,
+        11 => true,
+        12 => true,
+    ]);
 });
 
 /**

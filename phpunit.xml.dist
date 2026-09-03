@@ -7,21 +7,16 @@
          failOnWarning="true">
     <testsuites>
         <!--
-            Fixtures live under tests/fixtures/ and in tests/Integration/fixtures/
-            and are plain .php files. They are never collected as tests: a
-            <directory> defaults to suffix="Test.php", so only the test files
-            below are loaded. That is what lets a deliberately malformed
-            fixture sit inside a suite directory safely.
+            A <directory> defaults to suffix="Test.php", which is what keeps
+            the deliberately malformed fixtures under these directories from
+            being collected as tests.
         -->
         <testsuite name="Contract">
             <directory>tests/Contract</directory>
         </testsuite>
         <!--
-            tests/Helpers/ covers the shared classes under CleanCode/Helpers/.
-            It is a different thing from tests/Helpers.php, which holds the
-            Pest helper functions every suite here calls — with one exception,
-            RemoveStagedDirectoryTest.php, which covers that file's staging
-            teardown.
+            tests/Helpers/ covers CleanCode/Helpers/. It is not tests/Helpers.php,
+            which holds the Pest helper functions every suite calls.
         -->
         <testsuite name="Helpers">
             <directory>tests/Helpers</directory>

@@ -365,14 +365,12 @@ it('stays silent on an unterminated construct inside an array', function (): voi
 /**
  * The sniff run over this package's own test source, which is the coverage
  * this rule never had. Every top-level `.php` file under tests/Standards/ has
- * to come back with no duplicate key — including this file and
- * ConvertToCollectionTest.php, whose CONVERT_TO_COLLECTION_REVIEWED_SITES
- * ledger is the array a merge has damaged twice (#356, #369).
+ * to come back with no duplicate key.
  *
- * Unlike that ledger, this guard holds at zero rather than pinning a list of
- * accepted findings: a duplicate top-level key here is a defect to remove or
- * rename, never one to record. It is silent today because there are none —
- * all 96 files come back clean.
+ * The guard holds at zero rather than pinning a list of accepted findings: a
+ * duplicate top-level key here is a defect to remove or rename, never one to
+ * record. It is silent today because there are none — all 96 files come back
+ * clean.
  *
  * The target set is a real filesystem scan rather than a written-out list, so
  * a file added to the directory is swept the day it lands. The glob does not

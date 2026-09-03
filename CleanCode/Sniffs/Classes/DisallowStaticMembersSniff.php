@@ -8,37 +8,8 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Classes: No Statics" standard.
- *
- * Classes are meant to be instantiated and identifiable; static methods and
- * static properties give a class no identity and are little more than modern
- * `GOTO`s. This sniff flags every static method and static property
- * declaration in any object-oriented container — class, abstract class,
- * interface, trait, and enum — reporting at the offending `static` keyword.
- *
- * Only member *declarations* are flagged. The `static` keyword also appears in
- * constructs that are not static members and are left untouched:
- *
- * - `static` return types (`function make(): static`) and late static binding
- *   (`new static`, `static::foo()`) — these reference the runtime class, they
- *   do not declare a static member.
- * - static closures and arrow functions (`static fn () => ...`) — anonymous
- *   functions that merely drop the `$this` binding.
- * - function-local `static` variables (`static $count = 0;`) — a statement
- *   inside a method body, not a class member.
- * - class constants — constants are not the target of this standard.
- *
- * Detection only: converting a static member to an instance member requires
- * rewriting every call site (`Class::member()` becomes an instance access), so
- * a token-based auto-fix cannot be applied safely.
- */
 class DisallowStaticMembersSniff implements Sniff
 {
-    /**
-     * Member-declaration modifier keywords that may sit between the `static`
-     * keyword and the method/property it modifies.
-     */
     private const MEMBER_MODIFIERS = [
         T_PUBLIC,
         T_PROTECTED,
@@ -49,20 +20,12 @@ class DisallowStaticMembersSniff implements Sniff
         T_VAR,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_STATIC];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -97,10 +60,6 @@ class DisallowStaticMembersSniff implements Sniff
         $this->reportStaticProperty($phpcsFile, $stackPtr, $declaratorPtr);
     }
 
-    /**
-     * Reports the static method modified at $staticPtr, naming it from the
-     * method identifier that follows the `function` keyword.
-     */
     private function reportStaticMethod(File $phpcsFile, int $staticPtr, int $functionPtr): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -121,12 +80,6 @@ class DisallowStaticMembersSniff implements Sniff
         );
     }
 
-    /**
-     * Reports a static property when the `static` keyword introduces one — i.e.
-     * a property variable appears before the declaration's structural boundary.
-     * A `static` used as a return type (`function make(): static`) reaches the
-     * method body's `{` with no variable in between and is left untouched.
-     */
     private function reportStaticProperty(File $phpcsFile, int $staticPtr, int $declaratorPtr): void
     {
         $tokens = $phpcsFile->getTokens();

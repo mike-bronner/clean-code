@@ -8,37 +8,14 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Clear Code: One Thought Per Line" standard.
- *
- * Each line may carry at most one access operator (`->`, `?->`, or `::`) per
- * expression chain. A chain like `$user->profile->address->city` stacks
- * several thoughts on one line; the sniff flags every chain operator that
- * follows another operator of the same chain on the same line. Chains split
- * across lines (the fluent-builder style) and lines whose operators belong to
- * separate expressions (`$this->name = $user->name`) are compliant.
- *
- * The auto-fixer moves each offending operator onto its own continuation
- * line, indented one level past the line that starts the chain — the
- * behavior-preserving half of the standard. Extracting the chain into an
- * intermediate variable or model attribute is a semantic refactor (it needs a
- * name and a statement boundary) and stays with the developer.
- */
 class OneThoughtPerLineSniff implements Sniff
 {
-    /**
-     * The access operators the standard counts.
-     */
     private const ACCESS_OPERATORS = [
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
     ];
 
-    /**
-     * Tokens that can form the segment between two operators of one chain
-     * (member names, variables, and class references such as static/self).
-     */
     private const CHAIN_SEGMENT_TOKENS = [
         T_STRING,
         T_VARIABLE,
@@ -47,20 +24,12 @@ class OneThoughtPerLineSniff implements Sniff
         T_PARENT,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return self::ACCESS_OPERATORS;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $previousOperator = $this->previousOperatorInChain($phpcsFile, $stackPtr);
 
@@ -75,7 +44,7 @@ class OneThoughtPerLineSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Each line must express a single thought: at most one "->", "?->", or "::" access operator'
+            "Each line must express a single thought: at most one \"->\", \"?->\", or \"::\" access operator"
                 . ' per line; split the chain onto separate lines or extract an intermediate'
                 . ' variable/attribute',
             $stackPtr,
@@ -88,23 +57,21 @@ class OneThoughtPerLineSniff implements Sniff
 
         $indent = $this->chainIndent($phpcsFile, $stackPtr);
 
-        $phpcsFile->fixer->beginChangeset();
+        $phpcsFile->fixer
+            ->beginChangeset();
 
         if ($tokens[$stackPtr - 1]['code'] === T_WHITESPACE) {
-            $phpcsFile->fixer->replaceToken($stackPtr - 1, $phpcsFile->eolChar . $indent);
+            $phpcsFile->fixer
+                ->replaceToken($stackPtr - 1, $phpcsFile->eolChar . $indent);
         } else {
-            $phpcsFile->fixer->addContentBefore($stackPtr, $phpcsFile->eolChar . $indent);
+            $phpcsFile->fixer
+                ->addContentBefore($stackPtr, $phpcsFile->eolChar . $indent);
         }
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Finds the access operator that precedes $stackPtr within the same
-     * expression chain, walking left over the member segment and any call
-     * parentheses, index brackets, or dynamic `{…}` name braces. Returns
-     * null when $stackPtr is the first operator of its chain.
-     */
     private function previousOperatorInChain(File $phpcsFile, int $stackPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -113,7 +80,10 @@ class OneThoughtPerLineSniff implements Sniff
         while ($ptr !== false) {
             $code = $tokens[$ptr]['code'];
 
-            if ($code === T_CLOSE_PARENTHESIS && isset($tokens[$ptr]['parenthesis_opener']) === true) {
+            if (
+                $code === T_CLOSE_PARENTHESIS
+                && isset($tokens[$ptr]['parenthesis_opener']) === true
+            ) {
                 $ptr = $tokens[$ptr]['parenthesis_opener'];
             } elseif (
                 ($code === T_CLOSE_SQUARE_BRACKET || $code === T_CLOSE_CURLY_BRACKET)
@@ -128,7 +98,10 @@ class OneThoughtPerLineSniff implements Sniff
             } elseif (in_array($code, self::CHAIN_SEGMENT_TOKENS, true) === true) {
                 $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
-                if ($before !== false && in_array($tokens[$before]['code'], self::ACCESS_OPERATORS, true) === true) {
+                if (
+                    $before !== false
+                    && in_array($tokens[$before]['code'], self::ACCESS_OPERATORS, true) === true
+                ) {
                     return $before;
                 }
 
@@ -143,13 +116,6 @@ class OneThoughtPerLineSniff implements Sniff
         return null;
     }
 
-    /**
-     * Continuation indent for a chain split by the fixer: the leading
-     * whitespace of the line that starts the statement holding the chain,
-     * plus one four-space level. Basing the indent on the statement's root
-     * line (not the first operator's line) keeps continuation lines level
-     * when the chain is already partially split.
-     */
     private function chainIndent(File $phpcsFile, int $stackPtr): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -157,7 +123,10 @@ class OneThoughtPerLineSniff implements Sniff
         $line = $tokens[$start]['line'];
         $firstOnLine = $start;
 
-        while ($firstOnLine > 0 && $tokens[$firstOnLine - 1]['line'] === $line) {
+        while (
+            $firstOnLine > 0
+            && $tokens[$firstOnLine - 1]['line'] === $line
+        ) {
             $firstOnLine--;
         }
 
@@ -167,6 +136,6 @@ class OneThoughtPerLineSniff implements Sniff
             $indent = str_replace(["\r", "\n"], '', $tokens[$firstOnLine]['content']);
         }
 
-        return $indent . '    ';
+        return "{$indent}    ";
     }
 }

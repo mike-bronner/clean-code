@@ -1937,34 +1937,11 @@ function withPhpDiagnostics(Closure $body): array
     return [$result, $diagnostics];
 }
 
-/**
- * A decoded phpcs JSON report carrying one entry per given path => error count.
- *
- * Used by tests/Contract/DogfoodBaselineTest.php to drive the #229 dogfood
- * comparison from synthetic input. Running real phpcs there would measure
- * whatever the tree looked like that day, and could not construct the equality
- * and absence cases the ratchet's boundaries live on at all.
- *
- * @param array<string, int> $files Repo-relative path => error count.
- *
- * @return array<string, mixed>
- */
-function dogfoodReport(array $files, string $root): array
+// The three TypeHints sniffs this standard runs no longer share one namespace:
+// ParameterTypeHint and PropertyTypeHint are CleanCode subclasses that skip
+// members PHP forbids typing, while ReturnTypeHint is still Slevomat's.
+function isTypeHintsSource(string $source): bool
 {
-    $entries = [];
-
-    foreach ($files as $path => $errors) {
-        $entries[$root . '/' . $path] = ['errors' => $errors, 'warnings' => 0, 'messages' => []];
-    }
-
-    return ['totals' => ['errors' => array_sum($files), 'warnings' => 0], 'files' => $entries];
-}
-
-/**
- * The repository root, resolved, as the dogfood comparison expects to be given
- * it.
- */
-function dogfoodRoot(): string
-{
-    return (string) realpath(__DIR__ . '/..');
+    return str_starts_with($source, 'CleanCode.TypeHints.')
+        || str_starts_with($source, 'SlevomatCodingStandard.TypeHints.');
 }
