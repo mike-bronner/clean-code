@@ -271,8 +271,13 @@
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;
         per the #70 scope decision this rule owns parameter/return hints for all
-        callables. The enable* properties are pinned to the package's PHP 8.1
+        callables. The enable* properties are pinned to the package's PHP 8.3
         floor so behaviour never floats on the PHP version running the check.
+        Every gate the Slevomat sniffs apply sits at or below that floor —
+        object 7.2, mixed/union/static 8.0, intersection/never 8.1, standalone
+        null/true/false 8.2 — so all of them are pinned true. Left unset, each
+        would instead follow whichever interpreter happens to run phpcs, and a
+        consumer on a newer PHP would get findings their CI did not.
         Traversable-specification and useless-annotation codes are excluded:
         they police docblock hygiene, not missing native hints. Property type
         hints and docblock coverage belong to the general Type Hints standard
@@ -286,7 +291,7 @@
             <property name="enableMixedTypeHint" value="true"/>
             <property name="enableUnionTypeHint" value="true"/>
             <property name="enableIntersectionTypeHint" value="true"/>
-            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="true"/>
         </properties>
     </rule>
     <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
@@ -300,7 +305,7 @@
             <property name="enableUnionTypeHint" value="true"/>
             <property name="enableIntersectionTypeHint" value="true"/>
             <property name="enableNeverTypeHint" value="true"/>
-            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="true"/>
         </properties>
     </rule>
 

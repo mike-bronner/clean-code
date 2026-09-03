@@ -1727,7 +1727,6 @@ function parameterDeclarationAnswers(File $file, string $name, int $occurrence =
 function passiveNonOperandTokens(): array
 {
     $method = new ReflectionMethod(PassiveOperatorSpacingSniff::class, 'nonOperandTokens');
-    $method->setAccessible(true);
 
     return $method->invoke(new PassiveOperatorSpacingSniff());
 }
@@ -1745,7 +1744,6 @@ function squizNonOperandTokens(): array
     $sniff->register();
 
     $property = new ReflectionProperty($sniff, 'nonOperandTokens');
-    $property->setAccessible(true);
 
     return $property->getValue($sniff) ?? [];
 }

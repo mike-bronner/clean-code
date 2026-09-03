@@ -176,7 +176,9 @@ it('flags violations at the exact line', function () use ($ownedReport, $ownedWa
         178 => [RETURN_NATIVE],
         197 => [PARAMETER_NATIVE],
         205 => [RETURN_NATIVE],
+        213 => [PARAMETER_NATIVE],
         221 => [PARAMETER_NATIVE],
+        229 => [RETURN_NATIVE],
         237 => [RETURN_NATIVE],
         252 => [PARAMETER_NATIVE],
     ]);
@@ -218,7 +220,7 @@ it('marks exactly the annotated violations fixable', function (): void {
     sort($lines);
 
     expect(array_values(array_unique($lines)))->toBe(
-        [14, 31, 36, 70, 86, 94, 102, 110, 118, 139, 147, 162, 170, 178, 197, 205, 221, 237, 252],
+        [14, 31, 36, 70, 86, 94, 102, 110, 118, 139, 147, 162, 170, 178, 197, 205, 213, 221, 229, 237, 252],
         'Only a hint the sniff can infer — from an annotation, or a body that returns nothing — is fixable.'
     );
 });

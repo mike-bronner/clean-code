@@ -650,7 +650,6 @@ it('leaves a run\'s file list unbuilt when it is walked by key', function (): vo
 
     $built = static function (PHP_CodeSniffer\Files\FileList $list): array {
         $property = new ReflectionProperty(PHP_CodeSniffer\Files\FileList::class, 'files');
-        $property->setAccessible(true);
 
         return $property->getValue($list);
     };
@@ -708,7 +707,6 @@ it('takes a run\'s file list by key, building no file for any of it', function (
 
     $sniff = $ruleset->sniffs[$ruleset->sniffCodes[NUMBER_OF_CHILDREN]];
     $walk = new ReflectionMethod($sniff, 'listedPaths');
-    $walk->setAccessible(true);
 
     expect($walk->invoke($sniff, $listed))->toBe([$project]);
     expect($listed->built)->toBe(0);

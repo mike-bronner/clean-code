@@ -208,7 +208,7 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
     'tests/Helpers.php' => [
         ['line' => 666, 'column' => 66],
         ['line' => 835, 'column' => 36],
-        ['line' => 1888, 'column' => 22],
+        ['line' => 1886, 'column' => 22],
     ],
     'tests/Rules/AvoidConditionalsRulesTest.php' => [
         ['line' => 45, 'column' => 25],
@@ -353,9 +353,9 @@ const CONVERT_TO_COLLECTION_REVIEWED_SITES = [
         ['line' => 574, 'column' => 33],
         ['line' => 578, 'column' => 27],
         ['line' => 586, 'column' => 59],
-        ['line' => 749, 'column' => 75],
-        ['line' => 789, 'column' => 75],
-        ['line' => 859, 'column' => 25],
+        ['line' => 747, 'column' => 75],
+        ['line' => 787, 'column' => 75],
+        ['line' => 857, 'column' => 25],
     ],
     'tests/Standards/OneThoughtPerLineTest.php' => [
         ['line' => 37, 'column' => 42],
