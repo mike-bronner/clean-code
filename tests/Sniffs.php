@@ -79,7 +79,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',
     'CleanCode.Strings.MultilineStrings',
-    'CleanCode.Strings.RequireHeredocForMarkup',
+    'CleanCode.Strings.RequireHeredocForStructuredText',
     'CleanCode.Strings.RequireStringInterpolation',
     'CleanCode.WhiteSpace.BlankLines',
     'CleanCode.WhiteSpace.MultiLineStatementIndent',

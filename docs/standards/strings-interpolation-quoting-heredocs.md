@@ -70,14 +70,50 @@ capture can end on a backslash that would then pair with the injected `\"` and
 leave a bare quote closing the string early. The two sibling fixers below
 decline a backslash for the same reason.
 
-### `CleanCode.Strings.RequireHeredocForMarkup` — detection-only
+### `CleanCode.Strings.RequireHeredocForStructuredText` — detection-only
 
-Flags HTML/markup embedded in a regular single- or double-quoted string:
-such content belongs in a HereDoc, where it reads without quote escaping and
-survives multi-line growth. Compliant HereDoc/NowDoc bodies tokenize
-separately and never trip the sniff. No auto-fixer — converting an inline
-string to a HereDoc is a structural edit (a dedented closing marker, no
-trailing concatenation) the standard leaves to the developer.
+Flags **any embedded language** in a regular single- or double-quoted string,
+**at any length**: HTML, XML, SQL, JSON, YAML, an INI or config block, or
+markdown. Such content belongs in a HereDoc, where the delimiter names the
+language so an editor can highlight it, it reads without quote escaping, and it
+survives multi-line growth. Length is the sibling concern and belongs to
+`CleanCode.Strings.MultilineStrings`, which counts source lines and never reads
+the text, so the two hold disjoint slices.
+
+A concatenated chain is joined and judged whole, then reported **once at its
+opening fragment**. Reading the text whole is what lets the sniff recognise a
+query or a config block that no single fragment carries.
+
+Every signal is anchored, because a false positive tells a developer to
+restructure a sentence:
+
+| Language | Signal |
+| --- | --- |
+| HTML | a known element name in a tag |
+| XML | an `xml`/`DOCTYPE`/`CDATA` declaration, or any closing tag |
+| SQL | an opening keyword **and** a companion clause (`FROM`, `INTO`, `SET`, `VALUES`, `WHERE`, `TABLE`, …) |
+| JSON | opens `{`/`[` **and** carries a quoted key |
+| YAML | a `---` document marker **and** a mapping line under it |
+| INI / config | a `[section]` header, or two or more `key = value` lines |
+| markdown | a heading, list item, table row, blockquote, or fence at a line start |
+
+Each signal earns its narrowness. Trusting the SQL opening keyword alone read
+every bare `'delete'` and `'create'` in a PHP lookup array as a query — 28 false
+positives across this package's own sources against 2 real findings — so a
+companion clause is required. `SELECT 1` and other clause-free queries are
+missed by design, which is the side of the trade worth being on. A `[section]`
+header needs a setting under it for the same reason: `'[placeholder]'` alone was
+read as an INI file.
+
+Escapes are resolved per fragment, by its own delimiter: `"a\nb"` carries a line
+break and `'a\nb'` carries two characters, so a config block written with double
+quotes is recognised and a Windows path written with single quotes is not
+mistaken for one.
+
+Compliant HereDoc/NowDoc bodies tokenize separately and never trip the sniff. No
+auto-fixer — converting an inline string to a HereDoc is a structural edit (a
+dedented closing marker, no trailing concatenation) the standard leaves to the
+developer.
 
 ### `CleanCode.Strings.EscapeNestedQuotes` — auto-fixable
 
@@ -124,7 +160,7 @@ escape; otherwise the violation is reported for manual conversion.
   either php context'.
 - **A single tag split across source lines is not rewritten.** PHPCS hands the
   sniff one token per physical line, and no single token holds that tag's span.
-- **`RequireHeredocForMarkup` reports once per physical line.** Same
+- **`RequireHeredocForStructuredText` reports once per physical line.** Same
   tokenization: a multi-line quoted string arrives as one fragment per line, and
   every fragment carrying a tag is reported. The sibling
   `CleanCode.Strings.MultilineStrings` reports the same string once, and its

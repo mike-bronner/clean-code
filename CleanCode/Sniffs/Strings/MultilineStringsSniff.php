@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
 use MikeBronner\CleanCode\Support\StringLiteral;
+use MikeBronner\CleanCode\Support\StructuredText;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -25,8 +26,15 @@ class MultilineStringsSniff implements Sniff
     private const MESSAGE_STRING =
         'Multi-line strings must use HEREDOC/NOWDOC syntax instead of a quoted string spanning multiple lines';
 
-    private const MESSAGE_CONCATENATION =
-        'Multi-line strings must use HEREDOC/NOWDOC syntax instead of concatenating quoted strings across lines';
+    private const MESSAGE_CONCATENATION
+        = 'This concatenation spans %s lines, more than the %s allowed; a block of text'
+        . ' that long reads as the block it is in a HEREDOC/NOWDOC';
+
+    // Left untyped, and public, because PHP_CodeSniffer assigns a ruleset
+    // <property> as a string: a native int here throws TypeError in a consumer's
+    // run. See CONTRIBUTING.md.
+    // phpcs:ignore SlevomatCodingStandard.TypeHints.PropertyTypeHint -- ruleset-assigned, see CONTRIBUTING.md
+    public $maximumLines = 3;
 
     public function register(): array
     {
@@ -145,7 +153,7 @@ class MultilineStringsSniff implements Sniff
             return;
         }
 
-        $spansLines = ($tokens[$stackPtr]['line'] !== $tokens[$left]['line']);
+        $lastLine = max($tokens[$stackPtr]['line'], $tokens[$left]['line']);
         $ptr = $stackPtr;
 
         // Walk the chain rightward: every '.' must be followed by a string
@@ -163,22 +171,52 @@ class MultilineStringsSniff implements Sniff
                 return;
             }
 
-            if ($tokens[$operand]['line'] !== $tokens[$ptr]['line']) {
-                $spansLines = true;
-            }
+            $lastLine = max($lastLine, $tokens[$operand]['line']);
 
             while ($this->isStringLiteral($tokens, ($operand + 1))) {
                 $operand++;
+                $lastLine = max($lastLine, $tokens[$operand]['line']);
             }
 
             $ptr = $phpcsFile->findNext(Tokens::$emptyTokens, ($operand + 1), null, true);
         }
 
-        if ($spansLines === false) {
+        $this->reportChain($phpcsFile, $firstString, $lastLine);
+    }
+
+    // A chain is reported for one of two reasons, and they are separate rules.
+    //
+    // Length: past maximumLines the wrapping is no longer a line-width
+    // concession, it is a block of text, and a HEREDOC reads as the block it is.
+    // At or under the threshold the wrapping is what the 100-character limit and
+    // the leading-operator rule between them require, so flagging it would put
+    // three rules in contradiction.
+    //
+    // Structure: SQL, markup, or markdown belongs in a HEREDOC at any length,
+    // because that is what gives it syntax highlighting in an editor. Length has
+    // nothing to do with that, so the check does not consult the threshold.
+    private function reportChain(File $phpcsFile, int $firstString, int $lastLine): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $lines = ($lastLine - $tokens[$firstString]['line']) + 1;
+
+        // Embedded languages belong to CleanCode.Strings.RequireHeredocForStructuredText,
+        // which owns them at any length. Reporting one here as well would put two
+        // sniffs on one concern and double every finding.
+        if ((new StructuredText())->isStructured((new StringLiteral())->concatenated($tokens, $firstString)) === true) {
             return;
         }
 
-        $phpcsFile->addError(self::MESSAGE_CONCATENATION, $firstString, 'Concatenation');
+        if ($lines <= $this->maximumLines) {
+            return;
+        }
+
+        $phpcsFile->addError(
+            self::MESSAGE_CONCATENATION,
+            $firstString,
+            'Concatenation',
+            [$lines, $this->maximumLines]
+        );
     }
 
     private function collectFragments(array $tokens, int $start): array

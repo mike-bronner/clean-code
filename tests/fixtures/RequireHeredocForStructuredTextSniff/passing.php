@@ -36,3 +36,14 @@ $generic = 'List<int>';
 $shellRedirect = "run script.sh <input.txt >output.txt";
 $cInclude = 'see <time.h> for details';
 $unclosedAngle = 'a <div without a close';
+
+// Near misses for the widened detection. Each carries a keyword or a character
+// that a looser signal would read as another language.
+$verb = 'delete';
+$otherVerb = 'create';
+$sentence = 'Update the record before saving it to disk.';
+$selectProse = 'Select a payment method to continue.';
+$hyphenated = 'well-formed, self-contained, and pipe | separated';
+$colonPhrase = 'note: this is prose, not a mapping';
+$dashes = '---';
+$bracketed = '[placeholder]';

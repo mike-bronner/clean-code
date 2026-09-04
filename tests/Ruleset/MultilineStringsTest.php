@@ -55,18 +55,28 @@ it('flags multi-line string literals at their opening quote', function (): void 
 });
 
 /**
- * Lines 14 and 16 are the two chains of a single ternary statement: both must
- * report. Keying the dedup on findStartOfStatement() (which does not treat
- * ?/: as boundaries) would drop the second chain.
+ * Length only. This sniff counts source lines and never reads the text: an
+ * embedded language belongs to CleanCode.Strings.RequireHeredocForStructuredText, which
+ * owns it at any size. The fixture's SQL and markdown chains are therefore
+ * absent from this list — they are that sniff's, and reporting them here too
+ * would double every finding.
+ *
+ * Line 21 is the only length violation: four lines is past maximumLines, so the
+ * wrapping is a block of text rather than a line-width concession. The two- and
+ * three-line prose chains above it stay silent deliberately — that shape is
+ * what the 100-character limit and the leading-operator rule produce between
+ * them, so flagging it would leave no compliant way to write a long sentence.
+ *
+ * The two chains of the ternary at the end of the fixture carry the dedup case:
+ * keying on findStartOfStatement() (which does not treat ?/: as boundaries)
+ * would collapse them into one. They report through the sibling sniff, which
+ * pins the same behaviour there.
  */
 it('flags multi-line concatenation once at its first string operand', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'concatenation.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 3, 'column' => 8, 'source' => MULTILINE_STRINGS . '.Concatenation'],
-        ['line' => 7, 'column' => 12, 'source' => MULTILINE_STRINGS . '.Concatenation'],
-        ['line' => 14, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
-        ['line' => 16, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 21, 'column' => 14, 'source' => MULTILINE_STRINGS . '.Concatenation'],
     ]);
 });
 

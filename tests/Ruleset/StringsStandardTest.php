@@ -10,7 +10,7 @@
  * be rediscovered: a multi-line quoted string carrying markup is the one input
  * both standards have an opinion about. MultilineStrings owns the *shape*
  * (any multi-line quoted string, markup or not) and auto-fixes it to a
- * HEREDOC; RequireHeredocForMarkup owns the *content* (markup in a quoted
+ * HEREDOC; RequireHeredocForStructuredText owns the *content* (markup in a quoted
  * string, multi-line or not) and is detection-only. Neither subsumes the
  * other — a single-line `"<p>x</p>"` is invisible to the first, and a
  * multi-line SQL string is invisible to the second — so both reporting on the
@@ -28,42 +28,37 @@ declare(strict_types=1);
  *
  * - MultilineStrings reports the shape **once**, on the first fragment, because
  *   the violation is the string spanning lines at all.
- * - RequireHeredocForMarkup reports **per fragment that carries markup** —
- *   lines 3, 4 and 5 here — because it asks a question of the content, and each
- *   fragment it is handed genuinely contains a tag. It never sees the string
- *   whole, so it cannot collapse them.
- *
- * That is verbose on a long markup block, and it is a known limitation rather
- * than a defect: every line it names does contain markup that belongs in a
- * HereDoc, and the fix for all of them is the single edit MultilineStrings
- * already auto-applies. Recorded so a future change to either sniff has to be
- * deliberate about it.
+ * - RequireHeredocForStructuredText reports **once, at the opening fragment**, because
+ *   it joins the fragments and asks its question of the whole text. It reported
+ *   per fragment until the sniff was widened past markup to every embedded
+ *   language: reading the text whole is what lets it recognise a query or a
+ *   config block that no single fragment carries, and reporting once is the
+ *   consequence. The fix for the whole string is the single edit
+ *   MultilineStrings already auto-applies.
  */
 it('reports the markup and the multi-line shape separately', function (): void {
     $file = analyzeStdinSource(
-        ['CleanCode.Strings.RequireHeredocForMarkup', 'CleanCode.Strings.MultilineStrings'],
+        ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
         "<?php\n\n\$x = \"<ul>\n    <li>item</li>\n</ul>\";\n"
     );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         3 => [
-            'CleanCode.Strings.RequireHeredocForMarkup.MarkupInString',
+            'CleanCode.Strings.RequireHeredocForStructuredText.StructuredTextInString',
             'CleanCode.Strings.MultilineStrings.QuotedString',
         ],
-        4 => ['CleanCode.Strings.RequireHeredocForMarkup.MarkupInString'],
-        5 => ['CleanCode.Strings.RequireHeredocForMarkup.MarkupInString'],
     ]);
 });
 
 /**
  * Neither sniff subsumes the other. Single-line markup is the
- * RequireHeredocForMarkup-only case; a multi-line string with no markup in it
+ * RequireHeredocForStructuredText-only case; a multi-line string with no markup in it
  * is the MultilineStrings-only case. Without these two, the assertion above
  * would hold just as well for a pair of sniffs that always fired together.
  */
-it('keeps each sniff to the input only it owns', function (string $source, array $expected): void {
+it('keeps each sniff to the slice it owns', function (string $source, array $expected): void {
     $file = analyzeStdinSource(
-        ['CleanCode.Strings.RequireHeredocForMarkup', 'CleanCode.Strings.MultilineStrings'],
+        ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
         $source
     );
 
@@ -71,11 +66,18 @@ it('keeps each sniff to the input only it owns', function (string $source, array
 })->with([
     'single-line markup' => [
         "<?php\n\n\$x = \"<p>only markup</p>\";\n",
-        ['CleanCode.Strings.RequireHeredocForMarkup.MarkupInString'],
+        ['CleanCode.Strings.RequireHeredocForStructuredText.StructuredTextInString'],
     ],
-    'multi-line without markup' => [
-        "<?php\n\n\$x = \"SELECT *\n    FROM t\";\n",
+    'multi-line prose, no embedded language' => [
+        "<?php\n\n\$x = \"Dear customer,\n    your order has shipped.\";\n",
         ['CleanCode.Strings.MultilineStrings.QuotedString'],
+    ],
+    'multi-line SQL is the RequireHeredocForStructuredText case, not the shape case' => [
+        "<?php\n\n\$x = \"SELECT *\n    FROM t\";\n",
+        [
+            'CleanCode.Strings.RequireHeredocForStructuredText.StructuredTextInString',
+            'CleanCode.Strings.MultilineStrings.QuotedString',
+        ],
     ],
 ]);
 
@@ -91,7 +93,7 @@ it('is satisfied for every Strings sniff once the markup is a HereDoc', function
             'CleanCode.Strings.EscapeNestedQuotes',
             'CleanCode.Strings.HtmlAttributeQuotes',
             'CleanCode.Strings.MultilineStrings',
-            'CleanCode.Strings.RequireHeredocForMarkup',
+            'CleanCode.Strings.RequireHeredocForStructuredText',
             'CleanCode.Strings.RequireStringInterpolation',
         ],
         "<?php\n\n\$x = <<<HTML\n<ul>\n    <li class=\"item\">item</li>\n</ul>\nHTML;\n"

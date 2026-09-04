@@ -60,7 +60,7 @@
     <!--
         Strings: Interpolation, quoting, HereDocs (#25) — enforced by the
         custom CleanCode.Strings.* sniffs (RequireStringInterpolation,
-        HtmlAttributeQuotes, RequireHeredocForMarkup, EscapeNestedQuotes),
+        HtmlAttributeQuotes, RequireHeredocForStructuredText, EscapeNestedQuotes),
         auto-included via the CleanCode standard referenced above. Listed here
         for traceability; no separate ref is needed.
     -->

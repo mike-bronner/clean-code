@@ -2,10 +2,23 @@
 
 ## Standard
 
-- All multi-line strings must use HEREDOC (interpolating) or NOWDOC (literal,
-  where no interpolation is needed) syntax rather than a quoted string that runs
-  across source lines or a concatenation of quoted strings stitched together
-  over several lines.
+Two separate rules, and they are not the same rule at different sizes.
+
+- **An embedded language uses a HEREDOC at any length.** HTML, XML, SQL, JSON,
+  YAML, an INI or config block, markdown — anything that is another language
+  written inside PHP belongs in a HEREDOC (interpolating) or NOWDOC (literal)
+  whatever its size, because the delimiter is what gives an editor a language to
+  highlight. A quoted string is one flat run of characters to every tool that
+  reads it. Enforced by `CleanCode.Strings.RequireHeredocForStructuredText`.
+- **Any text longer than three source lines uses a HEREDOC.** Past that the
+  wrapping is no longer a concession to the line limit, it is a block of text,
+  and a HEREDOC reads as the block it is.
+
+The threshold matters. At or under three lines the wrapping is exactly what the
+100-character limit and the leading-operator rule produce between them, so
+flagging it would put three rules of this standard in contradiction — there
+would be no compliant way to write a long sentence. The count is configurable
+through the `maximumLines` property.
 
 ```php
 $string = <<<HTML
@@ -38,14 +51,22 @@ is therefore enforced by the custom `CleanCode.Strings.MultilineStrings` sniff,
 wired into the master `rules.xml` via the CleanCode standard
 ([#53](https://github.com/mike-bronner/phpcs-rules/issues/53)).
 
+**This sniff owns length only.** It counts source lines and never reads the
+text. Embedded languages — HTML, XML, SQL, JSON, YAML, INI and other config
+blocks, markdown — belong to `CleanCode.Strings.RequireHeredocForStructuredText`, which
+owns them at any length. The two therefore hold disjoint slices, and no string
+is reported twice.
+
 - **Detection** — two shapes are flagged:
   - `CleanCode.Strings.MultilineStrings.QuotedString` — a single quoted string
     literal whose source spans more than one physical line (a double- or
     single-quoted string with a real newline between its quotes), reported at
     its opening quote.
   - `CleanCode.Strings.MultilineStrings.Concatenation` — a run of quoted strings
-    joined with `.` that wraps across lines (`"SELECT *"\n . " FROM t"`),
-    reported once at the first string operand of the chain.
+    joined with `.` spanning **more than `maximumLines` source lines** (default
+    3), reported once at the first string operand of the chain. Prose wrapped
+    across two or three lines is compliant: that is the shape the line limit and
+    the leading-operator rule require.
 - **Not flagged** — constructs that are already compliant or are a single
   physical line:
   - **HEREDOC and NOWDOC bodies**, including PHP 7.3+ flexible (indented)

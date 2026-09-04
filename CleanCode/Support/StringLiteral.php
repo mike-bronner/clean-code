@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Support;
 
+use PHP_CodeSniffer\Util\Tokens;
+
 final class StringLiteral
 {
     public function prefix(string $content): string
@@ -31,6 +33,63 @@ final class StringLiteral
     public function inner(string $content): string
     {
         return substr($this->body($content), 1, -1);
+    }
+
+    // The text a run of concatenated string literals builds, starting at
+    // $start, with each fragment's escapes resolved the way its own delimiter
+    // resolves them. A `\n` is a line break inside double quotes and two
+    // characters inside single quotes, and a caller reading the text for its
+    // shape has to see the difference — a config block written with "\n" is one
+    // block, and a Windows path written with '\n' is not.
+    public function concatenated(array $tokens, int $start): string
+    {
+        $value = '';
+        $ptr = $start;
+        $end = count($tokens);
+
+        while ($ptr < $end) {
+            if ($this->isLiteral($tokens, $ptr) === true) {
+                $value .= $this->resolveEscapes($tokens[$ptr]['content']);
+                $ptr++;
+
+                continue;
+            }
+
+            if (
+                $tokens[$ptr]['code'] !== T_STRING_CONCAT
+                && isset(Tokens::$emptyTokens[$tokens[$ptr]['code']]) === false
+            ) {
+                break;
+            }
+
+            $ptr++;
+        }
+
+        return $value;
+    }
+
+    // Only the whitespace escapes, and only where the delimiter resolves them.
+    // Nothing else matters to a caller reading the text for its shape, and
+    // resolving more would mean reimplementing PHP's own unescaping.
+    private function resolveEscapes(string $content): string
+    {
+        $inner = $this->inner($content);
+
+        if ($this->delimiter($content) !== "\"") {
+            return $inner;
+        }
+
+        return str_replace(['\\r\\n', '\\n', '\\r', '\\t'], ["\n", "\n", "\r", "\t"], $inner);
+    }
+
+    private function isLiteral(array $tokens, int $ptr): bool
+    {
+        return isset($tokens[$ptr]) === true
+            && in_array(
+                $tokens[$ptr]['code'],
+                [T_CONSTANT_ENCAPSED_STRING, T_DOUBLE_QUOTED_STRING],
+                true
+            ) === true;
     }
 
     private function body(string $content): string
