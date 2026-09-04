@@ -17,7 +17,7 @@ class BinaryOperatorSpacingSniff extends OperatorSpacingSniff
         T_SEMICOLON => T_SEMICOLON,
     ];
 
-    protected function isOperator(File $phpcsFile, $stackPtr)
+    protected function isOperator(File $phpcsFile, $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$stackPtr]['code'];

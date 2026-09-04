@@ -376,7 +376,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
         return $bodies;
     }
 
-    private function endOfArrowHook(array $tokens, int $start, int $closer)
+    private function endOfArrowHook(array $tokens, int $start, int $closer): int|false
     {
         for ($i = $start; $i < $closer; $i++) {
             if ($tokens[$i]['code'] === T_SEMICOLON) {

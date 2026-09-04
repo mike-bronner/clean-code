@@ -106,6 +106,38 @@ class InheritedMembers
         return false;
     }
 
+    // The return type an ancestor already declares for the method at
+    // $functionPtr, or null when no resolvable ancestor declares one. Copying a
+    // declaration down is not a guess, which is what makes it safe to write.
+    public function declaredReturnType(File $phpcsFile, int $functionPtr): ?string
+    {
+        $name = $phpcsFile->getDeclarationName($functionPtr);
+
+        if ($name === null) {
+            return null;
+        }
+
+        foreach ($this->ancestors($phpcsFile, $functionPtr) as $ancestor) {
+            if ($ancestor->hasMethod($name) === false) {
+                continue;
+            }
+
+            $type = $ancestor->getMethod($name)
+                ->getReturnType();
+
+            if ($type === null) {
+                continue;
+            }
+
+            // Casting rather than reading getName(): it writes nullable, union
+            // and intersection types alike, each already in the syntax PHP
+            // accepts, where getName() exists only on the named kind.
+            return (string) $type;
+        }
+
+        return null;
+    }
+
     // Whether the declaration at $pointer belongs to a PHP_CodeSniffer class.
     //
     // PHPCS assigns a sniff's properties from ruleset XML as strings, so

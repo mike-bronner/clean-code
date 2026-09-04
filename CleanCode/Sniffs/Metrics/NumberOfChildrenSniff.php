@@ -686,7 +686,9 @@ class NumberOfChildrenSniff implements Sniff
         return $name;
     }
 
-    private function significantAfter(array $tokens, int $index)
+    // array|string, not array: these are token_get_all() tokens, and a
+    // single-character token such as `{` arrives as a bare string.
+    private function significantAfter(array $tokens, int $index): array|string|null
     {
         $next = $this->significantIndexAfter($tokens, $index, false);
 

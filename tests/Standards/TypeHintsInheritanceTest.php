@@ -76,3 +76,64 @@ it('skips a PHP_CodeSniffer class property, and reports an ordinary one', functi
 
     expect(array_keys($file->getErrors()))->toBe([11]);
 });
+
+const INFERRED_RETURN_TYPE = 'CleanCode.TypeHints.InferredReturnType';
+
+/**
+ * CleanCode.TypeHints.InferredReturnType — the fixer
+ * SlevomatCodingStandard.TypeHints.ReturnTypeHint cannot carry.
+ *
+ * That sniff writes a native hint only where a @return annotation already
+ * states one, so a codebase with no docblocks gets a report and no fix. This
+ * one writes the type wherever it is *provable* from the source: a type a
+ * resolvable ancestor already declares (read by reflection), a body whose
+ * returns are all literals, one returning $this, one returning a typed
+ * parameter. Everything else it leaves alone, because a guessed return type is
+ * not a lint finding in the consumer's code — it is a TypeError at runtime.
+ *
+ * It runs *alongside* the Slevomat sniff rather than extending it. Subclassing
+ * silently drops reports: that sniff builds every message code from a
+ * `private const NAME` through a `private` method using `self::`, so a subclass
+ * can override neither, and the branches resolving severity through the
+ * hardcoded name vanish once the parent is unregistered. Measured: lines 36 and
+ * 118 of tests/fixtures/_rulesets/MethodTypeHints/failing.php disappeared
+ * entirely under a subclass, with pure delegation and no interception at all.
+ *
+ * The reflection case extends SlevomatCodingStandard\Helpers\ClassHelper rather
+ * than a fixture parent: a fixture class is not autoloadable, so class_exists()
+ * is false for it and the ancestor path would be skipped — the test would pass
+ * while exercising the wrong branch.
+ */
+it('reports only the return types it can prove', function (): void {
+    $file = analyzeFixture(INFERRED_RETURN_TYPE, 'failing.php');
+
+    expect(array_keys($file->getErrors()))->toBe([40, 50, 60, 66, 72, 95, 97, 110])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+/**
+ * Non-vacuous by mutation: making ReturnTypeInference::infer() return null
+ * always empties the list above; returning a fixed string writes that string
+ * onto every declaration, the unprovable and magic ones included.
+ */
+it('writes each proven type onto its signature', function (): void {
+    $fixed = autofixedContents(analyzeFixture(INFERRED_RETURN_TYPE, 'failing.php'));
+
+    expect($fixed)
+        ->toContain('public function bothBooleans(int $flag): bool')
+        ->toContain('public function stringOrNull(int $flag): ?string')
+        ->toContain('public function returnsThis(): static')
+        ->toContain('public function typedParameter(File $phpcsFile): File')
+        ->toContain('public function valueOrBareReturn(int $flag): ?int')
+        ->toContain('public function closureReturnIsNotMine(): true')
+        // Reflection: copied down from ClassHelper::getName(): string.
+        ->toContain('public static function getName($phpcsFile, $classPointer): string')
+        // Ceded to the Slevomat sniff, which owns the returns-nothing case.
+        ->toContain('public function noReturnAtAll()' . "\n")
+        ->toContain('public function bareReturnOnly(int $flag)' . "\n")
+        // A constructor may not carry a return type at all.
+        ->toContain('public function __construct(private int $flag = 0)' . "\n")
+        // Not provable, so left exactly as written.
+        ->toContain('public function unprovableCall(File $phpcsFile, int $ptr)' . "\n")
+        ->toContain('public function unprovableExpression(int $flag)' . "\n");
+});

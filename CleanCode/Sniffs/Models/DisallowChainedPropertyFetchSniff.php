@@ -188,7 +188,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
-    private function propertyNameAfter(File $phpcsFile, int $operatorPtr)
+    private function propertyNameAfter(File $phpcsFile, int $operatorPtr): int|false
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -218,7 +218,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $this->rootBefore($phpcsFile, $operatorPtr) !== false;
     }
 
-    private function rootBefore(File $phpcsFile, int $beforePtr)
+    private function rootBefore(File $phpcsFile, int $beforePtr): int|false
     {
         return $this->rootFrom(
             $phpcsFile,
@@ -226,7 +226,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
-    private function rootFrom(File $phpcsFile, int|false $ptr)
+    private function rootFrom(File $phpcsFile, int|false $ptr): int|false
     {
         $this->discardRootsOfOtherStreams($phpcsFile);
 
@@ -355,7 +355,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         $this->walkSteps = 0;
     }
 
-    private function recordRoots(array $walked, int|false $result)
+    private function recordRoots(array $walked, int|false $result): int|false
     {
         foreach ($walked as $ptr) {
             $this->roots[$ptr] = $result;
@@ -364,7 +364,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $result;
     }
 
-    private function rootInsideGroup(File $phpcsFile, int $openerPtr, int $closerPtr)
+    private function rootInsideGroup(File $phpcsFile, int $openerPtr, int $closerPtr): int|false
     {
         $rootPtr = $this->rootBefore($phpcsFile, $closerPtr);
 
@@ -436,7 +436,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             || isset(Tokens::$castTokens[$code]) === true;
     }
 
-    private function openerOf(array $tokens, int $ptr)
+    private function openerOf(array $tokens, int $ptr): int|false
     {
         if ($tokens[$ptr]['code'] === T_CLOSE_PARENTHESIS) {
             return $tokens[$ptr]['parenthesis_opener'] ?? false;

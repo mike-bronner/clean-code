@@ -166,7 +166,7 @@ class RequireStringInterpolationSniff implements Sniff
         return false;
     }
 
-    private function operandCode(array $tokens, array $operand)
+    private function operandCode(array $tokens, array $operand): int|string
     {
         return $tokens[$this->operandPointer($tokens, $operand)]['code'];
     }

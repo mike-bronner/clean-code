@@ -24,7 +24,46 @@ Enforced by two existing Slevomat sniffs wired into the master `rules.xml`:
   declare a native return type. Declarations that return nothing are
   auto-fixed to `: void`; a promotable `@return` annotation is auto-fixed to
   the native hint; one that returns a value with no hint and no annotation is
-  reported (not fixable — the type cannot be inferred).
+  reported (not fixable — that sniff infers nothing from a body).
+- `CleanCode.TypeHints.InferredReturnType` — carries the fixer the Slevomat
+  sniff cannot. It runs **alongside** it and writes a return type wherever one
+  is *provable from the source*:
+
+  | Shape | Written |
+  | --- | --- |
+  | A resolvable ancestor already declares the type (read by reflection) | that type |
+  | Every return is a literal | the literal, `true`/`false` collapsing to `bool` |
+  | Returns `$this` | `static` |
+  | Returns a parameter that carries a declared type | that type |
+  | A lone `null` alongside one other type | `?T` shorthand |
+
+  It stays silent everywhere else — a return whose value comes from a call, or
+  from an operation rather than a single literal token. **A guessed return type
+  is not a lint finding in the consumer's code, it is a `TypeError` thrown at
+  runtime**, so silence is the only safe default. It also cedes three cases
+  outright: any magic method (PHP refuses to load a class whose `__construct()`
+  or `__destruct()` declares a return type at all), any declaration carrying a
+  `@return` annotation, and any body that returns nothing — the Slevomat sniff
+  already owns those and reports them under a more specific code.
+
+  A declaration it can fix therefore carries **two** reports until `phpcbf`
+  runs: the Slevomat one and this one. The fix clears both.
+
+  **Why it does not extend the Slevomat sniff.** That was the first design and
+  it silently dropped reports. `ReturnTypeHintSniff` builds every message code
+  from a `private const NAME` through a `private` method using `self::`, so a
+  subclass can override neither, and the branches that resolve severity through
+  the hardcoded name vanish once the parent is unregistered. Measured: two
+  reports disappeared from the ruleset fixture under a subclass, with pure
+  delegation and no interception at all.
+
+  The reflection path answers nothing against an ancestor that declares no
+  types of its own — PHP_CodeSniffer's own `File` class declares none on any of
+  its 42 methods — and nothing against an ancestor that cannot be resolved
+  during a lint run, the same limit `InheritedMembers` already carries.
+
+  A return inside a nested closure, arrow function, or anonymous class belongs
+  to that declaration and never joins the enclosing method's union.
 
 ### Scope — all callables, not just methods
 

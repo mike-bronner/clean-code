@@ -156,7 +156,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         return [T_OPEN_TAG];
     }
 
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): int
     {
         // Order matters: the alias map decides what counts as a Collection type
         // hint, which the arrow-function table records, which the variable map

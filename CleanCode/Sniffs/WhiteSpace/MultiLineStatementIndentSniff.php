@@ -116,7 +116,7 @@ class MultiLineStatementIndentSniff implements Sniff
         return $this->scanCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
         $this->mapLines($phpcsFile);

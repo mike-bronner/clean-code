@@ -164,7 +164,7 @@ class DisallowClosureRoutesSniff implements Sniff
         }
     }
 
-    private function unwrapArgument(File $phpcsFile, int $argument, int $closer)
+    private function unwrapArgument(File $phpcsFile, int $argument, int $closer): int|false
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -192,7 +192,7 @@ class DisallowClosureRoutesSniff implements Sniff
         return $phpcsFile->findNext(Tokens::$emptyTokens, ($argument + 1), $closer, true);
     }
 
-    private function nextArgumentSeparator(File $phpcsFile, int $start, int $closer)
+    private function nextArgumentSeparator(File $phpcsFile, int $start, int $closer): int|false
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -211,7 +211,7 @@ class DisallowClosureRoutesSniff implements Sniff
         return false;
     }
 
-    private function nestedCloserAt(File $phpcsFile, int $pointer)
+    private function nestedCloserAt(File $phpcsFile, int $pointer): int|false
     {
         $token = $phpcsFile->getTokens()[$pointer];
 
