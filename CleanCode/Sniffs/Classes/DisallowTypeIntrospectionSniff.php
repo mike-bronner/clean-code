@@ -454,17 +454,28 @@ class DisallowTypeIntrospectionSniff implements Sniff
         // that pair: one backward pass per file against one per check is the
         // difference between linear and quadratic here, and it has no observable
         // other than these counts or the elapsed time they replace (#354).
-        if ($this->ternaryDecisions === null) {
-            $this->cacheCounts['ternaryDecisions.builds']++;
-            $this->ternaryDecisions = $this->buildTernaryDecisions($phpcsFile);
-        } else {
-            $this->cacheCounts['ternaryDecisions.hits']++;
-        }
+        $this->ensureTernaryDecisions($phpcsFile);
 
         $decision = $this->ternaryDecisions[$stackPtr + 1] ?? $phpcsFile->numTokens;
 
         return $decision < $limit
             && $tokens[$decision]['code'] === T_INLINE_THEN;
+    }
+
+    // Builds the map once per file and counts the build apart from every read
+    // that answers from it. The scale test reads that pair: one backward pass
+    // per file against one per check is the difference between linear and
+    // quadratic here (#354).
+    private function ensureTernaryDecisions(File $phpcsFile): void
+    {
+        if ($this->ternaryDecisions !== null) {
+            $this->cacheCounts['ternaryDecisions.hits']++;
+
+            return;
+        }
+
+        $this->cacheCounts['ternaryDecisions.builds']++;
+        $this->ternaryDecisions = $this->buildTernaryDecisions($phpcsFile);
     }
 
     private function buildTernaryDecisions(File $phpcsFile): array

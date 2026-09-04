@@ -66,7 +66,8 @@ class DisallowNonResourceRoutesSniff implements Sniff
 
         $phpcsFile->addWarning(
             'Route::%s() registers a route with an HTTP verb; the standard asks for resource '
-                . 'routes pointing at RESTful controllers (Route::resource(), Route::apiResource()), '
+                . 'routes pointing at RESTful controllers (Route::resource(),'
+                . ' Route::apiResource()), '
                 . 'with an invokable-controller special-action route as a rare exception '
                 . '(see docs/standards/routes-conventions-do-do-not.md)',
             $verbPtr,

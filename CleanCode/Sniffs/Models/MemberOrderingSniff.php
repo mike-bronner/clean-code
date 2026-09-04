@@ -213,7 +213,12 @@ class MemberOrderingSniff implements Sniff
                     'PropertyGroupOrder',
                     [$name, $scope, array_search($previousRank, self::VISIBILITY_RANKS, true)]
                 );
-            } elseif (
+            }
+
+            // Disjoint by construction: a rank is either below the previous one
+            // or equal to it, never both, so the two reports read as one choice
+            // written apart.
+            if (
                 $previousName !== null
                 && $rank === $previousRank
                 && strcasecmp($name, $previousName) < 0

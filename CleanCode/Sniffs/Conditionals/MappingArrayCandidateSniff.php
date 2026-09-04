@@ -108,8 +108,10 @@ class MappingArrayCandidateSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            "Mapping-array candidate: %d branches all compare \"%s\" against a scalar literal and do"
-                . ' nothing but produce a value. Prefer a mapping array or match where one applies.',
+            "Mapping-array candidate: %d branches all compare \"%s\" against a scalar literal and"
+                . " do"
+                . ' nothing but produce a value. Prefer a mapping array or match where one'
+                . ' applies.',
             $stackPtr,
             'IfChain',
             [count($clauses), $subject]

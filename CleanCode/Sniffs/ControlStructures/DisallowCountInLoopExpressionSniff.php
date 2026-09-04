@@ -117,9 +117,17 @@ class DisallowCountInLoopExpressionSniff implements Sniff
 
             if (in_array($code, self::NESTING_OPENERS, true) === true) {
                 $depth++;
-            } elseif (in_array($code, self::NESTING_CLOSERS, true) === true) {
+
+                continue;
+            }
+
+            if (in_array($code, self::NESTING_CLOSERS, true) === true) {
                 $depth--;
-            } elseif (
+
+                continue;
+            }
+
+            if (
                 $code === T_SEMICOLON
                 && $depth === 0
             ) {

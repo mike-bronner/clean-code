@@ -184,7 +184,8 @@ class UnitTestExternalConcernsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'A unit test concerns only the class under test: $this->%s() dispatches through the HTTP'
+            'A unit test concerns only the class under test: $this->%s() dispatches through the'
+                . ' HTTP'
                 . ' kernel, which belongs in a %s test',
             $methodPtr,
             'HttpRequest',

@@ -283,13 +283,7 @@ class MultiLineStatementIndentSniff implements Sniff
             }
 
             // Any code token can begin the expression current in its scope.
-            if ($stack !== []) {
-                if ($stack[count($stack) - 1]['exprStart'] === null) {
-                    $stack[count($stack) - 1]['exprStart'] = $i;
-                }
-            } elseif ($exprStart === null) {
-                $exprStart = $i;
-            }
+            $this->beginExpression($stack, $exprStart, $i);
 
             if (in_array($code, self::BRACKET_OPENERS, true) === true) {
                 $stack[] = ['opener' => $i, 'exprStart' => null];
@@ -308,11 +302,7 @@ class MultiLineStatementIndentSniff implements Sniff
             }
 
             if ($code === T_COMMA) {
-                if ($stack !== []) {
-                    $stack[count($stack) - 1]['exprStart'] = null;
-                } else {
-                    $exprStart = null;
-                }
+                $this->endExpression($stack, $exprStart);
 
                 continue;
             }
@@ -336,41 +326,73 @@ class MultiLineStatementIndentSniff implements Sniff
         array $continuation
     ): void {
         $tokens = $phpcsFile->getTokens();
-        $token = $tokens[$ptr];
         $lineStart = $this->lineFirstToken($phpcsFile, $ptr);
         $actual = $tokens[$lineStart]['column'] - 1;
         $closedOpener = $this->closedOpener($tokens, $ptr, $stack);
 
         if ($closedOpener !== null) {
-            $expected = $this->lineIndent($phpcsFile, $closedOpener);
-            $errorCode = 'CloseBracketIndent';
-            $error = 'Closing bracket of a multi-line statement not indented correctly;'
-                . ' expected %s spaces but found %s';
-        } else {
-            $continues = in_array($token['code'], self::CHAIN_OPERATORS, true) === true
-                || $this->isContinuationOperator($token['code'], $continuation) === true
-                || $this->followsTrailingOperator($phpcsFile, $ptr) === true;
+            $this->reportIndent(
+                $phpcsFile,
+                $lineStart,
+                $this->lineIndent($phpcsFile, $closedOpener),
+                $actual,
+                'CloseBracketIndent',
+                'Closing bracket of a multi-line statement not indented correctly;'
+                    . ' expected %s spaces but found %s'
+            );
 
-            if ($continues === true) {
-                // A chain, concatenation, or other binary/ternary operator
-                // continues the expression above it, so it hangs one level
-                // below the line where that expression started.
-                $anchor = $stack === [] ? $exprStart : $stack[count($stack) - 1]['exprStart'];
-                $anchor ??= $stack === [] ? null : $stack[count($stack) - 1]['opener'];
-            } else {
-                // Every other line — an operand, an argument, or a
-                // boolean-operator-led sibling condition — sits one level in
-                // from the line its enclosing construct opens on.
-                $anchor = $stack === [] ? null : $stack[count($stack) - 1]['opener'];
-            }
-
-            $anchorIndent = $anchor === null ? $baseIndent : $this->lineIndent($phpcsFile, $anchor);
-            $expected = $anchorIndent + $this->indent;
-            $errorCode = 'IncorrectIndent';
-            $error = 'Line in multi-line statement not indented correctly;'
-                . ' expected %s spaces but found %s';
+            return;
         }
 
+        $anchor = $this->continuationAnchor($phpcsFile, $ptr, $stack, $exprStart, $continuation);
+        $anchorIndent = $anchor === null ? $baseIndent : $this->lineIndent($phpcsFile, $anchor);
+
+        $this->reportIndent(
+            $phpcsFile,
+            $lineStart,
+            $anchorIndent + $this->indent,
+            $actual,
+            'IncorrectIndent',
+            'Line in multi-line statement not indented correctly;'
+                . ' expected %s spaces but found %s'
+        );
+    }
+
+    // The line this one hangs off. A chain, concatenation, or other
+    // binary/ternary operator continues the expression above it, so it hangs one
+    // level below the line where that expression started. Every other line — an
+    // operand, an argument, or a boolean-operator-led sibling condition — sits
+    // one level in from the line its enclosing construct opens on.
+    private function continuationAnchor(
+        File $phpcsFile,
+        int $ptr,
+        array $stack,
+        ?int $exprStart,
+        array $continuation
+    ): ?int {
+        $code = $phpcsFile->getTokens()[$ptr]['code'];
+        $opener = $stack === [] ? null : $stack[count($stack) - 1]['opener'];
+        $continues = in_array($code, self::CHAIN_OPERATORS, true) === true
+            || $this->isContinuationOperator($code, $continuation) === true
+            || $this->followsTrailingOperator($phpcsFile, $ptr) === true;
+
+        if ($continues === false) {
+            return $opener;
+        }
+
+        $anchor = $stack === [] ? $exprStart : $stack[count($stack) - 1]['exprStart'];
+
+        return $anchor ?? $opener;
+    }
+
+    private function reportIndent(
+        File $phpcsFile,
+        int $lineStart,
+        int $expected,
+        int $actual,
+        string $errorCode,
+        string $error
+    ): void {
         if ($actual === $expected) {
             return;
         }
@@ -383,13 +405,39 @@ class MultiLineStatementIndentSniff implements Sniff
 
         $padding = str_repeat(' ', $expected);
 
-        if ($tokens[$lineStart]['column'] === 1) {
+        if ($phpcsFile->getTokens()[$lineStart]['column'] === 1) {
             $phpcsFile->fixer
                 ->addContentBefore($lineStart, $padding);
-        } else {
-            $phpcsFile->fixer
-                ->replaceToken($lineStart - 1, $padding);
+
+            return;
         }
+
+        $phpcsFile->fixer
+            ->replaceToken($lineStart - 1, $padding);
+    }
+
+    // The expression start lives on the innermost bracket frame when there is
+    // one, and in the statement-level variable when there is not.
+    private function beginExpression(array &$stack, ?int &$exprStart, int $pointer): void
+    {
+        if ($stack === []) {
+            $exprStart ??= $pointer;
+
+            return;
+        }
+
+        $stack[count($stack) - 1]['exprStart'] ??= $pointer;
+    }
+
+    private function endExpression(array &$stack, ?int &$exprStart): void
+    {
+        if ($stack === []) {
+            $exprStart = null;
+
+            return;
+        }
+
+        $stack[count($stack) - 1]['exprStart'] = null;
     }
 
     private function isContinuationOperator(int|string $code, array $continuation): bool
@@ -556,9 +604,11 @@ class MultiLineStatementIndentSniff implements Sniff
 
             if ($stillOpen === false) {
                 $opener = null;
-            } elseif ($opener === null) {
-                $opener = $i;
+
+                continue;
             }
+
+            $opener ??= $i;
         }
     }
 

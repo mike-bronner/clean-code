@@ -205,18 +205,30 @@ class MultilineStringsSniff implements Sniff
         return isset($tokens[$ptr]) && in_array($tokens[$ptr]['code'], self::STRING_TOKENS, true);
     }
 
+    // A single-quoted source becomes a NOWDOC and a double-quoted one a
+    // HEREDOC, which differ in both the escapes their body resolves and the
+    // opener they carry.
+    private function docStringParts(string $raw, string $prefix, string $inner): array
+    {
+        if ((new StringLiteral())->delimiter($raw) === "'") {
+            return [
+                $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES),
+                $prefix . "<<<'" . self::MARKER . "'",
+            ];
+        }
+
+        return [
+            $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES),
+            $prefix . '<<<' . self::MARKER,
+        ];
+    }
+
     private function buildDocString(File $phpcsFile, string $raw): ?string
     {
         $prefix = (new StringLiteral())->prefix($raw);
         $inner = (new StringLiteral())->inner($raw);
 
-        if ((new StringLiteral())->delimiter($raw) === "'") {
-            $body = $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES);
-            $opener = $prefix . "<<<'" . self::MARKER . "'";
-        } else {
-            $body = $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES);
-            $opener = $prefix . '<<<' . self::MARKER;
-        }
+        [$body, $opener] = $this->docStringParts($raw, $prefix, $inner);
 
         $lines = preg_split('/\r\n|\n|\r/', $body);
 

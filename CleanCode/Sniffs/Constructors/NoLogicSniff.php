@@ -200,7 +200,8 @@ class NoLogicSniff implements Sniff
                 && $this->isParentConstructorCall($phpcsFile, $statementStart, $statementEnd) === false
             ) {
                 $phpcsFile->addError(
-                    'Constructors must contain no logic, only property assignments; move this statement '
+                    'Constructors must contain no logic, only property assignments; move this'
+                        . ' statement '
                         . 'into a named constructor, factory, or collaborator',
                     $statementStart,
                     'LogicFound'
@@ -392,9 +393,12 @@ class NoLogicSniff implements Sniff
                 return false;
             }
 
+            // Disjoint token sets, so these read as one choice written apart.
             if (in_array($code, self::BRACKET_OPENERS, true)) {
                 $depth++;
-            } elseif (in_array($code, self::BRACKET_CLOSERS, true)) {
+            }
+
+            if (in_array($code, self::BRACKET_CLOSERS, true)) {
                 $depth--;
             }
         }

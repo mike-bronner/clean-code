@@ -508,12 +508,13 @@ class ModelNamingConventionsSniff implements Sniff
                 continue;
             }
 
-            if (preg_match('/^(.+?)\s+as\s+([A-Za-z0-9_]+)$/i', $name, $matches) === 1) {
+            $aliased = preg_match('/^(.+?)\s+as\s+([A-Za-z0-9_]+)$/i', $name, $matches) === 1;
+
+            if ($aliased === true) {
                 $name = trim($matches[1]);
-                $alias = $matches[2];
-            } else {
-                $alias = $this->shortName($name);
             }
+
+            $alias = $aliased === true ? $matches[2] : $this->shortName($name);
 
             $resolved = ltrim($name, '\\');
 

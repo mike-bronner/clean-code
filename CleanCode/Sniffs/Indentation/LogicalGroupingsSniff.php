@@ -239,22 +239,33 @@ class LogicalGroupingsSniff implements Sniff
                 continue;
             }
 
-            if ($index === 0) {
-                $error = 'Grouped condition must be indented one level deeper than its'
-                    . ' enclosing condition; expected %s spaces, found %s';
-                $code = 'GroupNotIndented';
-            } else {
-                $error = "Condition in a parenthesized group must align with the group's"
-                    . ' first condition; expected %s spaces, found %s';
-                $code = 'MisalignedGroupedCondition';
-            }
-
+            [$error, $code] = $this->groupIndentReport($index);
             $fix = $phpcsFile->addFixableError($error, $pointer, $code, [$expected, $actual]);
 
             if ($fix === true) {
                 $this->reindent($phpcsFile, $pointer, $expected);
             }
         }
+    }
+
+    // The first condition of a group is measured against its enclosing
+    // condition; every later one is measured against that first condition, so
+    // the two carry different wording and different codes.
+    private function groupIndentReport(int $index): array
+    {
+        if ($index === 0) {
+            return [
+                'Grouped condition must be indented one level deeper than its'
+                    . ' enclosing condition; expected %s spaces, found %s',
+                'GroupNotIndented',
+            ];
+        }
+
+        return [
+            "Condition in a parenthesized group must align with the group's"
+                . ' first condition; expected %s spaces, found %s',
+            'MisalignedGroupedCondition',
+        ];
     }
 
     private function checkGluedFirstCondition(File $phpcsFile, int $pointer, int $expected): void

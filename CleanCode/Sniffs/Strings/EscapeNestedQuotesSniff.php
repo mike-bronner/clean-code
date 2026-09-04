@@ -36,7 +36,8 @@ class EscapeNestedQuotesSniff implements Sniff
         if ($this->isSafeToConvert($inner) === false) {
             $phpcsFile->addError(
                 'Prefer a double-quoted string with escaped inner quotes over single quotes;'
-                    . ' this literal needs manual conversion (it contains a variable, brace, or escape)',
+                    . ' this literal needs manual conversion (it contains a variable, brace, or'
+                    . ' escape)',
                 $stackPtr,
                 'UnescapedQuote'
             );

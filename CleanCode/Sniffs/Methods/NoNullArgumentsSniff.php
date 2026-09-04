@@ -174,11 +174,19 @@ class NoNullArgumentsSniff implements Sniff
         for ($i = $opener + 1; $i < $closer; $i++) {
             $code = $tokens[$i]['code'];
 
+            // Three disjoint token sets, so these read as one choice even
+            // written apart. No `continue` on the bracket arms: a bracket is
+            // part of the argument's own token range, and still has to reach
+            // the $start/$end update below.
             if (isset(self::OPEN_BRACKETS[$code]) === true) {
                 $depth++;
-            } elseif (isset(self::CLOSE_BRACKETS[$code]) === true) {
+            }
+
+            if (isset(self::CLOSE_BRACKETS[$code]) === true) {
                 $depth--;
-            } elseif (
+            }
+
+            if (
                 $code === T_COMMA
                 && $depth === 0
             ) {

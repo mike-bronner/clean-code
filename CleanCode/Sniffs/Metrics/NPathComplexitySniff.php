@@ -435,15 +435,26 @@ class NPathComplexitySniff implements Sniff
             return null;
         }
 
-        if ($tokens[$opener]['code'] === T_OPEN_CURLY_BRACKET) {
-            $closer = $tokens[$opener]['bracket_closer'] ?? null;
-        } elseif ($tokens[$opener]['code'] === T_COLON) {
-            $closer = $this->nextAtLevel($phpcsFile, $tokens, [T_ENDSWITCH], ($opener + 1), $end);
-        } else {
-            $closer = null;
-        }
+        $closer = $this->switchCloser($phpcsFile, $tokens, $opener, $end);
 
         return $closer === null ? null : [$opener, $closer];
+    }
+
+    // A switch body closes with `}` in brace form and with `endswitch` in the
+    // alternative form. Anything else is neither, and answers null.
+    private function switchCloser(File $phpcsFile, array $tokens, int $opener, int $end): ?int
+    {
+        $code = $tokens[$opener]['code'];
+
+        if ($code === T_OPEN_CURLY_BRACKET) {
+            return $tokens[$opener]['bracket_closer'] ?? null;
+        }
+
+        if ($code === T_COLON) {
+            return $this->nextAtLevel($phpcsFile, $tokens, [T_ENDSWITCH], ($opener + 1), $end);
+        }
+
+        return null;
     }
 
     private function switchLabels(File $phpcsFile, array $tokens, int $opener, int $closer): array
@@ -468,12 +479,16 @@ class NPathComplexitySniff implements Sniff
                 return $ptr;
             }
 
+            // Two independent jumps, never both: $code is read once above, so a
+            // token is either the brace or the switch, never the other's case.
             if (
                 $code === T_OPEN_CURLY_BRACKET
                 && isset($tokens[$ptr]['bracket_closer']) === true
             ) {
                 $ptr = $tokens[$ptr]['bracket_closer'];
-            } elseif ($code === T_SWITCH) {
+            }
+
+            if ($code === T_SWITCH) {
                 $body = $this->switchBody($phpcsFile, $tokens, $ptr, $end);
                 $ptr = ($body === null ? $ptr : $body[1]);
             }

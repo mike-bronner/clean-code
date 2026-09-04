@@ -539,8 +539,6 @@ class UnusedFormalParameterSniff implements Sniff
     private function buildDeclarations(File $phpcsFile): void
     {
         $tokenStreams = $this->tokenStreams;
-
-        $tokens = $phpcsFile->getTokens();
         $key = $tokenStreams->key($phpcsFile);
 
         if ($this->declarationsKey === $key) {
@@ -562,22 +560,31 @@ class UnusedFormalParameterSniff implements Sniff
         $pointer = $phpcsFile->findNext($targets, 0);
 
         while ($pointer !== false) {
-            if ($tokens[$pointer]['code'] === T_NAMESPACE) {
-                $namespace = $this->namespaceName($phpcsFile, $pointer) ?? $namespace;
-            } else {
-                $name = $phpcsFile->getDeclarationName($pointer);
-                $this->declarationNamespace[$pointer] = $namespace;
-
-                if (
-                    $name !== null
-                    && $name !== ''
-                ) {
-                    $this->declarations[$namespace . '\\' . strtolower($name)] = $pointer;
-                }
-            }
-
+            $namespace = $this->indexDeclaration($phpcsFile, $pointer, $namespace);
             $pointer = $phpcsFile->findNext($targets, $pointer + 1);
         }
+    }
+
+    // Records one declaration against the namespace in force, and answers the
+    // namespace the next declaration sits in — unchanged, except where this
+    // pointer was itself a namespace statement.
+    private function indexDeclaration(File $phpcsFile, int $pointer, string $namespace): string
+    {
+        if ($phpcsFile->getTokens()[$pointer]['code'] === T_NAMESPACE) {
+            return $this->namespaceName($phpcsFile, $pointer) ?? $namespace;
+        }
+
+        $name = $phpcsFile->getDeclarationName($pointer);
+        $this->declarationNamespace[$pointer] = $namespace;
+
+        if (
+            $name !== null
+            && $name !== ''
+        ) {
+            $this->declarations[$namespace . '\\' . strtolower($name)] = $pointer;
+        }
+
+        return $namespace;
     }
 
     private function countCacheRead(string $index, int $classPtr, string $outcome): void

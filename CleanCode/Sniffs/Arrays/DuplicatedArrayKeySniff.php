@@ -152,17 +152,25 @@ class DuplicatedArrayKeySniff implements Sniff
             // negation is not an integer at all, and coercing that back to a
             // key performs the very out-of-range cast floatValue() exists to
             // avoid — which aborts the whole file on 8.4 and 8.5 alike.
-            $value = $this->floatValue('-' . $token['content']);
-        } else {
-            $value = $this->literalValue($token);
-
-            // Only a number can be negated into a key, so a minus in front of
-            // anything else means the key is not a literal after all.
-            if ($isNegated === true) {
-                $value = is_int($value) === true ? -$value : null;
-            }
+            return $this->toArrayKey($this->floatValue('-' . $token['content']));
         }
 
+        $value = $this->literalValue($token);
+
+        // Only a number can be negated into a key, so a minus in front of
+        // anything else means the key is not a literal after all.
+        if ($isNegated === true) {
+            $value = is_int($value) === true ? -$value : null;
+        }
+
+        return $this->toArrayKey($value);
+    }
+
+    // PHP's own key coercion, borrowed: writing the value into an array and
+    // reading the key back applies the same int/string normalisation a real
+    // array subscript would.
+    private function toArrayKey(int|string|null $value): int|string|null
+    {
         return $value === null ? null : array_key_first([$value => null]);
     }
 

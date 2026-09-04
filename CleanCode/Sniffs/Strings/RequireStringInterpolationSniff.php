@@ -372,6 +372,22 @@ class RequireStringInterpolationSniff implements Sniff
         return $end;
     }
 
+    // The opener of a bracket or parenthesis pair the walk stands on the closer
+    // of. A closer whose opener PHPCS did not record answers null, the same as a
+    // token that is not a closer at all.
+    private function groupOpenerAt(array $tokens, int $ptr, int|string $code): ?int
+    {
+        if ($code === T_CLOSE_SQUARE_BRACKET) {
+            return $tokens[$ptr]['bracket_opener'] ?? null;
+        }
+
+        if ($code === T_CLOSE_PARENTHESIS) {
+            return $tokens[$ptr]['parenthesis_opener'] ?? null;
+        }
+
+        return null;
+    }
+
     private function operandStart(File $phpcsFile, int $end): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -380,35 +396,27 @@ class RequireStringInterpolationSniff implements Sniff
         while (true) {
             $code = $tokens[$start]['code'];
 
-            if (
-                $code === T_CLOSE_SQUARE_BRACKET
-                && isset($tokens[$start]['bracket_opener']) === true
-            ) {
-                $opener = $tokens[$start]['bracket_opener'];
-            } elseif (
-                $code === T_CLOSE_PARENTHESIS
-                && isset($tokens[$start]['parenthesis_opener']) === true
-            ) {
-                $opener = $tokens[$start]['parenthesis_opener'];
-            } else {
+            $opener = $this->groupOpenerAt($tokens, $start, $code);
+
+            if ($opener === null) {
                 $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
 
                 if (
-                    $prev !== false
-                    && in_array($tokens[$prev]['code'], self::MEMBER_OPERATORS, true) === true
+                    $prev === false
+                    || in_array($tokens[$prev]['code'], self::MEMBER_OPERATORS, true) === false
                 ) {
-                    $base = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
-
-                    if ($base === false) {
-                        break;
-                    }
-
-                    $start = $base;
-
-                    continue;
+                    break;
                 }
 
-                break;
+                $base = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
+
+                if ($base === false) {
+                    break;
+                }
+
+                $start = $base;
+
+                continue;
             }
 
             $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($opener - 1), null, true);

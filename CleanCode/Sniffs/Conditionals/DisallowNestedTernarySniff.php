@@ -110,7 +110,11 @@ class DisallowNestedTernarySniff implements Sniff
                     $i--;
                     continue;
                 }
-            } else {
+            }
+
+            // $direction is +1 or -1, never 0, so the two walks are disjoint and
+            // read as one choice written apart.
+            if ($direction > 0) {
                 if (
                     $code === T_OPEN_PARENTHESIS
                     && isset($tokens[$i]['parenthesis_closer']) === true

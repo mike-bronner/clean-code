@@ -109,7 +109,8 @@ class NumberOfChildrenSniff implements Sniff
 
         $phpcsFile->addError(
             'The class %s has %s children.'
-                . ' Consider to rebalance this class hierarchy to keep number of children under %s.',
+                . ' Consider to rebalance this class hierarchy to keep number of children under'
+                . ' %s.',
             $stackPtr,
             'Found',
             [$name, $children, $minimum]

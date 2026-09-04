@@ -85,13 +85,19 @@ class DepthOfInheritanceSniff implements Sniff
         $seen = [$declaration['fqcn'] => true];
 
         while ($parent !== null) {
-            if (array_key_exists($parent, $file) === true) {
-                $next = $file[$parent];
-            } elseif (array_key_exists($parent, $fileset) === true) {
-                $next = $fileset[$parent];
-            } else {
+            $inFile = array_key_exists($parent, $file);
+
+            if (
+                $inFile === false
+                && array_key_exists($parent, $fileset) === false
+            ) {
                 return $depth + $this->unseenParentWeight();
             }
+
+            // array_key_exists, not ??: an index entry holds a declaration's
+            // parent, and a class with no parent stores null. Coalescing would
+            // read that as absent and charge it the unseen-parent weight.
+            $next = $inFile === true ? $file[$parent] : $fileset[$parent];
 
             if (isset($seen[$parent]) === true) {
                 return null;

@@ -163,17 +163,21 @@ class UnusedPrivateElementsSniff implements Sniff
                 $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($i - 1), null, true);
 
                 if (
-                    $prev !== false
-                    && in_array($tokens[$prev]['code'], self::ACCESS_OPERATORS, true) === true
+                    $prev === false
+                    || in_array($tokens[$prev]['code'], self::ACCESS_OPERATORS, true) === false
                 ) {
-                    $name = strtolower(ltrim($tokens[$i]['content'], '$'));
-
-                    if ($this->isCall($phpcsFile, $i) === true) {
-                        $usedMethods[$name] = true;
-                    } else {
-                        $usedProperties[$name] = true;
-                    }
+                    continue;
                 }
+
+                $name = strtolower(ltrim($tokens[$i]['content'], '$'));
+
+                if ($this->isCall($phpcsFile, $i) === true) {
+                    $usedMethods[$name] = true;
+
+                    continue;
+                }
+
+                $usedProperties[$name] = true;
 
                 continue;
             }

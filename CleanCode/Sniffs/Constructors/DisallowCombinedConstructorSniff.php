@@ -920,13 +920,18 @@ class DisallowCombinedConstructorSniff implements Sniff
 
             // A spaced `else if` is a T_ELSE and a T_IF: the `if` owns the
             // condition, and the chain carries on in front of the `else`.
+            $spacedElse = $previous !== false
+                && $tokens[$previous]['code'] === T_ELSE;
+
             if (
-                $previous !== false
-                && $tokens[$previous]['code'] === T_ELSE
+                $spacedElse === false
+                && $tokens[$head]['code'] !== T_ELSEIF
             ) {
-                $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
-            } elseif ($tokens[$head]['code'] !== T_ELSEIF) {
                 return $this->rememberChainHead($visited, $head);
+            }
+
+            if ($spacedElse === true) {
+                $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
             }
 
             if (

@@ -30,7 +30,8 @@ class AvoidConditionalsSniff implements Sniff
         [$construct, $violationCode] = self::CONSTRUCTS[$tokens[$stackPtr]['code']];
 
         $phpcsFile->addWarning(
-            "Avoid conditionals where possible: \"%s\" adds a branch, which raises cyclomatic complexity."
+            "Avoid conditionals where possible: \"%s\" adds a branch, which raises cyclomatic"
+                . " complexity."
                 . ' Prefer polymorphism, a mapping array, or match where one applies.',
             $stackPtr,
             $violationCode,
