@@ -393,7 +393,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             return null;
         }
 
-        return strtolower(trim($namespace . '\\' . $name, '\\'));
+        return strtolower(trim("{$namespace}\\{$name}", '\\'));
     }
 
     private function imports(File $phpcsFile): array
@@ -559,6 +559,6 @@ class CouplingBetweenObjectsSniff implements Sniff
             return 'anonymous class';
         }
 
-        return 'class ' . $phpcsFile->getDeclarationName($stackPtr);
+        return "class {$phpcsFile->getDeclarationName($stackPtr)}";
     }
 }

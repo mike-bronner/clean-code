@@ -72,6 +72,6 @@ class ExcessiveParameterListSniff implements Sniff
             }
         }
 
-        return $subject . ' ' . $phpcsFile->getDeclarationName($stackPtr) . '()';
+        return "{$subject} {$phpcsFile->getDeclarationName($stackPtr)}()";
     }
 }

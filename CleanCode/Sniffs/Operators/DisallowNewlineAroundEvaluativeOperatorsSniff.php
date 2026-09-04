@@ -52,7 +52,7 @@ class DisallowNewlineAroundEvaluativeOperatorsSniff implements Sniff
     private function handleNewline(File $phpcsFile, int $operatorPtr, int $operandPtr, string $side): void
     {
         $tokens = $phpcsFile->getTokens();
-        $error = 'Newline found ' . $side . " evaluative operator \"%s\"";
+        $error = "Newline found {$side} evaluative operator \"%s\"";
         $code = ($side === 'before') ? 'FoundBefore' : 'FoundAfter';
         $data = [$tokens[$operatorPtr]['content']];
         [$start, $end] = ($side === 'before') ? [$operandPtr, $operatorPtr] : [$operatorPtr, $operandPtr];

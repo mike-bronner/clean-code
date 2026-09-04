@@ -152,7 +152,7 @@ class DuplicatedArrayKeySniff implements Sniff
             // negation is not an integer at all, and coercing that back to a
             // key performs the very out-of-range cast floatValue() exists to
             // avoid — which aborts the whole file on 8.4 and 8.5 alike.
-            return $this->toArrayKey($this->floatValue('-' . $token['content']));
+            return $this->toArrayKey($this->floatValue("-{$token['content']}"));
         }
 
         $value = $this->literalValue($token);
@@ -200,7 +200,7 @@ class DuplicatedArrayKeySniff implements Sniff
             default => [$digits, 10, '0-9'],
         };
 
-        if (preg_match('/^[' . $legalDigits . ']+$/', $body) !== 1) {
+        if (preg_match("/^[{$legalDigits}]+\$/", $body) !== 1) {
             return null;
         }
 
@@ -272,7 +272,7 @@ class DuplicatedArrayKeySniff implements Sniff
 
     private function describeKey(int|string $key): string
     {
-        return is_int($key) === true ? (string) $key : "'" . $key . "'";
+        return is_int($key) === true ? (string) $key : "'{$key}'";
     }
 
     private function significantTokens(array $tokens, int $startPtr, int $endPtr): array

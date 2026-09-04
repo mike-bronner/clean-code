@@ -318,7 +318,7 @@ class MultilineStringsSniff implements Sniff
                 && ($i + 1) < $length
             ) {
                 $next = $inner[$i + 1];
-                $out .= (strpos($resolved, $next) !== false) ? $next : '\\' . $next;
+                $out .= (strpos($resolved, $next) !== false) ? $next : "\\{$next}";
                 $i++;
 
                 continue;

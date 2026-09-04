@@ -444,7 +444,7 @@ class DepthOfInheritanceSniff implements Sniff
             return;
         }
 
-        $qualified = trim($prefix . '\\' . $name, '\\');
+        $qualified = trim("{$prefix}\\{$name}", '\\');
         $segments = explode('\\', $qualified);
         $key = $alias ?? end($segments);
 
@@ -523,7 +523,7 @@ class DepthOfInheritanceSniff implements Sniff
             return [null, $i];
         }
 
-        $fqcn = $namespace === '' ? $name : $namespace . '\\' . $name;
+        $fqcn = $namespace === '' ? $name : "{$namespace}\\{$name}";
 
         return [
             [
@@ -560,7 +560,7 @@ class DepthOfInheritanceSniff implements Sniff
             return strtolower(implode('\\', $segments));
         }
 
-        return strtolower($namespace === '' ? $name : $namespace . '\\' . $name);
+        return strtolower($namespace === '' ? $name : "{$namespace}\\{$name}");
     }
 
     private function isSkippableToken(array|string $token): bool

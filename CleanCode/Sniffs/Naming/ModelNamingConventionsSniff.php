@@ -330,10 +330,10 @@ class ModelNamingConventionsSniff implements Sniff
         $head = strtolower($head);
 
         if (isset($imports[$head])) {
-            return ($rest === null) ? $imports[$head] : $imports[$head] . '\\' . $rest;
+            return ($rest === null) ? $imports[$head] : "{$imports[$head]}\\{$rest}";
         }
 
-        return ($namespace === '') ? $type : $namespace . '\\' . $type;
+        return ($namespace === '') ? $type : "{$namespace}\\{$type}";
     }
 
     private function hasModelsSegment(string $name): bool
@@ -522,7 +522,7 @@ class ModelNamingConventionsSniff implements Sniff
             // `use` still finds it, the way PHP does. The *value* keeps its
             // source casing: shortName() feeds it into message text, where the
             // model's real spelling is the whole point of the advice.
-            $map[strtolower($alias)] = ($prefix === '') ? $resolved : $prefix . '\\' . $resolved;
+            $map[strtolower($alias)] = ($prefix === '') ? $resolved : "{$prefix}\\{$resolved}";
         }
 
         return $map;

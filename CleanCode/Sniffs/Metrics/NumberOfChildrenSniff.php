@@ -504,7 +504,7 @@ class NumberOfChildrenSniff implements Sniff
             return;
         }
 
-        $qualified = $namespace === '' ? $name : $namespace . '\\' . $name;
+        $qualified = $namespace === '' ? $name : "{$namespace}\\{$name}";
         $this->declarations[$path][$tokens[$index][2]][strtolower($name)][] = strtolower($qualified);
 
         $next = $this->significantAfter($tokens, $cursor);
@@ -653,7 +653,7 @@ class NumberOfChildrenSniff implements Sniff
             return strtolower(trim($aliases[$first] . '\\' . implode('\\', $segments), '\\'));
         }
 
-        return strtolower(trim($namespace . '\\' . $name, '\\'));
+        return strtolower(trim("{$namespace}\\{$name}", '\\'));
     }
 
     private function readName(array $tokens, int &$index): string

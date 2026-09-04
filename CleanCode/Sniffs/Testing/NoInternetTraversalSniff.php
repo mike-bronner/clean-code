@@ -133,7 +133,7 @@ class NoInternetTraversalSniff implements Sniff
             }
         }
 
-        $this->report($phpcsFile, $stackPtr, $tokens[$stackPtr]['content'] . '()');
+        $this->report($phpcsFile, $stackPtr, "{$tokens[$stackPtr]['content']}()");
     }
 
     private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool

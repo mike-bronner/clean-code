@@ -100,7 +100,7 @@ class HtmlAttributeQuotesSniff implements Sniff
                             return $attr[0];
                         }
 
-                        return $attr[1] . '=' . $quote . $attr[2] . $quote;
+                        return "{$attr[1]}={$quote}{$attr[2]}{$quote}";
                     },
                     $match[0]
                 );
@@ -143,7 +143,7 @@ class HtmlAttributeQuotesSniff implements Sniff
     {
         $quoted = preg_quote($apostrophe, '#');
 
-        return '#([a-zA-Z_:][-a-zA-Z0-9_:.]*)\\s*=\\s*' . $quoted . '([^\']*)' . $quoted . '#';
+        return "#([a-zA-Z_:][-a-zA-Z0-9_:.]*)\\s*=\\s*{$quoted}([^']*){$quoted}#";
     }
 
     private function phpStringDelimiter(File $phpcsFile, int $stackPtr): string

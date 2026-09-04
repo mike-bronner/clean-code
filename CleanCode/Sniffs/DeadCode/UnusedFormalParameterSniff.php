@@ -465,7 +465,7 @@ class UnusedFormalParameterSniff implements Sniff
 
         return array_map(
             static fn (string $name): string => $namespace . '\\'
-                . strtolower(substr((string) strrchr('\\' . $name, '\\'), 1)),
+                . strtolower(substr((string) strrchr("\\{$name}", '\\'), 1)),
             $names
         );
     }
@@ -589,7 +589,7 @@ class UnusedFormalParameterSniff implements Sniff
 
     private function countCacheRead(string $index, int $classPtr, string $outcome): void
     {
-        $this->cacheCounts[$index . '.' . $outcome]++;
+        $this->cacheCounts["{$index}.{$outcome}"]++;
 
         $counts = $this->cacheCountsByClass[$index][$classPtr] ?? ['builds' => 0, 'hits' => 0];
         $counts[$outcome]++;
@@ -706,6 +706,6 @@ class UnusedFormalParameterSniff implements Sniff
 
         $subject = $this->enclosingClass($phpcsFile, $stackPtr) === null ? 'function' : 'method';
 
-        return $subject . ' ' . $phpcsFile->getDeclarationName($stackPtr) . '()';
+        return "{$subject} {$phpcsFile->getDeclarationName($stackPtr)}()";
     }
 }

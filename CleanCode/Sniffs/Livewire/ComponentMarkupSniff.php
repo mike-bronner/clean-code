@@ -401,7 +401,7 @@ class ComponentMarkupSniff implements Sniff
         $regions = [];
 
         foreach (self::LOOP_DIRECTIVES as $directive) {
-            $pattern = '/@(' . $directive . '|end' . $directive . ')\b/i';
+            $pattern = "/@({$directive}|end{$directive})\\b/i";
             $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE);
 
             // The read reports failure two ways, and neither leaves anything

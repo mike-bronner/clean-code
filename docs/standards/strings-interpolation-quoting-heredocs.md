@@ -38,16 +38,33 @@ expressions) are considered; mixing in a function call, constant, or magic
 constant (`$x . foo()`, `__DIR__ . '/x'`) means the expression cannot become a
 single interpolated string, and it is left alone.
 
-- **Auto-fixed** — the direct, two-operand case: one string literal plus one
-  plain `$variable` (`'Hello ' . $name` → `"Hello {$name}"`). The fixer
-  brace-wraps the variable so it never runs into adjacent literal text.
-- **Detection-only** — multi-expression chains (`'a' . $b . 'c'`) and complex
-  variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`,
-  `'x' . $svc->run()`). These are interpolatable with `{...}`, but the safe
-  rewrite is a judgement call left to the developer. A literal carrying a
-  binary-string prefix (`B'Total: ' . $sum`) is detection-only too, for a
-  different reason: the interpolated result would be source PHPCS cannot read
-  (see the tokenizer note under *Known limitations*).
+- **Auto-fixed** — any chain, of any length, whose operands all have an
+  interpolated form:
+
+  ```php
+  'Hello ' . $name                  →  "Hello {$name}"
+  $ns . '\\' . $name                →  "{$ns}\\{$name}"
+  'a' . $first . 'b' . $last        →  "a{$first}b{$last}"
+  'user: ' . $user->name            →  "user: {$user->name}"
+  'item: ' . $items['key']          →  "item: {$items['key']}"
+  'result: ' . $service->run()      →  "result: {$service->run()}"
+  ```
+
+  Every variable is brace-wrapped, which is what makes an arbitrary chain safe:
+  `{$a}{$b}` cannot run two names together, and `{$user->name}s` cannot swallow
+  the trailing character. A single-quoted fragment has its own two escapes
+  (`\\` and `\'`) resolved before the whole thing is escaped for a double-quoted
+  body, so a value is never altered — the suite proves this by executing the
+  before and after fixtures and comparing every resulting value.
+
+- **Detection-only** — the two shapes with no interpolated form at all:
+  - **a grouping parenthesis around an operand** (`($b) . 'y'`). `{($b)}` is a
+    brace followed by text, not a variable expression, so writing it would
+    change the value. Parentheses stay transparent for *detection*, so these
+    are still reported — just under `ComplexConcatenation` rather than fixed.
+  - **a binary-string prefix** (`B'Total: ' . $sum`). The interpolated result
+    would be source PHPCS cannot read (see the tokenizer note under *Known
+    limitations*).
 
 ### `CleanCode.Strings.HtmlAttributeQuotes` — auto-fixable
 

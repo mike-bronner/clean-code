@@ -219,7 +219,7 @@ class NoFirstPartyMocksSniff implements Sniff
 
         $name = $this->scopeClassName($phpcsFile, $argumentPtr);
 
-        return $name === null ? null : '\\' . $name;
+        return $name === null ? null : "\\{$name}";
     }
 
     private function scopeClassName(File $phpcsFile, int $keywordPtr): ?string
@@ -493,7 +493,7 @@ class NoFirstPartyMocksSniff implements Sniff
 
     private function join(string $namespace, string $tail): string
     {
-        return $namespace === '' ? $tail : ($namespace . '\\' . $tail);
+        return $namespace === '' ? $tail : ("{$namespace}\\{$tail}");
     }
 
     private function isFirstParty(string $resolved): bool
@@ -509,7 +509,7 @@ class NoFirstPartyMocksSniff implements Sniff
 
             if (
                 $lowered === $root
-                || str_starts_with($lowered, $root . '\\') === true
+                || str_starts_with($lowered, "{$root}\\") === true
             ) {
                 return true;
             }

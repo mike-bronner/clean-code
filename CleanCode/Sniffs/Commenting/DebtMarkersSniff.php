@@ -56,7 +56,7 @@ class DebtMarkersSniff implements Sniff
     private function markerTask(string $content, string $marker): ?string
     {
         $matches = [];
-        $pattern = '/(?:\A|[^\p{L}]+)' . $marker . '([^\p{L}]+(.*)|\Z)/ui';
+        $pattern = "/(?:\\A|[^\\p{L}]+){$marker}([^\\p{L}]+(.*)|\\Z)/ui";
 
         if (preg_match($pattern, $content, $matches) !== 1) {
             return null;

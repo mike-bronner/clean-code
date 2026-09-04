@@ -94,7 +94,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
                 $summaries[$line] = ['anchor' => $pointer, 'shape' => '', 'code' => false];
             }
 
-            $summaries[$line]['shape'] .= $token['code'] . ',';
+            $summaries[$line]['shape'] .= "{$token['code']},";
             $summaries[$line]['code'] = $summaries[$line]['code']
                 || isset($delimiters[$token['code']]) === false;
         }

@@ -134,7 +134,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
                 . 'or move the behaviour onto the object',
             $stackPtr,
             'IntrospectionFunction',
-            [$tokens[$stackPtr]['content'] . '()']
+            ["{$tokens[$stackPtr]['content']}()"]
         );
     }
 

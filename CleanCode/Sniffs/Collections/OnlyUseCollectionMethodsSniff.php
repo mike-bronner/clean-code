@@ -954,7 +954,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $phpcsFile->fixer
             ->beginChangeset();
         $phpcsFile->fixer
-            ->replaceToken($start, $expression . '->' . $method . '()');
+            ->replaceToken($start, "{$expression}->{$method}()");
 
         for ($ptr = ($start + 1); $ptr <= $closer; $ptr++) {
             $phpcsFile->fixer

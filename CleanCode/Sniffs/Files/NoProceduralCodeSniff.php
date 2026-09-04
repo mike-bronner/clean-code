@@ -233,6 +233,6 @@ class NoProceduralCodeSniff implements Sniff
             }
         }
 
-        return "\"" . $content . "\"";
+        return "\"{$content}\"";
     }
 }

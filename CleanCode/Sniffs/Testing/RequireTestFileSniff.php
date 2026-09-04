@@ -102,7 +102,7 @@ class RequireTestFileSniff implements Sniff
         ]);
         $projectRoot = $this->quoteGlob(implode('/', array_slice($segments, 0, $sourceIndex)));
         $leadingSeparator = $segments[0] === '' ? '/' : '';
-        $parts = explode('/', $projectRoot . '/' . $this->testDirectory . '/' . $expected);
+        $parts = explode('/', "{$projectRoot}/{$this->testDirectory}/{$expected}");
 
         return $leadingSeparator . implode('/', array_filter($parts, 'strlen'));
     }

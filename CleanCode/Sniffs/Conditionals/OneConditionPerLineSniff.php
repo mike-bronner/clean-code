@@ -147,7 +147,7 @@ class OneConditionPerLineSniff implements Sniff
         array $operators
     ): void {
         $tokens = $phpcsFile->getTokens();
-        $indent = $this->lineIndent($phpcsFile, $stackPtr) . '    ';
+        $indent = "{$this->lineIndent($phpcsFile, $stackPtr)}    ";
 
         if ($tokens[$regionStart]['line'] === $tokens[$regionEnd]['line']) {
             $fix = $phpcsFile->addFixableError(

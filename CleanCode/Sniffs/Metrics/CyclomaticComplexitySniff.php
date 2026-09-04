@@ -70,6 +70,6 @@ class CyclomaticComplexitySniff implements Sniff
             }
         }
 
-        return $subject . ' ' . $phpcsFile->getDeclarationName($stackPtr) . '()';
+        return "{$subject} {$phpcsFile->getDeclarationName($stackPtr)}()";
     }
 }

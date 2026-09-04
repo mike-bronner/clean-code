@@ -218,25 +218,48 @@ class RequireStringInterpolationSniff implements Sniff
         return $count;
     }
 
+    // The whole chain as one interpolated string, or null when a fragment
+    // cannot be carried across.
+    //
+    // Any number of operands: collectChainOperands() has already proven each
+    // one is a complete string literal or a variable expression, so each is
+    // either written out as literal text or wrapped in braces. The braces are
+    // what make an arbitrary chain safe — `{$a}{$b}` cannot run two names
+    // together, and `{$user->name}s` cannot swallow the trailing character.
     private function simpleInterpolation(array $tokens, array $operands): ?string
     {
-        if (count($operands) !== 2) {
+        $interpolated = '';
+
+        foreach ($operands as $operand) {
+            $fragment = $this->operandAsDoubleQuoted($tokens, $operand);
+
+            if ($fragment === null) {
+                return null;
+            }
+
+            $interpolated .= $fragment;
+        }
+
+        return "\"{$interpolated}\"";
+    }
+
+    private function operandAsDoubleQuoted(array $tokens, array $operand): ?string
+    {
+        $pointer = $this->operandPointer($tokens, $operand);
+
+        // A grouping parenthesis has no interpolated form: `{($b)}` is not a
+        // variable expression, it is a brace followed by text, so the value
+        // would change. operandPointer() sees through the parentheses to
+        // classify the operand, which is why this checks the raw start instead.
+        if ($tokens[$operand['start']]['code'] === T_OPEN_PARENTHESIS) {
             return null;
         }
 
-        [$first, $second] = $operands;
-
-        $literal = $this->singleTokenOfCode($tokens, $first, $second, T_CONSTANT_ENCAPSED_STRING);
-        $variable = $this->singleTokenOfCode($tokens, $first, $second, T_VARIABLE);
-
-        if (
-            $literal === null
-            || $variable === null
-        ) {
-            return null;
+        if ($tokens[$pointer]['code'] === T_VARIABLE) {
+            return "{{$this->operandSource($tokens, $operand)}}";
         }
 
-        $content = $tokens[$literal]['content'];
+        $content = $tokens[$pointer]['content'];
 
         // A binary-string prefix makes this rewrite unfixable, because the
         // result always interpolates and no spelling of the prefix survives
@@ -252,31 +275,20 @@ class RequireStringInterpolationSniff implements Sniff
             return null;
         }
 
-        $inner = $this->literalInnerAsDoubleQuoted($content);
-
-        if ($inner === null) {
-            return null;
-        }
-
-        $interpolated = '{' . $tokens[$variable]['content'] . '}';
-
-        return $literal < $variable
-            ? "\"" . $inner . $interpolated . "\""
-            : "\"" . $interpolated . $inner . "\"";
+        return $this->literalInnerAsDoubleQuoted($content);
     }
 
-    private function singleTokenOfCode(array $tokens, array $first, array $second, int|string $code): ?int
+    // A variable operand written exactly as the source wrote it, so a member or
+    // subscript expression carries across whole.
+    private function operandSource(array $tokens, array $operand): string
     {
-        foreach ([$first, $second] as $operand) {
-            if (
-                $operand['start'] === $operand['end']
-                && $tokens[$operand['start']]['code'] === $code
-            ) {
-                return $operand['start'];
-            }
+        $source = '';
+
+        for ($pointer = $operand['start']; $pointer <= $operand['end']; $pointer++) {
+            $source .= $tokens[$pointer]['content'];
         }
 
-        return null;
+        return trim($source);
     }
 
     private function literalInnerAsDoubleQuoted(string $content): ?string
@@ -288,11 +300,18 @@ class RequireStringInterpolationSniff implements Sniff
             return $this->escapeTrailingDollar($inner);
         }
 
-        if (strpos($inner, '\\') !== false) {
-            return null;
-        }
+        // Two conversions, in this order. A single-quoted body resolves only
+        // `\\` and `\'`, so those come back to the characters they stand for
+        // first; every other backslash in it was already literal. Then the
+        // whole thing is escaped for a double-quoted body, where a backslash, a
+        // quote and a `$` all mean something.
+        //
+        // Skipping the first step and refusing any backslash was the earlier
+        // behaviour, and it left the commonest shape in this package —
+        // `$namespace . '\\' . $name` — unfixable.
+        $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
 
-        return str_replace(['\\', "\"", '$'], ['\\\\', '\\"', '\\$'], $inner);
+        return str_replace(['\\', "\"", '$'], ['\\\\', '\\"', '\\$'], $resolved);
     }
 
     private function escapeTrailingDollar(string $inner): string
@@ -308,7 +327,7 @@ class RequireStringInterpolationSniff implements Sniff
             return $inner;
         }
 
-        return $beforeDollar . '\\$';
+        return "{$beforeDollar}\\\$";
     }
 
     private function operandEnd(File $phpcsFile, int $start): int

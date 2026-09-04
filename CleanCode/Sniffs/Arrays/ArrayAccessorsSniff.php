@@ -320,7 +320,7 @@ class ArrayAccessorsSniff implements Sniff
             $segments[] = $tokens[$memberPtr]['code'] === T_VARIABLE
                 ? ['source' => $content, 'name' => null]
                 : [
-                    'source' => "'" . $content . "'",
+                    'source' => "'{$content}'",
                     'name' => $this->isIdentifierName($content) === true ? $content : null,
                 ];
             $endPtr = $memberPtr;

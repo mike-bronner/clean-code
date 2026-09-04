@@ -50,33 +50,34 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 6, 'column' => 27, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
         ['line' => 10, 'column' => 19, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
         ['line' => 14, 'column' => 29, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
-        ['line' => 17, 'column' => 14, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 18, 'column' => 22, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 19, 'column' => 19, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 20, 'column' => 22, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 21, 'column' => 37, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 27, 'column' => 23, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 28, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 29, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 36, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 37, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 45, 'column' => 40, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 46, 'column' => 39, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
-        ['line' => 47, 'column' => 35, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 20, 'column' => 14, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 21, 'column' => 22, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 22, 'column' => 19, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 23, 'column' => 22, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 24, 'column' => 37, 'source' => REQUIRE_STRING_INTERPOLATION . '.Concatenation'],
+        ['line' => 35, 'column' => 23, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 36, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 37, 'column' => 31, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 44, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 45, 'column' => 28, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 53, 'column' => 40, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 54, 'column' => 39, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
+        ['line' => 55, 'column' => 35, 'source' => REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'],
     ]);
 });
 
 /**
- * Only the five direct two-operand cases are fixable; the thirteen
- * detection-only ones are not. Asserted as a count rather than a boolean so a
- * fixer that started claiming the complex cases would fail here rather than
- * silently widening its reach.
+ * Ten of the eighteen are fixable; the eight that are not are the two shapes
+ * with no interpolated form at all — a grouping parenthesis (`{($b)}` is a
+ * brace followed by text) and a binary-string prefix. Asserted as a count
+ * rather than a boolean so a fixer that started claiming those would fail here
+ * rather than silently widening its reach.
  */
-it('marks only the direct two-operand cases fixable', function (): void {
+it('fixes every chain with an interpolated form, and no others', function (): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
 
     expect($file->getErrorCount())->toBe(18)
-        ->and($file->getFixableCount())->toBe(5);
+        ->and($file->getFixableCount())->toBe(10);
 });
 
 /**
@@ -147,7 +148,7 @@ it('sees through grouping parentheses around an operand', function (int $line): 
         ->toHaveKey($line)
         ->and(violationSourcesByLine($file->getErrors())[$line])
         ->toBe([REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation']);
-})->with([27, 28, 29]);
+})->with([35, 36, 37]);
 
 /**
  * The rest of "parentheses are transparent": a member, index, or call chain
@@ -156,10 +157,15 @@ it('sees through grouping parentheses around an operand', function (int $line): 
  * token never matched the walk from the other side, the operand was classified
  * non-interpolatable, and all three reported nothing at all.
  *
- * Asserted as parity with the unparenthesized twin rather than as "this line
- * reports", because the defect was precisely a disagreement between the two:
- * a sniff that fell silent on both, or reported both under different codes,
- * fails here where a bare presence check would pass.
+ * Asserted as a pair rather than as "this line reports", because the defect was
+ * precisely a disagreement between the two: a sniff that fell silent on the
+ * wrapped one fails here where a bare presence check would pass.
+ *
+ * The two carry *different codes* now, and that is the point rather than a
+ * regression. Detection is identical — parentheses are transparent to the
+ * standard, so both report. Fixing is not: the twin has an interpolated form
+ * and is written, while `{($user)->name}` is a brace followed by text, so the
+ * wrapped one stays detection-only.
  */
 it('sees through grouping parentheses a chain hangs off', function (int $twin, int $wrapped): void {
     $file = analyzeFixture(REQUIRE_STRING_INTERPOLATION, 'failing.php');
@@ -167,11 +173,12 @@ it('sees through grouping parentheses a chain hangs off', function (int $twin, i
 
     expect($sources[$wrapped] ?? null)
         ->toBe([REQUIRE_STRING_INTERPOLATION . '.ComplexConcatenation'])
-        ->and($sources[$wrapped] ?? null)->toBe($sources[$twin] ?? null);
+        ->and($sources[$twin] ?? null)
+        ->toBe([REQUIRE_STRING_INTERPOLATION . '.Concatenation']);
 })->with([
-    'property' => [18, 45],
-    'index' => [19, 46],
-    'method' => [20, 47],
+    'property' => [21, 53],
+    'index' => [22, 54],
+    'method' => [23, 55],
 ]);
 
 /**

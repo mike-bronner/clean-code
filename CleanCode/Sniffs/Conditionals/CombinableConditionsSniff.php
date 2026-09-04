@@ -266,7 +266,7 @@ class CombinableConditionsSniff implements Sniff
                 continue;
             }
 
-            $signature .= $tokens[$pointer]['code'] . ':' . $tokens[$pointer]['content'] . "\0";
+            $signature .= "{$tokens[$pointer]['code']}:{$tokens[$pointer]['content']}\0";
         }
 
         return $signature === '' ? null : $signature;
