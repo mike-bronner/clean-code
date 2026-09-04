@@ -111,11 +111,6 @@ have not been walked one at a time the way that PR walked the first 65, so the
 per-site tally above stays scoped to that set rather than widened to cover
 reviews nobody performed.
 
-That reviewed set is pinned by file, line and column in
-`tests/Standards/ConvertToCollectionTest.php`
-(`CONVERT_TO_COLLECTION_REVIEWED_SITES`), so a native call added, moved or
-removed anywhere under `CleanCode/` or `tests/` fails that test. A count alone
-would not: one site moving while another disappears leaves it unchanged.
 Nothing is suppressed to reach that state — no `phpcs:ignore`, no
 `exclude-pattern`, and no ruleset registration for this sniff. `rules.xml`
 carries the same account in its "Arrays: Convert To Collection" comment block.

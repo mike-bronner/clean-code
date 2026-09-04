@@ -5,81 +5,37 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
 use MikeBronner\CleanCode\Support\StringLiteral;
+use MikeBronner\CleanCode\Support\StructuredText;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Code Style: Multiline Strings (HEREDOC)" standard.
- *
- * A string value that spans multiple source lines must be written with HEREDOC
- * (interpolating) or NOWDOC (literal) syntax rather than a quoted string that
- * runs across lines or a concatenation of quoted strings stitched together over
- * several lines. This matters most for inline SQL, where a multi-line HEREDOC
- * reads as the query it is.
- *
- * Two shapes are flagged:
- *
- * - **QuotedString** — a single quoted string literal whose source spans more
- *   than one physical line (a double- or single-quoted string with a real
- *   newline between its quotes). PHPCS splits such a string into consecutive
- *   string tokens at each newline; the violation is reported once, on the first
- *   fragment. This shape is auto-fixable: a double-quoted string becomes a
- *   HEREDOC (interpolation is preserved), a single-quoted string becomes a
- *   NOWDOC (kept literal), with the closing marker emitted at column 0 so the
- *   value is reproduced byte-for-byte.
- * - **Concatenation** — a run of quoted strings joined with `.` that spans
- *   multiple lines (the line-wrapped concatenation idiom, `"SELECT *"\n . " FROM
- *   t"`). Reported once, on the first string operand of the chain. Merging the
- *   pieces into a single HEREDOC is a semantic rewrite — interpolation, the
- *   whitespace between the pieces, and any non-string operands all have to be
- *   reasoned about — so this shape is detection-only and left to the developer.
- *
- * Never flagged: HEREDOC and NOWDOC bodies (they tokenize as `T_START_HEREDOC`
- * / `T_HEREDOC` / `T_END_HEREDOC`, never as string literals), single-line
- * quoted strings, single-line concatenation, and a single-line string whose
- * only newline is the escape sequence `\n` (that is one physical line).
- */
 class MultilineStringsSniff implements Sniff
 {
-    /**
-     * Token types PHPCS emits for a quoted string literal. A string that spans
-     * source lines is split into several consecutive tokens of these types.
-     */
     private const STRING_TOKENS = [
         T_CONSTANT_ENCAPSED_STRING,
         T_DOUBLE_QUOTED_STRING,
     ];
 
-    /**
-     * Closing marker used for the HEREDOC/NOWDOC the fixer emits. Placed at
-     * column 0 so no indentation is stripped and the string value is preserved
-     * exactly.
-     */
     private const MARKER = 'TEXT';
 
-    /**
-     * HEREDOC honours the same escape sequences as a double-quoted string
-     * except `\"`, which is not special there — so `"` is the only character
-     * whose backslash is dropped when a double-quoted body is rewritten.
-     */
-    private const HEREDOC_RESOLVED_ESCAPES = '"';
+    private const HEREDOC_RESOLVED_ESCAPES = "\"";
 
-    /**
-     * NOWDOC is fully literal, so both escapes a single-quoted string
-     * recognises — `\\` and `\'` — resolve to the bare character.
-     */
-    private const NOWDOC_RESOLVED_ESCAPES = '\\\'';
+    private const SINGLE_QUOTE_RESOLVED_ESCAPES = '\\\'';
 
-    private const MESSAGE_STRING =
-        'Multi-line strings must use HEREDOC/NOWDOC syntax instead of a quoted string spanning multiple lines';
+    private const MESSAGE_STRING
+        = 'Multi-line strings must use HEREDOC syntax instead of a quoted string spanning multiple lines';
 
-    private const MESSAGE_CONCATENATION =
-        'Multi-line strings must use HEREDOC/NOWDOC syntax instead of concatenating quoted strings across lines';
+    private const MESSAGE_CONCATENATION
+        = 'This text is %s lines long, more than the %s allowed; a block that long reads'
+        . ' as the block it is in a HEREDOC';
 
-    /**
-     * @return array<int|string>
-     */
+    // Left untyped, and public, because PHP_CodeSniffer assigns a ruleset
+    // <property> as a string: a native int here throws TypeError in a consumer's
+    // run. See CONTRIBUTING.md.
+    // phpcs:ignore SlevomatCodingStandard.TypeHints.PropertyTypeHint -- ruleset-assigned, see CONTRIBUTING.md
+    public $maximumLines = 3;
+
     public function register(): array
     {
         return [
@@ -89,12 +45,7 @@ class MultilineStringsSniff implements Sniff
         ];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -107,10 +58,6 @@ class MultilineStringsSniff implements Sniff
         $this->processStringLiteral($phpcsFile, $stackPtr);
     }
 
-    /**
-     * Flags a quoted string literal whose source spans multiple physical lines,
-     * offering the HEREDOC/NOWDOC auto-fix when the conversion is feasible.
-     */
     private function processStringLiteral(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -127,7 +74,10 @@ class MultilineStringsSniff implements Sniff
             $raw .= $tokens[$fragment]['content'];
         }
 
-        if (strpos($raw, "\n") === false && strpos($raw, "\r") === false) {
+        if (
+            strpos($raw, "\n") === false
+            && strpos($raw, "\r") === false
+        ) {
             return;
         }
 
@@ -145,28 +95,22 @@ class MultilineStringsSniff implements Sniff
             return;
         }
 
-        $phpcsFile->fixer->beginChangeset();
-        $phpcsFile->fixer->replaceToken($stackPtr, $replacement);
+        $phpcsFile->fixer
+            ->beginChangeset();
+        $phpcsFile->fixer
+            ->replaceToken($stackPtr, $replacement);
 
         foreach ($fragments as $fragment) {
             if ($fragment !== $stackPtr) {
-                $phpcsFile->fixer->replaceToken($fragment, '');
+                $phpcsFile->fixer
+                    ->replaceToken($fragment, '');
             }
         }
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Flags a multi-line concatenation whose operands are *all* quoted string
-     * literals — a long string literal split across source lines with `.`,
-     * which the standard wants written as one HEREDOC/NOWDOC. Detection-only,
-     * reported once on the leftmost string of the chain.
-     *
-     * A concatenation that mixes in a variable, function call, or any other
-     * non-string operand is a value-composing expression wrapped for line
-     * length, not a split string literal, and is left alone.
-     */
     private function processConcatenation(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -178,7 +122,10 @@ class MultilineStringsSniff implements Sniff
         // over long generated concatenations.)
         $left = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        if ($left === false || $this->isStringLiteral($tokens, $left) === false) {
+        if (
+            $left === false
+            || $this->isStringLiteral($tokens, $left) === false
+        ) {
             return;
         }
 
@@ -199,24 +146,28 @@ class MultilineStringsSniff implements Sniff
         // scope and silently drop every chain after the first.
         $beforeChain = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($firstString - 1), null, true);
 
-        if ($beforeChain !== false && $tokens[$beforeChain]['code'] === T_STRING_CONCAT) {
+        if (
+            $beforeChain !== false
+            && $tokens[$beforeChain]['code'] === T_STRING_CONCAT
+        ) {
             return;
         }
 
-        $spansLines = ($tokens[$stackPtr]['line'] !== $tokens[$left]['line']);
         $ptr = $stackPtr;
 
         // Walk the chain rightward: every '.' must be followed by a string
         // literal. A non-string operand means this is not a pure split string.
-        while ($ptr !== false && $tokens[$ptr]['code'] === T_STRING_CONCAT) {
+        while (
+            $ptr !== false
+            && $tokens[$ptr]['code'] === T_STRING_CONCAT
+        ) {
             $operand = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
 
-            if ($operand === false || $this->isStringLiteral($tokens, $operand) === false) {
+            if (
+                $operand === false
+                || $this->isStringLiteral($tokens, $operand) === false
+            ) {
                 return;
-            }
-
-            if ($tokens[$operand]['line'] !== $tokens[$ptr]['line']) {
-                $spansLines = true;
             }
 
             while ($this->isStringLiteral($tokens, ($operand + 1))) {
@@ -226,21 +177,47 @@ class MultilineStringsSniff implements Sniff
             $ptr = $phpcsFile->findNext(Tokens::$emptyTokens, ($operand + 1), null, true);
         }
 
-        if ($spansLines === false) {
+        $this->reportChain($phpcsFile, $firstString);
+    }
+
+    // Lines of *text*, never lines of source.
+    //
+    // A sentence wrapped across four source lines is one line of text, and a
+    // HEREDOC cannot express it: the body would have to sit on one line, which
+    // breaks the 120-character limit, or wrap, which puts real newlines into the
+    // value. Measuring the source made this rule demand something unreachable
+    // and report what could not be fixed. Measuring the text means every report
+    // names a string a HEREDOC can hold, with the newlines it already has.
+    //
+    // Source layout is somebody else's concern: the 100-character limit governs
+    // how long a line may be, and the leading-operator rule governs where it
+    // breaks. Between them they produce the wrapping this rule used to flag.
+    private function reportChain(File $phpcsFile, int $firstString): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $value = (new StringLiteral())->concatenated($tokens, $firstString);
+
+        // Embedded languages belong to CleanCode.Strings.RequireHeredocForStructuredText,
+        // which owns them at any length. Reporting one here as well would put two
+        // sniffs on one concern and double every finding.
+        if ((new StructuredText())->isStructured($value) === true) {
             return;
         }
 
-        $phpcsFile->addError(self::MESSAGE_CONCATENATION, $firstString, 'Concatenation');
+        $lines = preg_match_all('/\R/', $value) + 1;
+
+        if ($lines <= $this->maximumLines) {
+            return;
+        }
+
+        $phpcsFile->addError(
+            self::MESSAGE_CONCATENATION,
+            $firstString,
+            'Concatenation',
+            [$lines, $this->maximumLines]
+        );
     }
 
-    /**
-     * Collects the consecutive string tokens that make up one quoted string
-     * literal, starting at its first fragment.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array<int, int>
-     */
     private function collectFragments(array $tokens, int $start): array
     {
         $fragments = [$start];
@@ -254,77 +231,47 @@ class MultilineStringsSniff implements Sniff
         return $fragments;
     }
 
-    /**
-     * Whether the token at $ptr *opens* a quoted string literal, which is what
-     * every rewrite below assumes about the fragment run it starts.
-     *
-     * Two predecessors say it does not, and both are read at the immediately
-     * adjacent index rather than through findPrevious(), because a literal's
-     * own pieces are always adjacent:
-     *
-     * - **Another string token** — this is a tail fragment of a multi-line
-     *   literal, and only its first fragment reports.
-     * - **A fragment of a double-quoted body** (`T_ENCAPSED_AND_WHITESPACE`).
-     *   PHP_CodeSniffer cannot tokenize an *interpolated* binary-prefixed
-     *   string: it types the `B"` opener `T_NONE` and then mis-types the rest
-     *   of the statement, so the sniff is handed a "literal" that is really the
-     *   string's closing quote plus the source that follows it. Rewriting that
-     *   run replaced live code with a HEREDOC — `$plainDouble = "Hi $name` was
-     *   swallowed into a doc-string body. The construct stays unreported rather
-     *   than reported off wrong positions; there is no token stream to read it
-     *   from.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function opensLiteral(array $tokens, int $ptr): bool
     {
         return $this->isStringLiteral($tokens, ($ptr - 1)) === false
             && ($tokens[$ptr - 1]['code'] ?? null) !== T_ENCAPSED_AND_WHITESPACE;
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function isStringLiteral(array $tokens, int $ptr): bool
     {
         return isset($tokens[$ptr]) && in_array($tokens[$ptr]['code'], self::STRING_TOKENS, true);
     }
 
-    /**
-     * Builds the HEREDOC (double-quoted source) or NOWDOC (single-quoted
-     * source) that reproduces the quoted string's value exactly, or null when
-     * the conversion is not feasible (a body line would collide with the
-     * closing marker). The marker sits at column 0, so PHP strips no
-     * indentation and the value is preserved byte-for-byte.
-     *
-     * The delimiter is read through StringLiteral rather than off $raw's first
-     * character, and any binary-string prefix is carried onto the opener. An
-     * uppercase `B` stays inside the literal's token, so reading the first
-     * character saw `B` — never `'` — and sent every single-quoted literal
-     * carrying that prefix down the interpolating HEREDOC branch, dropping the
-     * prefix and leaving the real opening quote in the body: `B'a\nb'` came
-     * back a byte longer, with a leading apostrophe in its value. `B<<<'TEXT'`
-     * is the same shape the lowercase spelling already produces, because there
-     * the `b` is a separate token the fixer never touches.
-     *
-     * $raw is always a whole literal, which is StringLiteral::inner()'s stated
-     * precondition, so nothing re-checks it here: opensLiteral() has
-     * established that the run starts at an opening delimiter, and PHP_CodeSniffer
-     * types an *unterminated* literal T_ENCAPSED_AND_WHITESPACE rather than one
-     * of STRING_TOKENS — so it never reaches this sniff at all.
-     */
+    // Always a HEREDOC, whatever the source was quoted with. The two forms
+    // differ only in the quotes around the opening identifier, and carrying both
+    // means a reader checks the delimiter before trusting what the body says —
+    // see CleanCode.Strings.DisallowNowdoc, which holds the same line.
+    //
+    // What differs is the body. A single-quoted source resolves only `\\` and
+    // `\'`, so those come back to the characters they stand for and the whole
+    // thing is then escaped for a HEREDOC, where a backslash and a `$` each mean
+    // something. A double-quoted source already uses the escapes a HEREDOC
+    // resolves; only its quote escape is unnecessary there.
+    private function docStringParts(string $raw, string $prefix, string $inner): array
+    {
+        $literal = new StringLiteral();
+        $opener = "{$prefix}<<<" . self::MARKER;
+
+        if ($literal->delimiter($raw) === "'") {
+            $resolved = $this->docStringBody($inner, self::SINGLE_QUOTE_RESOLVED_ESCAPES);
+
+            return [$literal->asHeredocBody($resolved), $opener];
+        }
+
+        return [$this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES), $opener];
+    }
+
     private function buildDocString(File $phpcsFile, string $raw): ?string
     {
-        $prefix = StringLiteral::prefix($raw);
-        $inner = StringLiteral::inner($raw);
+        $prefix = (new StringLiteral())->prefix($raw);
+        $inner = (new StringLiteral())->inner($raw);
 
-        if (StringLiteral::delimiter($raw) === "'") {
-            $body = $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES);
-            $opener = $prefix . "<<<'" . self::MARKER . "'";
-        } else {
-            $body = $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES);
-            $opener = $prefix . '<<<' . self::MARKER;
-        }
+        [$body, $opener] = $this->docStringParts($raw, $prefix, $inner);
 
         $lines = preg_split('/\r\n|\n|\r/', $body);
 
@@ -350,14 +297,6 @@ class MultilineStringsSniff implements Sniff
         return $opener . $eol . $body . $eol . self::MARKER;
     }
 
-    /**
-     * True when a HEREDOC/NOWDOC body line would be read by PHP as the closing
-     * marker, forcing the fix to be withheld. PHP recognises the closer as an
-     * optionally-indented run of the marker that is *not* followed by another
-     * label character — so a body line like `TEXTUAL` is safe (the trailing
-     * `UAL` makes it a different identifier), while `TEXT`, `TEXT;`, or an
-     * indented `  TEXT` all close the doc prematurely.
-     */
     private function collidesWithMarker(string $line): bool
     {
         $trimmed = ltrim($line);
@@ -373,27 +312,18 @@ class MultilineStringsSniff implements Sniff
         return $after === '' || preg_match('/[A-Za-z0-9_]/', $after) !== 1;
     }
 
-    /**
-     * Rewrites the inner text of a quoted string as a doc-string body: the
-     * escapes named in $resolved lose their backslash, and every other escape
-     * — plus any interpolation — is preserved verbatim.
-     *
-     * The escape walk itself is the same for both target forms; only the set
-     * of escapes the target resolves differs, so that set is the parameter.
-     * A trailing lone backslash has no character to pair with and is emitted
-     * as-is, which is what keeps the value byte-for-byte identical.
-     *
-     * @param string $resolved The characters whose `\` prefix is dropped.
-     */
     private function docStringBody(string $inner, string $resolved): string
     {
         $out = '';
         $length = strlen($inner);
 
         for ($i = 0; $i < $length; $i++) {
-            if ($inner[$i] === '\\' && ($i + 1) < $length) {
+            if (
+                $inner[$i] === '\\'
+                && ($i + 1) < $length
+            ) {
                 $next = $inner[$i + 1];
-                $out .= (strpos($resolved, $next) !== false) ? $next : '\\' . $next;
+                $out .= (strpos($resolved, $next) !== false) ? $next : "\\{$next}";
                 $i++;
 
                 continue;

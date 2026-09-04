@@ -53,9 +53,52 @@ it('flags static methods in every object-oriented container', function (): void 
     ]);
 });
 
+/**
+ * The skip PHP forces. Dropping `static` from a member an ancestor declares
+ * static is a fatal — "Cannot make static method Base::x() non static" for a
+ * method, "Cannot redeclare static Base::$x as non static" for a property — so
+ * reporting those lines would be asking for code that does not load. Laravel's
+ * Facade is the shape that reaches consumers: getFacadeAccessor() is abstract
+ * protected static, so every facade written against it must keep the keyword.
+ *
+ * The fixture extends PHP_CodeSniffer\Util\Common rather than a fixture parent
+ * on purpose. A fixture class is not autoloadable, so class_exists() is false
+ * for it and the sniff would take its unresolvable-ancestor path — the test
+ * would pass while exercising the wrong branch.
+ *
+ * Non-vacuous by mutation: making overridesStaticMethod() return true always
+ * drops line 30, and returning false always adds line 21; the same two
+ * mutations on redeclaresStaticProperty() move lines 27 and 16.
+ *
+ * The sibling test below covers the visibility half of both guards.
+ */
+it('skips a member an ancestor declares static, and reports every other', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'inherited-static.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 27, 'column' => 13, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+        ['line' => 30, 'column' => 13, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+    ]);
+});
+
+/**
+ * A private ancestor member is not inherited, so PHP loads a non-static
+ * redeclaration of one without complaint. Skipping on a private ancestor would
+ * hide a real violation, which is why the guard tests visibility as well as
+ * staticness.
+ */
+it('still reports a member whose only static ancestor is private', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'private-ancestor.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 17, 'column' => 13, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+        ['line' => 23, 'column' => 13, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticMethod'],
+    ]);
+});
+
 it('reports violations that are not auto-fixable', function (string $fixture): void {
     $flags = violationFixableFlags(analyzeFixture(DISALLOW_STATIC_MEMBERS, $fixture));
 
     expect($flags)->not->toBeEmpty()
         ->and($flags)->each->toBeFalse();
-})->with(['failing.php', 'containers.php']);
+})->with(['failing.php', 'containers.php', 'inherited-static.php']);

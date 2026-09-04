@@ -9,56 +9,14 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the Strings standard's "use interpolation in favor of
- * concatenation" rule (#25).
- *
- * The sniff flags a `.` concatenation that joins a string literal with a
- * variable — text that reads more cleanly as a single interpolated string.
- * Only concatenations whose every operand can appear in an interpolated string
- * (string literals and variable expressions) are considered; a concatenation
- * that mixes in a function call, constant, or arithmetic (`$x . foo()`,
- * `__DIR__ . '/x'`) cannot become one interpolated string and is left alone.
- *
- * Fixable — the direct, two-operand case: one plain string literal plus one
- * plain `$variable` (`'Hello ' . $name` → `"Hello {$name}"`). The fixer merges
- * them into a single double-quoted interpolated string, brace-wrapping the
- * variable so it never runs into adjacent literal text, and escaping a literal
- * that ends in a bare `$` so `"Total $" . $x` cannot fuse into the deprecated
- * `${...}` dollar-curly syntax.
- *
- * Detection-only — everything else that is still interpolatable but not a
- * mechanical rewrite: multi-expression chains (`'a' . $b . 'c'`), complex
- * variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`), operands wrapped
- * in grouping parentheses (`($b) . 'y'`), any operand that is itself an
- * already-interpolated double-quoted string (`"Hi {$a}" . $b`) — which the
- * standard wants written with `{...}` but whose safe rewrite is a judgement
- * call left to the developer — and a literal carrying a binary-string prefix
- * (`B'Total: ' . $sum`), whose interpolated form this tokenizer cannot read.
- *
- * Silent — a literal operand whose source spans several physical lines. It
- * tokenizes one token per line, so no single token holds the literal and
- * rewriting one of them would leave the string unterminated; that shape belongs
- * to CleanCode.Strings.MultilineStrings, which converts it to a HEREDOC.
- */
 class RequireStringInterpolationSniff implements Sniff
 {
-    /**
-     * Member-access operators that extend a variable operand
-     * (`$obj->prop`, `$obj::CONST`).
-     */
     private const MEMBER_OPERATORS = [
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
     ];
 
-    /**
-     * Token codes that, sitting immediately before a `(` or `[`, make that
-     * pair part of the operand to its left — a call or an index rather than a
-     * bare grouping. `$arr['k']`, `foo()`, `$obj->run()`, `$fn()()`,
-     * `${'x'}['k']` all end in one of these; `= ($b)` ends in none of them.
-     */
     private const CHAIN_HEADS = [
         T_STRING,
         T_VARIABLE,
@@ -67,31 +25,17 @@ class RequireStringInterpolationSniff implements Sniff
         T_CLOSE_CURLY_BRACKET,
     ];
 
-    /**
-     * Operand token codes that count as a string literal. A double-quoted
-     * string that already interpolates (`"Hi {$a}"`) is a literal too — it can
-     * live inside an interpolated result — so a chain built from one is flagged
-     * for consistency, though only the plain single-token literal is auto-fixed.
-     */
     private const STRING_LITERALS = [
         T_CONSTANT_ENCAPSED_STRING,
         T_DOUBLE_QUOTED_STRING,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_STRING_CONCAT];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -106,7 +50,10 @@ class RequireStringInterpolationSniff implements Sniff
 
         // Process a concatenation chain only at its first `.`; a `.` whose
         // left operand is itself preceded by another `.` is a continuation.
-        if ($beforeChain !== false && $tokens[$beforeChain]['code'] === T_STRING_CONCAT) {
+        if (
+            $beforeChain !== false
+            && $tokens[$beforeChain]['code'] === T_STRING_CONCAT
+        ) {
             return;
         }
 
@@ -119,7 +66,10 @@ class RequireStringInterpolationSniff implements Sniff
         $literals = $this->countStringLiterals($tokens, $operands);
         $variables = count($operands) - $literals;
 
-        if ($literals === 0 || $variables === 0) {
+        if (
+            $literals === 0
+            || $variables === 0
+        ) {
             return;
         }
 
@@ -149,22 +99,20 @@ class RequireStringInterpolationSniff implements Sniff
         $first = $operands[0]['start'];
         $last = $operands[count($operands) - 1]['end'];
 
-        $phpcsFile->fixer->beginChangeset();
-        $phpcsFile->fixer->replaceToken($first, $replacement);
+        $phpcsFile->fixer
+            ->beginChangeset();
+        $phpcsFile->fixer
+            ->replaceToken($first, $replacement);
 
         for ($i = ($first + 1); $i <= $last; $i++) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
         }
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Collects every operand of the concatenation chain that begins at
-     * $chainStart, as a list of ['start' => int, 'end' => int] token spans.
-     *
-     * @return array<int, array{start: int, end: int}>
-     */
     private function collectChainOperands(File $phpcsFile, int $chainStart): array
     {
         $tokens = $phpcsFile->getTokens();
@@ -177,7 +125,10 @@ class RequireStringInterpolationSniff implements Sniff
 
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($end + 1), null, true);
 
-            if ($next === false || $tokens[$next]['code'] !== T_STRING_CONCAT) {
+            if (
+                $next === false
+                || $tokens[$next]['code'] !== T_STRING_CONCAT
+            ) {
                 break;
             }
 
@@ -193,19 +144,6 @@ class RequireStringInterpolationSniff implements Sniff
         return $operands;
     }
 
-    /**
-     * Whether any operand is neither a string literal nor a variable
-     * expression — a function call, constant, or magic constant that cannot
-     * live inside an interpolated string.
-     *
-     * A literal that is only one physical-line fragment of a multi-line string
-     * counts as non-interpolatable too. Such a fragment is a string token like
-     * any other, so nothing in its token code says the rest of the literal
-     * lives in its neighbours; replacing it alone would cut a string in half.
-     *
-     * @param array<int, array{start: int, end: int}> $operands
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function hasNonInterpolatableOperand(array $tokens, array $operands): bool
     {
         foreach ($operands as $operand) {
@@ -213,7 +151,7 @@ class RequireStringInterpolationSniff implements Sniff
             $code = $tokens[$pointer]['code'];
 
             if (in_array($code, self::STRING_LITERALS, true) === true) {
-                if (StringLiteral::isComplete($tokens[$pointer]['content']) === false) {
+                if ((new StringLiteral())->isComplete($tokens[$pointer]['content']) === false) {
                     return true;
                 }
 
@@ -228,59 +166,11 @@ class RequireStringInterpolationSniff implements Sniff
         return false;
     }
 
-    /**
-     * The code of the token that decides an operand's kind.
-     *
-     * Normally that is simply the operand's first token. The exception is an
-     * operand that *opens* with grouping parentheses, which are transparent to
-     * the standard: `($b) . 'y'` says exactly what `$b . 'y'` says, and reads
-     * as `"{$b}y"` either way.
-     *
-     * The parentheses are unwrapped **only when they contain a single token**.
-     * That restriction is the whole point: `($count + 1)` also opens with a
-     * `T_VARIABLE`, but `"total: {$count + 1}"` is not valid PHP, so unwrapping
-     * on the first token alone would report a concatenation that has no
-     * interpolated form. A compound parenthesized expression therefore keeps
-     * its `T_OPEN_PARENTHESIS` code and is classified non-interpolatable, which
-     * is what keeps the sniff silent on it.
-     *
-     * What is unwrapped is the *parenthesized span*, not the whole operand. A
-     * member, index, or call chain can hang off the closing parenthesis
-     * (`($obj)->prop`, `($arr)['key']`, `($service)->run()`), and such a chain
-     * runs on past it — so reading to the operand's own end would compare the
-     * wrapped token against the chain's last token, never match, and drop the
-     * operand to non-interpolatable. That left the sniff silent on shapes whose
-     * unparenthesized twins it reports.
-     *
-     * Unwrapping never makes an operand *fixable* — singleTokenOfCode() still
-     * requires the operand's own span to be one token, and a parenthesized one
-     * never is — so these land on ComplexConcatenation.
-     *
-     * @param array{start: int, end: int} $operand
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return int|string
-     */
-    private function operandCode(array $tokens, array $operand)
+    private function operandCode(array $tokens, array $operand): int|string
     {
         return $tokens[$this->operandPointer($tokens, $operand)]['code'];
     }
 
-    /**
-     * The token that decides an operand's kind — the operand's own first token,
-     * or the single token a grouping parenthesis wraps. Callers that need the
-     * token's *content* as well as its code go through this rather than
-     * operandCode(), so both read the same token.
-     *
-     * The two walks are bounded by the opening parenthesis's own closer rather
-     * than by the operand's end, so a chain hanging off that closer is stepped
-     * over instead of being read as part of what the parentheses wrap. An
-     * unmatched parenthesis has no closer to bound them with, so the operand's
-     * end stands in and the operand stays classified by its `(`.
-     *
-     * @param array{start: int, end: int} $operand
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function operandPointer(array $tokens, array $operand): int
     {
         if ($tokens[$operand['start']]['code'] !== T_OPEN_PARENTHESIS) {
@@ -295,23 +185,17 @@ class RequireStringInterpolationSniff implements Sniff
         return $head === $tail ? $head : $operand['start'];
     }
 
-    /**
-     * Walks from $from towards $limit in $step increments, stepping over
-     * grouping parentheses of type $grouping and over whitespace/comments, and
-     * returns the first token that is neither. Used from both ends of an
-     * operand so `( $b )` and `(($a))` collapse to the token they wrap.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     * @param int|string $grouping
-     */
-    private function skipGrouping(array $tokens, int $from, int $limit, $grouping, int $step): int
+    private function skipGrouping(array $tokens, int $from, int $limit, int|string $grouping, int $step): int
     {
         $pointer = $from;
 
         while ($pointer !== $limit) {
             $code = $tokens[$pointer]['code'];
 
-            if ($code !== $grouping && isset(Tokens::$emptyTokens[$code]) === false) {
+            if (
+                $code !== $grouping
+                && isset(Tokens::$emptyTokens[$code]) === false
+            ) {
                 break;
             }
 
@@ -321,14 +205,6 @@ class RequireStringInterpolationSniff implements Sniff
         return $pointer;
     }
 
-    /**
-     * How many operands are string literals (plain or already-interpolated
-     * double-quoted). The remaining operands are variables, so callers derive
-     * the variable count as `count($operands) - this`.
-     *
-     * @param array<int, array{start: int, end: int}> $operands
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function countStringLiterals(array $tokens, array $operands): int
     {
         $count = 0;
@@ -342,31 +218,48 @@ class RequireStringInterpolationSniff implements Sniff
         return $count;
     }
 
-    /**
-     * Builds the replacement interpolated string for the fixable case — a
-     * two-operand chain of exactly one string literal and one plain variable —
-     * or null when the chain is anything else, when the variable is a complex
-     * expression, or when the literal cannot be safely re-encoded.
-     *
-     * @param array<int, array{start: int, end: int}> $operands
-     * @param array<int, array<string, mixed>> $tokens
-     */
+    // The whole chain as one interpolated string, or null when a fragment
+    // cannot be carried across.
+    //
+    // Any number of operands: collectChainOperands() has already proven each
+    // one is a complete string literal or a variable expression, so each is
+    // either written out as literal text or wrapped in braces. The braces are
+    // what make an arbitrary chain safe — `{$a}{$b}` cannot run two names
+    // together, and `{$user->name}s` cannot swallow the trailing character.
     private function simpleInterpolation(array $tokens, array $operands): ?string
     {
-        if (count($operands) !== 2) {
+        $interpolated = '';
+
+        foreach ($operands as $operand) {
+            $fragment = $this->operandAsDoubleQuoted($tokens, $operand);
+
+            if ($fragment === null) {
+                return null;
+            }
+
+            $interpolated .= $fragment;
+        }
+
+        return "\"{$interpolated}\"";
+    }
+
+    private function operandAsDoubleQuoted(array $tokens, array $operand): ?string
+    {
+        $pointer = $this->operandPointer($tokens, $operand);
+
+        // A grouping parenthesis has no interpolated form: `{($b)}` is not a
+        // variable expression, it is a brace followed by text, so the value
+        // would change. operandPointer() sees through the parentheses to
+        // classify the operand, which is why this checks the raw start instead.
+        if ($tokens[$operand['start']]['code'] === T_OPEN_PARENTHESIS) {
             return null;
         }
 
-        [$first, $second] = $operands;
-
-        $literal = $this->singleTokenOfCode($tokens, $first, $second, T_CONSTANT_ENCAPSED_STRING);
-        $variable = $this->singleTokenOfCode($tokens, $first, $second, T_VARIABLE);
-
-        if ($literal === null || $variable === null) {
-            return null;
+        if ($tokens[$pointer]['code'] === T_VARIABLE) {
+            return "{{$this->operandSource($tokens, $operand)}}";
         }
 
-        $content = $tokens[$literal]['content'];
+        $content = $tokens[$pointer]['content'];
 
         // A binary-string prefix makes this rewrite unfixable, because the
         // result always interpolates and no spelling of the prefix survives
@@ -378,82 +271,49 @@ class RequireStringInterpolationSniff implements Sniff
         // (The prefix is safe on the *non*-interpolating outputs its sibling
         // fixers build, which is why only this one refuses.) The violation is
         // still reported, as detection-only.
-        if (StringLiteral::prefix($content) !== '') {
+        if ((new StringLiteral())->prefix($content) !== '') {
             return null;
         }
 
-        $inner = $this->literalInnerAsDoubleQuoted($content);
-
-        if ($inner === null) {
-            return null;
-        }
-
-        $interpolated = '{' . $tokens[$variable]['content'] . '}';
-
-        return $literal < $variable
-            ? '"' . $inner . $interpolated . '"'
-            : '"' . $interpolated . $inner . '"';
+        return $this->literalInnerAsDoubleQuoted($content);
     }
 
-    /**
-     * Returns the pointer of whichever operand is a single token of $code and
-     * whose sibling is the other kind, or null when neither operand qualifies
-     * (e.g. a complex `$obj->prop` variable operand spanning many tokens).
-     *
-     * @param array{start: int, end: int} $first
-     * @param array{start: int, end: int} $second
-     * @param array<int, array<string, mixed>> $tokens
-     * @param int|string $code
-     */
-    private function singleTokenOfCode(array $tokens, array $first, array $second, $code): ?int
+    // A variable operand written exactly as the source wrote it, so a member or
+    // subscript expression carries across whole.
+    private function operandSource(array $tokens, array $operand): string
     {
-        foreach ([$first, $second] as $operand) {
-            if ($operand['start'] === $operand['end'] && $tokens[$operand['start']]['code'] === $code) {
-                return $operand['start'];
-            }
+        $source = '';
+
+        for ($pointer = $operand['start']; $pointer <= $operand['end']; $pointer++) {
+            $source .= $tokens[$pointer]['content'];
         }
 
-        return null;
+        return trim($source);
     }
 
-    /**
-     * Re-encodes a string-literal token's inner text (its content minus any
-     * binary-string prefix and the surrounding quotes) so it is safe to embed
-     * in a double-quoted string, or null when the literal is single-quoted and
-     * carries backslash escapes whose meaning conversion could change.
-     *
-     * The delimiter is still read past any prefix rather than off the token's
-     * first character, so this stays correct on its own terms — but no
-     * prefixed literal reaches it any more: simpleInterpolation() refuses
-     * those outright, because its interpolated result is untokenizable however
-     * the inner text is encoded.
-     *
-     * Only whole literals reach here — hasNonInterpolatableOperand() has
-     * already rejected a fragment of a multi-line one.
-     */
     private function literalInnerAsDoubleQuoted(string $content): ?string
     {
-        $delimiter = StringLiteral::delimiter($content);
-        $inner = StringLiteral::inner($content);
+        $delimiter = (new StringLiteral())->delimiter($content);
+        $inner = (new StringLiteral())->inner($content);
 
-        if ($delimiter === '"') {
+        if ($delimiter === "\"") {
             return $this->escapeTrailingDollar($inner);
         }
 
-        if (strpos($inner, '\\') !== false) {
-            return null;
-        }
+        // Two conversions, in this order. A single-quoted body resolves only
+        // `\\` and `\'`, so those come back to the characters they stand for
+        // first; every other backslash in it was already literal. Then the
+        // whole thing is escaped for a double-quoted body, where a backslash, a
+        // quote and a `$` all mean something.
+        //
+        // Skipping the first step and refusing any backslash was the earlier
+        // behaviour, and it left the commonest shape in this package —
+        // `$namespace . '\\' . $name` — unfixable.
+        $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
 
-        return str_replace(['\\', '"', '$'], ['\\\\', '\\"', '\\$'], $inner);
+        return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
     }
 
-    /**
-     * Escapes a trailing bare `$` in already double-quoted inner text. When the
-     * literal is the left operand its content abuts the injected `{$var}`; an
-     * unescaped trailing `$` would then read as `${...}` (deprecated dollar-curly
-     * variable-variable syntax) and change runtime behaviour. A `$` already
-     * escaped (`\$`, an odd run of preceding backslashes) is left untouched.
-     */
     private function escapeTrailingDollar(string $inner): string
     {
         if (substr($inner, -1) !== '$') {
@@ -467,14 +327,9 @@ class RequireStringInterpolationSniff implements Sniff
             return $inner;
         }
 
-        return $beforeDollar . '\\$';
+        return "{$beforeDollar}\\\$";
     }
 
-    /**
-     * Walks forward from an operand's first token to its last, consuming
-     * member accesses (`->`, `?->`, `::`), array indexes, and call
-     * parentheses so `$obj->method()['x']` counts as a single operand.
-     */
     private function operandEnd(File $phpcsFile, int $start): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -512,13 +367,19 @@ class RequireStringInterpolationSniff implements Sniff
                 continue;
             }
 
-            if ($code === T_OPEN_SQUARE_BRACKET && isset($tokens[$next]['bracket_closer']) === true) {
+            if (
+                $code === T_OPEN_SQUARE_BRACKET
+                && isset($tokens[$next]['bracket_closer']) === true
+            ) {
                 $end = $tokens[$next]['bracket_closer'];
 
                 continue;
             }
 
-            if ($code === T_OPEN_PARENTHESIS && isset($tokens[$next]['parenthesis_closer']) === true) {
+            if (
+                $code === T_OPEN_PARENTHESIS
+                && isset($tokens[$next]['parenthesis_closer']) === true
+            ) {
                 $end = $tokens[$next]['parenthesis_closer'];
 
                 continue;
@@ -530,11 +391,22 @@ class RequireStringInterpolationSniff implements Sniff
         return $end;
     }
 
-    /**
-     * Walks backward from an operand's last token to its first, mirroring
-     * operandEnd — jumping bracket/parenthesis pairs and member accesses so
-     * the whole variable expression is treated as one operand.
-     */
+    // The opener of a bracket or parenthesis pair the walk stands on the closer
+    // of. A closer whose opener PHPCS did not record answers null, the same as a
+    // token that is not a closer at all.
+    private function groupOpenerAt(array $tokens, int $ptr, int|string $code): ?int
+    {
+        if ($code === T_CLOSE_SQUARE_BRACKET) {
+            return $tokens[$ptr]['bracket_opener'] ?? null;
+        }
+
+        if ($code === T_CLOSE_PARENTHESIS) {
+            return $tokens[$ptr]['parenthesis_opener'] ?? null;
+        }
+
+        return null;
+    }
+
     private function operandStart(File $phpcsFile, int $end): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -543,26 +415,27 @@ class RequireStringInterpolationSniff implements Sniff
         while (true) {
             $code = $tokens[$start]['code'];
 
-            if ($code === T_CLOSE_SQUARE_BRACKET && isset($tokens[$start]['bracket_opener']) === true) {
-                $opener = $tokens[$start]['bracket_opener'];
-            } elseif ($code === T_CLOSE_PARENTHESIS && isset($tokens[$start]['parenthesis_opener']) === true) {
-                $opener = $tokens[$start]['parenthesis_opener'];
-            } else {
+            $opener = $this->groupOpenerAt($tokens, $start, $code);
+
+            if ($opener === null) {
                 $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($start - 1), null, true);
 
-                if ($prev !== false && in_array($tokens[$prev]['code'], self::MEMBER_OPERATORS, true) === true) {
-                    $base = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
-
-                    if ($base === false) {
-                        break;
-                    }
-
-                    $start = $base;
-
-                    continue;
+                if (
+                    $prev === false
+                    || in_array($tokens[$prev]['code'], self::MEMBER_OPERATORS, true) === false
+                ) {
+                    break;
                 }
 
-                break;
+                $base = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($prev - 1), null, true);
+
+                if ($base === false) {
+                    break;
+                }
+
+                $start = $base;
+
+                continue;
             }
 
             $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($opener - 1), null, true);
@@ -573,7 +446,10 @@ class RequireStringInterpolationSniff implements Sniff
             // grouping parenthesis has no such head, so the operand starts at
             // the opener itself; stepping past it would swallow the assignment
             // operator before it and leave the whole chain unrecognisable.
-            if ($prev === false || in_array($tokens[$prev]['code'], self::CHAIN_HEADS, true) === false) {
+            if (
+                $prev === false
+                || in_array($tokens[$prev]['code'], self::CHAIN_HEADS, true) === false
+            ) {
                 $start = $opener;
 
                 break;

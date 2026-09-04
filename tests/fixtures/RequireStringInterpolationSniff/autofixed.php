@@ -1,6 +1,6 @@
 <?php
 
-// Fixable: exactly one plain literal plus one plain variable.
+// Fixable: a literal beside a variable, in either order.
 $simpleLeft = "Hello {$name}";
 $simpleRight = "{$name} world";
 $doubleQuoted = "Count: {$total}";
@@ -13,17 +13,25 @@ $adjacent = "{$name}end";
 // into the deprecated `${...}` dollar-curly syntax and change the value.
 $trailingDollar = "Total \${$x}";
 
-// Detection-only: interpolatable, but not a mechanical single-string rewrite.
-$chain = 'a' . $first . 'b' . $last;
-$property = 'user: ' . $user->name;
-$index = 'item: ' . $items['key'];
-$method = 'result: ' . $service->run();
-$interpolatedOperand = "Hello {$a}" . $b;
+// Fixable: any number of operands, and any variable expression. Each variable
+// is braced, so `{$a}{$b}` cannot run two names together and `{$user->name}s`
+// cannot swallow the trailing character. An operand that already interpolates
+// carries its own braces across untouched.
+$chain = "a{$first}b{$last}";
+$property = "user: {$user->name}";
+$index = "item: {$items['key']}";
+$method = "result: {$service->run()}";
+$interpolatedOperand = "Hello {$a}{$b}";
 
 // Detection-only: grouping parentheses are transparent to the standard, so
 // these have to be reported. Before operandStart() guarded its step past a
 // bare `(`, the operand boundary landed on the assignment operator and the
 // whole chain was silently discarded — no violation of any kind.
+//
+// They stay unfixable after the fixer was widened to arbitrary chains: `{($b)}`
+// is a brace followed by text, not a variable expression, so writing it would
+// change the value. operandPointer() sees through the parentheses to classify
+// the operand, so the fixer checks the raw start instead.
 $parenthesized = ($b) . 'y';
 $doubleParenthesized = (($c)) . 'x';
 $spacedParenthesized = ( $d ) . 'q';

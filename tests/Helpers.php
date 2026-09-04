@@ -178,13 +178,14 @@ function parseFixture(string $directory, string $fixture): LocalFile
 function globalFunctionCallVerdicts(LocalFile $file, string $prefix): array
 {
     $verdicts = [];
+    $functionCalls = new FunctionCalls();
 
     foreach ($file->getTokens() as $pointer => $token) {
         if ($token['code'] !== T_STRING || str_starts_with($token['content'], $prefix) === false) {
             continue;
         }
 
-        $verdicts[$token['content']][] = FunctionCalls::isGlobalFunctionCall($file, $pointer);
+        $verdicts[$token['content']][] = $functionCalls->isGlobalFunctionCall($file, $pointer);
     }
 
     return $verdicts;
@@ -1712,8 +1713,8 @@ function parameterDeclarationAnswers(File $file, string $name, int $occurrence =
     $ptr = parameterDeclarationPointer($file, $name, $occurrence);
 
     return [
-        ParameterDeclaration::isPlainParameter($file, $ptr),
-        ParameterDeclaration::isPromotedParameter($file, $ptr),
+        (new ParameterDeclaration())->isPlainParameter($file, $ptr),
+        (new ParameterDeclaration())->isPromotedParameter($file, $ptr),
     ];
 }
 
@@ -1727,7 +1728,6 @@ function parameterDeclarationAnswers(File $file, string $name, int $occurrence =
 function passiveNonOperandTokens(): array
 {
     $method = new ReflectionMethod(PassiveOperatorSpacingSniff::class, 'nonOperandTokens');
-    $method->setAccessible(true);
 
     return $method->invoke(new PassiveOperatorSpacingSniff());
 }
@@ -1745,7 +1745,6 @@ function squizNonOperandTokens(): array
     $sniff->register();
 
     $property = new ReflectionProperty($sniff, 'nonOperandTokens');
-    $property->setAccessible(true);
 
     return $property->getValue($sniff) ?? [];
 }
@@ -1937,4 +1936,13 @@ function withPhpDiagnostics(Closure $body): array
     }
 
     return [$result, $diagnostics];
+}
+
+// The three TypeHints sniffs this standard runs no longer share one namespace:
+// ParameterTypeHint and PropertyTypeHint are CleanCode subclasses that skip
+// members PHP forbids typing, while ReturnTypeHint is still Slevomat's.
+function isTypeHintsSource(string $source): bool
+{
+    return str_starts_with($source, 'CleanCode.TypeHints.')
+        || str_starts_with($source, 'SlevomatCodingStandard.TypeHints.');
 }

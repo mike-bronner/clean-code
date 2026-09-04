@@ -6,16 +6,8 @@ namespace MikeBronner\CleanCode\Tests\Operators;
 
 use PHP_CodeSniffer\Tests\Standards\AbstractSniffUnitTest;
 
-/**
- * Unit test for the CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators sniff.
- *
- * The line maps below refer to DisallowNewlineAroundEvaluativeOperatorsUnitTest.inc.
- */
 class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnitTest
 {
-    /**
-     * @return array<int, int> line number => expected error count
-     */
     protected function getErrorList(): array
     {
         return [
@@ -67,9 +59,6 @@ class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnit
         ];
     }
 
-    /**
-     * @return array<int, int> line number => expected warning count
-     */
     protected function getWarningList(): array
     {
         return [];

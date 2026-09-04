@@ -8,62 +8,16 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Operators: Passive" standard — a passive operator must sit
- * flush against the operand it acts on, with no intervening space.
- *
- * This is the anchor sniff for the standard, covering the passive operators
- * that no existing PHPCS/Slevomat sniff enforces:
- *
- * - **Identity** — unary `+` (`+$a`, not `+ $a`).
- * - **Negation** — unary `-` (`-$a`, not `- $a`).
- * - **Error control** — `@` (`@file_get_contents(...)`, not `@ file_get_contents(...)`).
- * - **Execution** — backticks (`` `ls` ``, not `` ` ls ` ``).
- *
- * The remaining passive operators are enforced by existing sniffs wired into
- * the master `rules.xml` alongside this one: increment/decrement by
- * `Generic.WhiteSpace.IncrementDecrementSpacing`, the object operator `->` by
- * `Squiz.WhiteSpace.ObjectOperatorSpacing`, and array access `[]` by
- * `Squiz.Arrays.ArrayBracketSpacing`.
- *
- * Binary `+`/`-` (`$a + $b`) is a different operator — its spacing is out of
- * scope and left untouched.
- */
 class PassiveOperatorSpacingSniff implements Sniff
 {
-    /**
-     * Tokens that, immediately before a `+`/`-`, mark it as a *unary* sign —
-     * there is no value to its left for it to operate on binary-style. This is
-     * an exclusion set (operators, comparisons, boolean/assignment operators,
-     * casts, statement-introducing keywords, open brackets, commas, and
-     * statement boundaries): when the previous token is one of these the sign
-     * is unary; otherwise a value precedes it and the `+`/`-` is binary.
-     *
-     * Keying off "not an operand" rather than enumerating every operand-ending
-     * token is what the reference Squiz.WhiteSpace.OperatorSpacing sniff does,
-     * and it fails safe — an unlisted value-producing token (`$a++`, a heredoc
-     * close, …) defaults to binary and is left untouched, never mis-fixed.
-     *
-     * Built lazily because it draws on PHPCS's runtime Tokens arrays.
-     *
-     * @var array<int|string, int|string>|null
-     */
     private ?array $nonOperandTokens = null;
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_PLUS, T_MINUS, T_ASPERAND, T_BACKTICK];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $code = $phpcsFile->getTokens()[$stackPtr]['code'];
 
@@ -102,13 +56,6 @@ class PassiveOperatorSpacingSniff implements Sniff
         $this->reportSpaceAfter($phpcsFile, $stackPtr, $errorCode, $symbol, $guardTokens);
     }
 
-    /**
-     * A `+`/`-` is a unary sign unless a value precedes it (making it binary).
-     * The sign is unary at the start of a statement, or when the previous
-     * non-empty token is a non-operand token (an operator, keyword, open
-     * bracket, comma, …); anything else — a variable, literal, closing
-     * bracket, `$a++`, a heredoc close — is a value and makes the sign binary.
-     */
     private function isUnarySign(File $phpcsFile, int $stackPtr): bool
     {
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
@@ -120,23 +67,6 @@ class PassiveOperatorSpacingSniff implements Sniff
         return isset($this->nonOperandTokens()[$phpcsFile->getTokens()[$previous]['code']]) === true;
     }
 
-    /**
-     * The set of tokens that, immediately before a `+`/`-`, mark it as unary.
-     *
-     * The overriding invariant is: never classify a sign as unary where the
-     * ruleset's binary-operator spacing sniff would read it as binary. If the
-     * two disagree, this sniff strips a space that one re-adds and phpcbf never
-     * converges.
-     *
-     * The invariant holds by construction rather than by matching lists. The
-     * master ruleset wires in CleanCode.Operators.BinaryOperatorSpacing, whose
-     * whole purpose is to decline exactly the contexts this set adds on top of
-     * its parent's — the open tags, `@`, and a statement-opening `;`. The two
-     * sets are intersected directly in tests/Standards/BinaryOperatorSpacingTest.php,
-     * so a token added here without being ceded there fails the suite.
-     *
-     * @return array<int|string, int|string>
-     */
     private function nonOperandTokens(): array
     {
         if ($this->nonOperandTokens === null) {
@@ -173,18 +103,6 @@ class PassiveOperatorSpacingSniff implements Sniff
         return $this->nonOperandTokens;
     }
 
-    /**
-     * Flags — and removes — same-line whitespace between a prefix operator and
-     * its operand. $guardTokens lists the operand-leading tokens for which a
-     * fix (and report) is withheld, because closing the gap would change what
-     * the code means:
-     *
-     * - `+`/`-`: `[T_PLUS, T_INC]` / `[T_MINUS, T_DEC]` — a same-direction sign
-     *   would fuse into an increment/decrement (`- -$a` → `--$a`).
-     * - `@`: `[]` — error control fuses with nothing, so no operand is guarded.
-     *
-     * @param array<int, int> $guardTokens
-     */
     private function reportSpaceAfter(
         File $phpcsFile,
         int $stackPtr,
@@ -195,7 +113,10 @@ class PassiveOperatorSpacingSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $next = ($stackPtr + 1);
 
-        if (isset($tokens[$next]) === false || $tokens[$next]['code'] !== T_WHITESPACE) {
+        if (
+            isset($tokens[$next]) === false
+            || $tokens[$next]['code'] !== T_WHITESPACE
+        ) {
             return;
         }
 
@@ -218,22 +139,18 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'No space allowed between the passive "%s" operator and its operand',
+            "No space allowed between the passive \"%s\" operator and its operand",
             $stackPtr,
             $errorCode,
             [$symbol]
         );
 
         if ($fix === true) {
-            $phpcsFile->fixer->replaceToken($next, '');
+            $phpcsFile->fixer
+                ->replaceToken($next, '');
         }
     }
 
-    /**
-     * A backtick opens an execution string when an even number of backticks
-     * precede it (0, 2, 4, …); odd-position backticks are the closers, already
-     * handled from their opener.
-     */
     private function isBacktickOpener(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -248,14 +165,8 @@ class PassiveOperatorSpacingSniff implements Sniff
         return ($preceding % 2) === 0;
     }
 
-    /**
-     * Flags — and trims — horizontal whitespace directly inside the backticks,
-     * from the opener to its matching closer. Line breaks inside the command
-     * are left alone.
-     */
     private function processBacktickString(File $phpcsFile, int $openPtr): void
     {
-        $tokens = $phpcsFile->getTokens();
         $closePtr = $phpcsFile->findNext(T_BACKTICK, ($openPtr + 1));
 
         if ($closePtr === false) {
@@ -281,10 +192,6 @@ class PassiveOperatorSpacingSniff implements Sniff
         $this->trimBacktickContent($phpcsFile, $closePtr, $last, '/[ \t]+$/');
     }
 
-    /**
-     * Reports and strips the whitespace matched by $pattern from the content
-     * token at $contentPtr, attributing the violation to $reportPtr.
-     */
     private function trimBacktickContent(File $phpcsFile, int $reportPtr, int $contentPtr, string $pattern): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -316,7 +223,8 @@ class PassiveOperatorSpacingSniff implements Sniff
         );
 
         if ($fix === true) {
-            $phpcsFile->fixer->replaceToken($contentPtr, $trimmed);
+            $phpcsFile->fixer
+                ->replaceToken($contentPtr, $trimmed);
         }
     }
 }

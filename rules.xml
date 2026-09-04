@@ -60,7 +60,7 @@
     <!--
         Strings: Interpolation, quoting, HereDocs (#25) — enforced by the
         custom CleanCode.Strings.* sniffs (RequireStringInterpolation,
-        HtmlAttributeQuotes, RequireHeredocForMarkup, EscapeNestedQuotes),
+        HtmlAttributeQuotes, RequireHeredocForStructuredText, EscapeNestedQuotes),
         auto-included via the CleanCode standard referenced above. Listed here
         for traceability; no separate ref is needed.
     -->
@@ -168,9 +168,15 @@
         (traversable @var specifications, useless-annotation cleanup) police
         doc blocks, which the standard does not mandate.
     -->
-    <rule ref="SlevomatCodingStandard.TypeHints.PropertyTypeHint">
-        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
-        <exclude name="SlevomatCodingStandard.TypeHints.PropertyTypeHint.UselessAnnotation"/>
+    <!--
+        CleanCode.TypeHints.PropertyTypeHint extends the Slevomat sniff and
+        skips PHP_CodeSniffer classes, whose properties PHPCS assigns from
+        ruleset XML as strings — a native type there throws TypeError at the
+        consumer's runtime. Referencing both sniffs would report twice.
+    -->
+    <rule ref="CleanCode.TypeHints.PropertyTypeHint">
+        <exclude name="CleanCode.TypeHints.PropertyTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="CleanCode.TypeHints.PropertyTypeHint.UselessAnnotation"/>
     </rule>
 
     <!-- Exceptions (#63): always reference \Throwable when catching, and use
@@ -271,24 +277,48 @@
         native parameter and return type hints. The Slevomat sniffs register on
         every T_FUNCTION, so class methods AND free functions are both covered;
         per the #70 scope decision this rule owns parameter/return hints for all
-        callables. The enable* properties are pinned to the package's PHP 8.1
-        floor so behaviour never floats on the PHP version running the check.
+        callables. Left unset, every enable* property follows whichever
+        interpreter runs phpcs, so a consumer on a newer PHP gets findings their
+        CI did not. All are pinned; all sit at or below the 8.3 floor.
         Traversable-specification and useless-annotation codes are excluded:
         they police docblock hygiene, not missing native hints. Property type
         hints and docblock coverage belong to the general Type Hints standard
         (#45), which keeps PropertyTypeHint and docblock hygiene.
     -->
-    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHint">
-        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
-        <exclude name="SlevomatCodingStandard.TypeHints.ParameterTypeHint.UselessAnnotation"/>
+    <!--
+        CleanCode.TypeHints.ParameterTypeHint extends the Slevomat sniff and
+        skips a declaration whose parameters an ancestor leaves untyped. PHP
+        treats the hint the Slevomat sniff asks for as narrowing an inherited
+        parameter, which is a fatal error, so following it stops the class
+        loading. Referencing both sniffs would report twice.
+    -->
+    <rule ref="CleanCode.TypeHints.ParameterTypeHint">
+        <exclude name="CleanCode.TypeHints.ParameterTypeHint.MissingTraversableTypeHintSpecification"/>
+        <exclude name="CleanCode.TypeHints.ParameterTypeHint.UselessAnnotation"/>
         <properties>
             <property name="enableObjectTypeHint" value="true"/>
             <property name="enableMixedTypeHint" value="true"/>
             <property name="enableUnionTypeHint" value="true"/>
             <property name="enableIntersectionTypeHint" value="true"/>
-            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="true"/>
         </properties>
     </rule>
+    <!--
+        CleanCode.TypeHints.InferredReturnType runs alongside the sniff below
+        and carries the fixer it cannot. Slevomat writes a return type only
+        where a @return annotation already states one, so a codebase without
+        docblocks gets a report and no fix; the custom sniff writes one wherever
+        it is provable from the source. It is picked up automatically via the
+        ./CleanCode/ruleset.xml ref above, so no registration is needed here.
+
+        Alongside, not extending. Subclassing was tried first and silently drops
+        reports: this sniff builds every message code from a `private const
+        NAME` through a `private` method using `self::`, so a subclass can
+        override neither, and the branches resolving severity through the
+        hardcoded name vanish once the parent is unregistered. A declaration the
+        custom sniff can fix therefore carries two reports until `phpcbf` runs,
+        and the fix clears both. See docs/standards/methods-type-hints.md.
+    -->
     <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHint">
         <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.MissingTraversableTypeHintSpecification"/>
         <exclude name="SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessAnnotation"/>
@@ -300,7 +330,7 @@
             <property name="enableUnionTypeHint" value="true"/>
             <property name="enableIntersectionTypeHint" value="true"/>
             <property name="enableNeverTypeHint" value="true"/>
-            <property name="enableStandaloneNullTrueFalseTypeHints" value="false"/>
+            <property name="enableStandaloneNullTrueFalseTypeHints" value="true"/>
         </properties>
     </rule>
 
@@ -652,8 +682,7 @@
         inside a class whose name ends in Controller, so it is already silent
         everywhere else, tests included.
 
-        The sniff's own source passes this ruleset — a phpcs run of
-        ManualModelResolutionSniff.php against rules.xml exits 0 — which is why
+        The sniff's own source was written to pass this ruleset, which is why
         it reads the way it does: match(true) guard chains instead of if
         (CleanCode.Conditionals.AvoidConditionals), the File API instead of the
         token array (CleanCode.Arrays.ArrayAccessors, whose data_get()
@@ -663,11 +692,18 @@
         another helper this package does not ship), and a NOWDOC message
         (CleanCode.Strings.MultilineStrings).
 
-        tests/Standards/ManualModelResolutionTest.php asserts that run reports
-        nothing, warnings included. Until it did, the claim above was only a
-        comment: CleanCode.Arrays.ConvertToCollection landed after this sniff
-        and flagged its array_map()/array_filter() pair, so the run had been
+        tests/Standards/ManualModelResolutionTest.php pins that run's exact
+        output — every source named, nothing else — rather than asserting
+        silence. Until it did, the claim above was only a comment:
+        CleanCode.Arrays.ConvertToCollection landed after this sniff and
+        flagged its array_map()/array_filter() pair, so the run had been
         exiting 1 with nothing to catch it.
+
+        The run no longer exits 0, and that test records why: a sniff landing
+        later added CleanCode.ClearCode.SectionComment.Found here, out of
+        scope for the issue that introduced it. #229's `composer lint:self`
+        gate holds this file to zero alongside every other, so the next such
+        addition fails a check instead of quietly falsifying a comment.
 
         One line carries a phpcs:ignore, the only one in the package. PHPCS's
         Sniff interface declares process()'s $stackPtr untyped, and PHP treats
@@ -768,14 +804,9 @@
         alone; they have not been walked one at a time the way that PR walked
         the first 65, so the per-site tally stays scoped to that set.
 
-        The reviewed set is pinned by file, line and column in
-        tests/Standards/ConvertToCollectionTest.php
-        (CONVERT_TO_COLLECTION_REVIEWED_SITES), so a native call added, moved or
-        removed anywhere under CleanCode/ or tests/ fails that test. A count
-        alone would not: one site moving while another disappears leaves it
-        unchanged. Nothing is suppressed to reach that state — no phpcs:ignore,
-        no exclude-pattern, and no registration for this sniff, which is picked
-        up through the ./CleanCode/ruleset.xml ref like every other.
+        Nothing is suppressed to reach that state — no phpcs:ignore, no
+        exclude-pattern, and no registration for this sniff, which is picked up
+        through the ./CleanCode/ruleset.xml ref like every other.
 
         Only that trigger is enforced. Whether a given manipulation reads
         better as a pipeline, and foreach loops that accumulate into arrays,
@@ -3301,30 +3332,6 @@
         </properties>
     </rule>
     <rule ref="Squiz.Arrays.ArrayBracketSpacing"/>
-
-      <!--
-        Properties: Are Required (#55) —
-        docs/standards/properties-are-required.md.
-
-        The custom CleanCode.Classes.RequireProperties sniff is picked up
-        automatically via the ./CleanCode/ruleset.xml ref above; this comment
-        records that no scoping is wanted.
-
-        No <exclude-pattern> for test paths, unlike the
-        DisallowExternalPersistenceCalls block above. There is no test idiom
-        that makes a stateless class legitimate — a test case holds its
-        fixtures, and a Pest test file declares no class at all — so a path
-        filter would only hide the rule where it still applies.
-
-        Nothing existing covers it. Slevomat's class sniffs speak about how
-        properties are declared (RequireConstructorPropertyPromotion), their
-        visibility (ForbiddenPublicProperty) and their ordering
-        (ClassStructure); none reports their *absence*, and neither PSR12,
-        Squiz nor Generic has an equivalent. That search is re-run on every
-        suite pass by tests/Standards/RequirePropertiesTest.php, so a future
-        vendor upgrade that does cover this case says so rather than leaving
-        the custom sniff unexamined.
-    -->
 
     <!--
         Methods: No Null Arguments (#71) —

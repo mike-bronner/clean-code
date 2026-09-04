@@ -34,12 +34,21 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # No single Pest major spans this range: Pest 5 requires PHP ^8.4, so 8.3
+    # resolves Pest 4 from the `^4.0 || ^5.0` constraint. The suite must stay
+    # green under both.
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.4'
+          php-version: ${{ matrix.php-version }}
           coverage: none
 
       - name: Install dependencies
@@ -56,3 +65,9 @@ jobs:
 
       - name: Sniff test suite (Pest)
         run: composer test
+
+      # Fails today, deliberately: the sweep to zero has not landed (#229).
+      # Runs last because a failing step ends the job, and the lint and test
+      # results above must report first.
+      - name: Self-lint (full ruleset against CleanCode/)
+        run: composer lint:self

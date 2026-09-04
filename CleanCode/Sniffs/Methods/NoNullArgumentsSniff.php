@@ -8,49 +8,12 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "no null arguments" clean-code standard: a literal `null` is
- * never passed positionally into a parameter that is optional (declares a
- * default). Skipping over an optional parameter with `null` is dead code the
- * reader has to decode; a named argument says which parameter is meant and
- * lets the rest keep their defaults.
- *
- * `$mailer->send('body', subject: null)` is compliant;
- * `$mailer->send('body', null)` is flagged (`PositionalNull`).
- *
- * Only a *bare* `null` argument is flagged. A `null` nested inside a larger
- * argument (`[null]`, `$a ?? null`, `fn () => null`) is part of an expression,
- * not a skipped parameter, and is left alone — as is every `null` outside a
- * call-argument position entirely.
- *
- * **Resolution is deliberately file-local.** Deciding whether the target
- * parameter is optional — and naming it in the fix — requires the callee's
- * declaration, and PHPCS analyses one file at a time with no cross-file symbol
- * table. So the sniff resolves only what the file itself proves: calls to
- * functions, `$this->`/`self::`/`static::`/`ClassName::` methods,
- * `new ClassName(...)`/`new self(...)` constructors, and `#[Attribute(...)]`
- * instantiations declared in the same file. Any call it cannot resolve is left
- * alone rather than guessed at, because passing `null` to a *required* nullable
- * parameter is perfectly legitimate and flagging it would be a false positive.
- * Under-reporting beats crying wolf; see
- * docs/standards/methods-no-null-arguments.md.
- *
- * **Finding the declaration is not the same as knowing it runs.** `$this->m()`,
- * `static::m()` and `new static(...)` are dispatched against the *runtime*
- * class, so a subclass — which usually lives in a file this sniff never sees —
- * may override the method and rename the very parameter the fix would write.
- * `self::m()` and `new self(...)` inside a *trait* are divertible the same way:
- * `self` names the using class, which may declare its own version of the
- * method. That rewrite turns working code into an `Unknown named parameter`
- * fatal, so those calls are reported but **not auto-fixed** unless the file
- * proves dispatch cannot be diverted (see {@see self::isDispatchProvable()}).
- */
 class NoNullArgumentsSniff implements Sniff
 {
     private const CODE = 'PositionalNull';
 
     private const MESSAGE = 'Do not pass null positionally into the optional '
-        . 'parameter $%s; use the named argument "%s: null" instead';
+        . "parameter \$%s; use the named argument \"%s: null\" instead";
 
     private const UNNAMEABLE_ARGUMENT = ' (cannot be fixed automatically: a later argument in this call'
         . ' cannot be named)';
@@ -58,43 +21,14 @@ class NoNullArgumentsSniff implements Sniff
     private const LATE_BOUND_CALL = ' (cannot be fixed automatically: this call is dispatched against the'
         . ' runtime class, which may override the method and rename the parameter)';
 
-    /**
-     * The resolved declaration is the one that runs: the call site names it
-     * outright (`self::` outside a trait, `ClassName::`, `TraitName::`,
-     * `new ClassName`, a function, an attribute), so no runtime dispatch can
-     * reach a different body.
-     */
     private const BIND_EARLY = 'early';
 
-    /**
-     * A `$this->` call. Dispatched against the runtime class, but a `private`
-     * method is still resolved in the scope that declares it.
-     */
     private const BIND_THIS = 'this';
 
-    /**
-     * A `self::` call or `new self(...)` written inside a trait. `self` does
-     * not name the trait: the trait is flattened into each using class and
-     * `self` names *that* class, whose own declaration of the method — if it
-     * has one — takes precedence over the trait's. So the declaration found
-     * here is only a fallback, and no modifier written in a trait changes
-     * that (see {@see self::isDispatchProvable()}).
-     */
     private const BIND_TRAIT_SELF = 'trait-self';
 
-    /**
-     * A `static::` call or `new static(...)`. Late static binding resolves the
-     * target against the runtime class with no scope-private escape hatch.
-     */
     private const BIND_STATIC = 'static';
 
-    /**
-     * Bracket tokens that open a nested structure inside an argument list.
-     * Tracking their depth keeps argument splitting from breaking on commas
-     * that belong to a nested call, array, or closure body.
-     *
-     * @var array<int|string, true>
-     */
     private const OPEN_BRACKETS = [
         T_OPEN_PARENTHESIS => true,
         T_OPEN_SQUARE_BRACKET => true,
@@ -102,9 +36,6 @@ class NoNullArgumentsSniff implements Sniff
         T_OPEN_CURLY_BRACKET => true,
     ];
 
-    /**
-     * @var array<int|string, true>
-     */
     private const CLOSE_BRACKETS = [
         T_CLOSE_PARENTHESIS => true,
         T_CLOSE_SQUARE_BRACKET => true,
@@ -112,13 +43,6 @@ class NoNullArgumentsSniff implements Sniff
         T_CLOSE_CURLY_BRACKET => true,
     ];
 
-    /**
-     * Token codes that introduce a class-like scope, used to find the class
-     * enclosing a `$this->`/`self::` call, to match a class by name, and to
-     * tell a namespace-level function from a method.
-     *
-     * @var array<int|string, true>
-     */
     private const CLASS_SCOPES = [
         T_CLASS => true,
         T_ANON_CLASS => true,
@@ -127,17 +51,11 @@ class NoNullArgumentsSniff implements Sniff
         T_INTERFACE => true,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_NULL];
     }
 
-    /**
-     * @param int $stackPtr
-     */
     public function process(File $phpcsFile, $stackPtr): void
     {
         $opener = $this->getCallOpener($phpcsFile, $stackPtr);
@@ -167,7 +85,10 @@ class NoNullArgumentsSniff implements Sniff
         // skipped with a named argument; null into a required parameter is
         // legitimate and stays unflagged. This also excludes a null landing in
         // a variadic parameter, which PHP forbids from declaring a default.
-        if ($parameter === null || isset($parameter['default']) === false) {
+        if (
+            $parameter === null
+            || isset($parameter['default']) === false
+        ) {
             return;
         }
 
@@ -208,27 +129,18 @@ class NoNullArgumentsSniff implements Sniff
 
         // Every positional argument *after* the flagged one has to be named
         // too — PHP rejects a positional argument that follows a named one.
-        $phpcsFile->fixer->beginChangeset();
+        $phpcsFile->fixer
+            ->beginChangeset();
 
         foreach ($names as $start => $parameterName) {
-            $phpcsFile->fixer->addContentBefore($start, $parameterName . ': ');
+            $phpcsFile->fixer
+                ->addContentBefore($start, "{$parameterName}: ");
         }
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Returns the opening parenthesis of the call whose argument list directly
-     * contains $stackPtr, or null when the token is not inside a call at all.
-     *
-     * A call's parentheses are ownerless; declarations (`function foo(...)`)
-     * and control structures (`if (...)`) own theirs, which is what separates
-     * a call site from a default value in a signature. Every owned-parenthesis
-     * construct reachable with a bare `null` argument is also rejected further
-     * down (a signature default is not a lone argument, and a control
-     * structure resolves to no callee), so the owner test is belt-and-braces —
-     * it states the contract at the point that depends on it.
-     */
     private function getCallOpener(File $phpcsFile, int $stackPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -241,18 +153,16 @@ class NoNullArgumentsSniff implements Sniff
         end($nested);
         $opener = key($nested);
 
-        if ($opener === null || isset($tokens[$opener]['parenthesis_owner']) === true) {
+        if (
+            $opener === null
+            || isset($tokens[$opener]['parenthesis_owner']) === true
+        ) {
             return null;
         }
 
         return isset($tokens[$opener]['parenthesis_closer']) === true ? $opener : null;
     }
 
-    /**
-     * Splits an argument list into its top-level arguments.
-     *
-     * @return array<int, array{start: int, end: int, named: bool, spread: bool}>
-     */
     private function getArguments(File $phpcsFile, int $opener, int $closer): array
     {
         $tokens = $phpcsFile->getTokens();
@@ -264,11 +174,22 @@ class NoNullArgumentsSniff implements Sniff
         for ($i = $opener + 1; $i < $closer; $i++) {
             $code = $tokens[$i]['code'];
 
+            // Three disjoint token sets, so these read as one choice even
+            // written apart. No `continue` on the bracket arms: a bracket is
+            // part of the argument's own token range, and still has to reach
+            // the $start/$end update below.
             if (isset(self::OPEN_BRACKETS[$code]) === true) {
                 $depth++;
-            } elseif (isset(self::CLOSE_BRACKETS[$code]) === true) {
+            }
+
+            if (isset(self::CLOSE_BRACKETS[$code]) === true) {
                 $depth--;
-            } elseif ($code === T_COMMA && $depth === 0) {
+            }
+
+            if (
+                $code === T_COMMA
+                && $depth === 0
+            ) {
                 if ($start !== null) {
                     $arguments[] = $this->describeArgument($tokens, $start, (int) $end);
                 }
@@ -294,11 +215,6 @@ class NoNullArgumentsSniff implements Sniff
         return $arguments;
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array{start: int, end: int, named: bool, spread: bool}
-     */
     private function describeArgument(array $tokens, int $start, int $end): array
     {
         return [
@@ -309,14 +225,6 @@ class NoNullArgumentsSniff implements Sniff
         ];
     }
 
-    /**
-     * Returns the positional index of the argument that consists of exactly
-     * the `null` at $stackPtr, or null when that token is not a bare
-     * positional argument (it is named, part of a bigger expression, or sits
-     * behind a spread that makes its position unknowable).
-     *
-     * @param array<int, array{start: int, end: int, named: bool, spread: bool}> $arguments
-     */
     private function getBareNullArgumentIndex(array $arguments, int $stackPtr): ?int
     {
         foreach ($arguments as $index => $argument) {
@@ -343,13 +251,6 @@ class NoNullArgumentsSniff implements Sniff
         return null;
     }
 
-    /**
-     * Resolves the declaration the call targets, together with how the call
-     * binds to it, or null when the callee is not declared in this file. See
-     * the class docblock for why resolution stops at the file boundary.
-     *
-     * @return array{function: int, binding: string}|null
-     */
     private function resolveCallee(File $phpcsFile, int $opener): ?array
     {
         $tokens = $phpcsFile->getTokens();
@@ -388,7 +289,10 @@ class NoNullArgumentsSniff implements Sniff
             return $this->resolveConstructor($phpcsFile, $namePtr, $opener);
         }
 
-        if ($previous === T_OBJECT_OPERATOR || $previous === T_NULLSAFE_OBJECT_OPERATOR) {
+        if (
+            $previous === T_OBJECT_OPERATOR
+            || $previous === T_NULLSAFE_OBJECT_OPERATOR
+        ) {
             return $this->resolveThisMethod($phpcsFile, (int) $previousPtr, $opener, $name);
         }
 
@@ -406,7 +310,11 @@ class NoNullArgumentsSniff implements Sniff
 
         // A qualified name (\Foo\bar(), Foo\bar()) refers outside this file
         // even when a same-named function is declared in it.
-        if ($previous === T_NS_SEPARATOR || $previous === T_STRING || $previous === T_FUNCTION) {
+        if (
+            $previous === T_NS_SEPARATOR
+            || $previous === T_STRING
+            || $previous === T_FUNCTION
+        ) {
             return null;
         }
 
@@ -415,12 +323,6 @@ class NoNullArgumentsSniff implements Sniff
         return $function === null ? null : ['function' => $function, 'binding' => self::BIND_EARLY];
     }
 
-    /**
-     * Resolves the constructor a `new ...` expression or an attribute
-     * instantiation targets.
-     *
-     * @return array{function: int, binding: string}|null
-     */
     private function resolveConstructor(File $phpcsFile, int $classRefPtr, int $opener): ?array
     {
         $reference = $this->resolveClassReference($phpcsFile, $classRefPtr, $opener);
@@ -428,14 +330,6 @@ class NoNullArgumentsSniff implements Sniff
         return $reference === null ? null : $this->resolveMethod($phpcsFile, $reference, '__construct');
     }
 
-    /**
-     * Looks $name up on an already-resolved class reference, carrying the
-     * reference's binding through to the result.
-     *
-     * @param array{class: int, binding: string} $reference
-     *
-     * @return array{function: int, binding: string}|null
-     */
     private function resolveMethod(File $phpcsFile, array $reference, string $name): ?array
     {
         $method = $this->findMethod($phpcsFile, $reference['class'], $name);
@@ -443,12 +337,6 @@ class NoNullArgumentsSniff implements Sniff
         return $method === null ? null : ['function' => $method, 'binding' => $reference['binding']];
     }
 
-    /**
-     * Resolves a method call made on `$this` — the only object reference whose
-     * class is knowable from the file alone.
-     *
-     * @return array{function: int, binding: string}|null
-     */
     private function resolveThisMethod(
         File $phpcsFile,
         int $operatorPtr,
@@ -461,7 +349,10 @@ class NoNullArgumentsSniff implements Sniff
         // PHP variable names are case-sensitive, so only the exact spelling is
         // the `$this` whose class this file knows; `$This` is an ordinary
         // variable that may hold an object of any class at all.
-        if ($objectPtr === false || $tokens[$objectPtr]['content'] !== '$this') {
+        if (
+            $objectPtr === false
+            || $tokens[$objectPtr]['content'] !== '$this'
+        ) {
             return null;
         }
 
@@ -474,19 +365,15 @@ class NoNullArgumentsSniff implements Sniff
         return $this->resolveMethod($phpcsFile, ['class' => $class, 'binding' => self::BIND_THIS], $name);
     }
 
-    /**
-     * Resolves a class reference token (`self`, `static`, or an unqualified
-     * class name) to the class declaration in this file, or null when it names
-     * something the file does not declare.
-     *
-     * @return array{class: int, binding: string}|null
-     */
     private function resolveClassReference(File $phpcsFile, int $stackPtr, int $opener): ?array
     {
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$stackPtr]['code'];
 
-        if ($code === T_SELF || $code === T_STATIC) {
+        if (
+            $code === T_SELF
+            || $code === T_STATIC
+        ) {
             $class = $this->getEnclosingClass($phpcsFile, $opener);
 
             if ($class === null) {
@@ -523,7 +410,10 @@ class NoNullArgumentsSniff implements Sniff
         if ($previousPtr !== false) {
             $previous = $tokens[$previousPtr]['code'];
 
-            if ($previous === T_NS_SEPARATOR || $previous === T_STRING) {
+            if (
+                $previous === T_NS_SEPARATOR
+                || $previous === T_STRING
+            ) {
                 return null;
             }
         }
@@ -533,24 +423,6 @@ class NoNullArgumentsSniff implements Sniff
         return $class === null ? null : ['class' => $class, 'binding' => self::BIND_EARLY];
     }
 
-    /**
-     * Answers whether the declaration the call resolved to is provably the one
-     * that runs — the question the auto-fixer depends on, since it writes that
-     * declaration's parameter name into the source.
-     *
-     * An early-bound call names its target outright. A `$this->`/`static::`
-     * call does not: PHP picks the body from the *runtime* class, and an
-     * override may rename the parameter (renaming one is valid PHP — signature
-     * compatibility covers types and defaults, never names). The overriding
-     * subclass is usually in another file, so the sniff can only fix the call
-     * when the file shows dispatch cannot be diverted at all.
-     *
-     * A `self::` call inside a trait is divertible for a different reason —
-     * `self` names the using class, which may declare the method itself — and
-     * lands on the same answer through the trait guard below.
-     *
-     * @param array{function: int, binding: string} $callee
-     */
     private function isDispatchProvable(File $phpcsFile, array $callee, int $opener): bool
     {
         if ($callee['binding'] === self::BIND_EARLY) {
@@ -570,7 +442,10 @@ class NoNullArgumentsSniff implements Sniff
 
         // An enum cannot be extended, and an anonymous class has no name to
         // extend, so in both the declaration in this file is the one that runs.
-        if ($code === T_ENUM || $code === T_ANON_CLASS) {
+        if (
+            $code === T_ENUM
+            || $code === T_ANON_CLASS
+        ) {
             return true;
         }
 
@@ -602,9 +477,6 @@ class NoNullArgumentsSniff implements Sniff
         return $callee['binding'] === self::BIND_THIS && $properties['scope'] === 'private';
     }
 
-    /**
-     * Finds the class-like declaration enclosing $stackPtr.
-     */
     private function getEnclosingClass(File $phpcsFile, int $stackPtr): ?int
     {
         $conditions = $phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [];
@@ -618,10 +490,6 @@ class NoNullArgumentsSniff implements Sniff
         return null;
     }
 
-    /**
-     * Finds a class-like declaration by unqualified name, within the namespace
-     * governing $stackPtr.
-     */
     private function findClass(File $phpcsFile, string $name, int $stackPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -646,11 +514,6 @@ class NoNullArgumentsSniff implements Sniff
         return null;
     }
 
-    /**
-     * Finds a namespace-level function declaration by name — one whose
-     * T_FUNCTION is not nested in a class-like scope — within the namespace
-     * governing $stackPtr.
-     */
     private function findFunction(File $phpcsFile, string $name, int $stackPtr): ?int
     {
         $namespace = $this->getNamespace($phpcsFile, $stackPtr);
@@ -673,17 +536,6 @@ class NoNullArgumentsSniff implements Sniff
         return null;
     }
 
-    /**
-     * Returns the declaration governing $stackPtr's namespace, or null when the
-     * file declares none.
-     *
-     * The same short name may be declared once per namespace block, so a file
-     * with several blocks can hold two unrelated classes that share it.
-     * Comparing the governing declarations tells them apart. `namespace\foo()`
-     * reuses this token as an operator; the worst it can do is make two
-     * pointers disagree, which withholds resolution rather than misdirecting
-     * it.
-     */
     private function getNamespace(File $phpcsFile, int $stackPtr): ?int
     {
         $pointer = $phpcsFile->findPrevious(T_NAMESPACE, $stackPtr - 1);
@@ -691,11 +543,6 @@ class NoNullArgumentsSniff implements Sniff
         return $pointer === false ? null : $pointer;
     }
 
-    /**
-     * Returns the pointer to $name declared directly on the class at
-     * $classPtr, or null when the class does not declare it (an inherited
-     * method lives in another file and stays unresolved).
-     */
     private function findMethod(File $phpcsFile, int $classPtr, string $name): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -722,17 +569,6 @@ class NoNullArgumentsSniff implements Sniff
         return null;
     }
 
-    /**
-     * Builds the argument-start => parameter-name map the fixer applies, or
-     * null when the call cannot be rewritten safely — a spread or a variadic
-     * target has no name to give it, and leaving it positional after a named
-     * argument would not parse.
-     *
-     * @param array<int, array{start: int, end: int, named: bool, spread: bool}> $arguments
-     * @param array<int, array<string, mixed>>                                   $parameters
-     *
-     * @return array<int, string>|null
-     */
     private function getNamesForFix(array $arguments, int $index, array $parameters): ?array
     {
         $names = [];
@@ -751,7 +587,10 @@ class NoNullArgumentsSniff implements Sniff
 
             $parameter = $parameters[$i] ?? null;
 
-            if ($parameter === null || $parameter['variable_length'] === true) {
+            if (
+                $parameter === null
+                || $parameter['variable_length'] === true
+            ) {
                 return null;
             }
 

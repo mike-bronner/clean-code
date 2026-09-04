@@ -248,7 +248,7 @@ it('leaves a chain inside a while header to the sibling sniff, at warning severi
  * the precedent this follows: pin an exact, named violation set for the rule
  * under test, and record any survivor rather than silence it.
  *
- * Errors are the bar. The 28 warnings are the while-condition code, which this
+ * Errors are the bar. The 27 warnings are the while-condition code, which this
  * change lowered precisely because the idiom is legitimate and widespread — this
  * tree's own use of it is the evidence, and counting them here is what would
  * catch the lowering being reverted.
@@ -267,7 +267,7 @@ it('reports no errors from either rule against the package source', function () 
     }
 
     expect($sources)->toBe([])
-        ->and($warnings)->toBe(28);
+        ->and($warnings)->toBe(27);
 });
 
 /**

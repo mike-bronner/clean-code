@@ -5,7 +5,7 @@
 - Use **interpolation** in favor of concatenation.
 - HTML attributes should always use **double quotes**, never apostrophes.
 - Defining HTML or other code to be rendered within code should be done using
-  **HereDocs**.
+  **HereDocs**, never NowDocs.
 - **Escape quotes** when rendering inside other quotes.
 
 **Why:**
@@ -18,7 +18,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 2 (custom sniffs)
 
-No bundled or Slevomat sniff matches this standard, so four custom sniffs in
+No bundled or Slevomat sniff matches this standard, so five custom sniffs in
 the **`CleanCode.Strings`** category enforce it. The candidates named in the
 issue were evaluated and rejected rather than bent to fit:
 
@@ -38,16 +38,33 @@ expressions) are considered; mixing in a function call, constant, or magic
 constant (`$x . foo()`, `__DIR__ . '/x'`) means the expression cannot become a
 single interpolated string, and it is left alone.
 
-- **Auto-fixed** — the direct, two-operand case: one string literal plus one
-  plain `$variable` (`'Hello ' . $name` → `"Hello {$name}"`). The fixer
-  brace-wraps the variable so it never runs into adjacent literal text.
-- **Detection-only** — multi-expression chains (`'a' . $b . 'c'`) and complex
-  variable operands (`'x' . $obj->prop`, `'x' . $arr['k']`,
-  `'x' . $svc->run()`). These are interpolatable with `{...}`, but the safe
-  rewrite is a judgement call left to the developer. A literal carrying a
-  binary-string prefix (`B'Total: ' . $sum`) is detection-only too, for a
-  different reason: the interpolated result would be source PHPCS cannot read
-  (see the tokenizer note under *Known limitations*).
+- **Auto-fixed** — any chain, of any length, whose operands all have an
+  interpolated form:
+
+  ```php
+  'Hello ' . $name                  →  "Hello {$name}"
+  $ns . '\\' . $name                →  "{$ns}\\{$name}"
+  'a' . $first . 'b' . $last        →  "a{$first}b{$last}"
+  'user: ' . $user->name            →  "user: {$user->name}"
+  'item: ' . $items['key']          →  "item: {$items['key']}"
+  'result: ' . $service->run()      →  "result: {$service->run()}"
+  ```
+
+  Every variable is brace-wrapped, which is what makes an arbitrary chain safe:
+  `{$a}{$b}` cannot run two names together, and `{$user->name}s` cannot swallow
+  the trailing character. A single-quoted fragment has its own two escapes
+  (`\\` and `\'`) resolved before the whole thing is escaped for a double-quoted
+  body, so a value is never altered — the suite proves this by executing the
+  before and after fixtures and comparing every resulting value.
+
+- **Detection-only** — the two shapes with no interpolated form at all:
+  - **a grouping parenthesis around an operand** (`($b) . 'y'`). `{($b)}` is a
+    brace followed by text, not a variable expression, so writing it would
+    change the value. Parentheses stay transparent for *detection*, so these
+    are still reported — just under `ComplexConcatenation` rather than fixed.
+  - **a binary-string prefix** (`B'Total: ' . $sum`). The interpolated result
+    would be source PHPCS cannot read (see the tokenizer note under *Known
+    limitations*).
 
 ### `CleanCode.Strings.HtmlAttributeQuotes` — auto-fixable
 
@@ -70,14 +87,50 @@ capture can end on a backslash that would then pair with the injected `\"` and
 leave a bare quote closing the string early. The two sibling fixers below
 decline a backslash for the same reason.
 
-### `CleanCode.Strings.RequireHeredocForMarkup` — detection-only
+### `CleanCode.Strings.RequireHeredocForStructuredText` — detection-only
 
-Flags HTML/markup embedded in a regular single- or double-quoted string:
-such content belongs in a HereDoc, where it reads without quote escaping and
-survives multi-line growth. Compliant HereDoc/NowDoc bodies tokenize
-separately and never trip the sniff. No auto-fixer — converting an inline
-string to a HereDoc is a structural edit (a dedented closing marker, no
-trailing concatenation) the standard leaves to the developer.
+Flags **any embedded language** in a regular single- or double-quoted string,
+**at any length**: HTML, XML, SQL, JSON, YAML, an INI or config block, or
+markdown. Such content belongs in a HereDoc, where the delimiter names the
+language so an editor can highlight it, it reads without quote escaping, and it
+survives multi-line growth. Length is the sibling concern and belongs to
+`CleanCode.Strings.MultilineStrings`, which counts source lines and never reads
+the text, so the two hold disjoint slices.
+
+A concatenated chain is joined and judged whole, then reported **once at its
+opening fragment**. Reading the text whole is what lets the sniff recognise a
+query or a config block that no single fragment carries.
+
+Every signal is anchored, because a false positive tells a developer to
+restructure a sentence:
+
+| Language | Signal |
+| --- | --- |
+| HTML | a known element name in a tag |
+| XML | an `xml`/`DOCTYPE`/`CDATA` declaration, or any closing tag |
+| SQL | an opening keyword **and** a companion clause (`FROM`, `INTO`, `SET`, `VALUES`, `WHERE`, `TABLE`, …) |
+| JSON | opens `{`/`[` **and** carries a quoted key |
+| YAML | a `---` document marker **and** a mapping line under it |
+| INI / config | a `[section]` header, or two or more `key = value` lines |
+| markdown | a heading, list item, table row, blockquote, or fence at a line start |
+
+Each signal earns its narrowness. Trusting the SQL opening keyword alone read
+every bare `'delete'` and `'create'` in a PHP lookup array as a query — 28 false
+positives across this package's own sources against 2 real findings — so a
+companion clause is required. `SELECT 1` and other clause-free queries are
+missed by design, which is the side of the trade worth being on. A `[section]`
+header needs a setting under it for the same reason: `'[placeholder]'` alone was
+read as an INI file.
+
+Escapes are resolved per fragment, by its own delimiter: `"a\nb"` carries a line
+break and `'a\nb'` carries two characters, so a config block written with double
+quotes is recognised and a Windows path written with single quotes is not
+mistaken for one.
+
+Compliant HereDoc bodies tokenize separately and never trip the sniff. No
+auto-fixer — converting an inline string to a HereDoc is a structural edit (a
+dedented closing marker, no trailing concatenation) the standard leaves to the
+developer.
 
 ### `CleanCode.Strings.EscapeNestedQuotes` — auto-fixable
 
@@ -87,9 +140,35 @@ switching the whole literal to single quotes just to dodge the escape. Flags a
 single-quoted literal that carries a double quote (`'He said "hi"'`) and, when
 meaning-preserving, rewrites it to `"He said \"hi\""`. (PHP cannot tokenize an
 *un*escaped delimiter nested in a same-quoted string at all, so the
-delimiter-switch dodge is the reachable form of the rule.) The fixer runs only
-when the literal carries no `$`/`{` interpolation trigger and no backslash
-escape; otherwise the violation is reported for manual conversion.
+delimiter-switch dodge is the reachable form of the rule.) Every literal it
+reports is fixed: a single-quoted body resolves only `\\` and `\x27`, so both come
+back to the characters they stand for before the whole thing is escaped for a
+double-quoted body, where a backslash, a quote and a `$` each mean something.
+Escaping the `$` covers `{$` and `${` too, so no output of this fixer
+interpolates.
+
+### `CleanCode.Strings.DisallowNowdoc` — auto-fixable
+
+A multi-line string uses a HEREDOC, never a NOWDOC. The two are the same
+construct and differ only in the quotes around the opening identifier, and that
+one character changes how every later reader has to think about the body: a
+NOWDOC is inert, a HEREDOC is the form the rest of this standard's fixers emit
+and the form a template, a query or a message is normally written in. Carrying
+both means a reader checks the delimiter before trusting what the body says, so
+the package keeps one.
+
+Nothing is lost in the conversion, which is why it is auto-fixable rather than
+detection-only. A HEREDOC body carries any literal text a NOWDOC can, with two
+escapes added: a backslash doubles, and a `$` is escaped. Escaping the `$` covers
+both interpolation triggers — `{$` becomes `{\$` and `${` becomes `\${` — so a
+lone brace needs nothing. A `"` needs no escape at all, which is the readability
+gain a HEREDOC has over both quoted forms. The test suite proves the fixer is
+value-preserving by executing the before and after fixtures and comparing every
+variable.
+
+The sniff registers on `T_START_NOWDOC` alone, so quoted strings are untouched:
+`CleanCode.Strings.MultilineStrings` owns the multi-line quoted form, and it now
+emits a HEREDOC too.
 
 ## Known limitations
 
@@ -124,7 +203,7 @@ escape; otherwise the violation is reported for manual conversion.
   either php context'.
 - **A single tag split across source lines is not rewritten.** PHPCS hands the
   sniff one token per physical line, and no single token holds that tag's span.
-- **`RequireHeredocForMarkup` reports once per physical line.** Same
+- **`RequireHeredocForStructuredText` reports once per physical line.** Same
   tokenization: a multi-line quoted string arrives as one fragment per line, and
   every fragment carrying a tag is reported. The sibling
   `CleanCode.Strings.MultilineStrings` reports the same string once, and its
@@ -146,7 +225,8 @@ escape; otherwise the violation is reported for manual conversion.
   its `B"` opener `T_NONE` and swallows the source after it, so a fixer emitting
   that shape corrupts the file for the next pass. `EscapeNestedQuotes` and
   `MultilineStrings` therefore keep the prefix — their output never interpolates
-  (`B'He said "hi"'` → `B"He said \"hi\""`; `B'a\nb'` → `B<<<'TEXT'`) — while
+  (`B'He said "hi"'` → `B"He said \"hi\""`; a multi-line `B'…'` → `B<<<TEXT`
+  with every `$` in the body escaped) — while
   `RequireStringInterpolation` refuses a prefixed literal outright, because its
   output always does, and reports it as detection-only instead. Dropping the
   prefix would rest on it being a no-op, which is not this standard's call to
@@ -161,9 +241,9 @@ escape; otherwise the violation is reported for manual conversion.
 
 These sniffs follow the repo-wide fixture contract (see `CONTRIBUTING.md`):
 per-sniff fixtures at `tests/fixtures/<SniffClassName>/` under the fixed names
-`passing.php`, `failing.php`, and — for the three auto-fixable sniffs —
-`autofixed.php`, which is `phpcbf`'s own output for `failing.php`. All four
-sniffs are registered in `SWEPT_SNIFFS` (and the three fixable ones in
+`passing.php`, `failing.php`, and — for the four auto-fixable sniffs —
+`autofixed.php`, which is `phpcbf`'s own output for `failing.php`. All five
+sniffs are registered in `SWEPT_SNIFFS` (and the four fixable ones in
 `AUTOFIXABLE_SNIFFS`) in `tests/Sniffs.php`, which gives them the generic
 passing/failing/autofix/idempotence sweep plus the shipped-package smoke test.
 Per-sniff line/column behaviour lives in `tests/Standards/*Test.php`, and the

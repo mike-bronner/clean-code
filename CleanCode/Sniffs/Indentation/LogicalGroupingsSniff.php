@@ -9,73 +9,10 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Indentation: Logical Groupings" standard.
- *
- * When an if/elseif/while/for/do-while condition contains a parenthesized
- * sub-grouping of boolean conditions — e.g. `($a && $b)` — and that grouping
- * is broken across multiple lines, the conditions inside the parentheses must
- * be indented one level (four spaces) deeper than the line the group opens on,
- * so the logical structure is visible at a glance. Every condition within the
- * same group aligns to that one level, and a group nested inside another group
- * indents one further level than its parent — validated to arbitrary depth.
- *
- * A first condition written on the group's own opening line is held to the
- * same level, which it can only reach on a line of its own: the whitespace in
- * front of it is mid-line spacing, and the indentation of the line it shares
- * belongs to the enclosing condition.
- *
- * Simple multi-line conditions with no parenthesized sub-grouping are left
- * entirely alone: their one-condition-per-line layout is the concern of the
- * "Conditionals: One Condition Per Line" standard (#17), not this one. Only the
- * lines directly inside a multi-line grouping are checked here, so a single-line
- * group never triggers a violation.
- *
- * Detection recognises groupings rather than excluding calls, so anything the
- * sniff does not positively identify as a grouping is left untouched: a
- * function, method, or constructor argument list, a `match` subject, a closure
- * or arrow-function parameter list, and any construct added to PHP later. Three
- * further shapes are held out of the measured conditions themselves — a comment
- * line inside a grouping, an arrow-function body used as a boolean operand, and
- * the continuation lines of a multi-line string, heredoc, or nowdoc. None of
- * these is a condition, so none is reported or reindented.
- *
- * Nor is anything nested below the condition. An array literal, a subscript, a
- * brace block, and an arrow-function body are each jumped whole wherever the
- * sniff walks, so a parenthesis inside one of them — an array value or element,
- * a statement in a closure body — is never mistaken for a grouping of the
- * condition that encloses it. Where such a region has no recorded end, which
- * only happens on source PHP cannot parse, every walk stops rather than read
- * its interior as the condition's own tokens: nothing is reported and nothing
- * is reindented.
- *
- * All violations are auto-fixable — phpcbf reindents each offending condition
- * line to the correct nesting level, and gives a condition glued to its
- * group's opening parenthesis a line of its own at that level.
- */
 class LogicalGroupingsSniff implements Sniff
 {
     private const INDENT = 4;
 
-    /**
-     * Every token that opens a region whose interior belongs to a nested
-     * construct rather than to the grouping being measured, mapped to the
-     * token-array key holding its closer.
-     *
-     * One list, read by all three walks in this class — the one collecting
-     * groupings, the one testing a grouping for a top-level boolean, and the
-     * one measuring a grouping's conditions — so a construct can never be
-     * opaque to one walk and transparent to another. That drift is what let an
-     * arrow-function body be reindented when `T_FN` reached only one list, and
-     * what let an array literal's contents be read as conditions when only two
-     * of the three walks stepped over brackets.
-     *
-     * An arrow function is here because its body — everything after `=>` — has
-     * no bracket delimiter, so without the scope closer the body's tokens read
-     * as though they belonged to the enclosing grouping.
-     *
-     * @var array<int|string, string>
-     */
     private const NESTED_REGION_CLOSERS = [
         T_OPEN_PARENTHESIS => 'parenthesis_closer',
         T_OPEN_SHORT_ARRAY => 'bracket_closer',
@@ -84,62 +21,10 @@ class LogicalGroupingsSniff implements Sniff
         T_FN => 'scope_closer',
     ];
 
-    /**
-     * Physical line number => pointer to the first token recorded on that line,
-     * for the token stream named by $lineStartsKey.
-     *
-     * @var array<int, int>
-     */
     private array $lineStarts = [];
 
-    /**
-     * The token stream $lineStarts describes, as TokenStreams::key() builds it.
-     */
     private ?string $lineStartsKey = null;
 
-    /**
-     * How many times $lineStarts was built, how many times the key guard
-     * answered a read from the index already built, and what the three walks
-     * over a condition's own tokens cost.
-     *
-     * The index exists to absorb many reads per token stream into one pass, and
-     * nothing a black-box test can observe tells "built once, read n times"
-     * from "rebuilt on every read": both report the same violations. These two
-     * counters are what tell them apart, and
-     * tests/Standards/LogicalGroupingsTest.php pins both numbers.
-     *
-     * The walk pair states the other claim this sniff rests on, which the
-     * build/hit pair cannot: that a condition of n nested or stacked groupings
-     * costs n walks of their own direct tokens rather than n overlapping
-     * rescans of the whole condition. skipNested() says why jumping is what
-     * makes that true; these count it in the unit the cost is charged in.
-     *
-     * - `conditionWalk.steps` — one per token examined by any of the three
-     *   walks over a condition (the grouping collection, the top-level-boolean
-     *   test, and the direct-condition-line scan).
-     * - `conditionWalk.jumps` — one per nested region crossed whole. A jump is
-     *   one step whatever the region holds; walking the region instead costs
-     *   one step per token in it, which is the quadratic shape, and the two
-     *   counters move in opposite directions when it returns.
-     * - `lineStarts.steps` — tokens examined to answer one line-start reading,
-     *   counted at step(), the read itself, not at the head of lineStart().
-     *   This is the other axis, and the builds/hits pair cannot see it: those
-     *   say the index is built once per stream, not that reading it is cheap.
-     *   The index answers in one; stepping back to the start of the line costs
-     *   one per token already on it, so a line carrying n stacked openers pays
-     *   an ever-growing prefix of that one line per reading. step() is the only
-     *   token the reading path can reach — lineStart() is handed no token array
-     *   — so this count is charged per token examined and cannot be left behind
-     *   by a walk that examines many.
-     *
-     * Each increment sits inside the same branch as the guard it counts, so a
-     * guard that stopped working cannot leave the counts intact. The totals are
-     * cumulative for the life of the sniff instance — tests/Helpers.php's
-     * buildRuleset() memoises the instance, so every test in one file shares
-     * one — and are read as a delta around a single process() run.
-     *
-     * @var array<string, int>
-     */
     private array $cacheCounts = [
         'lineStarts.builds' => 0,
         'lineStarts.hits' => 0,
@@ -148,32 +33,22 @@ class LogicalGroupingsSniff implements Sniff
         'lineStarts.steps' => 0,
     ];
 
-    /**
-     * @return array<int|string>
-     */
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
     }
 
-    /**
-     * How many times the line-start index was built, how many times the key
-     * guard answered from the index already built, and what the condition walks
-     * cost, cumulative for the life of this instance. See $cacheCounts.
-     *
-     * @return array<string, int>
-     */
     public function cacheCounts(): array
     {
         return $this->cacheCounts;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -192,23 +67,6 @@ class LogicalGroupingsSniff implements Sniff
         }
     }
 
-    /**
-     * Collects, in source order, every parenthesis inside the control
-     * structure's condition that opens a boolean-condition sub-grouping — a
-     * parenthesis that is not a function/construct call and that contains at
-     * least one top-level boolean operator. Nested groupings are included, so
-     * each is later checked against its own enclosing level.
-     *
-     * Only the condition's own tokens are considered. An array literal, a
-     * subscript, a brace block, or an arrow-function body is jumped whole,
-     * because its interior sits a structural level below the condition: a
-     * parenthesis in there groups that construct's own expression, never the
-     * enclosing boolean one. Both other walks in this class already jump the
-     * same regions through the same map, so a construct cannot be opaque to
-     * one walk and transparent to another.
-     *
-     * @return array<int>
-     */
     private function groupingParentheses(File $phpcsFile, int $opener, int $closer): array
     {
         $tokens = $phpcsFile->getTokens();
@@ -258,22 +116,6 @@ class LogicalGroupingsSniff implements Sniff
         return $groups;
     }
 
-    /**
-     * True when the parenthesis opens a standalone grouping rather than an
-     * argument or operand list belonging to whatever precedes it.
-     *
-     * The test is on the *grouping* side on purpose. Asking instead "is this a
-     * call?" needs an allowlist of every token that can precede an argument
-     * list — `T_STRING`, `T_MATCH`, `T_ANON_CLASS`, `T_CLOSURE`, `T_FN`,
-     * `T_EXIT`, `T_ISSET`, each name token, … — and every name missing from
-     * that list becomes a false positive on valid code. The grouping side is a
-     * closed set instead: a grouping parenthesis can only appear where a new
-     * operand may begin, which is directly after an operator, a `!`, a ternary
-     * arm, an opening delimiter, or a `,`/`;` separator. Anything else —
-     * including any token this sniff has never heard of — is therefore not a
-     * grouping, so an unrecognised construct is left alone rather than
-     * reindented.
-     */
     private function opensGrouping(File $phpcsFile, int $parenPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -310,11 +152,6 @@ class LogicalGroupingsSniff implements Sniff
         return isset($expressionStarters[$tokens[$previous]['code']]);
     }
 
-    /**
-     * True when the region between the parentheses contains a boolean operator
-     * (`&&`, `||`, `and`, `or`, `xor`) that is not itself nested inside a
-     * deeper set of parentheses, brackets, or braces.
-     */
     private function hasTopLevelBoolean(File $phpcsFile, int $open, int $close): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -347,26 +184,6 @@ class LogicalGroupingsSniff implements Sniff
         return false;
     }
 
-    /**
-     * If the token opens a nested region, returns the pointer to that region's
-     * closer so the caller can jump past it in one step; returns the pointer
-     * unchanged when the token opens no region at all; returns null when it
-     * opens one whose closer cannot be resolved.
-     *
-     * Jumping rather than counting depth is what keeps the walks linear: a
-     * group's walk touches only its own direct tokens, so n nested groups cost
-     * n walks of their own contents instead of n overlapping rescans of the
-     * whole condition.
-     *
-     * The null is the third answer on purpose. "This is not a region" and
-     * "this is a region I cannot resolve" were once the same return value, so
-     * every caller had to re-derive the difference from the map by hand — and
-     * a caller that did not was left walking a region's interior as though it
-     * were the condition's own tokens. One answer per case here is what makes
-     * the fail-closed branch impossible for a caller to omit.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function skipNested(array $tokens, int $i): ?int
     {
         $closerKey = self::NESTED_REGION_CLOSERS[$tokens[$i]['code']] ?? null;
@@ -383,7 +200,10 @@ class LogicalGroupingsSniff implements Sniff
         // second case would send a walk backwards and around again. PHP_CodeSniffer
         // does not produce one, which is exactly why the walk must not depend on
         // it never doing so.
-        if ($closer === null || $closer <= $i) {
+        if (
+            $closer === null
+            || $closer <= $i
+        ) {
             return null;
         }
 
@@ -394,18 +214,6 @@ class LogicalGroupingsSniff implements Sniff
         return $closer;
     }
 
-    /**
-     * Checks one parenthesized grouping: when its parentheses span multiple
-     * lines, the first condition inside must sit one level deeper than the
-     * line the group opens on, and every subsequent condition must align with
-     * it. Each offending condition line is reported and fixed independently.
-     *
-     * A first condition written on the group's own opening line is the one
-     * shape measured differently, because it has no indentation to measure —
-     * whatever whitespace precedes it sits mid-line, and the leading
-     * whitespace of the line it shares belongs to the enclosing condition.
-     * It is reported under the same code and given its own line by the fixer.
-     */
     private function checkGroup(File $phpcsFile, int $groupOpen): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -431,16 +239,7 @@ class LogicalGroupingsSniff implements Sniff
                 continue;
             }
 
-            if ($index === 0) {
-                $error = 'Grouped condition must be indented one level deeper than its'
-                    . ' enclosing condition; expected %s spaces, found %s';
-                $code = 'GroupNotIndented';
-            } else {
-                $error = "Condition in a parenthesized group must align with the group's"
-                    . ' first condition; expected %s spaces, found %s';
-                $code = 'MisalignedGroupedCondition';
-            }
-
+            [$error, $code] = $this->groupIndentReport($index);
             $fix = $phpcsFile->addFixableError($error, $pointer, $code, [$expected, $actual]);
 
             if ($fix === true) {
@@ -449,17 +248,26 @@ class LogicalGroupingsSniff implements Sniff
         }
     }
 
-    /**
-     * Reports a first condition that shares the group's opening line, and
-     * moves it onto a line of its own at the group's level.
-     *
-     * The standard asks for the conditions of a multi-line group to sit one
-     * level deeper than the line the group opens on, which a condition glued
-     * to the opening parenthesis cannot do while it stays on that line. Only
-     * the first condition can reach here: every later one is preceded by a
-     * condition on the same line, and only the first token of a line is
-     * measured at all.
-     */
+    // The first condition of a group is measured against its enclosing
+    // condition; every later one is measured against that first condition, so
+    // the two carry different wording and different codes.
+    private function groupIndentReport(int $index): array
+    {
+        if ($index === 0) {
+            return [
+                'Grouped condition must be indented one level deeper than its'
+                    . ' enclosing condition; expected %s spaces, found %s',
+                'GroupNotIndented',
+            ];
+        }
+
+        return [
+            "Condition in a parenthesized group must align with the group's"
+                . ' first condition; expected %s spaces, found %s',
+            'MisalignedGroupedCondition',
+        ];
+    }
+
     private function checkGluedFirstCondition(File $phpcsFile, int $pointer, int $expected): void
     {
         $error = 'The first condition of a parenthesized group must start on its own'
@@ -478,31 +286,16 @@ class LogicalGroupingsSniff implements Sniff
             // Mid-line spacing, never a line's indentation: the condition is
             // on the opening parenthesis's line, so anything directly before
             // it came after that parenthesis.
-            $phpcsFile->fixer->replaceToken(($pointer - 1), $break);
+            $phpcsFile->fixer
+                ->replaceToken(($pointer - 1), $break);
 
             return;
         }
 
-        $phpcsFile->fixer->addContentBefore($pointer, $break);
+        $phpcsFile->fixer
+            ->addContentBefore($pointer, $break);
     }
 
-    /**
-     * The pointers to the first token on each line that holds a condition
-     * directly inside the grouping — those at nesting depth zero relative to
-     * the group, skipping lines that belong to a deeper nested grouping and
-     * lines that only close a bracket.
-     *
-     * The line cursor starts at "no line yet" rather than at the group
-     * opener's line. Seeding it to the opener's line made a first condition
-     * written on that same line indistinguishable from a continuation of a
-     * line already collected, so it was dropped entirely and the next line
-     * took its place as the group's first condition — the real first
-     * condition unmeasured, the second reported as though it were the first.
-     * Only a condition is affected: a comment on the opener's line is skipped
-     * below before the cursor is read, so the seed never reaches it.
-     *
-     * @return array<int, int>
-     */
     private function directConditionLines(File $phpcsFile, int $groupOpen, int $groupClose): array
     {
         $tokens = $phpcsFile->getTokens();
@@ -533,7 +326,10 @@ class LogicalGroupingsSniff implements Sniff
                 $line + substr_count($tokens[$i]['content'], "\n")
             );
 
-            if ($line !== $previousLine && $isContinuation === false) {
+            if (
+                $line !== $previousLine
+                && $isContinuation === false
+            ) {
                 $lines[] = $i;
             }
 
@@ -562,35 +358,6 @@ class LogicalGroupingsSniff implements Sniff
         return $lines;
     }
 
-    /**
-     * The pointer to the first token recorded on the given token's line, read
-     * from an index built once per token stream.
-     *
-     * Both callers used to find it by stepping backwards one token at a time
-     * until the line changed. That is fine once, but each group of a condition
-     * is checked in its own right, so a line carrying n stacked group openers
-     * paid a walk for each of them over an ever-growing prefix of that one
-     * line: n walks of 1, 2, … n tokens, quadratic in the number of groups on
-     * the line. The one-opener-per-line shape was already made linear by giving
-     * every walk in this class a way to jump past a nested region, but that
-     * change never reached here, because these two walks are along a physical
-     * line rather than through a group's contents.
-     *
-     * The index is keyed rather than rebuilt per call because process() runs
-     * once per control structure: rebuilding it for every `if` in a file would
-     * move the same quadratic cost up a level rather than remove it. The key
-     * comes from TokenStreams::key(), the one implementation the four sniffs
-     * with a per-stream index in this package share; what it guarantees, and
-     * why identifying the File object beats describing it, is documented
-     * there. This site read the token count as what separates two sources
-     * analysed as STDIN, which is the invariant issue #343 disproved: two
-     * STDIN sources that tokenise to the same count collided, and this index
-     * answered the second analysis with the first one's pointers.
-     *
-     * A line the index has no entry for cannot arise — every token's own line
-     * is recorded — and the fallback is the answer the old walk gave when it
-     * could not move: the token itself, treated as its line's first.
-     */
     private function lineStart(File $phpcsFile, int $stackPtr): int
     {
         $this->indexLineStarts($phpcsFile);
@@ -599,18 +366,11 @@ class LogicalGroupingsSniff implements Sniff
         return ($this->lineStarts[$this->step($phpcsFile, $stackPtr)['line']] ?? $stackPtr);
     }
 
-    /**
-     * Builds the line-start index for the stream $phpcsFile currently holds,
-     * unless the one already held describes it.
-     *
-     * Separated from lineStart() so that the token array is iterated here,
-     * where the index is built from it, and is bound to no variable in the
-     * reading path. That is what leaves step() as the token accessor a reading
-     * has — see step() for why the reading path is kept that way.
-     */
     private function indexLineStarts(File $phpcsFile): void
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->lineStartsKey === $key) {
             $this->cacheCounts['lineStarts.hits']++;
@@ -629,44 +389,6 @@ class LogicalGroupingsSniff implements Sniff
         }
     }
 
-    /**
-     * The token at $pointer, counted as one step of a line-start reading.
-     *
-     * The count sits on the read rather than at the head of lineStart(), and
-     * that placement is the whole of what `lineStarts.steps` asserts. A counter
-     * at the head of the method counts calls: a reading that walked back token
-     * by token to find its line's first makes exactly as many calls as one that
-     * reads the index, so the walk could return with the count unmoved.
-     * Counting the read counts what a walk repeats instead, because the walk
-     * has to look at each token it steps over to know it has not left the line.
-     *
-     * Counting the read is not enough on its own, though, and that is why
-     * lineStart() binds no token array: a walk written against an array
-     * already sitting in its own scope steps over each token without this
-     * method being called at all, leaving the count telling the truth about
-     * nothing. That is the shape this class shipped with, and it is why
-     * reverting the index to a walk used to be a drop-in replacement the count
-     * did not see. Reading the stream a token at a time through here is the
-     * only access the reading path has, so a walk put back in its place either
-     * steps through this counter or has to fetch the whole array first — a
-     * statement that is not part of the walk and has to be added on purpose.
-     *
-     * The token array is fetched per read rather than held on this instance.
-     * Holding it does make step() reachable without a File, but PHP_CodeSniffer
-     * writes into its own token array in place, so a second live reference to
-     * it separates the two copies on the next write: measured on this file's
-     * own 600-level stacked-opener test, that exhausts the default 128 MB
-     * memory limit during tokenizing. Fetching returns the same array by
-     * reference-count and indexes it, which copies nothing.
-     *
-     * The index build reads every token in the stream and is deliberately not
-     * counted here — that pass is what `lineStarts.builds` says happens once
-     * per stream, and pooling the two would hide a per-reading walk inside a
-     * per-stream total. It iterates the array in indexLineStarts(), which is
-     * the one place the whole stream is read at once.
-     *
-     * @return array<string, mixed>
-     */
     private function step(File $phpcsFile, int $pointer): array
     {
         $this->cacheCounts['lineStarts.steps']++;
@@ -674,9 +396,6 @@ class LogicalGroupingsSniff implements Sniff
         return $phpcsFile->getTokens()[$pointer];
     }
 
-    /**
-     * The indentation (leading-space count) of the line the given token sits on.
-     */
     private function indentOfLine(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -684,7 +403,8 @@ class LogicalGroupingsSniff implements Sniff
 
         for (
             $i = $this->lineStart($phpcsFile, $stackPtr);
-            isset($tokens[$i]) === true && $tokens[$i]['line'] === $line;
+            isset($tokens[$i]) === true
+            && $tokens[$i]['line'] === $line;
             $i++
         ) {
             if ($tokens[$i]['code'] !== T_WHITESPACE) {
@@ -695,10 +415,6 @@ class LogicalGroupingsSniff implements Sniff
         return 0;
     }
 
-    /**
-     * Rewrites the leading whitespace of the given token's line to the expected
-     * number of spaces, preserving any leading end-of-line characters.
-     */
     private function reindent(File $phpcsFile, int $pointer, int $expected): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -706,7 +422,8 @@ class LogicalGroupingsSniff implements Sniff
         $padding = str_repeat(' ', $expected);
 
         if ($tokens[$first]['code'] !== T_WHITESPACE) {
-            $phpcsFile->fixer->addContentBefore($first, $padding);
+            $phpcsFile->fixer
+                ->addContentBefore($first, $padding);
 
             return;
         }
@@ -728,6 +445,7 @@ class LogicalGroupingsSniff implements Sniff
         // character class against an anchor and carries no `/u` modifier, so
         // nothing is known to reach it in the first place.
         $eol = preg_replace('/[^\r\n]+$/', '', $existing) ?? rtrim($existing, " \t\x0B\f");
-        $phpcsFile->fixer->replaceToken($first, $eol . $padding);
+        $phpcsFile->fixer
+            ->replaceToken($first, $eol . $padding);
     }
 }

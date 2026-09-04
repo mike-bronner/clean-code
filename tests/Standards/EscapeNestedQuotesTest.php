@@ -45,10 +45,10 @@ it('flags every violation at its own line and column', function (): void {
         ['line' => 4, 'column' => 11, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
         ['line' => 5, 'column' => 14, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
         ['line' => 9, 'column' => 17, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
-        ['line' => 13, 'column' => 15, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
-        ['line' => 16, 'column' => 14, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
-        ['line' => 21, 'column' => 19, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
-        ['line' => 29, 'column' => 23, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
+        ['line' => 14, 'column' => 15, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
+        ['line' => 18, 'column' => 14, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
+        ['line' => 23, 'column' => 19, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
+        ['line' => 31, 'column' => 23, 'source' => ESCAPE_NESTED_QUOTES . '.UnescapedQuote'],
     ]);
 });
 
@@ -69,28 +69,24 @@ it('reads the delimiter past a binary-string prefix', function (): void {
 });
 
 /**
- * What makes carrying that prefix safe here, unlike in the sibling
- * RequireStringInterpolation fixer, which refuses a prefixed literal outright:
- * this fixer's output never interpolates, because isSafeToConvert() has already
- * rejected `$` and `{`. PHP_CodeSniffer can read `B"He said \"hi\""` — it is a
- * plain T_CONSTANT_ENCAPSED_STRING — but not `B"echo \"$value\" here"`, whose
- * opener it types T_NONE before swallowing the source after it.
+ * What makes carrying that prefix safe: this fixer's output never interpolates.
+ * PHP_CodeSniffer reads `B"He said \"hi\""` as a plain
+ * T_CONSTANT_ENCAPSED_STRING, but types the opener of a prefixed *interpolating*
+ * literal (`B"echo \"$value\" here"`) T_NONE and swallows the source after it,
+ * which silently hides every later violation in the file.
  *
- * So the two guards are coupled, and nothing said so. Loosening isSafeToConvert()
- * to admit `$` would turn the prefix branch into a corrupting fixer. This pins
- * the coupling: the prefixed literal carrying an interpolation trigger stays on
- * the manual-conversion branch and comes back from the fixer unchanged.
+ * The property used to be held by refusing `$` outright. It is now held by
+ * escaping it: `$` leaves as `\$`, so no output of this fixer interpolates, and
+ * the prefix stays safe to carry. That is the coupling this pins — a fixer that
+ * emitted a bare `$` would corrupt the tokenizer, so the escaped form is
+ * asserted directly rather than inferred from the fixable flags.
  */
 it('never carries a prefix onto output that would interpolate', function (): void {
     $file = analyzeFixture(ESCAPE_NESTED_QUOTES, 'failing.php');
 
-    // Flat and in line order, matching the tuples above: lines 4, 5, 9, 13, 16,
-    // 21, 29. The whole list is pinned rather than the last entry alone, so a
-    // fixer that went unfixable everywhere would fail here too.
-    expect(violationFixableFlags($file))
-        ->toBe([true, true, false, false, false, true, false])
-        ->and(autofixedContents($file))
-        ->toContain("\$binaryWithVariable = B'echo \"\$value\" here';");
+    expect(autofixedContents($file))
+        ->toContain("\$binaryWithVariable = B\"echo \\\"\\\$value\\\" here\";")
+        ->not->toContain("B\"echo \\\"\$value");
 });
 
 /**
@@ -109,28 +105,40 @@ it('never re-delimits one fragment of a multi-line literal', function (): void {
 });
 
 /**
- * Only the three literals that carry no interpolation trigger and no backslash
- * escape are fixable; the `$`, `\` and `{` cases are reported for manual
- * conversion. A fixer that widened to any of those three would change the
- * string's meaning, so the split is pinned as a count.
+ * Every literal is fixable: a single-quoted body resolves only `\\` and `\'`,
+ * so both come back to the characters they stand for before the whole thing is
+ * escaped for a double-quoted body. There is no single-quoted literal this
+ * cannot carry across.
  */
-it('marks only the meaning-preserving conversions fixable', function (): void {
+it('fixes every literal it reports', function (): void {
     $file = analyzeFixture(ESCAPE_NESTED_QUOTES, 'failing.php');
 
     expect($file->getErrorCount())->toBe(7)
-        ->and($file->getFixableCount())->toBe(3);
+        ->and($file->getFixableCount())->toBe(7)
+        ->and(violationFixableFlags($file))->toBe([true, true, true, true, true, true, true]);
 });
 
 /**
- * Each unsafe-to-convert trigger, one at a time, so a regression that dropped
- * just one of the three from isSafeToConvert() cannot hide behind the other
- * two. Every case must report, and none of them may be fixable.
+ * The strongest guard: executing the two committed fixtures and comparing every
+ * variable. Escaping is where a re-delimiting fixer goes wrong, and a wrong
+ * escape is not a lint finding in the consumer's code — it is a changed string
+ * at runtime. Line-level assertions cannot see that; this can.
  */
-it('reports but never fixes a literal it cannot re-delimit safely', function (string $literal): void {
+it('produces a byte-for-byte identical value for every literal', function (): void {
+    expect(evaluateFixtureVariables(fixturePath('EscapeNestedQuotesSniff', 'failing.php')))
+        ->toBe(evaluateFixtureVariables(fixturePath('EscapeNestedQuotesSniff', 'autofixed.php')));
+});
+
+/**
+ * Each trigger that used to force a manual conversion, one at a time, so a
+ * regression that lost just one of the three cannot hide behind the other two.
+ * Every case must report and every case must fix.
+ */
+it('fixes each interpolation trigger rather than refusing it', function (string $literal): void {
     $file = analyzeStdinSource([ESCAPE_NESTED_QUOTES], "<?php\n\n\$x = {$literal};\n");
 
     expect($file->getErrorCount())->toBe(1)
-        ->and($file->getFixableCount())->toBe(0);
+        ->and($file->getFixableCount())->toBe(1);
 })->with([
     'dollar' => "'say \"\$value\" now'",
     'brace' => "'say \"{name}\" now'",

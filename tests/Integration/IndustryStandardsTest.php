@@ -60,21 +60,6 @@ const INLINE_FQN = 'SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly.Ref
 
 const INLINE_FQN_NO_NAMESPACE = INLINE_FQN . 'WithoutNamespace';
 
-/**
- * The properties-are-required standard (#55). Every PSR-12 fixture below is a
- * minimal demonstration class carrying one method and no state, which is
- * exactly the shape that standard exists to flag — so the rule reports on
- * nearly all of them, at the `class` keyword.
- *
- * Pinned rather than seeded away. Giving each fixture a property would push
- * every line these datasets pin down by two, and three of the fixtures
- * (braces, indentation, control-structures) are byte-compared against a
- * `.fixed.php` sibling, so the seeding would have to land identically in both
- * halves of each pair. Recording the report keeps the fixtures untouched and
- * still fails on any *new* violation, which is what these datasets are for.
- */
-const NO_STATE = 'CleanCode.Classes.RequireProperties.MissingProperty';
-
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
     __DIR__ . '/fixtures/' . $fixture
 );
@@ -129,7 +114,7 @@ it('reports the expected violations', function (
     // row now says.
     'compliant abstract class produces no errors' => ['compliant-abstract.php', [], [13 => 1]],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
-    'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1, 6 => 1], [1 => 1]],
+    'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1], [1 => 1]],
     // The four opening-tag fixtures below are additionally pinned by source in
     // the next test. Both assertions are load-bearing: this one is the only
     // place the error-vs-warning split is asserted (alternative-php-tags.php
@@ -144,10 +129,10 @@ it('reports the expected violations', function (
         $shortOpenTagIsOn === true ? [] : [1 => 1],
     ],
     'alternative PHP tags' => ['alternative-php-tags.php', [2 => 1], [1 => 1]],
-    'trailing closing tag in a pure-PHP file' => ['closing-tag.php', [5 => 1, 9 => 1], []],
-    'code sharing the opening tag line' => ['open-tag-not-alone.php', [1 => 2, 3 => 1], []],
-    'more than one class per file' => ['multiple-classes.php', [5 => 1, 9 => 2], []],
-    'class outside a namespace' => ['no-namespace.php', [3 => 2], []],
+    'trailing closing tag in a pure-PHP file' => ['closing-tag.php', [9 => 1], []],
+    'code sharing the opening tag line' => ['open-tag-not-alone.php', [1 => 2], []],
+    'more than one class per file' => ['multiple-classes.php', [9 => 1], []],
+    'class outside a namespace' => ['no-namespace.php', [3 => 1], []],
     // 9 => 3 / 11 => 2 fold in the TypeHints property/return-hint errors the
     // master ruleset now also flags (untyped `var $legacy` and the `run()`
     // return) alongside the PSR12 missing-visibility errors.
@@ -155,13 +140,13 @@ it('reports the expected violations', function (
     // The master ruleset's Line Length rule (#3) overrides PSR-12's soft limit:
     // with absoluteLineLimit=120 a line past 120 chars is an error, not a
     // warning. Fixture line 7 is 124 chars.
-    'line exceeding the 120-character hard limit' => ['line-length.php', [5 => 1, 7 => 1], []],
+    'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
     // The line-10 warning is DisallowMagicNumbers (#136) on that fixture's
     // `$tabbed = 2;`, sitting alongside the indentation error the line exists
     // to trip. Line 9 assigns `1`, which is on the sniff's ignore list, so the
     // two visually identical lines report differently.
-    'incorrect and tab indentation' => ['indentation.php', [5 => 1, 9 => 1, 10 => 1], [10 => 1]],
-    'braces not on their required lines' => ['braces.php', [5 => 2, 6 => 1], []],
+    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], [10 => 1]],
+    'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
     // The line-9 warning is AvoidConditionals on that fixture's `if`, sitting
     // alongside the two PSR-12 errors the fixture exists to trip.
     // 12 => 1 is the else branch this fixture uses to exercise PSR-12's brace
@@ -183,7 +168,7 @@ it('reports the expected violations', function (
     // placement is still fixed on the way there, and the "brace placement is
     // auto-fixable" dataset below pins that fixer on a fixture no ternary rule
     // can swallow.
-    'malformed control structures' => ['control-structures.php', [5 => 1, 9 => 3, 11 => 1, 12 => 1], [9 => 1]],
+    'malformed control structures' => ['control-structures.php', [9 => 3, 11 => 1, 12 => 1], [9 => 1]],
 ]);
 
 /**
@@ -220,10 +205,7 @@ it('pins the PSR opening-tag sniffs', function (string $fixture, array $expected
     ],
     'trailing closing tag in a pure-PHP file' => [
         'closing-tag.php',
-        [
-            5 => [NO_STATE],
-            9 => ['PSR2.Files.ClosingTag.NotAllowed'],
-        ],
+        [9 => ['PSR2.Files.ClosingTag.NotAllowed']],
     ],
     // Not one of the three sniffs the issue named, but the same case: an
     // opening-tag sniff PSR12 pulls in implicitly, reachable and otherwise
@@ -236,7 +218,6 @@ it('pins the PSR opening-tag sniffs', function (string $fixture, array $expected
                 'PSR12.Files.FileHeader.SpacingAfterBlock',
                 'PSR12.Files.OpenTag.NotAlone',
             ],
-            3 => [NO_STATE],
         ],
     ],
 ]);

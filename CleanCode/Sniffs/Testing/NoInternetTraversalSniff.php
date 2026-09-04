@@ -11,171 +11,8 @@ use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 use SlevomatCodingStandard\Helpers\NamespaceHelper;
 
-/**
- * Warns on a raw internet-traversing primitive written inside a feature test
- * (Testing: Test Suites, #60, partial enforcement per #149) —
- * docs/standards/testing-test-suites.md.
- *
- * The standard says a feature test uses more than internal methods — database,
- * other classes, HTTP, WebSockets — but does **not** traverse the internet, and
- * that third-party APIs are exercised here through HTTP fakes instead. Whether
- * a request really leaves the machine is a runtime property no token scan can
- * settle, so the standard's core stays with code review. What *is* token-visible
- * is the raw mechanism: the primitives that can only traverse the internet are
- * spelled out in the file that calls them, and their presence in a feature test
- * is the signal (#149).
- *
- * This is the third slice of #60 to be enforced, and it deliberately overlaps
- * none of the others. CleanCode.Testing.TestSuiteNamespace reads a test's
- * *declarations* — its namespace against its directory — and no file content at
- * all; this sniff reads only content, and takes the directory as given.
- * CleanCode.Testing.UnitTestExternalConcerns (#148) and
- * CleanCode.Testing.NoHttpFakesInIntegrationTests (#150) read content too, each
- * of its own suite and no other.
- *
- * ## What is flagged
- *
- * Three shapes, each reported under the one Found code with the primitive named
- * in the message:
- *
- * - a call to one of NETWORK_FUNCTIONS — `curl_init()`, `curl_exec()`,
- *   `fsockopen()` and `stream_socket_client()`. Each one exists to open a
- *   connection, so the call alone is the violation and no argument is read.
- *   What is read of the argument list is only whether the line calls the
- *   function at all: `curl_init(...)` names it and calls nothing.
- * - a call to `file_get_contents()` whose filename argument is a string
- *   literal — quoted, or a heredoc or nowdoc — whose text begins `http://` or
- *   `https://`. The function itself is
- *   ordinary, so here the URL is what makes it a network read. The filename is
- *   the first argument when the call passes it positionally and the argument
- *   labelled `filename:` when the call names its arguments, so the two
- *   spellings of one call are read the same way.
- * - a `new` of a class resolving to `GuzzleHttp\Client`. The sanctioned route to
- *   a faked third-party API is Laravel's `Http` facade with `Http::fake()`;
- *   building the underlying Guzzle client by hand steps around it.
- *
- * The function names are matched case-insensitively, PHP function names being
- * case-insensitive, and only when FunctionCalls::isGlobalFunctionCall() agrees
- * the name is a real call to PHP's own function — a same-named method,
- * declaration, attribute or imported symbol is not one. The class name is
- * resolved through the file's own namespace and `use` imports, so
- * `new Client()` under `use GuzzleHttp\Client;` reports and an unrelated
- * `Client` from any other namespace does not.
- *
- * ## Scope
- *
- * The sniff inspects a file only when its path matches one of
- * $featureTestPatterns — fnmatch globs defaulting to any path holding a
- * `tests/Feature` directory pair. PHP_CodeSniffer sees one file at a time and
- * has no notion of "a feature test", so the path is the only available signal,
- * and the very same primitive in an integration test — where the standard says
- * it belongs — is left alone entirely. Two consequences worth knowing, both
- * shared with CleanCode.Routes.DisallowNonResourceRoutes: piped input reports
- * the path as `STDIN` and matches no default glob, so nothing is said about it;
- * and the glob matches the pair anywhere in the absolute path PHP_CodeSniffer
- * hands over, so a checkout living under `tests/Feature` widens the gate to the
- * whole project. A project with a different suite layout retunes the property.
- *
- * ## Boundaries, all eight also recorded in the standard's doc
- *
- * - **A primitive named without being called, or called without being named
- *   (false negative).** What is read is a written name standing in call
- *   position, and the two halves of that come apart in both directions.
- *   `curl_init(...)` names the primitive and calls nothing — PHP 8.1's
- *   first-class-callable syntax builds a Closure — so it is not reported, and
- *   reporting it would flag a line that opens no connection, which is the trade
- *   this rule refuses everywhere else. The line that invokes that Closure later
- *   (`$open()`), a variable function (`$fn = 'curl_init'; $fn();`) and
- *   `call_user_func('curl_init')` are the other direction: a real call whose
- *   name is a variable or a string, which no token scan can hold to the function
- *   it reaches. Both directions are the boundary a request through a service
- *   class already names, reached inside the file instead of outside it.
- *
- * - **A request through an un-faked `Http` facade call (false negative).**
- *   `Http::get('https://…')` is the sanctioned API *and* a real request when no
- *   fake is active, and whether a fake is active is not statically decidable —
- *   it is set up in a different statement, often a different file. Only the raw
- *   primitives are read.
- * - **A request through a service class (false negative).** A feature test
- *   calling application code that itself opens a socket carries no primitive of
- *   its own. That needs project-wide symbol resolution and stays with code
- *   review.
- * - **A variable URL (false negative).** `file_get_contents($url)` says nothing
- *   about where `$url` points. So does a concatenation — `'https://…' . $path`
- *   is not a string literal, and the argument is required to be one whole
- *   literal rather than the head of an expression, which is what keeps the rule
- *   to facts about the file.
- * - **A URL whose scheme is spelled with escape sequences (false negative).**
- *   The prefix is read off the literal's own characters, so a double-quoted
- *   `"\x68ttp://…"` is not recognised. The two idiomatic spellings do agree:
- *   `'http://…'` and `"http://…"` hold identical characters between their
- *   delimiters, so neither is silently treated differently from the other.
- * - **A URL split across physical lines (false negative).** PHP_CodeSniffer
- *   tokenizes a literal containing a newline into one token per line, and only
- *   a whole literal is read. This is the one boundary a heredoc shares rather
- *   than escapes: a heredoc's body is always at least one line, so a *one-line*
- *   body is a whole literal and is read, while a body of several lines is not.
- * - **A local transport through a socket primitive (false positive, kept).**
- *   `fsockopen()` and `stream_socket_client()` also address a `unix://` or
- *   `udg://` socket, which never leaves the machine, and both are reported all
- *   the same. The argument is not read because the standard's own wording, and
- *   the acceptance criteria taken from it, name these two calls outright — and a
- *   raw socket opened by hand is not what a feature test should hold whichever
- *   transport it names.
- * - **Another HTTP client (false negative).** NETWORK_CLIENTS names the one
- *   client the standard's own wording is about, and it is a constant rather than
- *   a property: the standard names Guzzle, and a list a consumer could retune
- *   would make the rule mean something different in each project. A project
- *   reaching the internet through a different library is outside this slice.
- *   $featureTestPatterns is the only configurable part, because a suite's
- *   *location* is a project's own convention while the primitives are not.
- *
- * Warnings, not errors, matching CleanCode.Testing.TestSuiteNamespace and the
- * rest of the Testing standards. The rule reads a project's suite layout off a
- * configurable convention and cannot prove it guessed right, and a primitive in
- * a feature test is a strong signal rather than a proof that a request leaves
- * the machine — so a misread must not fail a consumer's build.
- *
- * Detection only, and there is no autofixed.php fixture. Replacing a real
- * request with a fake means writing the fake — what to return, and for which
- * URLs — which is not recoverable from the call being replaced.
- *
- * Fixtured in tests/fixtures/NoInternetTraversalSniff/ and covered by
- * tests/Standards/NoInternetTraversalTest.php. Those fixtures cannot sit where
- * the generic contract sweep drives them, because tests/fixtures/ holds no
- * `tests/Feature` pair and so matches no default glob; the sniff is held out of
- * that sweep and its own test stages the fixtures under a real feature-suite
- * directory instead.
- */
 class NoInternetTraversalSniff implements Sniff
 {
-    /**
-     * Every token a class name can be made of, in either tokenisation: the
-     * pre-8.0 spelling PHP_CodeSniffer backfills to (T_STRING joined by
-     * T_NS_SEPARATOR, with T_NAMESPACE leading a relative name) and PHP 8's
-     * single qualified-name tokens, in case a future PHPCS stops backfilling.
-     * The family is every token `token_name()` reports for a name segment or a
-     * name joiner; PHP's floor here is 8.1, so all three T_NAME_* constants are
-     * defined. Taken whole from CleanCode.Testing.NoFirstPartyMocks, which
-     * reads a written class name out of the token stream for the same reason.
-     *
-     * Only T_STRING and T_NS_SEPARATOR are reachable under this PHP_CodeSniffer,
-     * and the sniff's test says so outright rather than implying coverage of the
-     * rest, as CleanCode.Routes.DisallowNonResourceRoutes does for the same
-     * split. The other four are inert here, in both directions: T_NAMESPACE
-     * leads a `namespace\Client` relative name, which resolveClassName() reads
-     * as an ordinary unmatched segment and prefixes with the current namespace:
-     * written inside `namespace GuzzleHttp;` it resolves to
-     * `\GuzzleHttp\namespace\Client`, matching nothing in NETWORK_CLIENTS. The
-     * shape that does resolve to the watched client inside that client's own
-     * namespace is the plain `new Client()`, and it arrives as T_STRING. The
-     * three T_NAME_* codes cannot
-     * arrive at all while PHPCS 3.x undoes PHP 8's qualified-name tokens back to
-     * the pre-8.0 spelling. They are carried so a release that stops undoing it
-     * finds the run already reading a whole name instead of half of one.
-     *
-     * @var array<int, int|string>
-     */
     private const NAME_TOKENS = [
         T_STRING,
         T_NS_SEPARATOR,
@@ -185,75 +22,21 @@ class NoInternetTraversalSniff implements Sniff
         T_NAME_RELATIVE,
     ];
 
-    /**
-     * The tokens a string literal arrives as, which is the whole of
-     * PHP_CodeSniffer's own Tokens::$stringTokens grouping — both members
-     * included, neither excluded. T_CONSTANT_ENCAPSED_STRING covers a
-     * single-quoted literal and a double-quoted one holding no interpolation;
-     * T_DOUBLE_QUOTED_STRING covers an interpolated one, whose leading
-     * characters are still literal text and so still name a scheme. The
-     * constant is spelled out rather than read from Tokens at run time so this
-     * accounting is what the sniff is measured against: a PHPCS release adding
-     * a third member reddens `accounts for every string token PHPCS defines` in
-     * tests/Standards/NoInternetTraversalTest.php instead of slipping past.
-     *
-     * @var array<int, int|string>
-     */
     private const STRING_TOKENS = [
         T_CONSTANT_ENCAPSED_STRING,
         T_DOUBLE_QUOTED_STRING,
     ];
 
-    /**
-     * The tokens a heredoc or nowdoc opens with. PHP_CodeSniffer gives the
-     * construct three parts — an opener, one body token per physical line, and
-     * a closer — so the opener is the token an argument starts with and the
-     * body is where the text is.
-     *
-     * A heredoc is a string literal, and PHP reads `file_get_contents(<<<EOT …)`
-     * exactly as it reads the quoted spelling of the same URL. It is a separate
-     * constant from STRING_TOKENS because PHP_CodeSniffer groups it separately
-     * — Tokens::$stringTokens holds the quoted spellings only — and because the
-     * text is read out of a different token than the one the argument starts
-     * with. This package's own CleanCode.Strings.MultilineStrings rewrites a
-     * multi-line double-quoted string *into* a heredoc, so the shape is one a
-     * conforming project is pushed toward rather than an exotic one.
-     *
-     * @var array<int, int|string>
-     */
     private const HEREDOC_OPENERS = [
         T_START_HEREDOC,
         T_START_NOWDOC,
     ];
 
-    /**
-     * The tokens a heredoc or nowdoc body arrives as — the text between the
-     * opener and the closer, one token per physical line. A nowdoc interpolates
-     * nothing and a heredoc may, exactly as a single- and a double-quoted
-     * literal differ, and the scheme is read off leading characters that are
-     * literal text in both.
-     *
-     * HEREDOC_OPENERS, this constant and the two closing tokens together are
-     * the whole of PHP_CodeSniffer's Tokens::$heredocTokens grouping, which
-     * `accounts for every heredoc token PHPCS defines` in
-     * tests/Standards/NoInternetTraversalTest.php pins at run time.
-     *
-     * @var array<int, int|string>
-     */
     private const HEREDOC_BODIES = [
         T_HEREDOC,
         T_NOWDOC,
     ];
 
-    /**
-     * Functions that exist to open a connection, lowercased for comparison. The
-     * call alone is the violation: unlike URL_READER below, none of them has an
-     * ordinary local use that an argument could put it to. The two socket calls
-     * can name a `unix://` transport that stays on the machine, and are reported
-     * anyway — see the boundary of that name in the class docblock.
-     *
-     * @var array<int, string>
-     */
     private const NETWORK_FUNCTIONS = [
         'curl_exec',
         'curl_init',
@@ -261,60 +44,28 @@ class NoInternetTraversalSniff implements Sniff
         'stream_socket_client',
     ];
 
-    /**
-     * The function that traverses the internet only for some arguments,
-     * lowercased for comparison. Reading a local path with it is ordinary, so
-     * the URL decides.
-     */
     private const URL_READER = 'file_get_contents';
 
-    /**
-     * URL_READER's own name for the parameter the URL is passed as, spelled as
-     * PHP declares it. A named argument is matched against this exactly rather
-     * than case-insensitively, because PHP resolves a named argument's label
-     * case-sensitively: `FileName:` is an Error at run time, not another
-     * spelling of the same call.
-     */
     private const URL_PARAMETER = 'filename';
 
-    /**
-     * The URL schemes that name a request leaving the machine, lowercased for
-     * comparison. PHP resolves a stream wrapper's scheme case-insensitively, so
-     * `HTTPS://` reaches the same wrapper as `https://` and is read the same
-     * way here.
-     *
-     * @var array<int, string>
-     */
     private const NETWORK_SCHEMES = [
         'http://',
         'https://',
     ];
 
-    /**
-     * The fully-qualified HTTP clients whose direct instantiation traverses the
-     * internet, lowercased and without a leading separator for comparison. PHP
-     * class names are case-insensitive.
-     *
-     * @var array<int, string>
-     */
     private const NETWORK_CLIENTS = [
         'guzzlehttp\client',
     ];
 
-    /**
-     * Path globs (fnmatch syntax) that mark a file as a feature test. The sniff
-     * inspects nothing outside them. Configurable from a ruleset via
-     * <property name="featureTestPatterns" type="array" .../>.
-     *
-     * @var array<string>
-     */
     public array $featureTestPatterns = [
         '*/tests/Feature/*',
     ];
 
-    /**
-     * @return array<int|string>
-     */
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -323,12 +74,7 @@ class NoInternetTraversalSniff implements Sniff
         ];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         if ($this->isFeatureTest($phpcsFile->getFilename()) === false) {
             return;
@@ -345,16 +91,6 @@ class NoInternetTraversalSniff implements Sniff
         $this->processCall($phpcsFile, $stackPtr);
     }
 
-    /**
-     * Whether the file's path matches one of the configured feature-test globs.
-     *
-     * Windows separators are normalised to forward slashes first, so one glob
-     * spelling matches on either platform. The match itself is case-sensitive,
-     * for the reason CleanCode.Testing.NoFirstPartyMocks records: folding case
-     * would make a directory glob swallow unrelated spellings, so the
-     * directory spelling actually in use is listed out in $featureTestPatterns
-     * instead.
-     */
     private function isFeatureTest(string $path): bool
     {
         $normalized = str_replace('\\', '/', $path);
@@ -368,21 +104,22 @@ class NoInternetTraversalSniff implements Sniff
         return false;
     }
 
-    /**
-     * Reports the T_STRING at $stackPtr when it is a real call to one of the
-     * watched global functions.
-     */
     private function processCall(File $phpcsFile, int $stackPtr): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $name = strtolower($tokens[$stackPtr]['content']);
         $isNetworkFunction = in_array($name, self::NETWORK_FUNCTIONS, true);
 
-        if ($isNetworkFunction === false && $name !== self::URL_READER) {
+        if (
+            $isNetworkFunction === false
+            && $name !== self::URL_READER
+        ) {
             return;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -396,37 +133,9 @@ class NoInternetTraversalSniff implements Sniff
             }
         }
 
-        $this->report($phpcsFile, $stackPtr, $tokens[$stackPtr]['content'] . '()');
+        $this->report($phpcsFile, $stackPtr, "{$tokens[$stackPtr]['content']}()");
     }
 
-    /**
-     * Whether what follows the name at $stackPtr is PHP 8.1's first-class
-     * callable syntax — `curl_init(...)` — rather than a call.
-     *
-     * The expression builds a Closure over the function and invokes nothing, so
-     * no connection is opened and no URL is read: the primitive is named, but
-     * writing it traverses nothing. Every watched name is checked, the four
-     * NETWORK_FUNCTIONS as much as URL_READER, because the shape says the same
-     * thing about all of them — that this line calls no function at all.
-     *
-     * The ellipsis has to be the whole argument list. `curl_init(...$arguments)`
-     * spells a real call with a spread argument, opens a connection like any
-     * other call, and stays reported — which is why the token after the ellipsis
-     * is required to close the call rather than the ellipsis being taken alone.
-     *
-     * The same shape is read the same way by
-     * CleanCode.ControlStructures.DisallowCountInLoopExpression and
-     * CleanCode.DeadCode.UnusedFormalParameter, for this same reason.
-     *
-     * None of the three `=== false` halves can be discriminated by a fixture,
-     * and this says so rather than leaving them to look covered. The first
-     * cannot arrive at all: FunctionCalls::isGlobalFunctionCall() has already
-     * required the next non-empty token to be the opening parenthesis, so the
-     * opener is established before this method is reached. The other two need a
-     * file that ends inside the argument list, and either one made to fall open
-     * reads a token that is not there rather than returning a different verdict.
-     * All three guard the array read beside them.
-     */
     private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -438,7 +147,10 @@ class NoInternetTraversalSniff implements Sniff
 
         $ellipsisPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), null, true);
 
-        if ($ellipsisPtr === false || $tokens[$ellipsisPtr]['code'] !== T_ELLIPSIS) {
+        if (
+            $ellipsisPtr === false
+            || $tokens[$ellipsisPtr]['code'] !== T_ELLIPSIS
+        ) {
             return false;
         }
 
@@ -447,33 +159,15 @@ class NoInternetTraversalSniff implements Sniff
         return $afterPtr !== false && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
     }
 
-    /**
-     * Whether the call opening after $stackPtr reads a URL naming one of the
-     * network schemes.
-     *
-     * The argument read is the filename one — urlArgument() finds it under
-     * either spelling — and two things have to hold of it, each ruling out a
-     * shape the file does not state the value of:
-     *
-     * - the argument opens with a string literal, so `$base . '…'` is out on
-     *   its first token;
-     * - nothing follows it inside the argument: the next token closes the call
-     *   or starts the next argument. That is what keeps a concatenation out —
-     *   the head of `'https://…' . $path` is a whole literal, but the argument
-     *   is an expression.
-     *
-     * Both spellings of a literal PHP accepts here are read, and wholeLiteral()
-     * is the one place that says which: a quoted one, and a heredoc or nowdoc.
-     * The second is not a curiosity — this package's own
-     * CleanCode.Strings.MultilineStrings rewrites a multi-line double-quoted
-     * string into a heredoc, so a conforming project is pushed toward it.
-     */
     private function readsNetworkUrl(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $openPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        if ($openPtr === false || isset($tokens[$openPtr]['parenthesis_closer']) === false) {
+        if (
+            $openPtr === false
+            || isset($tokens[$openPtr]['parenthesis_closer']) === false
+        ) {
             return false;
         }
 
@@ -489,28 +183,6 @@ class NoInternetTraversalSniff implements Sniff
         return $url !== null && $this->namesNetworkScheme($url);
     }
 
-    /**
-     * The text of the argument starting at $urlPtr when that argument is one
-     * whole string literal, null when it is anything else.
-     *
-     * Two spellings of a literal reach here, and each is read out of a
-     * different token: a quoted one carries its text in the token the argument
-     * starts with, while a heredoc or nowdoc carries it in the body token
-     * between its opener and its closer. Either way the answer is the text PHP
-     * itself would pass, so `'https://…'` and its heredoc spelling are read the
-     * same way — which is what keeps
-     * CleanCode.Strings.MultilineStrings rewriting one into the other from
-     * silently changing what this sniff sees.
-     *
-     * The token-type test is a precondition rather than a discriminator on the
-     * quoted branch, and this says so outright rather than implying coverage
-     * the fixtures do not have: the scheme test downstream already rejects
-     * everything a non-literal argument standing alone could produce. It stays
-     * because StringLiteral::inner() is documented as taking a complete
-     * literal, and the token type is what says this is one. Its membership is
-     * pinned instead, against PHP_CodeSniffer's own register, by `accounts for
-     * every string token PHPCS defines`.
-     */
     private function wholeLiteral(File $phpcsFile, int $urlPtr, int $closePtr): ?string
     {
         $tokens = $phpcsFile->getTokens();
@@ -524,46 +196,10 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         return $this->endsArgument($phpcsFile, $urlPtr, $closePtr) === true
-            ? StringLiteral::inner($tokens[$urlPtr]['content'])
+            ? (new StringLiteral())->inner($tokens[$urlPtr]['content'])
             : null;
     }
 
-    /**
-     * The text of the heredoc or nowdoc opening at $openerPtr, null when the
-     * construct is not one whole literal standing as the argument.
-     *
-     * Two things have to hold, and each rules out a shape the file does not
-     * state one value for:
-     *
-     * - the closer stands exactly two tokens past the opener, which is the one
-     *   comparison for three shapes at once. A body spanning several physical
-     *   lines arrives as one token per line — the same tokenizer behaviour that
-     *   keeps a split quoted literal out — an empty body puts the closer
-     *   immediately after the opener with no text between them, and a closer
-     *   PHP_CodeSniffer never resolved is a null that equals no pointer, so an
-     *   unterminated heredoc in a half-typed file says nothing;
-     * - the closer ends the argument: the next token closes the call or starts
-     *   the next argument, so `<<<EOT … EOT . $path` is an expression rather
-     *   than a whole literal, exactly as its quoted equivalent is.
-     *
-     * The HEREDOC_BODIES test between them is a precondition rather than a
-     * discriminator, and this says so outright rather than implying coverage the
-     * fixtures do not have: no input can redden its removal. PHP_CodeSniffer
-     * gives a heredoc exactly one token per physical body line whatever the line
-     * holds — an interpolated `$url` on its own line is still one T_HEREDOC —
-     * so a single token standing between an opener and its closer is a body
-     * token by construction. It stays because reading text out of a token is
-     * only meaningful when the token holds text. Its membership is pinned
-     * instead, against PHP_CodeSniffer's own register, by `accounts for every
-     * heredoc token PHPCS defines`.
-     *
-     * The text is the body with its line break dropped and the closing marker's
-     * own indentation removed, which is PHP 7.3's rule for an indented closing
-     * marker: PHP strips that prefix from every body line, so the value the
-     * call really receives is the unindented one. PHP_CodeSniffer keeps the
-     * indentation in the token content, so reading it raw would miss the scheme
-     * on every heredoc written inside a method body.
-     */
     private function wholeHeredoc(File $phpcsFile, int $openerPtr, int $closePtr): ?string
     {
         $tokens = $phpcsFile->getTokens();
@@ -575,7 +211,10 @@ class NoInternetTraversalSniff implements Sniff
 
         $bodyIsText = in_array($tokens[$openerPtr + 1]['code'], self::HEREDOC_BODIES, true);
 
-        if ($bodyIsText === false || $this->endsArgument($phpcsFile, $closerPtr, $closePtr) === false) {
+        if (
+            $bodyIsText === false
+            || $this->endsArgument($phpcsFile, $closerPtr, $closePtr) === false
+        ) {
             return null;
         }
 
@@ -588,14 +227,6 @@ class NoInternetTraversalSniff implements Sniff
             : $body;
     }
 
-    /**
-     * Whether the literal ending at $endPtr is the whole of the argument it
-     * stands in: the next token closes the call or starts the next argument.
-     *
-     * This is what keeps a concatenation out. The head of `'https://…' . $path`
-     * is a whole literal, but the argument is an expression, and the file
-     * states no single value for it.
-     */
     private function endsArgument(File $phpcsFile, int $endPtr, int $closePtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -610,37 +241,6 @@ class NoInternetTraversalSniff implements Sniff
             || ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_COMMA);
     }
 
-    /**
-     * Pointer to the first token of the call's filename argument, null when the
-     * call states no filename argument at all.
-     *
-     * A call spells that argument one of two ways, and both name the same
-     * parameter: positionally, as the first argument, or by label, as
-     * `filename:` anywhere in the list — PHP orders named arguments freely, so
-     * `file_get_contents(offset: 0, filename: '…')` passes the same filename as
-     * the plain call. Which one the call used is decided by its first argument:
-     * a leading label means every argument is named, since PHP rejects a
-     * positional argument written after a named one.
-     *
-     * Null is the answer for two shapes, neither of which states a filename
-     * this file can be read for: an empty argument list, and a named list that
-     * labels other parameters but not this one.
-     *
-     * A spread — `file_get_contents(...$arguments)` — is not one of them, and
-     * this states what the method really returns rather than the tidier answer.
-     * The ellipsis is the argument's own first token, so it is returned as the
-     * argument's start like any other token. What rules the shape out is the
-     * caller, one step later: T_ELLIPSIS is not in STRING_TOKENS, so
-     * readsNetworkUrl()'s string-literal precondition is the first check to
-     * answer false, and its trailing-token guard would answer false behind it —
-     * the variable after the ellipsis neither closes the call nor starts the
-     * next argument. A caller reading a null from here as the only sign of an
-     * unreadable argument would be reading a contract this method does not keep.
-     *
-     * The other `...` — the first-class-callable `file_get_contents(...)` —
-     * never arrives at all: processCall() has already returned on it, before any
-     * argument is looked for.
-     */
     private function urlArgument(File $phpcsFile, int $openPtr, int $closePtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -652,24 +252,16 @@ class NoInternetTraversalSniff implements Sniff
 
         $firstPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), $closePtr, true);
 
-        if ($firstPtr === false || $tokens[$firstPtr]['code'] === T_PARAM_NAME) {
+        if (
+            $firstPtr === false
+            || $tokens[$firstPtr]['code'] === T_PARAM_NAME
+        ) {
             return null;
         }
 
         return $firstPtr;
     }
 
-    /**
-     * Pointer to the call's own `filename:` label, null when it writes none.
-     *
-     * The label has to be this call's own rather than one written inside a
-     * nested call, which the innermost enclosing parenthesis says. In
-     * `file_get_contents(offset: filesize(filename: 'local.json'), filename:
-     * '…')` the first `filename:` in the token run is filesize()'s, and reading
-     * it would hide the URL this call is actually given. A token
-     * PHP_CodeSniffer recorded no enclosing parenthesis for is left alone for
-     * the same reason: a pointer it did not establish is not one to report off.
-     */
     private function urlParameterLabel(File $phpcsFile, int $openPtr, int $closePtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -687,20 +279,15 @@ class NoInternetTraversalSniff implements Sniff
         return null;
     }
 
-    /**
-     * Pointer to the first token of the value a label at $labelPtr introduces,
-     * null when the label is not followed by its colon and a value.
-     *
-     * PHP_CodeSniffer only spells a name T_PARAM_NAME when a colon follows it,
-     * so the colon is checked rather than assumed only because a malformed or
-     * half-typed file is what this sniff must stay silent about, not report off.
-     */
     private function labelledValue(File $phpcsFile, int $labelPtr, int $closePtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
         $colonPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($labelPtr + 1), $closePtr, true);
 
-        if ($colonPtr === false || $tokens[$colonPtr]['code'] !== T_COLON) {
+        if (
+            $colonPtr === false
+            || $tokens[$colonPtr]['code'] !== T_COLON
+        ) {
             return null;
         }
 
@@ -709,9 +296,6 @@ class NoInternetTraversalSniff implements Sniff
         return $valuePtr === false ? null : $valuePtr;
     }
 
-    /**
-     * Whether a literal's own text opens with one of the network schemes.
-     */
     private function namesNetworkScheme(string $url): bool
     {
         $lowered = strtolower($url);
@@ -725,10 +309,6 @@ class NoInternetTraversalSniff implements Sniff
         return false;
     }
 
-    /**
-     * Reports the `new` at $stackPtr when the class it names resolves to one of
-     * the watched HTTP clients.
-     */
     private function processInstantiation(File $phpcsFile, int $stackPtr): void
     {
         $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
@@ -749,18 +329,9 @@ class NoInternetTraversalSniff implements Sniff
             return;
         }
 
-        $this->report($phpcsFile, $namePtr, 'new ' . $resolved);
+        $this->report($phpcsFile, $namePtr, "new {$resolved}");
     }
 
-    /**
-     * The class name written from $namePtr onwards, or null when what stands
-     * there is not a written name at all.
-     *
-     * Null is the answer for every dynamic or anonymous shape — `new $class`,
-     * `new ($factory())`, `new class {}` — because none of them writes a name
-     * the file can be read for. The token run is taken whole so a qualified
-     * name arrives in one piece under either tokenisation.
-     */
     private function writtenName(File $phpcsFile, int $namePtr): ?string
     {
         $tokens = $phpcsFile->getTokens();
@@ -777,9 +348,6 @@ class NoInternetTraversalSniff implements Sniff
         return $written === '' ? null : $written;
     }
 
-    /**
-     * The one warning this sniff reports, named for the primitive that matched.
-     */
     private function report(File $phpcsFile, int $stackPtr, string $primitive): void
     {
         $phpcsFile->addWarning(

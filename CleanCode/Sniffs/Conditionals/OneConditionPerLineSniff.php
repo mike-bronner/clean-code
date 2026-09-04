@@ -9,45 +9,19 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Conditionals: One Condition Per Line" standard.
- *
- * A condition of an if/elseif/while/for/do-while with a single top-level
- * boolean expression must stay on one line with its keyword (for a for-loop,
- * the condition section must not span multiple lines). A condition combining
- * multiple top-level boolean expressions must place each one on its own line
- * with the logical operator leading the continuation line, never trailing
- * the previous one.
- *
- * Boolean operators nested inside parentheses, square brackets, or braces
- * are not top-level, so grouped sub-conditions and function-call arguments
- * count as part of a single condition. Ternary expressions are out of scope
- * (covered by the ternary-conditionals standard).
- *
- * All violations are auto-fixable except a split single condition containing
- * a comment, which joining would corrupt.
- */
 class OneConditionPerLineSniff implements Sniff
 {
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         // The span this sniff checks is defined once, in the support class, so
         // the sniffs that stand down inside it defer over the same bounds this
         // one walks. A for-loop's init and increment clauses lie outside it.
-        $region = ConditionOperatorOwnership::checkedRegion($phpcsFile, $stackPtr);
+        $region = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $stackPtr);
 
         if ($region === null) {
             return;
@@ -63,7 +37,7 @@ class OneConditionPerLineSniff implements Sniff
 
         $regionEnd = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($boundaryEnd - 1), $boundaryStart, true);
 
-        $operators = ConditionOperatorOwnership::findTopLevelTokens(
+        $operators = (new ConditionOperatorOwnership())->findTopLevelTokens(
             $phpcsFile,
             $regionStart,
             $regionEnd,
@@ -86,11 +60,6 @@ class OneConditionPerLineSniff implements Sniff
         $this->processMultiCondition($phpcsFile, $stackPtr, $regionStart, $regionEnd, $operators);
     }
 
-    /**
-     * A single condition must occupy exactly one line, and — except in a
-     * for-loop header, whose sections legitimately wrap — that line must be
-     * the keyword's own.
-     */
     // The block matched here is this signature against processMultiCondition's
     // below: `private function <name>(`, `File $phpcsFile,`, `int $stackPtr,`
     // and two more `int $<name>,` parameters. Both are parameter declarations,
@@ -116,11 +85,14 @@ class OneConditionPerLineSniff implements Sniff
         $offKeywordLine = $tokens[$stackPtr]['code'] !== T_FOR
             && $tokens[$regionStart]['line'] !== $tokens[$stackPtr]['line'];
 
-        if ($isSplit === false && $offKeywordLine === false) {
+        if (
+            $isSplit === false
+            && $offKeywordLine === false
+        ) {
             return;
         }
 
-        $error = 'A single condition must stay on one line with its "%s" keyword';
+        $error = "A single condition must stay on one line with its \"%s\" keyword";
         $code = 'SingleConditionNotOnOneLine';
         $data = [strtolower($tokens[$stackPtr]['content'])];
 
@@ -141,26 +113,23 @@ class OneConditionPerLineSniff implements Sniff
         $joined = $this->joinedCondition($phpcsFile, $regionStart, $regionEnd);
 
         if ($tokens[$stackPtr]['code'] === T_FOR) {
-            $joined = ' ' . $joined;
+            $joined = " {$joined}";
         }
 
-        $phpcsFile->fixer->beginChangeset();
+        $phpcsFile->fixer
+            ->beginChangeset();
 
         for ($i = ($boundaryStart + 1); $i < $boundaryEnd; $i++) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
         }
 
-        $phpcsFile->fixer->addContent($boundaryStart, $joined);
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->addContent($boundaryStart, $joined);
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Multiple conditions must each occupy their own line, with the boolean
-     * operator leading the continuation line rather than trailing the
-     * previous one.
-     *
-     * @param array<int> $operators
-     */
     // The other end of the processSingleCondition match, reported here because
     // the sniff names every participating block rather than only the later
     // one. This window covers $regionStart/$regionEnd, which this method reads
@@ -178,24 +147,26 @@ class OneConditionPerLineSniff implements Sniff
         array $operators
     ): void {
         $tokens = $phpcsFile->getTokens();
-        $indent = $this->lineIndent($phpcsFile, $stackPtr) . '    ';
+        $indent = "{$this->lineIndent($phpcsFile, $stackPtr)}    ";
 
         if ($tokens[$regionStart]['line'] === $tokens[$regionEnd]['line']) {
             $fix = $phpcsFile->addFixableError(
-                'Each condition of a multi-condition "%s" must be on its own line',
+                "Each condition of a multi-condition \"%s\" must be on its own line",
                 $stackPtr,
                 'MultipleConditionsOnOneLine',
                 [strtolower($tokens[$stackPtr]['content'])]
             );
 
             if ($fix === true) {
-                $phpcsFile->fixer->beginChangeset();
+                $phpcsFile->fixer
+                    ->beginChangeset();
 
                 foreach ($operators as $operator) {
                     $this->moveOperatorToOwnLine($phpcsFile, $operator, $indent);
                 }
 
-                $phpcsFile->fixer->endChangeset();
+                $phpcsFile->fixer
+                    ->endChangeset();
             }
 
             return;
@@ -209,7 +180,7 @@ class OneConditionPerLineSniff implements Sniff
             }
 
             $fix = $phpcsFile->addFixableError(
-                'Boolean operator "%s" must lead its condition line, not trail the previous one',
+                "Boolean operator \"%s\" must lead its condition line, not trail the previous one",
                 $operator,
                 'BooleanOperatorNotLeading',
                 [$tokens[$operator]['content']]
@@ -219,19 +190,14 @@ class OneConditionPerLineSniff implements Sniff
                 continue;
             }
 
-            $phpcsFile->fixer->beginChangeset();
+            $phpcsFile->fixer
+                ->beginChangeset();
             $this->moveOperatorToOwnLine($phpcsFile, $operator, $indent);
-            $phpcsFile->fixer->endChangeset();
+            $phpcsFile->fixer
+                ->endChangeset();
         }
     }
 
-
-    /**
-     * Renders the condition between $start and $end as a single line,
-     * collapsing whitespace runs to one space — except directly after an
-     * opening parenthesis and directly before a closing parenthesis, comma,
-     * or semicolon, where the join leaves no space.
-     */
     private function joinedCondition(File $phpcsFile, int $start, int $end): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -260,43 +226,41 @@ class OneConditionPerLineSniff implements Sniff
         return $joined;
     }
 
-    /**
-     * Rewrites the tokens around a boolean operator so it starts its own
-     * line at the given indentation, with a single space separating it from
-     * the operand that follows.
-     */
     private function moveOperatorToOwnLine(File $phpcsFile, int $operator, string $indent): void
     {
         $tokens = $phpcsFile->getTokens();
 
         for ($i = ($operator - 1); $tokens[$i]['code'] === T_WHITESPACE; $i--) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
         }
 
         $hadTrailingWhitespace = false;
 
         for ($i = ($operator + 1); $tokens[$i]['code'] === T_WHITESPACE; $i++) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
             $hadTrailingWhitespace = true;
         }
 
-        $phpcsFile->fixer->addContentBefore($operator, $phpcsFile->eolChar . $indent);
+        $phpcsFile->fixer
+            ->addContentBefore($operator, $phpcsFile->eolChar . $indent);
 
         if ($hadTrailingWhitespace === true) {
-            $phpcsFile->fixer->addContent($operator, ' ');
+            $phpcsFile->fixer
+                ->addContent($operator, ' ');
         }
     }
 
-    /**
-     * The leading whitespace of the line the given token starts on — the
-     * base indentation continuation lines build from.
-     */
     private function lineIndent(File $phpcsFile, int $stackPtr): string
     {
         $tokens = $phpcsFile->getTokens();
         $first = $stackPtr;
 
-        while ($first > 0 && $tokens[$first - 1]['line'] === $tokens[$stackPtr]['line']) {
+        while (
+            $first > 0
+            && $tokens[$first - 1]['line'] === $tokens[$stackPtr]['line']
+        ) {
             $first--;
         }
 

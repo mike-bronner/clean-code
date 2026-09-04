@@ -181,20 +181,20 @@ class DocblockOnlyReturnComplexTypes
     }
 }
 
-// Standalone null/true/false hints are pinned OFF to hold the PHP 8.1 floor.
-// A docblock `@param false`/`@param true`/`@return false` is widened to the
-// native `bool` (not the PHP 8.2 standalone `false`/`true`), while a docblock
-// `@param null`/`@return null` cannot be expressed natively on 8.1 and is left
-// unhinted (no violation). All pin enableStandaloneNullTrueFalseTypeHints=false:
-// flip it on and the false/true cases fix to native `false`/`true` instead of
-// `bool`, and the null cases start being flagged — either divergence fails
-// these locks.
+// Standalone null/true/false hints are pinned ON: they arrived in PHP 8.2 and
+// the package's floor is 8.3. A docblock `@param false`/`@param true`/`@return
+// false`/`@return true` resolves to that standalone native type rather than
+// being widened to `bool`, and `@param null`/`@return null`, which had no
+// native spelling before 8.2, is now reported and fixable as `null`. All six
+// pin enableStandaloneNullTrueFalseTypeHints=true: pin it off and the
+// false/true cases fix to `bool` while the two null cases stop being reported
+// altogether — either divergence fails these locks.
 class DocblockOnlyStandaloneTypes
 {
     /**
      * @param false $flag
      */
-    public function standaloneFalseParameterAnnotationOnly(bool $flag): void
+    public function standaloneFalseParameterAnnotationOnly(false $flag): void
     {
         $this->standaloneFalseParameterAnnotationOnly($flag);
     }
@@ -202,7 +202,7 @@ class DocblockOnlyStandaloneTypes
     /**
      * @return false
      */
-    public function standaloneFalseReturnAnnotationOnly(int $value): bool
+    public function standaloneFalseReturnAnnotationOnly(int $value): false
     {
         return $value < 0;
     }
@@ -210,7 +210,7 @@ class DocblockOnlyStandaloneTypes
     /**
      * @param null $value
      */
-    public function standaloneNullParameterAnnotationOnly($value): void
+    public function standaloneNullParameterAnnotationOnly(null $value): void
     {
         echo $value;
     }
@@ -218,7 +218,7 @@ class DocblockOnlyStandaloneTypes
     /**
      * @param true $flag
      */
-    public function standaloneTrueParameterAnnotationOnly(bool $flag): void
+    public function standaloneTrueParameterAnnotationOnly(true $flag): void
     {
         $this->standaloneTrueParameterAnnotationOnly($flag);
     }
@@ -226,7 +226,7 @@ class DocblockOnlyStandaloneTypes
     /**
      * @return null
      */
-    public function standaloneNullReturnAnnotationOnly()
+    public function standaloneNullReturnAnnotationOnly(): null
     {
         return null;
     }
@@ -234,7 +234,7 @@ class DocblockOnlyStandaloneTypes
     /**
      * @return true
      */
-    public function standaloneTrueReturnAnnotationOnly(int $value): bool
+    public function standaloneTrueReturnAnnotationOnly(int $value): true
     {
         return $value > 0;
     }

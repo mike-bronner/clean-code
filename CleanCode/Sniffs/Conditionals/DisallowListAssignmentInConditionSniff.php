@@ -8,56 +8,16 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Closes the one detection gap between PHPMD's CleanCode/IfStatementAssignment
- * rule (#79) and Generic.CodeAnalysis.AssignmentInCondition, which rules.xml
- * wires in to replace it.
- *
- * The Generic sniff decides an assignment is worth reporting by walking back
- * from the "=" to the start of the condition and requiring a T_VARIABLE or a
- * T_CLOSE_SQUARE_BRACKET on the left. A list() destructuring target ends in a
- * T_CLOSE_PARENTHESIS instead, which that walk treats as "a function call, so
- * we are OK" and abandons — so `if (list($a, $b) = $data)` is silent there
- * while PHPMD flags it. Short-list destructuring (`if ([$a, $b] = $data)`)
- * ends in "]" and is already covered, so only the long form needs this sniff.
- * That exclusion depends on the Generic sniff, so it is pinned rather than
- * assumed: tests/fixtures/AssignmentInConditionSniff/failing.php holds a
- * short-list condition, and the ruleset test asserts the Generic sniff is what
- * reports it.
- *
- * The condition set mirrors the Generic sniff's rather than PHPMD's narrower
- * if/elseif pair, so the two sniffs together report one consistent rule across
- * every condition. T_CASE is the one construct left out: a case label has no
- * parentheses to anchor the enclosure test on. PHPMD does not read case labels
- * either, so leaving them out opens no gap against it.
- *
- * Report-only. PHPMD offers no fixer for this rule, and there is no mechanical
- * rewrite of a destructuring-assignment condition into a comparison.
- */
 class DisallowListAssignmentInConditionSniff implements Sniff
 {
-    /**
-     * Control structures whose parentheses hold a condition. Mirrors the
-     * Generic sniff's register() minus T_CASE (see the class docblock).
-     *
-     * @var array<int|string>
-     */
     private const CONDITION_OWNERS = [T_IF, T_ELSEIF, T_FOR, T_SWITCH, T_WHILE, T_MATCH];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_LIST];
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -75,7 +35,10 @@ class DisallowListAssignmentInConditionSniff implements Sniff
 
         $assignment = $phpcsFile->findNext(Tokens::$emptyTokens, ($closer + 1), null, true);
 
-        if ($assignment === false || $tokens[$assignment]['code'] !== T_EQUAL) {
+        if (
+            $assignment === false
+            || $tokens[$assignment]['code'] !== T_EQUAL
+        ) {
             return;
         }
 
@@ -90,13 +53,6 @@ class DisallowListAssignmentInConditionSniff implements Sniff
         );
     }
 
-    /**
-     * Whether the token sits inside the condition parentheses of one of the
-     * control structures above. Every enclosing parenthesis is considered, so
-     * a list() nested in a call argument or a closure body inside the
-     * condition counts — matching what PHPMD reports, since its own search
-     * descends the whole condition expression.
-     */
     private function isInsideCondition(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -129,23 +85,6 @@ class DisallowListAssignmentInConditionSniff implements Sniff
         return false;
     }
 
-    /**
-     * Whether the token sits in a for-loop's middle section — the only one of
-     * the three that is a condition. Assignments in the initialiser and the
-     * increment are ordinary, so the Generic sniff bounds its search the same
-     * way.
-     *
-     * The middle section is the span between the header's first and second
-     * separators. Those have to be the header's *own* separators: a braced
-     * body in the header carries semicolons of its own — a closure in the
-     * initialiser or the increment is the common case — and counting one of
-     * those as a separator puts the whole body inside the "condition". So the
-     * separators come from a scan that skips braced bodies rather than a plain
-     * search bounded by the header parentheses.
-     *
-     * A malformed header with fewer than two separators falls out as "not a
-     * condition", with nothing to guess at.
-     */
     private function isInForConditionSection(File $phpcsFile, int $forPtr, int $stackPtr): bool
     {
         $separators = $this->headerSeparators($phpcsFile, $forPtr);
@@ -157,38 +96,6 @@ class DisallowListAssignmentInConditionSniff implements Sniff
         return $stackPtr > $separators[0] && $stackPtr < $separators[1];
     }
 
-    /**
-     * The semicolons that separate a for-loop header's three sections, in
-     * order — the ones at the header's own depth only.
-     *
-     * In valid PHP, a semicolon inside the header that is not a separator is
-     * always inside a *braced* body. Only a body holds statements, and only a
-     * statement ends in a semicolon: a closure, an anonymous class, a match.
-     * So the scan skips braced bodies whole, by jumping to the closing brace,
-     * and everything left at the header's own depth is a separator.
-     *
-     * The jump has to be limited to braced bodies rather than taken on any
-     * scope_closer, because PHPCS scopes more than braces. An arrow function
-     * has no body to skip — its expression cannot hold a statement — yet the
-     * tokenizer still gives it a scope_closer, set to whatever token ends the
-     * expression. In a for header that is the header's own punctuation: the
-     * separator semicolon for an arrow function in the initialiser or the
-     * condition, the closing parenthesis for one in the increment. Jumping
-     * there would consume a separator without ever testing it, leaving the
-     * header short of two and the whole loop looking like it had no condition
-     * section at all.
-     *
-     * Malformed source can of course put a stray semicolon anywhere, and then
-     * the count simply comes out wrong in the harmless direction: too many
-     * separators, and the caller's window lands somewhere no list() sits.
-     *
-     * The jump lands on the closing brace and the loop's own increment steps
-     * past it. A brace that is its own closer therefore stays put for that
-     * step, so the scan can neither stall nor run backwards, and no bounds
-     * guard is needed.
-     *
-     * @return list<int>
-     */
     private function headerSeparators(File $phpcsFile, int $forPtr): array
     {
         $tokens = $phpcsFile->getTokens();
@@ -204,7 +111,10 @@ class DisallowListAssignmentInConditionSniff implements Sniff
 
             $scopeCloser = $tokens[$i]['scope_closer'] ?? null;
 
-            if ($scopeCloser !== null && $tokens[$scopeCloser]['code'] === T_CLOSE_CURLY_BRACKET) {
+            if (
+                $scopeCloser !== null
+                && $tokens[$scopeCloser]['code'] === T_CLOSE_CURLY_BRACKET
+            ) {
                 $i = $scopeCloser;
             }
         }

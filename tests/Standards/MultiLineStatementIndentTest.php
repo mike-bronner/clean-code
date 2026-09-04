@@ -388,44 +388,15 @@ it('reaches every member of its hand-maintained token arrays', function (
  * function: if a later PHPCS lists it properly the addition is harmless, and if
  * one stops giving arrow functions a scope pair this says so.
  *
- * The accounting is read out of the constant's own docblock rather than from a
- * second list kept in this file. A refusal list living in the test is one the
- * next person to edit the constant never reads, which is how the gap this test
- * closes was opened in the first place. Parsed out of the sniff's source,
- * because this package forbids Reflection in its own tests
- * (CleanCode.Testing.NoReflectionAccess).
+ * The accounting is two constants in the sniff, EXPRESSION_SCOPES and
+ * NON_EXPRESSION_SCOPES, read out of its source. A prose table would put the
+ * test's expected value in a comment, where a regex fails open the moment the
+ * wording shifts; both halves are code, so a typo is a token name that does not
+ * resolve. Read from source rather than by Reflection, which this package
+ * forbids in its own tests (CleanCode.Testing.NoReflectionAccess).
  */
 it('accounts for every scope opener PHPCS defines', function (): void {
     $path = cleanCodeRoot() . '/CleanCode/Sniffs/WhiteSpace/MultiLineStatementIndentSniff.php';
-    $source = (string) file_get_contents($path);
-    $declaration = strpos($source, 'private const EXPRESSION_SCOPES');
-
-    expect($declaration)->not->toBeFalse('the constant is still declared under that name');
-
-    $commentEnd = (int) strrpos(substr($source, 0, (int) $declaration), '*/');
-    $commentStart = (int) strrpos(substr($source, 0, $commentEnd), '/**');
-    $docblock = substr($source, $commentStart, $commentEnd - $commentStart);
-
-    preg_match_all(
-        '/^\s*\*\s+- `(T_[A-Z_0-9]+)` — (included|excluded): (\S[^\r\n]*)$/m',
-        $docblock,
-        $entries,
-        PREG_SET_ORDER
-    );
-
-    $accounted = [];
-    $shortReasons = [];
-
-    foreach ($entries as [, $name, $disposition, $reason]) {
-        $accounted[$name] = $disposition;
-
-        if (strlen(trim($reason)) < 10) {
-            $shortReasons[] = $name;
-        }
-    }
-
-    expect($accounted)->toHaveCount(count($entries), 'no token is accounted for twice')
-        ->and($shortReasons)->toBe([], 'every member carries a reason, not a placeholder');
 
     $family = [];
 
@@ -451,22 +422,19 @@ it('accounts for every scope opener PHPCS defines', function (): void {
     $family[] = 'T_FN';
     sort($family);
 
-    $documented = array_keys($accounted);
-    sort($documented);
+    $included = tokenNamesInConstant($path, 'EXPRESSION_SCOPES', [MULTI_LINE_STATEMENT_INDENT]);
+    $excluded = tokenNamesInConstant($path, 'NON_EXPRESSION_SCOPES', [MULTI_LINE_STATEMENT_INDENT]);
+    $accounted = array_merge($included, $excluded);
+    sort($accounted);
 
-    $isIncluded = static fn (string $disposition): bool => $disposition === 'included';
-    $included = array_keys(array_filter($accounted, $isIncluded));
-    sort($included);
-
-    $listed = tokenNamesInConstant($path, 'EXPRESSION_SCOPES', [MULTI_LINE_STATEMENT_INDENT]);
-    sort($listed);
-
-    expect($listed)->not->toBeEmpty('the constant was found and read')
-        ->and(array_values(array_diff($family, $documented)))
+    expect($included)->not->toBeEmpty('EXPRESSION_SCOPES was found and read')
+        ->and($excluded)->not->toBeEmpty('NON_EXPRESSION_SCOPES was found and read')
+        ->and(array_values(array_intersect($included, $excluded)))
+        ->toBe([], 'no token is both an expression scope and not one')
+        ->and(array_values(array_diff($family, $accounted)))
         ->toBe([], 'every scope opener PHPCS defines is accounted for')
-        ->and(array_values(array_diff($documented, $family)))
-        ->toBe([], 'nothing is accounted for that PHPCS does not define as a scope opener')
-        ->and($included)->toBe($listed, 'the members marked included are exactly the ones listed');
+        ->and(array_values(array_diff($accounted, $family)))
+        ->toBe([], 'nothing is accounted for that PHPCS does not define as a scope opener');
 });
 
 /**

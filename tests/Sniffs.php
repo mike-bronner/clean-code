@@ -28,7 +28,6 @@ const SWEPT_SNIFFS = [
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.Classes.DisallowTypeIntrospection',
     'CleanCode.Classes.ExcessiveClassLength',
-    'CleanCode.Classes.RequireProperties',
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
@@ -77,10 +76,11 @@ const SWEPT_SNIFFS = [
     'CleanCode.Operators.OperatorLineBreak',
     'CleanCode.Routes.ApiControllerNamespace',
     'CleanCode.Routes.DisallowClosureRoutes',
+    'CleanCode.Strings.DisallowNowdoc',
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',
     'CleanCode.Strings.MultilineStrings',
-    'CleanCode.Strings.RequireHeredocForMarkup',
+    'CleanCode.Strings.RequireHeredocForStructuredText',
     'CleanCode.Strings.RequireStringInterpolation',
     'CleanCode.WhiteSpace.BlankLines',
     'CleanCode.WhiteSpace.MultiLineStatementIndent',
@@ -178,6 +178,7 @@ const SWEPT_WARNING_SNIFFS = [
  * fixture, and which exit phpcs at 2 rather than 1 on their failing fixture.
  */
 const AUTOFIXABLE_SNIFFS = [
+    'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',
@@ -188,6 +189,8 @@ const AUTOFIXABLE_SNIFFS = [
     'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.ManipulationOperatorPlacement',
     'CleanCode.Operators.NotOperatorSpacing',
+    'CleanCode.Operators.OperatorLineBreak',
+    'CleanCode.Strings.DisallowNowdoc',
     'CleanCode.Strings.EscapeNestedQuotes',
     'CleanCode.Strings.HtmlAttributeQuotes',
     'CleanCode.Strings.MultilineStrings',

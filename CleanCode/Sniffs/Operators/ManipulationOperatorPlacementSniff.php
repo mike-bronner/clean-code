@@ -9,76 +9,8 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Operators: Manipulative" standard.
- *
- * A manipulation operator that joins two operands across a line break must
- * *start* the continuation line, never trail the end of the previous one. So
- *
- *     $result = 4
- *         + 4;
- *
- * is compliant, while
- *
- *     $result = 4 +
- *         4;
- *
- * is not. Operators used inline — both operands on the same line, e.g.
- * `floor(4 + 4.1)` — are always fine; the rule only governs how a
- * genuinely wrapped expression breaks.
- *
- * Manipulation operators covered here: the math operators `+ - * / % **` and
- * the bitwise operators `& | ^ << >>` — the slice of the standard's list that
- * no other rule in the master ruleset already polices. The remaining
- * manipulation operators are deliberately left out, so that a wrapped
- * expression is reported exactly once:
- *
- * - string concatenation (`.`) and the logical connectives (`&& ||`) are
- *   already enforced by {@see OperatorLineBreakSniff} (#35), which reports the
- *   same "operator must not trail the line" rule on them; and
- * - inside an `if`/`elseif`/`while`/`for` condition that sniff in turn defers
- *   to `CleanCode.Conditionals.OneConditionPerLine`, so this one defers there
- *   on the same terms — see {@see ConditionOperatorOwnership}, which holds the
- *   single copy of that decision for both sniffs.
- *
- * Unary bitwise NOT (`~`) has no binary/continuation
- * form and is not subject to the rule. Some tokens double as non-binary forms
- * that are never manipulation operators and so are exempt regardless of layout:
- * a unary sign (`-5`, `+5`), recognised because no real left-hand operand ends
- * the previous line — including the sign that opens a discarded statement right
- * after a control structure's or a bare block's closing brace, which is told
- * from a `match`, closure, anonymous-class, or dereference brace by the scope
- * the brace closes and the token that opened it; a reference
- * `&` (`&$ref`, a by-reference parameter,
- * return, assignment, `foreach`, or array element), recognised by PHP_CodeSniffer's
- * own reference detection rather than by what token happens to precede it; and a
- * `|`/`&` separating exception types in a `catch (TypeA | TypeB $e)` clause,
- * recognised by its enclosing `catch` parenthesis (PHP_CodeSniffer leaves that
- * separator as `T_BITWISE_OR`/`T_BITWISE_AND` rather than retokenising it as a
- * type union the way it does for parameter, return, and property types).
- *
- * The auto-fixer moves the trailing operator down to lead the continuation
- * line, indented one level past the statement's first line, with a single
- * space before its right-hand operand. A comment sitting between the two
- * operands makes the move unsafe (it would be reordered), so those violations
- * are reported but left for the developer.
- */
 class ManipulationOperatorPlacementSniff implements Sniff
 {
-    /**
-     * The manipulation operators this sniff governs — the math and bitwise
-     * groups. Two members of the standard's wider list are intentionally
-     * absent:
-     *
-     * - `.` and `&& ||`, because {@see OperatorLineBreakSniff} already reports
-     *   the same rule on them (#35). Registering them here as well would report
-     *   every wrapped concatenation and boolean twice, which is what
-     *   tests/Integration/OperatorRulesIntegrationTest.php exists to prevent.
-     * - `~` (unary bitwise NOT), because it has no binary form, so "start the
-     *   new line" is meaningless for it.
-     *
-     * @var array<int|string>
-     */
     private const MANIPULATION_OPERATORS = [
         T_PLUS,          // +
         T_MINUS,         // -
@@ -93,61 +25,11 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_SR,            // >>
     ];
 
-    /**
-     * Operators whose token can also be a unary sign (`+5`, `-5`), so they are
-     * only treated as manipulation operators when a real operand ends the
-     * previous line. `&` is *not* here: its reference form is told apart by
-     * {@see File::isReference()}, not by the preceding token.
-     *
-     * @var array<int|string>
-     */
     private const UNARY_CAPABLE = [
         T_PLUS,
         T_MINUS,
     ];
 
-    /**
-     * Tokens that terminate a left-hand operand: literals, identifiers that
-     * resolve to a value, string terminators, postfix `++`/`--`, and closing
-     * brackets. Used to tell a binary `+`/`-` (preceded by a value) from its
-     * unary sign form (preceded by punctuation, a keyword, or another
-     * operator). The magic constants (`__LINE__`, `__FILE__`, …) are covered
-     * separately via {@see Tokens::$magicConstants} so the set stays complete
-     * as PHP adds more.
-     *
-     * The set is *admission*, not exclusion, on purpose. Both forms are
-     * hand-maintained lists that a new PHP construct can outdate, so the choice
-     * is between their failure modes: a member missing from this set costs a
-     * false negative — one real violation goes unreported — while a member
-     * missing from the inverted "these tokens mean a unary sign follows" set
-     * costs a false positive, and the fixer then rewrites correct code.
-     *
-     * Every entry was derived by tokenising the construct rather than by
-     * reasoning about it, and the families are closed:
-     *
-     * - **Values** — `T_VARIABLE`, the two numeric literals, `T_TRUE`,
-     *   `T_FALSE`, `T_NULL`, and `T_STRING` (which is what a constant, a class
-     *   constant, and a property fetch all end on).
-     * - **String terminators** — `Tokens::$stringTokens` (a single-quoted and
-     *   an interpolated literal each end on their own token) plus the two
-     *   heredoc/nowdoc closers from `Tokens::$heredocTokens`, and `T_BACKTICK`
-     *   for shell execution. A backtick opener can never be mistaken for the
-     *   closer here: the delimited body tokenises as encapsed content, so a
-     *   leading `-` inside it (`` `ls -la` ``) is never a `T_MINUS`.
-     * - **Closing brackets** — `Tokens::$bracketTokens`' three closers plus
-     *   `T_CLOSE_SHORT_ARRAY`, the separate token PHP_CodeSniffer gives a short
-     *   array's `]`. `T_CLOSE_CURLY_BRACKET` is admitted here but qualified in
-     *   {@see self::endsLeftOperand()}, since only some `}` close a value.
-     * - **Postfix operators** — `T_INC`/`T_DEC`. A prefix `++`/`--` cannot
-     *   precede a `+`/`-` (its own operand does), so no qualification is needed.
-     *
-     * tests/Standards/ManipulationOperatorPlacementTest.php pins the string and
-     * bracket families against those PHP_CodeSniffer enumerations directly, so
-     * a token added to either upstream fails the suite instead of silently
-     * widening the gap.
-     *
-     * @var array<int|string>
-     */
     private const OPERAND_END_TOKENS = [
         T_VARIABLE,
         T_LNUMBER,
@@ -169,54 +51,12 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_CLOSE_CURLY_BRACKET,
     ];
 
-    /**
-     * The constructs whose closing `}` yields a value, so that a `+`/`-`
-     * directly after it is binary. Everything else PHP_CodeSniffer can hang a
-     * scope off — `if`, `while`, `for`, `foreach`, `switch`, `try`, `function`,
-     * `class`, … — closes a *statement*, and a sign following that brace opens
-     * a new expression instead of continuing the old one.
-     *
-     * A `}` with no scope at all has no owner to name, so it is settled by
-     * {@see self::CURLY_DEREFERENCE_INTRODUCERS} instead.
-     *
-     * @var array<int|string>
-     */
     private const VALUE_PRODUCING_SCOPE_OWNERS = [
         T_ANON_CLASS,
         T_CLOSURE,
         T_MATCH,
     ];
 
-    /**
-     * The tokens that introduce a curly-brace *dereference*, read from the token
-     * before the brace's `bracket_opener`. PHP_CodeSniffer leaves
-     * `scope_condition` unset on two unrelated constructs, and the absent scope
-     * alone cannot tell them apart:
-     *
-     * - a dereference (`${$name}`, `$object->{$name}`, `$object?->{$name}`,
-     *   `Thing::{$name}`, `Thing::${$name}`), whose `}` closes a *value*; and
-     * - a bare compound-statement block — `{ … }` written standalone, with no
-     *   owning keyword — whose `}` closes a *statement*, exactly as an `if`
-     *   body's does. `{ … } - 5;` is a block followed by an independent
-     *   discarded statement, so its `-` is a unary sign, not a subtraction.
-     *
-     * The introducer is what separates them: a dereference's `{` always follows
-     * `$`, `->`, `?->`, or `::`, and a bare block's never can. Naming the value
-     * side rather than the block side keeps this an *admission* set, for the
-     * reason {@see self::OPERAND_END_TOKENS} gives — a missing member costs a
-     * false negative, while a missing member of the inverted set would make the
-     * fixer rewrite correct code.
-     *
-     * The set is closed over PHP's brace-dereference syntaxes: a variable
-     * variable and a dynamic static property both open on `$`, a dynamic
-     * property and method fetch on `->` or `?->`, and a dynamic static method
-     * call and (as of PHP 8.3) a dynamic class-constant fetch on `::`. Every
-     * entry was derived by tokenising the construct, and
-     * tests/fixtures/ManipulationOperatorPlacementSniff/ pins one of each
-     * against the bare block it must not be confused with.
-     *
-     * @var array<int|string>
-     */
     private const CURLY_DEREFERENCE_INTRODUCERS = [
         T_DOLLAR,
         T_OBJECT_OPERATOR,
@@ -224,75 +64,17 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_DOUBLE_COLON,
     ];
 
-    /**
-     * Tokens the continuation-indent anchor escapes past to reach the
-     * statement's true root line: the expression-grouping openers (`(`, `[`,
-     * short array `[`) and the two separators that divide one expression into
-     * parts — the argument/element `,` and the key/value `=>`. A wrapped
-     * operator behind any of them lives on a line already indented one or more
-     * levels below its statement's first line, so
-     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} — which halts
-     * at the nearest of them — must be escaped outward.
-     *
-     * This set, {@see self::STATEMENT_ANCHOR_SEPARATORS}, and
-     * {@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS} together classify *every*
-     * token that method halts on, minus the one token whose answer depends on
-     * context: `:` — see {@see self::escapesStatementAnchor()}.
-     * The classification is deliberately exhaustive rather than case-by-case,
-     * because a token this walk fails to recognise does not fail loudly; it
-     * silently anchors the indent one level too deep, which is precisely the
-     * stair-stepping {@see self::continuationIndent()} exists to prevent.
-     * tests/Standards/ManipulationOperatorPlacementTest.php pins the split
-     * against PHP_CodeSniffer's own halt set, so a token added upstream fails
-     * the suite instead of quietly widening the gap.
-     *
-     * The escaping half is split in two because the openers are also what the
-     * walk has to recognise *underneath* itself — see
-     * {@see self::outermostStatementStart()}.
-     *
-     * @var array<int|string>
-     */
     private const STATEMENT_ANCHOR_GROUPING_OPENERS = [
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
     ];
 
-    /**
-     * The separator half of that set: the two tokens that divide one expression
-     * into parts without opening a group. See
-     * {@see self::STATEMENT_ANCHOR_GROUPING_OPENERS}.
-     *
-     * @var array<int|string>
-     */
     private const STATEMENT_ANCHOR_SEPARATORS = [
         T_COMMA,
         T_DOUBLE_ARROW,
     ];
 
-    /**
-     * The other side of that classification: the tokens
-     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} halts on that
-     * the anchor walk must *not* escape, because each one genuinely ends the
-     * statement the operator belongs to.
-     *
-     * - `{` is a real scope boundary — a statement inside a block indents
-     *   relative to that block, not to whatever encloses the block. `=>` in a
-     *   `match` arm (`T_MATCH_ARROW`) is classified as the same case: the arm
-     *   body is a statement inside the match's braces. That reading is a
-     *   description rather than a behaviour, and honestly so — an arm's
-     *   condition and its body share a line, so the anchor lands on that line
-     *   either way, and no fixture can tell the two readings apart.
-     * - `?>` closes the previous statement, so there is nothing outward to
-     *   escape *to*. `;` is not here: it ends a statement everywhere except
-     *   inside a `for` header, where it divides one header into clauses, so it
-     *   is decided per occurrence in {@see self::escapesStatementAnchor()}.
-     * - `<?php` / `<?=` are the file's root; the walk stops there anyway.
-     * - `T_OBJECT` is in `Tokens::$blockOpeners` for historical reasons and is a
-     *   type keyword, so it can never enclose an expression.
-     *
-     * @var array<int|string>
-     */
     private const STATEMENT_ANCHOR_BOUNDARY_TOKENS = [
         T_OPEN_CURLY_BRACKET,
         T_OBJECT,
@@ -302,25 +84,17 @@ class ManipulationOperatorPlacementSniff implements Sniff
         T_MATCH_ARROW,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return self::MANIPULATION_OPERATORS;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         // Inside an if/elseif/while/for condition, OneConditionPerLine reports
         // (and fixes) the same wrap wholesale, so stand down there exactly
         // where CleanCode.Operators.OperatorLineBreak does.
-        if (ConditionOperatorOwnership::isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
+        if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;
         }
 
@@ -329,7 +103,10 @@ class ManipulationOperatorPlacementSniff implements Sniff
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        if ($previous === false || $next === false) {
+        if (
+            $previous === false
+            || $next === false
+        ) {
             return;
         }
 
@@ -350,7 +127,10 @@ class ManipulationOperatorPlacementSniff implements Sniff
         // element, or by-ref call argument) is not a bitwise-AND manipulation
         // operator, whatever token precedes it. PHP_CodeSniffer resolves the
         // reference-vs-bitwise question directly, so defer to it.
-        if ($tokens[$stackPtr]['code'] === T_BITWISE_AND && $phpcsFile->isReference($stackPtr) === true) {
+        if (
+            $tokens[$stackPtr]['code'] === T_BITWISE_AND
+            && $phpcsFile->isReference($stackPtr) === true
+        ) {
             return;
         }
 
@@ -376,7 +156,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return;
         }
 
-        $error = 'Manipulation operator "%s" must start the continuation line, not trail the previous one';
+        $error = "Manipulation operator \"%s\" must start the continuation line, not trail the previous one";
         $code = 'OperatorNotLeading';
         $data = [$tokens[$stackPtr]['content']];
 
@@ -399,20 +179,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
         $this->moveOperatorToNextLine($phpcsFile, $stackPtr);
     }
 
-    /**
-     * Whether the token at $previous terminates a left-hand operand — true for
-     * value literals, postfix `++`/`--`, closing brackets, and the magic
-     * constants, which makes a following `+`/`-` a binary manipulation operator
-     * rather than a unary sign.
-     *
-     * A closing `}` is the one entry that cannot be decided by its token alone:
-     * the same `T_CLOSE_CURLY_BRACKET` ends a `match` expression, an anonymous
-     * class, a closure, and a dereference — all values — as ends an
-     * `if`/`while`/`foreach` body or a bare block, neither of which is one.
-     * What owns the brace is what tells `match (…) { … } - 5` (a subtraction)
-     * from the discarded `-5;` statement that follows `if (…) { … }` — see
-     * {@see self::closesValue()}.
-     */
     private function endsLeftOperand(File $phpcsFile, int $previous): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -426,14 +192,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             || isset(Tokens::$magicConstants[$code]) === true;
     }
 
-    /**
-     * Whether a closing `}` ends an expression that yields a value. A brace
-     * carrying a `scope_condition` is a value only for the constructs named in
-     * {@see self::VALUE_PRODUCING_SCOPE_OWNERS}; a brace carrying none is a
-     * value only when it closes a dereference, told from a bare
-     * compound-statement block by the token introducing it — see
-     * {@see self::CURLY_DEREFERENCE_INTRODUCERS}.
-     */
     private function closesValue(File $phpcsFile, int $closer): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -459,12 +217,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             && in_array($tokens[$introducer]['code'], self::CURLY_DEREFERENCE_INTRODUCERS, true) === true;
     }
 
-    /**
-     * Whether the operator sits directly inside a `catch (...)` clause, where a
-     * `|`/`&` separates caught exception types rather than performing a bitwise
-     * operation. The innermost enclosing parenthesis owned by a `T_CATCH` token
-     * is a catch type list.
-     */
     private function isCatchTypeSeparator(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -479,56 +231,33 @@ class ManipulationOperatorPlacementSniff implements Sniff
             && $tokens[$tokens[$opener]['parenthesis_owner']]['code'] === T_CATCH;
     }
 
-    /**
-     * Rewrites the whitespace around a trailing operator so it leads the
-     * continuation line: the space before it becomes a newline plus the
-     * continuation indent, and the newline after it collapses to a single
-     * space before the right-hand operand.
-     */
     private function moveOperatorToNextLine(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $indent = $this->continuationIndent($phpcsFile, $stackPtr);
 
-        $phpcsFile->fixer->beginChangeset();
+        $phpcsFile->fixer
+            ->beginChangeset();
 
         for ($i = ($stackPtr - 1); $tokens[$i]['code'] === T_WHITESPACE; $i--) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
         }
 
         for ($i = ($stackPtr + 1); $tokens[$i]['code'] === T_WHITESPACE; $i++) {
-            $phpcsFile->fixer->replaceToken($i, '');
+            $phpcsFile->fixer
+                ->replaceToken($i, '');
         }
 
-        $phpcsFile->fixer->addContentBefore($stackPtr, $phpcsFile->eolChar . $indent);
-        $phpcsFile->fixer->addContent($stackPtr, ' ');
+        $phpcsFile->fixer
+            ->addContentBefore($stackPtr, $phpcsFile->eolChar . $indent);
+        $phpcsFile->fixer
+            ->addContent($stackPtr, ' ');
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * The start of the whole statement the operator belongs to, escaping any
-     * enclosing parentheses, brackets, or argument separators.
-     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} halts at the
-     * nearest enclosing `(`/`[`/`{` (all block openers) and returns the first
-     * token *inside* it, so for an operator wrapped in a call, `if (...)`
-     * condition, or array literal it yields a line already indented one or more
-     * levels deep. Escaping outward past the grouping tokens reaches the true
-     * root line, so the continuation indent lands one level past the statement —
-     * not past the enclosing bracket.
-     *
-     * The walk escapes on two conditions, not one. Either the token *before* the
-     * anchor divides the enclosing expression ({@see self::escapesStatementAnchor()}),
-     * or the anchor *is* a grouping opener — which happens whenever the opener
-     * is the first thing on its own statement, as the inner `(` of a nested call
-     * is. `findStartOfStatement()` returns that opener rather than the callee
-     * that owns it, so without this second condition the walk would stop on the
-     * inner call's line while the same operator one bracket deeper in a nested
-     * *array* escapes all the way to the root — one statement, two indents. A
-     * grouping opener never starts a statement, so whatever precedes it (a
-     * callee name, `=`, `return`) belongs to the same one and the walk continues
-     * from there.
-     */
     private function outermostStatementStart(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
@@ -556,35 +285,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
         return $start;
     }
 
-    /**
-     * Whether the anchor walk continues outward past the token at $before —
-     * true when that token divides one expression into parts rather than ending
-     * the statement. Every token
-     * {@see \PHP_CodeSniffer\Files\File::findStartOfStatement()} halts on falls
-     * into one of three cases: it always escapes
-     * ({@see self::STATEMENT_ANCHOR_GROUPING_OPENERS} and
-     * {@see self::STATEMENT_ANCHOR_SEPARATORS}), it never does
-     * ({@see self::STATEMENT_ANCHOR_BOUNDARY_TOKENS}), or the answer depends on
-     * which occurrence of the token it is — `:` and `;`.
-     *
-     * A named argument's colon (`someCall(name: $value)`) is expression-internal
-     * and escapes, exactly as the `,` before a positional argument does. Every
-     * other `:` PHP_CodeSniffer leaves as `T_COLON` — a `switch` case or default
-     * label, an alternative-syntax header, a `goto` label, a return type, an
-     * enum backing type — ends a statement or a declaration and must not.
-     * PHP_CodeSniffer tokenises the named-argument label as `T_PARAM_NAME` and
-     * nothing else, which separates the two directly; a ternary's `:` never
-     * reaches here at all, being retokenised to `T_INLINE_ELSE`.
-     *
-     * A `for` header's two semicolons are the same shape: inside those
-     * parentheses `;` divides one header into three clauses rather than ending
-     * a statement, so it escapes as `,` does. Read literally as a boundary, the
-     * increment clause anchors on its own already-indented line while the init
-     * clause escapes past the `(` to the `for` — two structurally identical
-     * clauses of one header, wrapped at two different indents. Everywhere else
-     * `;` genuinely closes the statement and there is nothing outward to escape
-     * to. The enclosing parenthesis's owner separates the two directly.
-     */
     private function escapesStatementAnchor(File $phpcsFile, int $before): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -604,28 +304,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             || in_array($code, self::STATEMENT_ANCHOR_SEPARATORS, true);
     }
 
-    /**
-     * Whether the `;` at $stackPtr divides a `for` header's clauses rather than
-     * ending a statement — true only when it is one of the two dividers
-     * {@see ConditionOperatorOwnership::checkedRegion()} resolves for the `for`
-     * that owns its innermost enclosing parenthesis.
-     *
-     * Sitting inside those parentheses is not enough. A closure or an anonymous
-     * class written directly in a clause carries its whole body — statements and
-     * all — inside them, and every `;` in that body reports the same `for`-owned
-     * parenthesis as the header's own two do. Read as dividers, those body
-     * semicolons let the continuation anchor walk out of the statement it
-     * belongs to and into a sibling statement of the body, which the fixer then
-     * indents to. Asking the shared resolver instead settles it on the same
-     * top-level walk CleanCode.Conditionals.OneConditionPerLine uses for its own
-     * clause boundaries, so the two readings of "the header's own semicolons"
-     * cannot drift apart.
-     *
-     * Every degenerate reading fails the same way: a semicolon in no parenthesis
-     * at all, in one with no owner, or in a header without exactly two top-level
-     * semicolons, is treated as the statement terminator it is everywhere else,
-     * which is the behaviour this method narrows rather than widens.
-     */
     private function isForHeaderSeparator(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -646,17 +324,11 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return false;
         }
 
-        $dividers = ConditionOperatorOwnership::checkedRegion($phpcsFile, $owner);
+        $dividers = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $owner);
 
         return $dividers !== null && in_array($stackPtr, $dividers, true);
     }
 
-    /**
-     * Continuation indent for a wrapped operator: the leading whitespace of the
-     * line the statement starts on, plus one four-space level. Basing it on the
-     * statement's root line (not the operator's line) keeps every continuation
-     * operator of a multi-line statement level, rather than stair-stepping.
-     */
     private function continuationIndent(File $phpcsFile, int $stackPtr): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -664,7 +336,10 @@ class ManipulationOperatorPlacementSniff implements Sniff
         $line = $tokens[$start]['line'];
         $firstOnLine = $start;
 
-        while ($firstOnLine > 0 && $tokens[$firstOnLine - 1]['line'] === $line) {
+        while (
+            $firstOnLine > 0
+            && $tokens[$firstOnLine - 1]['line'] === $line
+        ) {
             $firstOnLine--;
         }
 
@@ -674,6 +349,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             $indent = str_replace(["\r", "\n"], '', $tokens[$firstOnLine]['content']);
         }
 
-        return $indent . '    ';
+        return "{$indent}    ";
     }
 }

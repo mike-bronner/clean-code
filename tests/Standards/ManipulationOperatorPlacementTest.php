@@ -510,7 +510,6 @@ it('anchors a wrap inside a brace block on its own statement line', function ():
 it("reads only a for header's semicolons as clause dividers", function (): void {
     $sniff = new MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff();
     $separator = new ReflectionMethod($sniff, 'isForHeaderSeparator');
-    $separator->setAccessible(true);
 
     $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
     $dividers = [];

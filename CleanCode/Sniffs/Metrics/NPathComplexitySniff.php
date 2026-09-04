@@ -8,141 +8,14 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Flags a function or method whose NPath complexity reaches the configured
- * minimum.
- *
- * Replicates PHPMD's CodeSize/NPathComplexity rule
- * (docs/phpmd/codesize-npathcomplexity.md). NPath counts the acyclic execution
- * paths through a callable. Unlike cyclomatic complexity, which adds 1 per
- * decision point, NPath *multiplies* the path counts of statements in sequence,
- * so two independent `if`s score 4 rather than 3.
- *
- * PHPMD reads the `npath` metric from PDepend, and this sniff recomputes it
- * from PHPCS tokens. Every formula below is transcribed from PDepend 2.x's
- * NPathComplexityAnalyzer and then confirmed against a live PHPMD 2.15.0 run,
- * because several of them are not what the published NPath specification says
- * and none of them are stated in PHPMD's documentation. The fixtures under
- * tests/fixtures/NPathComplexitySniff/ pin each one against the numbers that
- * run produced.
- *
- * The whole callable body is a *sequence*: its NPath is the product of the
- * NPath of each statement in it. A statement that is not one of the constructs
- * below contributes 1, which is why plain code does not inflate the score.
- *
- * Per construct, with `B(x)` meaning "the boolean complexity of expression x"
- * (see `expressionComplexity()`) and `N(r)` the NPath of a statement range:
- *
- * - `if`:      `B(cond) + N(then) + N(else-or-elseif chain)`, plus 1 when the
- *              chain has neither an `elseif` nor an `else`. An `elseif` uses the
- *              same formula, so a chain nests rather than sums flat.
- * - `while`:   `B(cond) + N(body) + 1`
- * - `do while`:`B(cond) + N(body) + 1`
- * - `for`:     `1 + B(cond) + N(body)`, where `cond` is the *middle* clause
- *              alone: PDepend sums only the children of the loop that are
- *              expressions, and the init and update clauses are not, so a
- *              boolean operator in either is not counted.
- * - `foreach`: `B(expr) + 1 + N(body)`
- * - `switch`:  `B(expr) + the sum of N(range) over every `case` *and* `default`
- *              label. A `switch` with no labels therefore scores 0 and zeroes
- *              the whole product — PDepend's behaviour, pinned by
- *              labellessSwitch() in passing.php. The labels are found by walking
- *              the body rather than by reading the tokenizer's scope map, which
- *              PHPCS 3.13.6 does not build for a `switch` whose subject holds a
- *              `match` (see `switchBody()`).
- * - `try`:     the sum of `N(range)` over the `try` block, every `catch` block,
- *              and the `finally` block. Nothing is added for the construct.
- * - `? :`:     `B(cond) + B(then) + B(else) + 2`, where the short form `?:`
- *              doubles `B(cond)` instead of reading a `then` branch, and `cond`
- *              is the first *child node* of the expression holding the ternary
- *              rather than everything to the left of the `?` (see
- *              `ternaryComplexity()`).
- * - `return`:  `B(expr)`, or 1 when that is 0. This makes `return $a && $b &&
- *              $c;` score 2 while the identical expression assigned to a
- *              variable scores 1 — a PDepend quirk, not a mistake here, pinned
- *              by keywordXorAndReturnChain() in failing.php.
- *
- * Not counted at all: `??`, `??=`, `?->`, `!`, `goto`, `throw`, `yield`, and
- * `break`/`continue`. A `match` adds nothing for itself either, and at statement
- * level a boolean operator in an arm body is not counted — but an arm body is
- * still an ordinary expression in the enclosing sequence, so a *ternary* written
- * in one multiplies into the callable exactly as it would anywhere else. A live
- * PHPMD run scores `match ($a) { 1 => $b ? 'x' : 'y', default => 'z' }` as 2,
- * not 1, and matchArmTernaryMultiplies() and matchArmBooleanIsUncounted() in
- * passing.php pin the two halves. That uncounted arm boolean is a property of
- * *statement* position, not of `match`: put the same `match` in a condition or a
- * `return` and `sumComplexity()` walks the whole expression and reaches it, so
- * it counts after all (matchArmBooleanCountsInACondition() and
- * matchArmBooleanCountsInAReturn() in passing.php). `xor` *is* counted, unlike in
- * cyclomatic complexity where PDepend ignores it — ExcessiveClassComplexitySniff
- * in this same directory excludes `xor` for that reason, and the two sniffs
- * disagreeing here is deliberate (keywordXorAndReturnChain() in failing.php
- * pins it).
- *
- * Scope decisions, all matching PHPMD:
- *
- * - Named functions and methods only. PHPMD's rule is FunctionAware and
- *   MethodAware, so it measures each named callable separately, including one
- *   declared inside another (nestedNamedFunction() in passing.php).
- * - A closure or arrow function is *not* its own artifact: it is never reported
- *   separately, and in *statement* position its own statements multiply into the
- *   enclosing callable's score
- *   (closureBodiesBelongToTheEnclosingCallable() in failing.php).
- * - In *expression* position — a `return` value, a condition, a ternary branch —
- *   a closure body contributes only what `sumComplexity()` sums as it descends:
- *   boolean operators and ternaries. Control flow inside it is worth nothing,
- *   because PDepend runs its statement visitor over statements only and an
- *   expression never reaches it. So the identical closure scores 8 held by an
- *   assignment and 1 returned directly, which a live PHPMD 2.15.0 run confirms;
- *   closureInStatementPositionIsWalked() and
- *   closureInExpressionPositionIsNotWalked() in passing.php are that pair, and
- *   teaching this walk to descend into a closure body would score the second 8
- *   and break parity.
- * - The body of an anonymous class is skipped, and its methods are not reported
- *   either — a live PHPMD run reports neither (anonymousClassBody() in
- *   passing.php).
- * - An *abstract* method is measured and scores 1, the same as an empty
- *   concrete one. A method declared in an *interface* is not measured at all:
- *   PHPMD's method rules walk classes and traits, not interfaces. Both are
- *   pinned in passing.php.
- *
- * The report is attached to the `function` keyword, because the measurement
- * describes the whole callable rather than any one line inside it. Detection
- * only: the fix is to break the callable up, which is a design change with no
- * mechanical rewrite, and PHPMD offers no fix either.
- */
+// A sniff is one rule, and its class name is the sniff code consumers write
+// in their rulesets — so the unit is fixed from outside and splitting the
+// class into collaborators would distribute the work without reducing it.
+// phpcs:ignore CleanCode.CodeSize.TooManyMethods -- see above
 class NPathComplexitySniff implements Sniff
 {
-    /**
-     * The NPath value at which a callable is reported. Spelled as PHPMD spells
-     * it, and defaulting to the value PHPMD's codesize.xml ships, so an existing
-     * PHPMD configuration for this rule transfers verbatim.
-     *
-     * PHPMD reports at or above this value rather than strictly above it — its
-     * rule returns early only when `$npath < $threshold` — so the default of 200
-     * reports a callable measuring exactly 200. That is the behaviour replicated
-     * here. atOneBelowTheMinimum() in passing.php measures 199 and stays silent;
-     * switchLabelsMultiply() in failing.php measures exactly 200 and is
-     * reported.
-     *
-     * Deliberately untyped. PHPCS assigns a `<property>` value to a sniff as
-     * the raw string from the ruleset XML, so an `int` declaration here would
-     * turn `<property name="minimum" value="300"/>` into a TypeError. It is cast
-     * where it is read instead — the same shape Generic.Files.LineLength uses
-     * for its own numeric thresholds.
-     *
-     * @var int|string
-     */
     public $minimum = 200;
 
-    /**
-     * The operators PDepend's `sumComplexity()` scores 1 each.
-     *
-     * `T_LOGICAL_XOR` is present on purpose: NPath counts `xor`, cyclomatic
-     * complexity does not.
-     *
-     * @var array<int, int|string>
-     */
     private const BOOLEAN_TOKENS = [
         T_BOOLEAN_AND,
         T_BOOLEAN_OR,
@@ -151,14 +24,6 @@ class NPathComplexitySniff implements Sniff
         T_LOGICAL_XOR,
     ];
 
-    /**
-     * Tokens that end the expression a ternary's condition starts in, used to
-     * find where that condition begins. Scanning back to one of these mirrors
-     * PDepend reading the condition as the first child of the ternary's parent
-     * node.
-     *
-     * @var array<int, int|string>
-     */
     private const EXPRESSION_BOUNDARIES = [
         T_SEMICOLON,
         T_OPEN_CURLY_BRACKET,
@@ -177,12 +42,6 @@ class NPathComplexitySniff implements Sniff
         T_OPEN_TAG,
     ];
 
-    /**
-     * Tokens that end a ternary's else-branch: the first separator reached at
-     * the ternary's own nesting level.
-     *
-     * @var array<int, int|string>
-     */
     private const BRANCH_TERMINATORS = [
         T_SEMICOLON,
         T_COMMA,
@@ -192,83 +51,25 @@ class NPathComplexitySniff implements Sniff
         T_CLOSE_CURLY_BRACKET,
     ];
 
-    /**
-     * The value at which a measurement stops accumulating.
-     *
-     * PDepend does this arithmetic in bcmath through its own MathUtil, so its
-     * `npath` metric is an arbitrary-precision string and never overflows. This
-     * sniff works in `int`, which under `declare(strict_types=1)` cannot hold an
-     * overflowed product: PHP promotes it to `float`, and returning a `float`
-     * from an `int`-typed method raises a TypeError that PHP_CodeSniffer does
-     * not catch — Runner only catches `\Exception`, and TypeError is an
-     * `\Error` — so one deeply-branching callable would abort the whole run
-     * rather than being reported. Every add and multiply below therefore
-     * saturates here instead of overflowing.
-     *
-     * A callable at this scale is definitionally past any usable threshold, so
-     * nothing is lost by stopping the count: the report says "at least" and the
-     * verdict is unchanged. The saturation test in
-     * tests/Standards/NPathComplexityTest.php drives a real callable past it.
-     */
     private const CEILING = PHP_INT_MAX;
 
-    /**
-     * Where the else-branch starting at each `:` ends, for the callable being
-     * measured. Filled by expressionEnd() and cleared for every callable, so a
-     * pointer from one file can never be read back against another.
-     *
-     * @var array<int, int>
-     */
     private array $branchEnds = [];
 
-    /**
-     * How often expressionEnd() answered from what it had already recorded, and
-     * how often it ran the forward scan that records it.
-     *
-     * The scan is O(n) in what remains of the statement, so one scan per link
-     * costs a chain its own square; recording every position the scan steps
-     * over turns the whole chain into one scan. That claim has no observable
-     * but these counts or the elapsed time they replace, which a shared CI
-     * runner's jitter can carry across any fixed budget with no code change
-     * (#321, #354).
-     *
-     * Each increment sits inside the branch it describes — the memo hit inside
-     * the isset() guard, the scan immediately after it — so a memo that stopped
-     * working cannot leave the counts intact. The totals are cumulative for the
-     * life of the sniff instance and are read as a delta around one run.
-     *
-     * @var array<string, int>
-     */
     private array $scanCounts = [
         'expressionEnd.scans' => 0,
         'expressionEnd.hits' => 0,
     ];
 
-    /**
-     * @return array<int|string>
-     */
     public function register(): array
     {
         return [T_FUNCTION];
     }
 
-    /**
-     * How often the else-branch terminator was scanned for and how often it was
-     * read back, cumulative for the life of this instance. See $scanCounts.
-     *
-     * @return array<string, int>
-     */
     public function scanCounts(): array
     {
         return $this->scanCounts;
     }
 
-    /**
-     * $left + $right, stopping at the ceiling rather than overflowing.
-     *
-     * Both operands are counts, so neither is ever negative and the guard only
-     * has to look at the upper end.
-     */
     private function add(int $left, int $right): int
     {
         if ($left > (self::CEILING - $right)) {
@@ -278,12 +79,12 @@ class NPathComplexitySniff implements Sniff
         return ($left + $right);
     }
 
-    /**
-     * $left * $right, stopping at the ceiling rather than overflowing.
-     */
     private function multiply(int $left, int $right): int
     {
-        if ($left === 0 || $right === 0) {
+        if (
+            $left === 0
+            || $right === 0
+        ) {
             return 0;
         }
 
@@ -294,17 +95,15 @@ class NPathComplexitySniff implements Sniff
         return ($left * $right);
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $minimum = (int) $this->minimum;
         $npath = $this->callableComplexity($phpcsFile, $stackPtr);
 
-        if ($npath === null || $npath < $minimum) {
+        if (
+            $npath === null
+            || $npath < $minimum
+        ) {
             return;
         }
 
@@ -328,10 +127,6 @@ class NPathComplexitySniff implements Sniff
         );
     }
 
-    /**
-     * Whether this declaration is a method of a class-like or a free function,
-     * so the message reads the way PHPMD's does.
-     */
     private function callableKind(File $phpcsFile, int $functionPtr): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -346,24 +141,6 @@ class NPathComplexitySniff implements Sniff
         return 'function';
     }
 
-    /**
-     * The NPath of one named callable, or null when PHPMD measures none.
-     *
-     * Two kinds of declaration are skipped outright, because a live PHPMD run
-     * reports neither however low the threshold is set:
-     *
-     * - A method of an interface. PHPMD's method rules walk the methods of
-     *   classes and traits, not of interfaces.
-     * - A method of an anonymous class, along with the anonymous class itself.
-     *
-     * An *abstract* method is not skipped. It has no body, so there is no
-     * sequence to multiply and it scores the 1 an empty body scores — which is
-     * what PDepend records and what a live PHPMD run reports for it. A body the
-     * tokenizer never closed lands here too, and 1 is the right answer for the
-     * same reason: PHP cannot compile such a file, so nothing measurable is
-     * being suppressed. Neither can reach a threshold of 2 or more, so this
-     * matters only to a configuration that sets `minimum` to 1.
-     */
     private function callableComplexity(File $phpcsFile, int $functionPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -380,7 +157,10 @@ class NPathComplexitySniff implements Sniff
         $opener = $tokens[$functionPtr]['scope_opener'] ?? null;
         $closer = $tokens[$functionPtr]['scope_closer'] ?? null;
 
-        if ($opener === null || $closer === null) {
+        if (
+            $opener === null
+            || $closer === null
+        ) {
             return 1;
         }
 
@@ -400,18 +180,6 @@ class NPathComplexitySniff implements Sniff
         return $this->blockComplexity($phpcsFile, $tokens, $ptr, $closer);
     }
 
-    /**
-     * The NPath of a statement sequence: the product of the NPath of every
-     * statement in it.
-     *
-     * $ptr is advanced to $end, and every token between is consumed exactly
-     * once by exactly one frame — each construct's evaluator moves the shared
-     * cursor past the range it measured. That keeps the whole walk linear in
-     * the size of the callable rather than re-scanning nested bodies once per
-     * level of nesting.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function blockComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $npath = 1;
@@ -426,15 +194,6 @@ class NPathComplexitySniff implements Sniff
         return $npath;
     }
 
-    /**
-     * The NPath of whatever starts at $ptr, advancing $ptr past it.
-     *
-     * Anything that is not a construct NPath scores returns 1 and advances by a
-     * single token, so the cursor always moves and the caller's loop cannot
-     * spin.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function statementComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $code = $tokens[$ptr]['code'];
@@ -443,7 +202,10 @@ class NPathComplexitySniff implements Sniff
         // artifact, reported separately by this sniff's own registration on it.
         // An anonymous class body belongs to the anonymous class. A closure or
         // arrow function is neither: it is walked as part of this callable.
-        if ($code === T_FUNCTION || $this->opensAnonymousClassBody($tokens, $ptr) === true) {
+        if (
+            $code === T_FUNCTION
+            || $this->opensAnonymousClassBody($tokens, $ptr) === true
+        ) {
             $ptr = (($tokens[$ptr]['scope_closer'] ?? $ptr) + 1);
 
             return 1;
@@ -457,7 +219,11 @@ class NPathComplexitySniff implements Sniff
             return $this->doWhileComplexity($phpcsFile, $tokens, $ptr, $end);
         }
 
-        if ($code === T_WHILE || $code === T_FOR || $code === T_FOREACH) {
+        if (
+            $code === T_WHILE
+            || $code === T_FOR
+            || $code === T_FOREACH
+        ) {
             return $this->loopComplexity($phpcsFile, $tokens, $ptr, $end);
         }
 
@@ -482,16 +248,6 @@ class NPathComplexitySniff implements Sniff
         return 1;
     }
 
-    /**
-     * Whether the brace at $ptr opens an anonymous class body.
-     *
-     * Keyed on the brace rather than on T_ANON_CLASS so the walk still passes
-     * through the constructor arguments between `new class` and that brace:
-     * those are ordinary expressions in the enclosing callable, and PDepend
-     * scores them there.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function opensAnonymousClassBody(array $tokens, int $ptr): bool
     {
         if ($tokens[$ptr]['code'] !== T_OPEN_CURLY_BRACKET) {
@@ -503,17 +259,6 @@ class NPathComplexitySniff implements Sniff
         return $owner !== null && $tokens[$owner]['code'] === T_ANON_CLASS;
     }
 
-    /**
-     * `B(cond) + N(then) + N(chain)`, plus 1 when the chain ends without an
-     * `else`. Used for `if` and, unchanged, for `elseif`: PDepend gives both the
-     * same formula, so `if/elseif/else` nests instead of summing flat.
-     *
-     * `hasElse()` in PDepend is true when an `elseif` follows as well as when an
-     * `else` does, which is why an `elseif` chain is not also charged the +1 at
-     * every level.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function ifComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $npath = $this->conditionComplexity($phpcsFile, $tokens, $ptr);
@@ -538,7 +283,10 @@ class NPathComplexitySniff implements Sniff
         // two instead of adding them (ElseIfWithSpace in failing.php).
         $inner = $phpcsFile->findNext(Tokens::$emptyTokens, ($chain + 1), $end, true);
 
-        if ($inner !== false && $tokens[$inner]['code'] === T_IF) {
+        if (
+            $inner !== false
+            && $tokens[$inner]['code'] === T_IF
+        ) {
             $ptr = $inner;
 
             return $this->add($npath, $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
@@ -547,21 +295,14 @@ class NPathComplexitySniff implements Sniff
         return $this->add($npath, $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end));
     }
 
-    /**
-     * The `elseif` or `else` continuing the chain whose branch ended at $ptr, or
-     * null when the chain is over. $ptr is left on the branch just measured.
-     *
-     * Under the alternative syntax PHPCS closes each branch *on* the token that
-     * starts the next one, so that token is the chain link rather than something
-     * after it.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function nextChainLink(File $phpcsFile, array $tokens, int $ptr, int $end): ?int
     {
         $code = $tokens[$ptr]['code'];
 
-        if ($code === T_ELSEIF || $code === T_ELSE) {
+        if (
+            $code === T_ELSEIF
+            || $code === T_ELSE
+        ) {
             return $ptr;
         }
 
@@ -571,30 +312,16 @@ class NPathComplexitySniff implements Sniff
             return null;
         }
 
-        if ($tokens[$next]['code'] === T_ELSEIF || $tokens[$next]['code'] === T_ELSE) {
+        if (
+            $tokens[$next]['code'] === T_ELSEIF
+            || $tokens[$next]['code'] === T_ELSE
+        ) {
             return $next;
         }
 
         return null;
     }
 
-    /**
-     * `B(cond) + N(body) + 1` for `while`, `1 + B(cond) + N(body)` for `for`,
-     * and `B(expr) + 1 + N(body)` for `foreach` — the same arithmetic, differing
-     * only in where the constant 1 comes from, so they share one implementation.
-     *
-     * A `for` differs in what counts as its condition. PDepend's
-     * visitForStatement sums only the children that are expressions, and the
-     * init and update clauses are ASTForInit and ASTForUpdate nodes rather than
-     * expressions, so a boolean operator in either one is not counted — only the
-     * middle clause is. A live PHPMD run agrees: `for ($i = ($a && $b); …)` and
-     * `for (…; …; $i++, $a = ($a || $b))` both score the same as the same loop
-     * with no operator at all. forIgnoresInitAndUpdateClauses() and
-     * forCountsItsConditionClause() in passing.php carry the same two operators
-     * in different clauses and pin the pair.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function loopComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $condition = $tokens[$ptr]['code'] === T_FOR
@@ -605,23 +332,15 @@ class NPathComplexitySniff implements Sniff
         return $this->add($this->add($condition, $body), 1);
     }
 
-    /**
-     * The boolean complexity of a `for`'s middle clause alone.
-     *
-     * The clause is delimited by the two semicolons that sit directly inside the
-     * loop's own parentheses; a semicolon nested in a closure body or a
-     * parenthesised group belongs to something else and is skipped. A `for`
-     * missing either semicolon — `for (;;)` has both, but a malformed one may
-     * not — has no condition to read and scores 0.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function forConditionComplexity(File $phpcsFile, array $tokens, int $ptr): int
     {
         $opener = $tokens[$ptr]['parenthesis_opener'] ?? null;
         $closer = $tokens[$ptr]['parenthesis_closer'] ?? null;
 
-        if ($opener === null || $closer === null) {
+        if (
+            $opener === null
+            || $closer === null
+        ) {
             return 0;
         }
 
@@ -651,12 +370,6 @@ class NPathComplexitySniff implements Sniff
         return $this->expressionComplexity($phpcsFile, $tokens, $conditionPtr, $semicolons[1]);
     }
 
-    /**
-     * `B(cond) + N(body) + 1`, with the trailing `while (…);` consumed so its
-     * `while` is never mistaken for a loop of its own.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function doWhileComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $body = $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end);
@@ -673,15 +386,6 @@ class NPathComplexitySniff implements Sniff
         return $this->add($this->add($condition, $body), 1);
     }
 
-    /**
-     * `B(expr)` plus the NPath of every `case` *and* `default` range.
-     *
-     * Nothing is added for the construct itself and nothing is added for a
-     * missing `default`, so a `switch` carrying no labels at all scores 0 and
-     * zeroes the product for the whole callable. That is what PDepend does.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function switchComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $switchPtr = $ptr;
@@ -711,34 +415,15 @@ class NPathComplexitySniff implements Sniff
         return $npath;
     }
 
-    /**
-     * The opener and closer holding this switch's labels, or null when neither
-     * the tokenizer nor the tokens themselves supply them.
-     *
-     * PHPCS 3.13.6 builds no scope at all for a `switch` whose subject holds a
-     * `match` — `scope_opener` and `scope_closer` are both absent, and the
-     * labels' own `conditions` skip the switch — for the braced and the
-     * `:`/`endswitch` form alike. Trusting the tokenizer there would read every
-     * such `switch` as label-less, which scores 0 and zeroes the whole callable:
-     * `switch (match ($a) { 1 => $b && $c, default => false }) { case true: …
-     * default: … }` measured 1 against the 3 a live PHPMD 2.15.0 run reports,
-     * and its boolean-free twin measured 0 against 2.
-     *
-     * So the bounds are recovered from the tokens instead. The body brace still
-     * carries `bracket_closer` even with no scope attached, and the alternative
-     * form ends at its own `endswitch`, found at this switch's nesting level so
-     * a nested one cannot close the outer switch early.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array{0: int, 1: int}|null
-     */
     private function switchBody(File $phpcsFile, array $tokens, int $switchPtr, int $end): ?array
     {
         $opener = $tokens[$switchPtr]['scope_opener'] ?? null;
         $closer = $tokens[$switchPtr]['scope_closer'] ?? null;
 
-        if ($opener !== null && $closer !== null) {
+        if (
+            $opener !== null
+            && $closer !== null
+        ) {
             return [$opener, $closer];
         }
 
@@ -754,29 +439,28 @@ class NPathComplexitySniff implements Sniff
             return null;
         }
 
-        if ($tokens[$opener]['code'] === T_OPEN_CURLY_BRACKET) {
-            $closer = $tokens[$opener]['bracket_closer'] ?? null;
-        } elseif ($tokens[$opener]['code'] === T_COLON) {
-            $closer = $this->nextAtLevel($phpcsFile, $tokens, [T_ENDSWITCH], ($opener + 1), $end);
-        } else {
-            $closer = null;
-        }
+        $closer = $this->switchCloser($phpcsFile, $tokens, $opener, $end);
 
         return $closer === null ? null : [$opener, $closer];
     }
 
-    /**
-     * The `case` and `default` tokens belonging to this switch and not to one
-     * nested inside it, in source order.
-     *
-     * `match` carries no `case` at all and its `default` tokenizes as
-     * T_MATCH_DEFAULT, so a `match` cannot leak a label into this list however
-     * it is written.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return array<int, int>
-     */
+    // A switch body closes with `}` in brace form and with `endswitch` in the
+    // alternative form. Anything else is neither, and answers null.
+    private function switchCloser(File $phpcsFile, array $tokens, int $opener, int $end): ?int
+    {
+        $code = $tokens[$opener]['code'];
+
+        if ($code === T_OPEN_CURLY_BRACKET) {
+            return $tokens[$opener]['bracket_closer'] ?? null;
+        }
+
+        if ($code === T_COLON) {
+            return $this->nextAtLevel($phpcsFile, $tokens, [T_ENDSWITCH], ($opener + 1), $end);
+        }
+
+        return null;
+    }
+
     private function switchLabels(File $phpcsFile, array $tokens, int $opener, int $closer): array
     {
         $labels = [];
@@ -790,24 +474,6 @@ class NPathComplexitySniff implements Sniff
         return $labels;
     }
 
-    /**
-     * The first token in $codes at the nesting level $ptr starts on, or null.
-     *
-     * Nesting is walked over rather than read from each token's `conditions`,
-     * because a `switch` the tokenizer built no scope for is missing from the
-     * `conditions` of its own labels — the very case switchBody() exists for.
-     * A brace is jumped by `bracket_closer`, which the tokenizer sets whether or
-     * not a scope was attached, so a `match`, closure, anonymous class, or
-     * braced nested `switch` in a case body cannot leak a label upward. A nested
-     * `switch` written in the alternative syntax carries no brace to jump, so it
-     * is resolved through switchBody() itself.
-     *
-     * The membership test runs before either jump, because a `case` owns a scope
-     * of its own and would otherwise be skipped rather than returned.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     * @param array<int, int|string> $codes
-     */
     private function nextAtLevel(File $phpcsFile, array $tokens, array $codes, int $ptr, int $end): ?int
     {
         while ($ptr < $end) {
@@ -817,9 +483,16 @@ class NPathComplexitySniff implements Sniff
                 return $ptr;
             }
 
-            if ($code === T_OPEN_CURLY_BRACKET && isset($tokens[$ptr]['bracket_closer']) === true) {
+            // Two independent jumps, never both: $code is read once above, so a
+            // token is either the brace or the switch, never the other's case.
+            if (
+                $code === T_OPEN_CURLY_BRACKET
+                && isset($tokens[$ptr]['bracket_closer']) === true
+            ) {
                 $ptr = $tokens[$ptr]['bracket_closer'];
-            } elseif ($code === T_SWITCH) {
+            }
+
+            if ($code === T_SWITCH) {
                 $body = $this->switchBody($phpcsFile, $tokens, $ptr, $end);
                 $ptr = ($body === null ? $ptr : $body[1]);
             }
@@ -830,13 +503,7 @@ class NPathComplexitySniff implements Sniff
         return null;
     }
 
-    /**
-     * The `:` or `;` ending a `case`/`default` label, after which its range
-     * begins. A label whose delimiter is missing falls back to the label token
-     * itself, so the range simply starts one token later.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function labelBodyStart(File $phpcsFile, array $tokens, int $label, int $end): int
     {
         $colon = $phpcsFile->findNext([T_COLON, T_SEMICOLON], $label, $end);
@@ -844,13 +511,6 @@ class NPathComplexitySniff implements Sniff
         return $colon === false ? $label : $colon;
     }
 
-    /**
-     * The sum of the NPath of the `try` block, every `catch` block, and the
-     * `finally` block. Nothing is added for the construct, so `try {} catch {}`
-     * scores 2 rather than 3.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function tryComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $npath = $this->scopeComplexity($phpcsFile, $tokens, $ptr, $end);
@@ -864,7 +524,10 @@ class NPathComplexitySniff implements Sniff
 
             $code = $tokens[$next]['code'];
 
-            if ($code !== T_CATCH && $code !== T_FINALLY) {
+            if (
+                $code !== T_CATCH
+                && $code !== T_FINALLY
+            ) {
                 return $npath;
             }
 
@@ -873,18 +536,6 @@ class NPathComplexitySniff implements Sniff
         }
     }
 
-    /**
-     * `B(expr)`, or 1 when the expression holds nothing NPath scores.
-     *
-     * PDepend multiplies the *whole* return expression's boolean complexity into
-     * the sequence, which double-counts the condition of a ternary being
-     * returned: the condition is scored once as part of the return expression
-     * and again inside the ternary's own formula. `return ($a && $b) ? 1 : 2;`
-     * scores 4 where the same ternary assigned to a variable scores 3. Both are
-     * pinned in the fixtures.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function returnComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $stop = $this->statementEnd($tokens, ($ptr + 1), $end);
@@ -895,18 +546,6 @@ class NPathComplexitySniff implements Sniff
         return $complexity === 0 ? 1 : $complexity;
     }
 
-    /**
-     * The `;` ending the statement that starts at $from, or $end when there is
-     * none.
-     *
-     * Every nested parenthesis, bracket, and brace is jumped over rather than
-     * walked, so a `;` inside a closure body or an anonymous class body written
-     * in the middle of the statement cannot be mistaken for the statement's own
-     * terminator. `return new class { … };` is the shape that needs it, and
-     * AnonymousClassBody in the fixtures pins it.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function statementEnd(array $tokens, int $from, int $end): int
     {
         $ptr = ($from - 1);
@@ -928,13 +567,6 @@ class NPathComplexitySniff implements Sniff
         return $end;
     }
 
-    /**
-     * The token closing the group that opens at $ptr, or null when $ptr opens
-     * nothing. Covers parentheses, short arrays and square brackets, and any
-     * brace PHPCS built a scope for.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function closerFor(array $tokens, int $ptr): ?int
     {
         $code = $tokens[$ptr]['code'];
@@ -943,7 +575,10 @@ class NPathComplexitySniff implements Sniff
             return $tokens[$ptr]['parenthesis_closer'] ?? null;
         }
 
-        if ($code === T_OPEN_SHORT_ARRAY || $code === T_OPEN_SQUARE_BRACKET) {
+        if (
+            $code === T_OPEN_SHORT_ARRAY
+            || $code === T_OPEN_SQUARE_BRACKET
+        ) {
             return $tokens[$ptr]['bracket_closer'] ?? null;
         }
 
@@ -954,34 +589,6 @@ class NPathComplexitySniff implements Sniff
         return null;
     }
 
-    /**
-     * `B(cond) + B(then) + B(else) + 2`.
-     *
-     * The short form `?:` has no `then` branch; PDepend doubles the condition's
-     * complexity in its place, which for the common `$a ?: $b` still yields 2.
-     *
-     * PDepend reads the condition as `$node->getParent()->getChild(0)` — the
-     * *first child node* of the expression holding the ternary, not everything
-     * to the left of the `?`. The difference is visible whenever an operator
-     * separates the two: in `$a && $b ? 1 : 0` the first child is `$a`, so the
-     * `&&` is no part of the condition, while in `($a && $b) ? 1 : 0` the first
-     * child is the whole parenthesised group and the `&&` is counted inside it.
-     * Both are confirmed against a live PHPMD run, which scores an `if` around
-     * the first 5 and around the second 6, and the
-     * ternaryConditionStopsAtTheFirstOperator() /
-     * ternaryConditionIncludesAParenthesisedGroup() pair in passing.php pins
-     * both.
-     *
-     * Counting to the `?` instead would count that `&&` twice in every `if`,
-     * `while`, `for`, and `switch` condition — once in the enclosing walk and
-     * again here. The double count in `return ($a && $b) ? 1 : 2;` is a
-     * different thing and is real: there the first child *is* the parenthesised
-     * group, so PDepend genuinely reads it twice
-     * (returnTernaryCountsItsConditionTwice() in passing.php, against
-     * assignedTernaryCountsItsConditionOnce() beside it).
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function ternaryComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $thenPtr = $ptr;
@@ -1018,24 +625,6 @@ class NPathComplexitySniff implements Sniff
         return $this->add($this->add($this->add($condition, $then), $otherwise), 2);
     }
 
-    /**
-     * Where the ternary condition beginning at $start ends: after the first
-     * child node of the expression holding the ternary.
-     *
-     * A node runs to the first binary operator outside any group, because an
-     * operator is what separates one child of the parent from the next. Groups
-     * are stepped over whole, so an operator inside parentheses, an argument
-     * list, or a subscript stays part of the node it belongs to — `strlen($a &&
-     * $b) ? …` and `$a[$b && $c] ? …` both keep their operator, and `$a + ($b &&
-     * $c) ? …` does not, all three matching a live PHPMD run.
-     *
-     * A leading `!` or `-` is deliberately not a boundary: PHP_CodeSniffer's
-     * operator sets exclude T_BOOLEAN_NOT, and a unary minus reads as a binary
-     * T_MINUS but can only appear here in front of the node's own first token,
-     * where stopping would leave an empty node and score the same 0.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function conditionNodeEnd(array $tokens, int $start, int $thenPtr): int
     {
         $ptr = ($start - 1);
@@ -1049,7 +638,10 @@ class NPathComplexitySniff implements Sniff
                 continue;
             }
 
-            if ($ptr > $start && $this->separatesNodes($tokens[$ptr]['code']) === true) {
+            if (
+                $ptr > $start
+                && $this->separatesNodes($tokens[$ptr]['code']) === true
+            ) {
                 return $ptr;
             }
         }
@@ -1057,13 +649,7 @@ class NPathComplexitySniff implements Sniff
         return $thenPtr;
     }
 
-    /**
-     * Whether this token is a binary operator, and so separates one child of an
-     * expression from the next.
-     *
-     * @param int|string $code
-     */
-    private function separatesNodes($code): bool
+    private function separatesNodes(int|string $code): bool
     {
         return isset(Tokens::$operators[$code]) === true
             || isset(Tokens::$comparisonTokens[$code]) === true
@@ -1072,13 +658,7 @@ class NPathComplexitySniff implements Sniff
             || $code === T_INSTANCEOF;
     }
 
-    /**
-     * The `:` pairing with the `?` at $thenPtr, skipping any nested ternary and
-     * any `:` that belongs to something else (a named argument, an alternative
-     * syntax block, a match arm).
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function ternaryElse(File $phpcsFile, array $tokens, int $thenPtr, int $end): ?int
     {
         $depth = 0;
@@ -1087,7 +667,10 @@ class NPathComplexitySniff implements Sniff
         while (++$ptr < $end) {
             $code = $tokens[$ptr]['code'];
 
-            if (isset($tokens[$ptr]['parenthesis_closer']) === true && $code === T_OPEN_PARENTHESIS) {
+            if (
+                isset($tokens[$ptr]['parenthesis_closer']) === true
+                && $code === T_OPEN_PARENTHESIS
+            ) {
                 $ptr = $tokens[$ptr]['parenthesis_closer'];
 
                 continue;
@@ -1099,7 +682,10 @@ class NPathComplexitySniff implements Sniff
                 continue;
             }
 
-            if (isset($tokens[$ptr]['scope_closer']) === true && $code === T_MATCH) {
+            if (
+                isset($tokens[$ptr]['scope_closer']) === true
+                && $code === T_MATCH
+            ) {
                 $ptr = $tokens[$ptr]['scope_closer'];
 
                 continue;
@@ -1121,7 +707,10 @@ class NPathComplexitySniff implements Sniff
                 continue;
             }
 
-            if ($code === T_SEMICOLON || $code === T_OPEN_CURLY_BRACKET) {
+            if (
+                $code === T_SEMICOLON
+                || $code === T_OPEN_CURLY_BRACKET
+            ) {
                 return null;
             }
         }
@@ -1129,16 +718,6 @@ class NPathComplexitySniff implements Sniff
         return null;
     }
 
-    /**
-     * Where the expression holding the ternary at $thenPtr begins.
-     *
-     * Scans back to the nearest token that can only precede an expression — a
-     * separator, an opening bracket, an assignment, or a keyword that takes one.
-     * Assignment operators are matched as a class so `=`, `.=`, `??=` and the
-     * rest all bound the condition the same way.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function expressionStart(array $tokens, int $thenPtr): int
     {
         $ptr = $thenPtr;
@@ -1146,7 +725,10 @@ class NPathComplexitySniff implements Sniff
         while (--$ptr > 0) {
             $code = $tokens[$ptr]['code'];
 
-            if (isset($tokens[$ptr]['parenthesis_opener']) === true && $code === T_CLOSE_PARENTHESIS) {
+            if (
+                isset($tokens[$ptr]['parenthesis_opener']) === true
+                && $code === T_CLOSE_PARENTHESIS
+            ) {
                 $ptr = $tokens[$ptr]['parenthesis_opener'];
 
                 continue;
@@ -1170,26 +752,7 @@ class NPathComplexitySniff implements Sniff
         return ($thenPtr - 1);
     }
 
-    /**
-     * Where the else-branch starting after $elsePtr ends: the first separator at
-     * the ternary's own nesting level.
-     *
-     * Every `:` this scan steps over on its way shares the terminator it lands
-     * on, because no separator lies between them, so one scan records the answer
-     * for all of them. Without that, a chain of ternaries — `$a ?: $b ?: $c ?:
-     * …`, which needs no parentheses and is ordinary valid PHP — costs a full
-     * scan to the end of the statement at every link, making the sniff quadratic
-     * in the length of the chain; a file of a few thousand links then stalls the
-     * whole run. The linearity test in tests/Standards/NPathComplexityTest.php
-     * holds it to a budget that quadratic growth cannot meet.
-     *
-     * Recording the terminator rather than truncating the scan keeps the
-     * measurement exactly as it was: a chained ternary nests to the right, and a
-     * live PHPMD run scores `$a ? 1 : $b ? 2 : $c ? 3 : 4` as 6 rather than the
-     * 8 that reading each link as a separate statement would give.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function expressionEnd(File $phpcsFile, array $tokens, int $elsePtr, int $end): int
     {
         if (isset($this->branchEnds[$elsePtr]) === true) {
@@ -1207,7 +770,10 @@ class NPathComplexitySniff implements Sniff
         while (++$ptr < $end) {
             $code = $tokens[$ptr]['code'];
 
-            if (isset($tokens[$ptr]['parenthesis_closer']) === true && $code === T_OPEN_PARENTHESIS) {
+            if (
+                isset($tokens[$ptr]['parenthesis_closer']) === true
+                && $code === T_OPEN_PARENTHESIS
+            ) {
                 $ptr = $tokens[$ptr]['parenthesis_closer'];
 
                 continue;
@@ -1238,18 +804,15 @@ class NPathComplexitySniff implements Sniff
         return $end;
     }
 
-    /**
-     * The boolean complexity PDepend's `sumComplexity()` computes for the
-     * parenthesised condition owned by the construct at $ptr.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function conditionComplexity(File $phpcsFile, array $tokens, int $ptr): int
     {
         $opener = $tokens[$ptr]['parenthesis_opener'] ?? null;
         $closer = $tokens[$ptr]['parenthesis_closer'] ?? null;
 
-        if ($opener === null || $closer === null) {
+        if (
+            $opener === null
+            || $closer === null
+        ) {
             return 0;
         }
 
@@ -1258,16 +821,6 @@ class NPathComplexitySniff implements Sniff
         return $this->expressionComplexity($phpcsFile, $tokens, $cursor, $closer);
     }
 
-    /**
-     * PDepend's `sumComplexity()`: 1 for every boolean or logical operator in
-     * the expression, plus the full NPath of any ternary in it.
-     *
-     * Boolean operators are counted flat rather than per nested expression node.
-     * A live run scores `($a && $b) || $c` as 2 and `($a && ($b || $c))` as 2,
-     * so grouping parentheses do not change the count and flat counting matches.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function expressionComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $sum = 0;
@@ -1297,30 +850,15 @@ class NPathComplexitySniff implements Sniff
         return $sum;
     }
 
-    /**
-     * The NPath of the body owned by the construct at $ptr, with $ptr advanced
-     * past that body.
-     *
-     * A construct PHPCS built no scope for is a braceless single-statement body
-     * — `if ($x) doThing();`, and equally `do <statement> while (…);`. PHPCS
-     * gives those no scope_opener/scope_closer at all, but the body is still a
-     * statement, and to PDepend a statement is scored the same whether or not
-     * braces surround it. So the braceless body is measured by the same walk a
-     * braced one gets, over the one statement it holds — which is what makes a
-     * *compound* braceless body (a nested `if`, loop, `switch` or `try`) score
-     * as itself rather than as the 1 an empty sequence scores, and equally what
-     * makes a token buried later in a plain statement count inside the body
-     * rather than in the enclosing block. bracelessBodyComplexity() carries how
-     * the statement's extent is found for each of those two kinds.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function scopeComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $opener = $tokens[$ptr]['scope_opener'] ?? null;
         $closer = $tokens[$ptr]['scope_closer'] ?? null;
 
-        if ($opener === null || $closer === null) {
+        if (
+            $opener === null
+            || $closer === null
+        ) {
             return $this->bracelessBodyComplexity($phpcsFile, $tokens, $ptr, $end);
         }
 
@@ -1332,45 +870,6 @@ class NPathComplexitySniff implements Sniff
         return $npath;
     }
 
-    /**
-     * The NPath of the single statement a scope-less construct owns, with $ptr
-     * left on that statement's last token.
-     *
-     * The statement starts after the construct's own parentheses where it has
-     * them (`if`, `while`, `for`, `foreach`) and directly after the keyword
-     * where it does not (`do`, `else`). It is then measured by the same
-     * blockComplexity() walk a braced body gets, which is what makes the
-     * docblock's invariant above hold for the *whole* statement rather than
-     * only for its first token.
-     *
-     * Two kinds of statement need that walk to be bounded differently, and
-     * statementComplexity() itself reports which kind this is by how far it
-     * moves the cursor:
-     *
-     * - A construct — `if`, a loop, `switch`, `try`, `return`, or a nested
-     *   braceless construct — measures itself in full and leaves the cursor
-     *   past everything it owns. It moves by more than one token, and the
-     *   statement is already fully measured.
-     * - Anything else is scored one token deep by the default branch, which
-     *   moves the cursor by exactly one. The rest of the statement is still
-     *   unmeasured, and it belongs here: a ternary buried in a call argument
-     *   or an assignment right-hand side must be multiplied into this body's
-     *   own NPath. Left to the enclosing sequence, it would be multiplied into
-     *   the wrong scope instead — `if ($x) foo($a ? 1 : 2);` scoring 4 where
-     *   the identical braced code scores 3.
-     *
-     * So the remainder is walked to the statement's own `;`, bounded from the
-     * statement's first token so a `;` belonging to the enclosing block can
-     * never be mistaken for this one's. `passing.php` pins a braceless buried
-     * token against its braced counterpart for every construct that can own a
-     * braceless body.
-     *
-     * A body that cannot be located — nothing before $end — scores the 1 an
-     * empty statement sequence scores, and the cursor still advances so the
-     * caller's walk cannot spin.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function bracelessBodyComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int
     {
         $closer = $tokens[$ptr]['parenthesis_closer'] ?? $ptr;

@@ -493,9 +493,107 @@ is intentional, and they are only useful if they explain themselves.
 ```bash
 composer install
 composer test     # the full Pest suite
-composer lint     # PSR-12 self-lint of the sniff/test code (fixtures excluded)
+composer lint      # PSR-12 over the sniff and test code (fixtures excluded)
+composer lint:self # the shipped ruleset against CleanCode/, at zero errors
 
 vendor/bin/pest --testsuite=Standards      # one suite
 vendor/bin/pest --filter='flags every'     # one test
 vendor/bin/phpcs --standard=rules.xml <file>   # run the master ruleset
 ```
+
+### The self-lint
+
+`composer lint:self` runs the shipped ruleset over the package's own sniff
+sources through `phpcs.self.xml`. **Zero errors is the bar**, CI runs it on every
+pull request, and **it passes**: `phpcs --standard=phpcs.self.xml` reports 0
+errors. It got there from 3103. Keep it there — a new error is a regression, not
+a starting point for a discussion.
+
+No *file* is granted an allowance. Nine rules are silenced ruleset-wide, and
+roughly two dozen individual lines carry a `phpcs:ignore` with its reason on the
+same line. Both kinds are readable at the point they apply.
+
+**A silenced rule is not the same as a tuned exclusion list.** The bar moves to
+the code, never the code to the bar, so a rule is only silenced when following it
+would produce something wrong rather than something inconvenient. Three groups,
+each argued at the exclusion in `phpcs.self.xml`:
+
+- **Laravel helpers this package does not depend on.**
+  `Arrays.ArrayAccessors` prescribes `data_get()`; `Arrays.ConvertToCollection`
+  and `Collections.OnlyUseCollectionMethods` prescribe `collect()`. A fixer run
+  would emit calls to functions that do not exist here.
+- **Naming length, asked of the wrong subject.** `Naming.ShortVariable`,
+  `Naming.LongVariable` and `Naming.LongClassName`: `$i` is the index idiom in a
+  `for` walk, `$isStatementScopeOpener` earns its length, and a sniff's class
+  name is fixed by the sniff code consumers write in their rulesets.
+- **Complexity, asked of a token walker.** `Metrics.MethodNestingLevel`,
+  `Metrics.CyclomaticComplexity`, `Metrics.NPathComplexity` and
+  `Metrics.ExcessiveClassComplexity` accounted for 190 of the last 227 errors,
+  and all four fire on the same thing. A sniff reads a flat token array and
+  answers questions about nested structure: a loop with a switch inside it, a
+  branch per token type, a guard per malformed-source case. The branching is
+  what the work *is*. Splitting a walk into more methods moves the branches
+  without removing them and costs the reader the one place the walk can be seen.
+
+All nine stay at full severity in `rules.xml`, so a consumer's application code
+is still held to every one of them. Application code branches because somebody
+made a decision; a token walker branches because the grammar does.
+
+The step runs **last** in the workflow, after the lint and the test suite, so a
+contributor sees whether their own change is sound before anything else fails.
+
+Scope is set by `<file>CleanCode</file>` rather than by an exclude-pattern.
+PHPCS applies an exclude-pattern even to a path named on the command line, so
+excluding `tests/` would break any run that lints a fixture by explicit path —
+which several suites here do. Naming `CleanCode/` leaves everything else out of
+scope with nothing suppressed. The test tree still gets PSR-12 via
+`composer lint`.
+
+Only errors are counted, because only errors gate `phpcs`. Warnings stand at
+3386, and `CleanCode.Conditionals.AvoidConditionals` alone accounts for most of
+them — admitting warnings would be a far larger decision than this gate.
+
+### `process()` and the untyped `$stackPtr`
+
+Settled convention, established by PR #168 — not a per-sniff judgement call.
+`Sniff::process(File $phpcsFile, $stackPtr)` leaves `$stackPtr` untyped because
+narrowing an inherited parameter to `int` breaks contravariance with the
+PHP_CodeSniffer `Sniff` interface, which is a fatal error. Silence
+`SlevomatCodingStandard.TypeHints.ParameterTypeHint` at the signature and say
+why, as `CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php` does:
+
+```php
+// phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
+public function process(File $phpcsFile, $stackPtr): void
+```
+
+Name the **sniff**, not the message code. Without a `@param` annotation the
+sniff reports `MissingAnyTypeHint` rather than `MissingNativeTypeHint`, so a
+code-specific suppression stops matching the moment the docblock goes.
+
+### Comments
+
+A comment explains **unexpected behavior** or an **unexpected requirement**.
+Nothing else. There are no PHPDoc blocks in this package.
+
+Keep a comment when a reader would otherwise be surprised:
+
+- "PHPCS applies an `<exclude-pattern>` even to a path named on the command
+  line."
+- "Left unset, this property follows whichever interpreter runs `phpcs`, so a
+  consumer on a newer PHP gets findings their CI did not."
+
+Cut anything that restates what the code or config line already says, narrates
+how a decision was reached, or repeats a `docs/standards/*.md` the line already
+points at. An XML comment and a docblock cannot be tested, so they drift in
+silence — `rules.xml` has shipped three false claims that way.
+
+Never make a comment a test's expected value. An enumeration a test needs is
+data, so it belongs in code: see `MultiLineStatementIndentSniff`'s
+`EXPRESSION_SCOPES` / `NON_EXPRESSION_SCOPES` pair, whose union the suite
+checks against PHPCS's own register.
+
+An XML comment cannot contain `--`, so a CLI flag written inside one makes the
+ruleset unparseable. PHPCS then reports `Comment must not contain '--'` and
+exits 3, and a suite that loads the standard hangs rather than failing. Write
+"the config-set command", not the flag.

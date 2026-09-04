@@ -127,9 +127,15 @@ it('reports a dangling boolean outside the clause it defers', function (): void 
         ->and(trim($source[44]))->toBe('$ready = $ready ||');
 });
 
-it('reports violations that are not auto-fixable', function (): void {
+/**
+ * Every violation is fixable, because the fix is position only: the token
+ * sequence is unchanged and just the line break moves from after the operator
+ * to before it. Asserted as parity with the error count rather than as a fixed
+ * number, so a fixer that started declining a shape fails here.
+ */
+it('fixes every violation it reports', function (): void {
     $file = analyzeFixture(OPERATOR_LINE_BREAK, 'failing.php');
 
     expect($file->getErrorCount())->toBeGreaterThan(0)
-        ->and($file->getFixableCount())->toBe(0);
+        ->and($file->getFixableCount())->toBe($file->getErrorCount());
 });

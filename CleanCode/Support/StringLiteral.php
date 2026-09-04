@@ -4,83 +4,126 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Support;
 
-/**
- * Reads the shape of a PHP string-literal token for the Strings standard
- * sniffs.
- *
- * Every one of those sniffs has to answer the same two questions about a
- * literal token before it can rewrite it, and getting either wrong corrupts
- * code:
- *
- * - **Which quote delimits it?** Not simply the token's first character. A
- *   binary-string prefix (`b'x'`, `B"y"`) sits in front of the delimiter, and
- *   PHP_CodeSniffer's tokenizer splits the *lowercase* `b` off into a separate
- *   `T_BINARY_CAST` token while an uppercase `B` stays inside the literal's
- *   content. A sniff reading `$content[0]` therefore sees `B` and treats the
- *   literal as single-quoted when it is double-quoted (or skips it entirely).
- *   Uppercase is the only spelling that reaches this class: prefix() reads
- *   either for symmetry, but its lowercase branch is unreachable for genuine
- *   tokenizer output. Round-trip safety for `b` comes instead from a fixer
- *   replacing only the string token, which leaves the cast token in place.
- * - **Is this the whole literal?** A string whose source spans several physical
- *   lines is tokenized one token per line, all of the same token type. Only the
- *   first fragment opens with the delimiter and only the last one closes with
- *   it, so a fixer that treats a fragment as a whole literal rewrites a piece
- *   of a string and leaves the file unparseable.
- */
+use PHP_CodeSniffer\Util\Tokens;
+
 final class StringLiteral
 {
-    /**
-     * The binary-string prefix on a literal token, or '' when it has none.
-     */
-    public static function prefix(string $content): string
+    public function prefix(string $content): string
     {
         $first = substr($content, 0, 1);
 
         return ($first === 'b' || $first === 'B') ? $first : '';
     }
 
-    /**
-     * The quote character that delimits a literal token, or null when the
-     * token does not open one — which is what every fragment of a multi-line
-     * literal after the first looks like.
-     */
-    public static function delimiter(string $content): ?string
+    public function delimiter(string $content): ?string
     {
-        $opener = substr(self::body($content), 0, 1);
+        $opener = substr($this->body($content), 0, 1);
 
-        return ($opener === '"' || $opener === "'") ? $opener : null;
+        return ($opener === "\"" || $opener === "'") ? $opener : null;
     }
 
-    /**
-     * Whether a token holds a whole literal rather than one physical-line
-     * fragment of a multi-line one: it opens with a delimiter and closes with
-     * the same one. The length check keeps a lone delimiter from counting as
-     * both ends of itself.
-     */
-    public static function isComplete(string $content): bool
+    public function isComplete(string $content): bool
     {
-        $body = self::body($content);
-        $delimiter = self::delimiter($content);
+        $body = $this->body($content);
+        $delimiter = $this->delimiter($content);
 
         return $delimiter !== null && strlen($body) >= 2 && substr($body, -1) === $delimiter;
     }
 
-    /**
-     * A complete literal's inner text, without its prefix or its delimiters.
-     * Callers are expected to have established isComplete() first.
-     */
-    public static function inner(string $content): string
+    public function inner(string $content): string
     {
-        return substr(self::body($content), 1, -1);
+        return substr($this->body($content), 1, -1);
     }
 
-    /**
-     * The token's content with any binary-string prefix removed, so the
-     * delimiter is the first character.
-     */
-    private static function body(string $content): string
+    // The text a run of concatenated string literals builds, starting at
+    // $start, with each fragment's escapes resolved the way its own delimiter
+    // resolves them. A `\n` is a line break inside double quotes and two
+    // characters inside single quotes, and a caller reading the text for its
+    // shape has to see the difference — a config block written with "\n" is one
+    // block, and a Windows path written with '\n' is not.
+    public function concatenated(array $tokens, int $start): string
     {
-        return substr($content, strlen(self::prefix($content)));
+        $value = '';
+        $ptr = $start;
+        $end = count($tokens);
+
+        while ($ptr < $end) {
+            if ($this->isLiteral($tokens, $ptr) === true) {
+                $value .= $this->resolveEscapes($tokens[$ptr]['content']);
+                $ptr++;
+
+                continue;
+            }
+
+            if (
+                $tokens[$ptr]['code'] !== T_STRING_CONCAT
+                && isset(Tokens::$emptyTokens[$tokens[$ptr]['code']]) === false
+            ) {
+                break;
+            }
+
+            $ptr++;
+        }
+
+        return $value;
+    }
+
+    // A single-quoted literal's inner text, rewritten to sit inside double
+    // quotes with its value unchanged.
+    //
+    // Two conversions, in this order. A single-quoted body resolves only `\\`
+    // and `\'`, so those come back to the characters they stand for first;
+    // every other backslash in it was already literal. Then the whole thing is
+    // escaped for a double-quoted body, where a backslash, a quote and a `$`
+    // each mean something.
+    //
+    // Escaping `$` covers the brace triggers too: `{$` becomes `{\$` and `${`
+    // becomes `\${`, neither of which interpolates, so a lone `{` needs nothing.
+    public function singleQuotedInnerAsDoubleQuoted(string $inner): string
+    {
+        $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
+
+        return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
+    }
+
+    // Literal text rewritten to sit in a HEREDOC body with its value unchanged.
+    //
+    // A HEREDOC resolves the same escapes a double-quoted string does and
+    // interpolates the same expressions, so a backslash and a `$` each have to
+    // be escaped. Escaping `$` covers `{$` and `${` too, which is why a lone
+    // brace needs nothing. A `"` needs nothing either — that is the readability
+    // gain a HEREDOC has over both quoted forms.
+    public function asHeredocBody(string $text): string
+    {
+        return str_replace(['\\', '$'], ['\\\\', '\\$'], $text);
+    }
+
+    // Only the whitespace escapes, and only where the delimiter resolves them.
+    // Nothing else matters to a caller reading the text for its shape, and
+    // resolving more would mean reimplementing PHP's own unescaping.
+    private function resolveEscapes(string $content): string
+    {
+        $inner = $this->inner($content);
+
+        if ($this->delimiter($content) !== "\"") {
+            return $inner;
+        }
+
+        return str_replace(['\\r\\n', '\\n', '\\r', '\\t'], ["\n", "\n", "\r", "\t"], $inner);
+    }
+
+    private function isLiteral(array $tokens, int $ptr): bool
+    {
+        return isset($tokens[$ptr]) === true
+            && in_array(
+                $tokens[$ptr]['code'],
+                [T_CONSTANT_ENCAPSED_STRING, T_DOUBLE_QUOTED_STRING],
+                true
+            ) === true;
+    }
+
+    private function body(string $content): string
+    {
+        return substr($content, strlen($this->prefix($content)));
     }
 }

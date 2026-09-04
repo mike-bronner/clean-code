@@ -9,57 +9,8 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Flags chained property fetches rooted in a variable ($a->b->c).
- *
- * Enforces the "Models: Relationship Properties" standard
- * (docs/standards/models-relationship-properties.md): reading through a
- * relationship ($book->author->name) couples the caller to two models and
- * leaves every call site to guard against a missing relationship. The remedy
- * is an accessor attribute on the first model — getAuthorNameAttribute() —
- * so the caller writes $book->authorName instead.
- *
- * Two or more consecutive plain property-fetch hops are the token-visible
- * shape of that traversal. A method-call hop is a different access pattern,
- * so it ends the segment it belongs to; property fetches after it start a new
- * segment and are judged on their own ($a->b()->c->d flags c->d). A dynamic
- * member name ($a->{$b}, $a->$b) is unknowable at token level and ends its
- * segment the same way. Array access and static roots (Foo::bar()->baz->qux)
- * are out of scope. A grouping parenthesis around the root hides nothing —
- * ($book)->author->name reads the same relationship as $book->author->name,
- * so the root is looked for inside the group, as long as the whole group is
- * that one expression. A group holding several (a ternary's arms, a match's
- * arms) has no single root, so it is out of scope rather than judged on
- * whichever arm happens to be written last.
- *
- * What counts as a grouping parenthesis, and what counts as a receiver at all,
- * are both decided from closed admission sets rather than by excluding the
- * shapes that came to mind: a construct whose subject or body is written in
- * brackets — match ($book) {...}, eval($code), array($book), isset($book) — is
- * not a receiver this sniff models, and refusing everything unrecognised keeps
- * an unlisted one silent instead of reporting a chain against it.
- */
 class DisallowChainedPropertyFetchSniff implements Sniff
 {
-    /**
-     * The tokens a grouping parenthesis may follow, beyond the operator unions
-     * PHP_CodeSniffer already publishes. See isGroupingParenthesis().
-     *
-     * Arrived at by sweeping PHP_CodeSniffer's whole token catalogue once —
-     * every T_* constant it defines, not the members that came to mind — and
-     * admitting each token a parenthesis can legally follow and still be
-     * grouping one expression. Every admission below is a shape `php -l`
-     * accepts and a fixture line reports; every token left out is refused on
-     * purpose and recorded as such by the catalogue test, which fails on any
-     * token this list and that one both leave unclassified. Adding the next
-     * omission one at a time is what this is written to stop.
-     *
-     * No member is redundant with those unions, which is asserted rather than
-     * assumed: `=>` was listed here until the sweep found Tokens::$assignmentTokens
-     * already supplying it, and group-preceders.php pins the shape either way.
-     *
-     * @var array<int, int|string>
-     */
     private const GROUP_PRECEDERS = [
         // Where an expression starts: the file's own opening tags, the end of
         // the statement before, and the brace opening a block or a braced
@@ -131,77 +82,22 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         T_PIPE,
     ];
 
-    /**
-     * The token stream self::$roots was built from, so a stream it does not
-     * describe is never answered from. The record holds pointers into one
-     * particular stream, and TokenStreams::key() — the one implementation the
-     * four sniffs with a per-stream index in this package share — is what tells
-     * that stream from every other, including the next `phpcbf` pass over the
-     * same file.
-     */
     private ?string $rootsKey = null;
 
-    /**
-     * Token the root walk stood on => where the walk from it ended, as
-     * rootFrom() returns it: the pointer to the variable the expression is
-     * rooted in, the opener of the group holding it, or false for anything
-     * this sniff does not model.
-     *
-     * @var array<int, int|false>
-     */
     private array $roots = [];
 
-    /**
-     * How many times the record was emptied for a new token stream, and how
-     * many times the key guard left it standing for the stream it describes.
-     *
-     * The record exists to absorb many root walks per token stream, and nothing
-     * a black-box test can observe tells "kept across the stream" from
-     * "emptied on every read": both report the same violations. These two
-     * counters are what tell them apart, and
-     * tests/Standards/DisallowChainedPropertyFetchTest.php pins both numbers.
-     *
-     * Each increment sits inside the same branch as the guard it counts, so a
-     * guard that stopped working cannot leave the counts intact. The totals are
-     * cumulative for the life of the sniff instance — tests/Helpers.php's
-     * buildRuleset() memoises the instance, so every test in one file shares
-     * one — and are read as a delta around a single process() run.
-     *
-     * @var array<string, int>
-     */
     private array $cacheCounts = [
         'roots.builds' => 0,
         'roots.hits' => 0,
     ];
 
-    /**
-     * How many tokens rootFrom()'s walk has stepped over for the stream the
-     * record currently describes.
-     *
-     * This is what bounds the cost, stated as a number. The record answers a
-     * walk that reaches a token already decided, so every token of a file is
-     * stepped over once however many chains are rooted through it; without the
-     * record a chain broken into segments walks its whole receiver again per
-     * segment and the count becomes quadratic. The scale test in
-     * tests/Standards/DisallowChainedPropertyFetchTest.php used to state that
-     * as elapsed seconds against a fixed budget, which a shared CI runner's
-     * jitter can cross with no code change (#321, #354).
-     *
-     * The increment is the first statement of the walk's own loop body, after
-     * the record's own guard has had its turn, so a step is counted exactly
-     * when the record did not answer.
-     *
-     * It counts *for one stream*, not for the life of the instance: it is
-     * cleared in discardRootsOfOtherStreams(), in the same branch that empties
-     * the record itself, because a step count carried from another file
-     * describes that file and not this one. That coupling is what
-     * `it('keeps no record across files')` pins.
-     */
     private int $walkSteps = 0;
 
-    /**
-     * @return array<int|string>
-     */
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -210,34 +106,17 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         ];
     }
 
-    /**
-     * How many times the walked-root record was emptied for a new stream and
-     * how many times the key guard left it standing, cumulative for the life of
-     * this instance.
-     *
-     * @return array<string, int>
-     */
     public function cacheCounts(): array
     {
         return $this->cacheCounts;
     }
 
-    /**
-     * How many tokens the root walk stepped over for the stream the record
-     * currently describes. Cleared with the record itself, so this is read
-     * straight rather than as a delta. See $walkSteps.
-     */
     public function walkSteps(): int
     {
         return $this->walkSteps;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -252,7 +131,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         // closing parenthesis, an array subscript — starts a fresh segment.
         $receiverPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        if ($receiverPtr === false || $tokens[$receiverPtr]['code'] !== T_STRING) {
+        if (
+            $receiverPtr === false
+            || $tokens[$receiverPtr]['code'] !== T_STRING
+        ) {
             return;
         }
 
@@ -263,7 +145,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             true
         );
 
-        if ($previousOperatorPtr === false || $this->isObjectOperator($tokens, $previousOperatorPtr) === false) {
+        if (
+            $previousOperatorPtr === false
+            || $this->isObjectOperator($tokens, $previousOperatorPtr) === false
+        ) {
             return;
         }
 
@@ -303,55 +188,37 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
-    /**
-     * The pointer to this hop's member name when the hop is a plain property
-     * fetch, false otherwise. A dynamic member name ($a->{$b}, $a->$b) is not
-     * a T_STRING, and a name followed by an opening parenthesis is a method
-     * call rather than a property read.
-     *
-     * @return int|false
-     */
-    private function propertyNameAfter(File $phpcsFile, int $operatorPtr)
+    private function propertyNameAfter(File $phpcsFile, int $operatorPtr): int|false
     {
         $tokens = $phpcsFile->getTokens();
 
         $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($operatorPtr + 1), null, true);
 
-        if ($memberPtr === false || $tokens[$memberPtr]['code'] !== T_STRING) {
+        if (
+            $memberPtr === false
+            || $tokens[$memberPtr]['code'] !== T_STRING
+        ) {
             return false;
         }
 
         $afterMemberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($memberPtr + 1), null, true);
 
-        if ($afterMemberPtr !== false && $tokens[$afterMemberPtr]['code'] === T_OPEN_PARENTHESIS) {
+        if (
+            $afterMemberPtr !== false
+            && $tokens[$afterMemberPtr]['code'] === T_OPEN_PARENTHESIS
+        ) {
             return false;
         }
 
         return $memberPtr;
     }
 
-    /**
-     * Whether the expression the given hop hangs off ultimately starts at a
-     * variable.
-     */
     private function isRootedInVariable(File $phpcsFile, int $operatorPtr): bool
     {
         return $this->rootBefore($phpcsFile, $operatorPtr) !== false;
     }
 
-    /**
-     * The pointer to where the receiver expression ending just before the given
-     * token starts, when it starts at a variable; false when it starts anywhere
-     * else. Walks left over the whole expression, stepping over completed
-     * calls, subscripts and braced member names, so that $a->b()->c->d is
-     * recognised as variable-rooted while Foo::bar()->baz->qux is not. A
-     * grouping parenthesis is walked into instead of over, since it is where
-     * the root of ($a)->b->c actually sits, and the group's own opener is
-     * returned as the start in that case.
-     *
-     * @return int|false
-     */
-    private function rootBefore(File $phpcsFile, int $beforePtr)
+    private function rootBefore(File $phpcsFile, int $beforePtr): int|false
     {
         return $this->rootFrom(
             $phpcsFile,
@@ -359,23 +226,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
-    /**
-     * rootBefore() from a token the walk is already standing on.
-     *
-     * The loop carries no state but $ptr, so where it ends up is a function of
-     * where it starts and nothing else — which is what makes every token it
-     * passes over answerable with the same result, and why they are all
-     * recorded on the way out. Without that, a chain whose segments are broken
-     * by method calls ($a->b()->c->d->e()->f->g...) walks the whole receiver
-     * again for every segment, and a file of n hops costs O(n²): measured at
-     * 4.2s for 4,000 hops, 16.3s for 8,000 and 62.1s for 16,000, against 0.3s
-     * flat once the walk is answered from the record.
-     *
-     * @param int|false $ptr
-     *
-     * @return int|false
-     */
-    private function rootFrom(File $phpcsFile, $ptr)
+    // phpcs:ignore CleanCode.Functions.ExcessiveMethodLength -- one root resolution, split only by guard clauses
+    private function rootFrom(File $phpcsFile, int|false $ptr): int|false
     {
         $this->discardRootsOfOtherStreams($phpcsFile);
 
@@ -391,7 +243,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             $walked[] = $ptr;
             $code = $tokens[$ptr]['code'];
 
-            if ($code === T_CLOSE_PARENTHESIS || $code === T_CLOSE_SQUARE_BRACKET || $code === T_CLOSE_CURLY_BRACKET) {
+            if (
+                $code === T_CLOSE_PARENTHESIS
+                || $code === T_CLOSE_SQUARE_BRACKET
+                || $code === T_CLOSE_CURLY_BRACKET
+            ) {
                 $openerPtr = $this->openerOf($tokens, $ptr);
 
                 if ($openerPtr === false) {
@@ -409,7 +265,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 // walk stops rather than reading one out of the subject in
                 // front of the body.
                 if ($code === T_CLOSE_CURLY_BRACKET) {
-                    if ($beforeOpenerPtr === false || $this->isObjectOperator($tokens, $beforeOpenerPtr) === false) {
+                    if (
+                        $beforeOpenerPtr === false
+                        || $this->isObjectOperator($tokens, $beforeOpenerPtr) === false
+                    ) {
                         return $this->recordRoots($walked, false);
                     }
 
@@ -420,7 +279,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
                 // A call's argument list and a subscript both belong to the
                 // token in front of their opener, so the walk continues there.
-                if ($code === T_CLOSE_SQUARE_BRACKET || $this->isInvokedOn($tokens, $beforeOpenerPtr) === true) {
+                if (
+                    $code === T_CLOSE_SQUARE_BRACKET
+                    || $this->isInvokedOn($tokens, $beforeOpenerPtr) === true
+                ) {
                     $ptr = $beforeOpenerPtr;
 
                     continue;
@@ -445,19 +307,28 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 continue;
             }
 
-            if ($code !== T_STRING && $code !== T_VARIABLE) {
+            if (
+                $code !== T_STRING
+                && $code !== T_VARIABLE
+            ) {
                 return $this->recordRoots($walked, false);
             }
 
             $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
-            if ($previousPtr !== false && $this->isObjectOperator($tokens, $previousPtr) === true) {
+            if (
+                $previousPtr !== false
+                && $this->isObjectOperator($tokens, $previousPtr) === true
+            ) {
                 $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($previousPtr - 1), null, true);
 
                 continue;
             }
 
-            if ($previousPtr !== false && $tokens[$previousPtr]['code'] === T_DOUBLE_COLON) {
+            if (
+                $previousPtr !== false
+                && $tokens[$previousPtr]['code'] === T_DOUBLE_COLON
+            ) {
                 return $this->recordRoots($walked, false);
             }
 
@@ -467,13 +338,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $this->recordRoots($walked, false);
     }
 
-    /**
-     * Empties the record of walked tokens when the token stream it describes is
-     * no longer the one being processed.
-     */
     private function discardRootsOfOtherStreams(File $phpcsFile): void
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->rootsKey === $key) {
             $this->cacheCounts['roots.hits']++;
@@ -487,16 +356,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         $this->walkSteps = 0;
     }
 
-    /**
-     * Records $result against every token the walk passed over, and returns it
-     * so a caller can `return $this->recordRoots(...)` in one step.
-     *
-     * @param array<int, int> $walked
-     * @param int|false       $result
-     *
-     * @return int|false
-     */
-    private function recordRoots(array $walked, $result)
+    private function recordRoots(array $walked, int|false $result): int|false
     {
         foreach ($walked as $ptr) {
             $this->roots[$ptr] = $result;
@@ -505,27 +365,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $result;
     }
 
-    /**
-     * Where a grouping parenthesis's contents start, when the whole group is
-     * the variable-rooted expression the walk found in it; false otherwise.
-     *
-     * The walk back from the closer consumes one expression, so the group is
-     * only accepted when that expression reaches the group's own first token.
-     * A group holding more than one — either arm of a ternary or a match, the
-     * two sides of ?? and ?: — leaves tokens in front of it, and reading a root
-     * out of the last arm alone would decide the verdict from the order the
-     * arms are written in: ($cond ? Book::first() : $cached)->author->name and
-     * ($cond ? $cached : Book::first())->author->name say the same thing, so
-     * neither may be flagged while the other is silent. Such a group reports
-     * nothing, the same as the static root inside it would on its own.
-     *
-     * The opener is returned rather than the root itself, so that a group
-     * wrapped in another — (($book))->author->name — still reads to the outer
-     * group as reaching its own first token.
-     *
-     * @return int|false
-     */
-    private function rootInsideGroup(File $phpcsFile, int $openerPtr, int $closerPtr)
+    private function rootInsideGroup(File $phpcsFile, int $openerPtr, int $closerPtr): int|false
     {
         $rootPtr = $this->rootBefore($phpcsFile, $closerPtr);
 
@@ -538,17 +378,16 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $rootPtr === $firstInGroupPtr ? $openerPtr : false;
     }
 
-    /**
-     * Whether the hop before the given one is itself a property-fetch hop,
-     * which means this chain already produced a diagnostic further left.
-     */
     private function isPrecededByAnotherHop(File $phpcsFile, int $operatorPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
         $receiverPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($operatorPtr - 1), null, true);
 
-        if ($receiverPtr === false || $tokens[$receiverPtr]['code'] !== T_STRING) {
+        if (
+            $receiverPtr === false
+            || $tokens[$receiverPtr]['code'] !== T_STRING
+        ) {
             return false;
         }
 
@@ -557,29 +396,13 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $previousPtr !== false && $this->isObjectOperator($tokens, $previousPtr) === true;
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $tokens
-     */
     private function isObjectOperator(array $tokens, int $ptr): bool
     {
         return $tokens[$ptr]['code'] === T_OBJECT_OPERATOR
             || $tokens[$ptr]['code'] === T_NULLSAFE_OBJECT_OPERATOR;
     }
 
-    /**
-     * Whether an opening parenthesis is an argument list belonging to what
-     * precedes it, rather than a grouping parenthesis standing on its own.
-     * Decided from the preceding token: only a token that ends an expression
-     * can be called, and each listed here is one — a name (foo()), a variable
-     * ($fn()), another call (foo()()), a subscript ($handlers['x']()) or a
-     * braced member name ($book->{$method}()). Anything else in that position
-     * (=, ?, :, return, another opener) cannot be, so the parenthesis groups.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     * @param int|false                        $beforeOpenerPtr pointer to the
-     *        token before the opener, false when the opener starts the file
-     */
-    private function isInvokedOn(array $tokens, $beforeOpenerPtr): bool
+    private function isInvokedOn(array $tokens, int|false $beforeOpenerPtr): bool
     {
         if ($beforeOpenerPtr === false) {
             return false;
@@ -598,47 +421,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
-    /**
-     * Whether an opening parenthesis groups a subexpression, rather than
-     * belonging to a language construct written the same way.
-     *
-     * Decided from the preceding token against a closed admission set, which is
-     * the whole point of the method: isInvokedOn() above answers "is this a
-     * call", and treating everything it rejects as a group made every
-     * construct that writes its subject in parentheses — match ($book) {...},
-     * eval($code), array($book), isset($book), list($book) — look like one, so
-     * the walk read a root out of the subject and reported a chain the sniff
-     * does not model. Naming what a group may follow instead of what it may
-     * not means an omission here costs a missed diagnostic, never a false
-     * positive on a build.
-     *
-     * Every member is a token that cannot start or continue an expression of
-     * its own, so a parenthesis after it can only open one: the start of a
-     * statement or of the file, an assignment, an operator of any kind, a
-     * separator, or a keyword that takes an expression without parenthesising
-     * it.
-     *
-     * Three groups of tokens are left out for reasons worth naming, because
-     * each reads at a glance like it belongs:
-     *
-     * - The closers — `)`, `]`, `}` and a short array's — are absent
-     *   deliberately: a parenthesis after one of them invokes what precedes it
-     *   (`${'fn'}($book)` calls `fn` with `$book`), and isInvokedOn() has
-     *   already claimed them. Admitting `}` alongside its opener for symmetry
-     *   would read that argument list as a group and report a chain against
-     *   the argument — the false positive this whole method exists to avoid.
-     * - `new` and `instanceof` take a class, not an expression, so
-     *   `new ($book)->author->name` and `$x instanceof ($book)->author->name`
-     *   are both source PHP rejects outright.
-     * - `break`, `continue`, `exit`, `static`, `namespace` and `goto` cannot be
-     *   followed by a parenthesised expression at all; each was checked against
-     *   `php -l` rather than assumed.
-     *
-     * @param array<int, array<string, mixed>> $tokens
-     * @param int|false                        $beforeOpenerPtr pointer to the
-     *        token before the opener, false when the opener starts the file
-     */
-    private function isGroupingParenthesis(array $tokens, $beforeOpenerPtr): bool
+    private function isGroupingParenthesis(array $tokens, int|false $beforeOpenerPtr): bool
     {
         if ($beforeOpenerPtr === false) {
             return true;
@@ -654,12 +437,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             || isset(Tokens::$castTokens[$code]) === true;
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $tokens
-     *
-     * @return int|false
-     */
-    private function openerOf(array $tokens, int $ptr)
+    private function openerOf(array $tokens, int $ptr): int|false
     {
         if ($tokens[$ptr]['code'] === T_CLOSE_PARENTHESIS) {
             return $tokens[$ptr]['parenthesis_opener'] ?? false;

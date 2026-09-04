@@ -8,37 +8,14 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-/**
- * Enforces the "Clear Code: One Thought Per Line" standard.
- *
- * Each line may carry at most one access operator (`->`, `?->`, or `::`) per
- * expression chain. A chain like `$user->profile->address->city` stacks
- * several thoughts on one line; the sniff flags every chain operator that
- * follows another operator of the same chain on the same line. Chains split
- * across lines (the fluent-builder style) and lines whose operators belong to
- * separate expressions (`$this->name = $user->name`) are compliant.
- *
- * The auto-fixer moves each offending operator onto its own continuation
- * line, indented one level past the line that starts the chain — the
- * behavior-preserving half of the standard. Extracting the chain into an
- * intermediate variable or model attribute is a semantic refactor (it needs a
- * name and a statement boundary) and stays with the developer.
- */
 class OneThoughtPerLineSniff implements Sniff
 {
-    /**
-     * The access operators the standard counts.
-     */
     private const ACCESS_OPERATORS = [
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_DOUBLE_COLON,
     ];
 
-    /**
-     * Tokens that can form the segment between two operators of one chain
-     * (member names, variables, and class references such as static/self).
-     */
     private const CHAIN_SEGMENT_TOKENS = [
         T_STRING,
         T_VARIABLE,
@@ -47,21 +24,43 @@ class OneThoughtPerLineSniff implements Sniff
         T_PARENT,
     ];
 
-    /**
-     * @return array<int|string>
-     */
+    private const GROUP_OPENERS = [
+        T_OPEN_PARENTHESIS,
+        T_OPEN_SQUARE_BRACKET,
+        T_OPEN_SHORT_ARRAY,
+    ];
+
+    private const GROUP_CLOSERS = [
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SQUARE_BRACKET,
+        T_CLOSE_SHORT_ARRAY,
+    ];
+
+    // A brace ends the search rather than being stepped over. An operator in a
+    // closure body is inside that body, not inside whatever argument list the
+    // closure was passed to, so the exemption must not reach across it.
+    private const GROUP_BOUNDARIES = [
+        T_SEMICOLON,
+        T_OPEN_CURLY_BRACKET,
+        T_CLOSE_CURLY_BRACKET,
+    ];
+
     public function register(): array
     {
         return self::ACCESS_OPERATORS;
     }
 
-    /**
-     * @param int $stackPtr
-     *
-     * @return void
-     */
-    public function process(File $phpcsFile, $stackPtr)
+    public function process(File $phpcsFile, $stackPtr): void
     {
+        // An operator inside an argument list, an array literal, or a
+        // statement's condition is not the line's thought — it is one term of a
+        // list the line already exists to hold. Keeping those unflagged is what
+        // lets an array render one item per row, and lets parameters and
+        // conditions stay on one line.
+        if ($this->isGrouped($phpcsFile, $stackPtr) === true) {
+            return;
+        }
+
         $previousOperator = $this->previousOperatorInChain($phpcsFile, $stackPtr);
 
         if ($previousOperator === null) {
@@ -75,9 +74,9 @@ class OneThoughtPerLineSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Each line must express a single thought: at most one "->", "?->", or "::" access operator'
-                . ' per line; split the chain onto separate lines or extract an intermediate'
-                . ' variable/attribute',
+            "Each line must express a single thought: at most one \"->\", \"?->\", or \"::\""
+                . ' access operator per line; split the chain onto separate lines or extract'
+                . ' an intermediate variable/attribute',
             $stackPtr,
             'MultipleAccessOperators'
         );
@@ -88,23 +87,79 @@ class OneThoughtPerLineSniff implements Sniff
 
         $indent = $this->chainIndent($phpcsFile, $stackPtr);
 
-        $phpcsFile->fixer->beginChangeset();
+        $phpcsFile->fixer
+            ->beginChangeset();
 
-        if ($tokens[$stackPtr - 1]['code'] === T_WHITESPACE) {
-            $phpcsFile->fixer->replaceToken($stackPtr - 1, $phpcsFile->eolChar . $indent);
-        } else {
-            $phpcsFile->fixer->addContentBefore($stackPtr, $phpcsFile->eolChar . $indent);
-        }
+        $this->breakBefore($phpcsFile, $stackPtr, $phpcsFile->eolChar . $indent);
 
-        $phpcsFile->fixer->endChangeset();
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 
-    /**
-     * Finds the access operator that precedes $stackPtr within the same
-     * expression chain, walking left over the member segment and any call
-     * parentheses, index brackets, or dynamic `{…}` name braces. Returns
-     * null when $stackPtr is the first operator of its chain.
-     */
+    // Whitespace already sitting before the operator is replaced; without any,
+    // the break is inserted instead. Replacing nothing would leave the original
+    // spacing behind and glue the operator to the line above it.
+    private function breakBefore(File $phpcsFile, int $stackPtr, string $break): void
+    {
+        if ($phpcsFile->getTokens()[$stackPtr - 1]['code'] === T_WHITESPACE) {
+            $phpcsFile->fixer
+                ->replaceToken($stackPtr - 1, $break);
+
+            return;
+        }
+
+        $phpcsFile->fixer
+            ->addContentBefore($stackPtr, $break);
+    }
+
+    // Whether an unclosed `(`, `[`, or short-array opener still holds the
+    // operator. The walk steps over any group that closes before it, so only an
+    // opener whose closer sits past the operator counts as enclosing it.
+    private function isGrouped(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $ptr = $stackPtr - 1;
+
+        while ($ptr >= 0) {
+            $code = $tokens[$ptr]['code'];
+
+            if (in_array($code, self::GROUP_BOUNDARIES, true) === true) {
+                return false;
+            }
+
+            if (in_array($code, self::GROUP_CLOSERS, true) === true) {
+                $ptr = $this->groupOpener($tokens, $ptr) - 1;
+
+                continue;
+            }
+
+            if (
+                in_array($code, self::GROUP_OPENERS, true) === true
+                && $this->groupCloser($tokens, $ptr) > $stackPtr
+            ) {
+                return true;
+            }
+
+            $ptr--;
+        }
+
+        return false;
+    }
+
+    private function groupOpener(array $tokens, int $ptr): int
+    {
+        return $tokens[$ptr]['parenthesis_opener']
+            ?? $tokens[$ptr]['bracket_opener']
+            ?? $ptr;
+    }
+
+    private function groupCloser(array $tokens, int $ptr): int
+    {
+        return $tokens[$ptr]['parenthesis_closer']
+            ?? $tokens[$ptr]['bracket_closer']
+            ?? $ptr;
+    }
+
     private function previousOperatorInChain(File $phpcsFile, int $stackPtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
@@ -113,43 +168,60 @@ class OneThoughtPerLineSniff implements Sniff
         while ($ptr !== false) {
             $code = $tokens[$ptr]['code'];
 
-            if ($code === T_CLOSE_PARENTHESIS && isset($tokens[$ptr]['parenthesis_opener']) === true) {
-                $ptr = $tokens[$ptr]['parenthesis_opener'];
-            } elseif (
-                ($code === T_CLOSE_SQUARE_BRACKET || $code === T_CLOSE_CURLY_BRACKET)
-                && isset($tokens[$ptr]['bracket_opener']) === true
-            ) {
-                $ptr = $tokens[$ptr]['bracket_opener'];
-            } elseif (in_array($code, self::ACCESS_OPERATORS, true) === true) {
+            $opener = $this->closedBracketOpener($tokens, $ptr, $code);
+
+            if ($opener !== null) {
+                $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($opener - 1), null, true);
+
+                continue;
+            }
+
+            if (in_array($code, self::ACCESS_OPERATORS, true) === true) {
                 // Reached only after jumping a dynamic `{…}` segment
                 // (`->{$prop}` / `::{$prop}`), whose braces sit directly on
                 // the operator: that operator is the chain's predecessor.
                 return $ptr;
-            } elseif (in_array($code, self::CHAIN_SEGMENT_TOKENS, true) === true) {
+            }
+
+            if (in_array($code, self::CHAIN_SEGMENT_TOKENS, true) === true) {
                 $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
-                if ($before !== false && in_array($tokens[$before]['code'], self::ACCESS_OPERATORS, true) === true) {
+                if (
+                    $before !== false
+                    && in_array($tokens[$before]['code'], self::ACCESS_OPERATORS, true) === true
+                ) {
                     return $before;
                 }
 
                 return null;
-            } else {
-                return null;
             }
 
-            $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
+            return null;
         }
 
         return null;
     }
 
-    /**
-     * Continuation indent for a chain split by the fixer: the leading
-     * whitespace of the line that starts the statement holding the chain,
-     * plus one four-space level. Basing the indent on the statement's root
-     * line (not the first operator's line) keeps continuation lines level
-     * when the chain is already partially split.
-     */
+    // The opener of a bracket the walk is standing on the closer of, so the
+    // whole parenthesised or bracketed segment is stepped over in one jump. A
+    // closer whose opener PHPCS did not record answers null and ends the walk,
+    // the same as any other token that cannot continue a chain.
+    private function closedBracketOpener(array $tokens, int $ptr, int|string $code): ?int
+    {
+        if ($code === T_CLOSE_PARENTHESIS) {
+            return $tokens[$ptr]['parenthesis_opener'] ?? null;
+        }
+
+        if (
+            $code === T_CLOSE_SQUARE_BRACKET
+            || $code === T_CLOSE_CURLY_BRACKET
+        ) {
+            return $tokens[$ptr]['bracket_opener'] ?? null;
+        }
+
+        return null;
+    }
+
     private function chainIndent(File $phpcsFile, int $stackPtr): string
     {
         $tokens = $phpcsFile->getTokens();
@@ -157,7 +229,10 @@ class OneThoughtPerLineSniff implements Sniff
         $line = $tokens[$start]['line'];
         $firstOnLine = $start;
 
-        while ($firstOnLine > 0 && $tokens[$firstOnLine - 1]['line'] === $line) {
+        while (
+            $firstOnLine > 0
+            && $tokens[$firstOnLine - 1]['line'] === $line
+        ) {
             $firstOnLine--;
         }
 
@@ -167,6 +242,6 @@ class OneThoughtPerLineSniff implements Sniff
             $indent = str_replace(["\r", "\n"], '', $tokens[$firstOnLine]['content']);
         }
 
-        return $indent . '    ';
+        return "{$indent}    ";
     }
 }
