@@ -62,6 +62,12 @@ class UnusedFormalParameterSniff implements Sniff
         'traitNames' => [],
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls(),
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_CLOSURE, T_FN, T_FUNCTION];
@@ -207,11 +213,13 @@ class UnusedFormalParameterSniff implements Sniff
 
     private function isCallTo(File $phpcsFile, int $pointer, string $name): bool
     {
+        $functionCalls = $this->functionCalls;
+
         if (strtolower($phpcsFile->getTokens()[$pointer]['content']) !== $name) {
             return false;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $pointer) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $pointer) === false) {
             return false;
         }
 
@@ -530,8 +538,10 @@ class UnusedFormalParameterSniff implements Sniff
 
     private function buildDeclarations(File $phpcsFile): void
     {
+        $tokenStreams = $this->tokenStreams;
+
         $tokens = $phpcsFile->getTokens();
-        $key = TokenStreams::key($phpcsFile);
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->declarationsKey === $key) {
             $this->cacheCounts['declarations.hits']++;

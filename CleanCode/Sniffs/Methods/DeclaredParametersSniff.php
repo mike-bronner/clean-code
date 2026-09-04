@@ -37,6 +37,11 @@ class DeclaredParametersSniff implements Sniff
         '__debuginfo',
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_STRING];
@@ -44,6 +49,8 @@ class DeclaredParametersSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $name = $tokens[$stackPtr]['content'];
 
@@ -51,7 +58,7 @@ class DeclaredParametersSniff implements Sniff
             return;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 

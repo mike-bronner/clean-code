@@ -9,11 +9,11 @@ use PHP_CodeSniffer\Util\Tokens;
 
 final class FunctionCalls
 {
-    private static ?string $analysisKey = null;
+    private ?string $analysisKey = null;
 
-    private static array $analysis = ['imports' => [], 'namespaces' => []];
+    private array $analysis = ['imports' => [], 'namespaces' => []];
 
-    private static array $analysisCounts = ['builds' => 0, 'hits' => 0];
+    private array $analysisCounts = ['builds' => 0, 'hits' => 0];
 
     private const NON_CALL_PRECEDERS = [
         T_OBJECT_OPERATOR,
@@ -23,7 +23,7 @@ final class FunctionCalls
         T_NEW,
     ];
 
-    public static function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
+    public function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -62,26 +62,26 @@ final class FunctionCalls
 
         if (
             $tokens[$prev]['code'] === T_BITWISE_AND
-            && self::isReturnByReferenceMarker($phpcsFile, $prev) === true
+            && $this->isReturnByReferenceMarker($phpcsFile, $prev) === true
         ) {
             return false;
         }
 
         if ($tokens[$prev]['code'] === T_NS_SEPARATOR) {
-            return self::isGlobalQualifier($phpcsFile, $prev, $stackPtr);
+            return $this->isGlobalQualifier($phpcsFile, $prev, $stackPtr);
         }
 
-        return self::isImportedFunctionName($phpcsFile, $stackPtr) === false;
+        return $this->isImportedFunctionName($phpcsFile, $stackPtr) === false;
     }
 
-    private static function isReturnByReferenceMarker(File $phpcsFile, int $ampersandPtr): bool
+    private function isReturnByReferenceMarker(File $phpcsFile, int $ampersandPtr): bool
     {
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ampersandPtr - 1), null, true);
 
         return $before !== false && $phpcsFile->getTokens()[$before]['code'] === T_FUNCTION;
     }
 
-    private static function isGlobalQualifier(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
+    private function isGlobalQualifier(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
@@ -107,68 +107,79 @@ final class FunctionCalls
         }
 
         if ($isRelative === true) {
-            return self::isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
+            return $this->isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
         }
 
         return true;
     }
 
-    private static function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
+    private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
     {
-        $declarations = self::namespaceDeclarations($phpcsFile);
-        $block = self::namespaceBlockOf($declarations, $stackPtr);
+        $declarations = $this->namespaceDeclarations($phpcsFile);
+        $block = $this->namespaceBlockOf($declarations, $stackPtr);
 
-        return $block !== 0 && self::isNamedDeclaration($phpcsFile, $block);
+        return $block !== 0 && $this->isNamedDeclaration($phpcsFile, $block);
     }
 
-    private static function isNamedDeclaration(File $phpcsFile, int $namespacePtr): bool
+    private function isNamedDeclaration(File $phpcsFile, int $namespacePtr): bool
     {
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
 
         return $after !== false && $phpcsFile->getTokens()[$after]['code'] === T_STRING;
     }
 
-    private static function isImportedFunctionName(File $phpcsFile, int $stackPtr): bool
+    private function isImportedFunctionName(File $phpcsFile, int $stackPtr): bool
     {
-        $analysis = self::analyze($phpcsFile);
+        $analysis = $this->analyze($phpcsFile);
 
         if ($analysis['imports'] === []) {
             return false;
         }
 
-        $block = self::namespaceBlockOf($analysis['namespaces'], $stackPtr);
+        $block = $this->namespaceBlockOf($analysis['namespaces'], $stackPtr);
         $name = strtolower($phpcsFile->getTokens()[$stackPtr]['content']);
 
         return isset($analysis['imports'][$block][$name]);
     }
 
-    private static function analyze(File $phpcsFile): array
+    // The TokenStreams instance is held, never built per call. Its identities
+    // are handed out by a WeakMap and a counter it owns, so a fresh instance
+    // restarts at 1 and would give two different files the same key whenever
+    // their token counts match — turning this memo into wrong answers rather
+    // than a slow one.
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
+    private function analyze(File $phpcsFile): array
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+        $key = $tokenStreams->key($phpcsFile);
 
-        if (self::$analysisKey === $key) {
-            self::$analysisCounts['hits']++;
+        if ($this->analysisKey === $key) {
+            $this->analysisCounts['hits']++;
 
-            return self::$analysis;
+            return $this->analysis;
         }
 
-        $namespaces = self::namespaceDeclarations($phpcsFile);
-        self::$analysisCounts['builds']++;
-        self::$analysisKey = $key;
-        self::$analysis = [
+        $namespaces = $this->namespaceDeclarations($phpcsFile);
+        $this->analysisCounts['builds']++;
+        $this->analysisKey = $key;
+        $this->analysis = [
             'namespaces' => $namespaces,
-            'imports' => self::functionImports($phpcsFile, $namespaces),
+            'imports' => $this->functionImports($phpcsFile, $namespaces),
         ];
 
-        return self::$analysis;
+        return $this->analysis;
     }
 
-    public static function analysisCounts(): array
+    public function analysisCounts(): array
     {
-        return self::$analysisCounts;
+        return $this->analysisCounts;
     }
 
-    private static function namespaceDeclarations(File $phpcsFile): array
+    private function namespaceDeclarations(File $phpcsFile): array
     {
         $tokens = $phpcsFile->getTokens();
         $declarations = [];
@@ -193,7 +204,7 @@ final class FunctionCalls
         return $declarations;
     }
 
-    private static function namespaceBlockOf(array $declarations, int $stackPtr): int
+    private function namespaceBlockOf(array $declarations, int $stackPtr): int
     {
         $block = 0;
 
@@ -211,7 +222,7 @@ final class FunctionCalls
         return $block;
     }
 
-    private static function functionImports(File $phpcsFile, array $declarations): array
+    private function functionImports(File $phpcsFile, array $declarations): array
     {
         $tokens = $phpcsFile->getTokens();
         $imports = [];
@@ -219,7 +230,7 @@ final class FunctionCalls
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
             if (
                 $tokens[$ptr]['code'] !== T_USE
-                || self::isNamespaceLevel($phpcsFile, $ptr) === false
+                || $this->isNamespaceLevel($phpcsFile, $ptr) === false
             ) {
                 continue;
             }
@@ -230,9 +241,9 @@ final class FunctionCalls
                 continue;
             }
 
-            $block = self::namespaceBlockOf($declarations, $ptr);
+            $block = $this->namespaceBlockOf($declarations, $ptr);
 
-            foreach (self::importedFunctionNames($phpcsFile, $ptr, $end) as $name) {
+            foreach ($this->importedFunctionNames($phpcsFile, $ptr, $end) as $name) {
                 if ($name === '') {
                     continue;
                 }
@@ -244,7 +255,7 @@ final class FunctionCalls
         return $imports;
     }
 
-    private static function isNamespaceLevel(File $phpcsFile, int $usePtr): bool
+    private function isNamespaceLevel(File $phpcsFile, int $usePtr): bool
     {
         foreach (($phpcsFile->getTokens()[$usePtr]['conditions'] ?? []) as $condition) {
             if ($condition !== T_NAMESPACE) {
@@ -255,10 +266,10 @@ final class FunctionCalls
         return true;
     }
 
-    private static function importedFunctionNames(File $phpcsFile, int $usePtr, int $endPtr): array
+    private function importedFunctionNames(File $phpcsFile, int $usePtr, int $endPtr): array
     {
         $groupOpener = $phpcsFile->findNext(T_OPEN_USE_GROUP, ($usePtr + 1), $endPtr);
-        $isFunctionUse = self::isFunctionKeyword($phpcsFile, ($usePtr + 1), $endPtr);
+        $isFunctionUse = $this->isFunctionKeyword($phpcsFile, ($usePtr + 1), $endPtr);
 
         // The `function` keyword leads the whole statement in the no-group
         // form, so one that does not carry it binds nothing however many names
@@ -272,8 +283,8 @@ final class FunctionCalls
         }
 
         $entries = $groupOpener === false
-            ? self::commaEntries($phpcsFile, ($usePtr + 1), $endPtr)
-            : self::groupEntries($phpcsFile, $groupOpener, $endPtr);
+            ? $this->commaEntries($phpcsFile, ($usePtr + 1), $endPtr)
+            : $this->groupEntries($phpcsFile, $groupOpener, $endPtr);
 
         // A group's prefix carries the namespace for every entry inside the
         // braces, so no entry of a group can source from the global namespace.
@@ -283,22 +294,22 @@ final class FunctionCalls
         foreach ($entries as [$start, $end]) {
             if (
                 $isFunctionUse === false
-                && self::isFunctionKeyword($phpcsFile, $start, $end) === false
+                && $this->isFunctionKeyword($phpcsFile, $start, $end) === false
             ) {
                 continue;
             }
 
-            if (self::bindsGlobalFunction($phpcsFile, $start, $end, $prefixQualified) === true) {
+            if ($this->bindsGlobalFunction($phpcsFile, $start, $end, $prefixQualified) === true) {
                 continue;
             }
 
-            $names[] = self::boundName($phpcsFile, $start, $end);
+            $names[] = $this->boundName($phpcsFile, $start, $end);
         }
 
         return $names;
     }
 
-    private static function bindsGlobalFunction(
+    private function bindsGlobalFunction(
         File $phpcsFile,
         int $start,
         int $end,
@@ -311,12 +322,12 @@ final class FunctionCalls
             return false;
         }
 
-        $source = self::sourceName($phpcsFile, $start, $end);
+        $source = $this->sourceName($phpcsFile, $start, $end);
 
-        return $source !== '' && $source === self::boundName($phpcsFile, $start, $end);
+        return $source !== '' && $source === $this->boundName($phpcsFile, $start, $end);
     }
 
-    private static function sourceName(File $phpcsFile, int $start, int $end): string
+    private function sourceName(File $phpcsFile, int $start, int $end): string
     {
         $tokens = $phpcsFile->getTokens();
         $namePtr = $phpcsFile->findNext(T_STRING, $start, $end);
@@ -331,7 +342,7 @@ final class FunctionCalls
         return $namePtr === false ? '' : strtolower($tokens[$namePtr]['content']);
     }
 
-    private static function isFunctionKeyword(File $phpcsFile, int $start, int $end): bool
+    private function isFunctionKeyword(File $phpcsFile, int $start, int $end): bool
     {
         $tokens = $phpcsFile->getTokens();
         $first = $phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true);
@@ -348,22 +359,22 @@ final class FunctionCalls
         return $after !== false && $tokens[$after]['code'] !== T_NS_SEPARATOR;
     }
 
-    private static function boundName(File $phpcsFile, int $start, int $end): string
+    private function boundName(File $phpcsFile, int $start, int $end): string
     {
         $namePtr = $phpcsFile->findPrevious(T_STRING, ($end - 1), $start);
 
         return $namePtr === false ? '' : strtolower($phpcsFile->getTokens()[$namePtr]['content']);
     }
 
-    private static function groupEntries(File $phpcsFile, int $groupOpener, int $endPtr): array
+    private function groupEntries(File $phpcsFile, int $groupOpener, int $endPtr): array
     {
         $closer = $phpcsFile->findNext(T_CLOSE_USE_GROUP, ($groupOpener + 1), $endPtr);
         $closer = $closer === false ? $endPtr : $closer;
 
-        return self::commaEntries($phpcsFile, ($groupOpener + 1), $closer);
+        return $this->commaEntries($phpcsFile, ($groupOpener + 1), $closer);
     }
 
-    private static function commaEntries(File $phpcsFile, int $start, int $end): array
+    private function commaEntries(File $phpcsFile, int $start, int $end): array
     {
         $entries = [];
 

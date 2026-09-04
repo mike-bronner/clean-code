@@ -21,7 +21,7 @@ class OneConditionPerLineSniff implements Sniff
         // The span this sniff checks is defined once, in the support class, so
         // the sniffs that stand down inside it defer over the same bounds this
         // one walks. A for-loop's init and increment clauses lie outside it.
-        $region = ConditionOperatorOwnership::checkedRegion($phpcsFile, $stackPtr);
+        $region = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $stackPtr);
 
         if ($region === null) {
             return;
@@ -37,7 +37,7 @@ class OneConditionPerLineSniff implements Sniff
 
         $regionEnd = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($boundaryEnd - 1), $boundaryStart, true);
 
-        $operators = ConditionOperatorOwnership::findTopLevelTokens(
+        $operators = (new ConditionOperatorOwnership())->findTopLevelTokens(
             $phpcsFile,
             $regionStart,
             $regionEnd,

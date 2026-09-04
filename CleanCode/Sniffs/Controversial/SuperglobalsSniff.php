@@ -75,7 +75,7 @@ class SuperglobalsSniff implements Sniff
         if (
             $conditions !== []
             && in_array(end($conditions), Tokens::$ooScopeTokens, true) === true
-            && ParameterDeclaration::isPlainParameter($phpcsFile, $stackPtr) === false
+            && (new ParameterDeclaration())->isPlainParameter($phpcsFile, $stackPtr) === false
         ) {
             return;
         }

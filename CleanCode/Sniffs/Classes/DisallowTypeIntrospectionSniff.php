@@ -77,6 +77,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     private ?array $ternaryDecisions = null;
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls(),
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_INSTANCEOF, T_STRING];
@@ -134,7 +140,9 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     private function isGlobalCallAccountingForShadowing(File $phpcsFile, int $stackPtr): bool
     {
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        $functionCalls = $this->functionCalls;
+
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return false;
         }
 
@@ -266,7 +274,9 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     private function index(File $phpcsFile): void
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->indexKey === $key) {
             $this->cacheCounts['indexes.hits']++;

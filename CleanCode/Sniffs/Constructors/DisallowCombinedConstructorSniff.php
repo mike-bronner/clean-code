@@ -122,6 +122,23 @@ class DisallowCombinedConstructorSniff implements Sniff
         'chainHead.hits' => 0,
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
+    // The import-scan counters this sniff's FunctionCalls holds, exposed the way
+    // MultiLineStatementIndentSniff exposes scanCounts(): the cache moved from a
+    // class-wide static to an instance when statics were removed, so a test can
+    // no longer read it off the helper class and reads it off the very sniff
+    // instance buildRuleset() memoised instead.
+    public function analysisCounts(): array
+    {
+        $functionCalls = $this->functionCalls;
+
+        return $functionCalls->analysisCounts();
+    }
+
     public function register(): array
     {
         return [T_FUNCTION];
@@ -525,13 +542,15 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private function isTypePredicate(File $phpcsFile, int $opener): bool
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
         return $callee !== false
             && $tokens[$callee]['code'] === T_STRING
             && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
-            && FunctionCalls::isGlobalFunctionCall($phpcsFile, $callee);
+            && $functionCalls->isGlobalFunctionCall($phpcsFile, $callee);
     }
 
     private function wrapsNothingElse(File $phpcsFile, int $opener, int $closer, int $start, int $end): bool
@@ -552,11 +571,13 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private function isArgumentReader(File $phpcsFile, int $pointer): bool
     {
+        $functionCalls = $this->functionCalls;
+
         if (! in_array(strtolower($phpcsFile->getTokens()[$pointer]['content']), self::ARGUMENT_READERS, true)) {
             return false;
         }
 
-        if (! FunctionCalls::isGlobalFunctionCall($phpcsFile, $pointer)) {
+        if (! $functionCalls->isGlobalFunctionCall($phpcsFile, $pointer)) {
             return false;
         }
 

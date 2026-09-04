@@ -146,6 +146,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
     private array $arrowFunctions = [];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_OPEN_TAG];
@@ -596,6 +601,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
     private function isByValueCallOpener(File $phpcsFile, int $ptr): bool
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
@@ -633,7 +640,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         // method of the same name, is userland code free to declare `&$items`
         // and rebind the caller's variable — so it escapes like any other call.
         return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
-            && FunctionCalls::isGlobalFunctionCall($phpcsFile, $callee) === true;
+            && $functionCalls->isGlobalFunctionCall($phpcsFile, $callee) === true;
     }
 
     private function isCallableExpressionEnd(File $phpcsFile, int $ptr): bool
@@ -763,6 +770,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
     private function flagGenericCalls(File $phpcsFile, array $variables): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
@@ -785,7 +794,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $ptr) === false) {
+            if ($functionCalls->isGlobalFunctionCall($phpcsFile, $ptr) === false) {
                 continue;
             }
 
@@ -1024,6 +1033,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         array $variables,
         bool $provable
     ): ?int {
+        $functionCalls = $this->functionCalls;
         $tokens = $phpcsFile->getTokens();
 
         if ($tokens[$ptr]['code'] === T_VARIABLE) {
@@ -1056,7 +1066,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             // Collection this sniff may report on, let alone rewrite.
             $isHelper = $name['short'] === 'collect'
                 && $name['qualified'] === false
-                && FunctionCalls::isGlobalFunctionCall($phpcsFile, $name['end']) === true;
+                && $functionCalls->isGlobalFunctionCall($phpcsFile, $name['end']) === true;
 
             return $isHelper === true ? $tokens[$next]['parenthesis_closer'] : null;
         }

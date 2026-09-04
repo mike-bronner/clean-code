@@ -13,7 +13,7 @@ final class ConditionOperatorOwnership
 
     private const CONDITION_OWNERS = [T_IF, T_ELSEIF, T_WHILE, T_FOR];
 
-    public static function isDeferredToOneConditionPerLine(File $phpcsFile, int $stackPtr): bool
+    public function isDeferredToOneConditionPerLine(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -33,7 +33,7 @@ final class ConditionOperatorOwnership
             return false;
         }
 
-        $region = self::checkedRegion($phpcsFile, $owner);
+        $region = $this->checkedRegion($phpcsFile, $owner);
 
         if ($region === null) {
             return false;
@@ -54,7 +54,7 @@ final class ConditionOperatorOwnership
 
         // No top-level boolean in the checked region: OneConditionPerLine reads
         // it as a single condition and collapses any wrap in it wholesale.
-        return self::findTopLevelTokens(
+        return $this->findTopLevelTokens(
             $phpcsFile,
             ($regionStart + 1),
             ($regionEnd - 1),
@@ -62,7 +62,7 @@ final class ConditionOperatorOwnership
         ) === [];
     }
 
-    public static function checkedRegion(File $phpcsFile, int $stackPtr): ?array
+    public function checkedRegion(File $phpcsFile, int $stackPtr): ?array
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -80,12 +80,12 @@ final class ConditionOperatorOwnership
             return [$opener, $closer];
         }
 
-        $semicolons = self::findTopLevelTokens($phpcsFile, ($opener + 1), ($closer - 1), [T_SEMICOLON]);
+        $semicolons = $this->findTopLevelTokens($phpcsFile, ($opener + 1), ($closer - 1), [T_SEMICOLON]);
 
         return count($semicolons) === 2 ? [$semicolons[0], $semicolons[1]] : null;
     }
 
-    public static function findTopLevelTokens(File $phpcsFile, int $start, int $end, array $codes): array
+    public function findTopLevelTokens(File $phpcsFile, int $start, int $end, array $codes): array
     {
         $tokens = $phpcsFile->getTokens();
         $pointers = [];

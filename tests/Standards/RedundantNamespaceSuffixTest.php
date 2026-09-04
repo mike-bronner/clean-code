@@ -249,8 +249,8 @@ it('passes over a declaration keyword with no name', function (): void {
  * against the installed version rather than against its documentation, and
  * re-run on every suite run so that a release which started reading the
  * namespace reddens the claim rather than leaving a stale paragraph in the
- * docs. Same reason as the vendor evaluations pinned in SuperglobalsTest,
- * RequirePropertiesTest and MethodNestingLevelTest.
+ * docs. Same reason as the vendor evaluations pinned in SuperglobalsTest and
+ * MethodNestingLevelTest.
  *
  * vendor-superfluous-naming.php carries the five shapes Slevomat's
  * Superfluous*Naming sniffs are written for, twice: once under `App\Services`,

@@ -23,7 +23,7 @@ final class CyclomaticComplexity
         T_WHILE,
     ];
 
-    public static function forDeclaration(File $phpcsFile, int $declarationPtr): int
+    public function forDeclaration(File $phpcsFile, int $declarationPtr): int
     {
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$declarationPtr]['scope_opener'] ?? null;
@@ -42,7 +42,7 @@ final class CyclomaticComplexity
         while (++$ptr < $closer) {
             $code = $tokens[$ptr]['code'];
 
-            if (self::opensSkippedBody($tokens, $ptr) === true) {
+            if ($this->opensSkippedBody($tokens, $ptr) === true) {
                 // Resume after the skipped body. A declaration the tokenizer
                 // never closed leaves $ptr where it is, and the loop's own
                 // increment moves past it, so this cannot spin.
@@ -59,7 +59,7 @@ final class CyclomaticComplexity
         return $complexity;
     }
 
-    private static function opensSkippedBody(array $tokens, int $ptr): bool
+    private function opensSkippedBody(array $tokens, int $ptr): bool
     {
         if ($tokens[$ptr]['code'] === T_FUNCTION) {
             return true;

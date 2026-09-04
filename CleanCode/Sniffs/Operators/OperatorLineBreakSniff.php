@@ -23,7 +23,7 @@ class OperatorLineBreakSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
-        if (ConditionOperatorOwnership::isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
+        if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;
         }
 

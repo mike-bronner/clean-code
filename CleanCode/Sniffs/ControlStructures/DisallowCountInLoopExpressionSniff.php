@@ -35,6 +35,11 @@ class DisallowCountInLoopExpressionSniff implements Sniff
         T_CLOSE_CURLY_BRACKET,
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return self::LOOP_TOKENS;
@@ -149,13 +154,15 @@ class DisallowCountInLoopExpressionSniff implements Sniff
 
     private function isSizeFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
 
         if (in_array(strtolower($tokens[$stackPtr]['content']), self::SIZE_FUNCTIONS, true) === false) {
             return false;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return false;
         }
 

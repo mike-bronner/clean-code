@@ -19,6 +19,11 @@ class ConvertToCollectionSniff implements Sniff
         'array_reduce' => 'reduce',
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_STRING];
@@ -26,6 +31,8 @@ class ConvertToCollectionSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
 
         // The open-parenthesis test comes first because it is the cheapest way
@@ -47,7 +54,7 @@ class ConvertToCollectionSniff implements Sniff
             return;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 

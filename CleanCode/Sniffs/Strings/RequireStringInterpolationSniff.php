@@ -151,7 +151,7 @@ class RequireStringInterpolationSniff implements Sniff
             $code = $tokens[$pointer]['code'];
 
             if (in_array($code, self::STRING_LITERALS, true) === true) {
-                if (StringLiteral::isComplete($tokens[$pointer]['content']) === false) {
+                if ((new StringLiteral())->isComplete($tokens[$pointer]['content']) === false) {
                     return true;
                 }
 
@@ -248,7 +248,7 @@ class RequireStringInterpolationSniff implements Sniff
         // (The prefix is safe on the *non*-interpolating outputs its sibling
         // fixers build, which is why only this one refuses.) The violation is
         // still reported, as detection-only.
-        if (StringLiteral::prefix($content) !== '') {
+        if ((new StringLiteral())->prefix($content) !== '') {
             return null;
         }
 
@@ -281,8 +281,8 @@ class RequireStringInterpolationSniff implements Sniff
 
     private function literalInnerAsDoubleQuoted(string $content): ?string
     {
-        $delimiter = StringLiteral::delimiter($content);
-        $inner = StringLiteral::inner($content);
+        $delimiter = (new StringLiteral())->delimiter($content);
+        $inner = (new StringLiteral())->inner($content);
 
         if ($delimiter === "\"") {
             return $this->escapeTrailingDollar($inner);

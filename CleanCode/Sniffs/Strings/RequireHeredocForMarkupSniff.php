@@ -19,7 +19,7 @@ class RequireHeredocForMarkupSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        if (Markup::containsHtmlElement($tokens[$stackPtr]['content']) === false) {
+        if ((new Markup())->containsHtmlElement($tokens[$stackPtr]['content']) === false) {
             return;
         }
 

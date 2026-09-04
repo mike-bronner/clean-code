@@ -93,6 +93,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
     private int $walkSteps = 0;
 
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -334,7 +339,9 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
     private function discardRootsOfOtherStreams(File $phpcsFile): void
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->rootsKey === $key) {
             $this->cacheCounts['roots.hits']++;

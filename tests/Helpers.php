@@ -178,13 +178,14 @@ function parseFixture(string $directory, string $fixture): LocalFile
 function globalFunctionCallVerdicts(LocalFile $file, string $prefix): array
 {
     $verdicts = [];
+    $functionCalls = new FunctionCalls();
 
     foreach ($file->getTokens() as $pointer => $token) {
         if ($token['code'] !== T_STRING || str_starts_with($token['content'], $prefix) === false) {
             continue;
         }
 
-        $verdicts[$token['content']][] = FunctionCalls::isGlobalFunctionCall($file, $pointer);
+        $verdicts[$token['content']][] = $functionCalls->isGlobalFunctionCall($file, $pointer);
     }
 
     return $verdicts;
@@ -1712,8 +1713,8 @@ function parameterDeclarationAnswers(File $file, string $name, int $occurrence =
     $ptr = parameterDeclarationPointer($file, $name, $occurrence);
 
     return [
-        ParameterDeclaration::isPlainParameter($file, $ptr),
-        ParameterDeclaration::isPromotedParameter($file, $ptr),
+        (new ParameterDeclaration())->isPlainParameter($file, $ptr),
+        (new ParameterDeclaration())->isPromotedParameter($file, $ptr),
     ];
 }
 

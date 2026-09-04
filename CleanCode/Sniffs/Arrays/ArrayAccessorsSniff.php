@@ -49,7 +49,7 @@ class ArrayAccessorsSniff implements Sniff
 
     private const VARIADIC_REACH = 64;
 
-    private static array $byReferenceCache = [];
+    private array $byReferenceCache = [];
 
     private ?string $enclosureMapKey = null;
 
@@ -75,6 +75,11 @@ class ArrayAccessorsSniff implements Sniff
     private array $foreachClauseAsPtrs = [];
 
     private array $existenceCheckOpeners = [];
+
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
 
     public function register(): array
     {
@@ -426,8 +431,8 @@ class ArrayAccessorsSniff implements Sniff
 
     private function byReferenceParameters(string $name): array
     {
-        if (isset(self::$byReferenceCache[$name]) === true) {
-            return self::$byReferenceCache[$name];
+        if (isset($this->byReferenceCache[$name]) === true) {
+            return $this->byReferenceCache[$name];
         }
 
         $positions = [];
@@ -452,7 +457,7 @@ class ArrayAccessorsSniff implements Sniff
             }
         }
 
-        self::$byReferenceCache[$name] = $positions;
+        $this->byReferenceCache[$name] = $positions;
 
         return $positions;
     }
@@ -913,8 +918,10 @@ class ArrayAccessorsSniff implements Sniff
 
     private function buildEnclosureMap(File $phpcsFile): void
     {
+        $tokenStreams = $this->tokenStreams;
+
         $tokens = $phpcsFile->getTokens();
-        $key = TokenStreams::key($phpcsFile);
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->enclosureMapKey === $key) {
             $this->cacheCounts['enclosureMap.hits']++;

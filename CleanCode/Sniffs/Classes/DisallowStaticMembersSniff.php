@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Support\InheritedMembers;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -52,6 +53,10 @@ class DisallowStaticMembersSniff implements Sniff
         }
 
         if ($tokens[$declaratorPtr]['code'] === T_FUNCTION) {
+            if ((new InheritedMembers())->overridesStaticMethod($phpcsFile, $declaratorPtr) === true) {
+                return;
+            }
+
             $this->reportStaticMethod($phpcsFile, $stackPtr, $declaratorPtr);
 
             return;
@@ -92,6 +97,16 @@ class DisallowStaticMembersSniff implements Sniff
         );
 
         if ($propertyPtr === false) {
+            return;
+        }
+
+        $inheritedStatic = (new InheritedMembers())->redeclaresStaticProperty(
+            $phpcsFile,
+            $declaratorPtr,
+            $tokens[$propertyPtr]['content']
+        );
+
+        if ($inheritedStatic === true) {
             return;
         }
 

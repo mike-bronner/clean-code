@@ -26,9 +26,9 @@ class DepthOfInheritanceSniff implements Sniff
         T_DOLLAR_OPEN_CURLY_BRACES,
     ];
 
-    private static ?array $filesetIndex = null;
+    private ?array $filesetIndexCache = null;
 
-    private static ?array $currentFile = null;
+    private ?array $currentFileCache = null;
 
     public function register(): array
     {
@@ -140,11 +140,11 @@ class DepthOfInheritanceSniff implements Sniff
     private function currentFile(File $phpcsFile): array
     {
         if (
-            self::$currentFile !== null
-            && self::$currentFile['file']
+            $this->currentFileCache !== null
+            && $this->currentFileCache['file']
                 ->get() === $phpcsFile
         ) {
-            return self::$currentFile;
+            return $this->currentFileCache;
         }
 
         $source = '';
@@ -160,13 +160,13 @@ class DepthOfInheritanceSniff implements Sniff
             $index[$declaration['fqcn']] = $declaration['parent'];
         }
 
-        self::$currentFile = [
+        $this->currentFileCache = [
             'file' => WeakReference::create($phpcsFile),
             'declarations' => $declarations,
             'index' => $index,
         ];
 
-        return self::$currentFile;
+        return $this->currentFileCache;
     }
 
     private function filesetIndex(File $phpcsFile): array
@@ -174,11 +174,11 @@ class DepthOfInheritanceSniff implements Sniff
         $config = $phpcsFile->config;
 
         if (
-            self::$filesetIndex !== null
-            && self::$filesetIndex['run']
+            $this->filesetIndexCache !== null
+            && $this->filesetIndexCache['run']
                 ->get() === $config
         ) {
-            return self::$filesetIndex['index'];
+            return $this->filesetIndexCache['index'];
         }
 
         $index = [];
@@ -203,7 +203,7 @@ class DepthOfInheritanceSniff implements Sniff
             }
         }
 
-        self::$filesetIndex = [
+        $this->filesetIndexCache = [
             'run' => WeakReference::create($config),
             'index' => $index,
         ];

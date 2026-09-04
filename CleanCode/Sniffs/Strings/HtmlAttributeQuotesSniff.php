@@ -86,12 +86,15 @@ class HtmlAttributeQuotesSniff implements Sniff
         // circumstance rather than by construction, so it is written down here:
         // change that sentinel and this call needs a guard of its own.
         $rewritten = preg_replace_callback(
-            Markup::tagSpanPattern(),
+            (new Markup())->tagSpanPattern(),
             function (array $match) use ($apostrophe, $quote, &$unsafe): string {
                 $span = preg_replace_callback(
                     $this->attributePattern($apostrophe),
-                    static function (array $attr) use ($quote, &$unsafe): string {
-                        if (self::isSafeToConvert($attr[2]) === false) {
+                    // Not a static closure: isSafeToConvert() became an instance
+                    // method with the sniff's other members, and a static closure
+                    // carries no $this to call it on.
+                    function (array $attr) use ($quote, &$unsafe): string {
+                        if ($this->isSafeToConvert($attr[2]) === false) {
                             $unsafe = true;
 
                             return $attr[0];
@@ -122,14 +125,14 @@ class HtmlAttributeQuotesSniff implements Sniff
         return $unsafe ? null : $rewritten;
     }
 
-    private static function isSafeToConvert(string $value): bool
+    private function isSafeToConvert(string $value): bool
     {
         return strpbrk($value, '"\\') === false;
     }
 
     private function tagSpans(string $content): array
     {
-        if (preg_match_all(Markup::tagSpanPattern(), $content, $matches) === false) {
+        if (preg_match_all((new Markup())->tagSpanPattern(), $content, $matches) === false) {
             return [];
         }
 
@@ -155,6 +158,6 @@ class HtmlAttributeQuotesSniff implements Sniff
             $opener--;
         }
 
-        return StringLiteral::delimiter($tokens[$opener]['content']) ?? "\"";
+        return (new StringLiteral())->delimiter($tokens[$opener]['content']) ?? "\"";
     }
 }

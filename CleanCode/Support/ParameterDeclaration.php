@@ -8,15 +8,15 @@ use PHP_CodeSniffer\Files\File;
 
 final class ParameterDeclaration
 {
-    public static function isPlainParameter(File $phpcsFile, int $variablePtr): bool
+    public function isPlainParameter(File $phpcsFile, int $variablePtr): bool
     {
-        $ownerPtr = self::owningFunction($phpcsFile, $variablePtr);
+        $ownerPtr = $this->owningFunction($phpcsFile, $variablePtr);
 
         if ($ownerPtr === null) {
             return false;
         }
 
-        $parameter = self::parameterAt($phpcsFile, $ownerPtr, $variablePtr);
+        $parameter = $this->parameterAt($phpcsFile, $ownerPtr, $variablePtr);
 
         // A variable inside a function's own parameter list that
         // getMethodParameters() does not report back is treated as plain: it
@@ -27,20 +27,20 @@ final class ParameterDeclaration
         return $parameter === null || isset($parameter['property_visibility']) === false;
     }
 
-    public static function isPromotedParameter(File $phpcsFile, int $variablePtr): bool
+    public function isPromotedParameter(File $phpcsFile, int $variablePtr): bool
     {
-        $ownerPtr = self::owningFunction($phpcsFile, $variablePtr);
+        $ownerPtr = $this->owningFunction($phpcsFile, $variablePtr);
 
         if ($ownerPtr === null) {
             return false;
         }
 
-        $parameter = self::parameterAt($phpcsFile, $ownerPtr, $variablePtr);
+        $parameter = $this->parameterAt($phpcsFile, $ownerPtr, $variablePtr);
 
         return $parameter !== null && isset($parameter['property_visibility']) === true;
     }
 
-    private static function owningFunction(File $phpcsFile, int $variablePtr): ?int
+    private function owningFunction(File $phpcsFile, int $variablePtr): ?int
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -61,7 +61,7 @@ final class ParameterDeclaration
         return $ownerPtr;
     }
 
-    private static function parameterAt(File $phpcsFile, int $ownerPtr, int $variablePtr): ?array
+    private function parameterAt(File $phpcsFile, int $ownerPtr, int $variablePtr): ?array
     {
         foreach ($phpcsFile->getMethodParameters($ownerPtr) as $parameter) {
             if ($parameter['token'] === $variablePtr) {

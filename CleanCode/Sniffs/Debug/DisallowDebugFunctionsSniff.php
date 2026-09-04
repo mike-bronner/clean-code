@@ -20,6 +20,11 @@ class DisallowDebugFunctionsSniff implements Sniff
         'var_dump',
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_STRING];
@@ -27,6 +32,8 @@ class DisallowDebugFunctionsSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $content = strtolower($tokens[$stackPtr]['content']);
 
@@ -34,7 +41,7 @@ class DisallowDebugFunctionsSniff implements Sniff
             return;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 

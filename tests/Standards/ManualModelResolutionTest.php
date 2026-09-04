@@ -81,23 +81,12 @@ it('is registered in the master ruleset', function (): void {
  * which reddens this assertion with exactly two
  * CleanCode.Arrays.ConvertToCollection.Found warnings and nothing else.
  *
- * The one exception, recorded rather than silenced: CleanCode.Classes.
- * RequireProperties (#55) reports this file, because a PHP_CodeSniffer sniff is
- * a stateless strategy object — it holds constants and methods and no data at
- * all — and that standard exists to say a class like it encapsulates nothing.
- * The rule is right about this file, so the honest fix is to give the sniff
- * classes state, not to exempt them; that is a package-wide refactor of 26
- * classes and belongs to its own issue. Until then this file exits 1 rather
- * than 0 under its own standard. The assertion stays exact — every source
- * named, nothing else — so it still reddens on any *other* drift, which is the
- * reason it was written.
- *
- * A second exception joined it with #159: CleanCode.ClearCode.SectionComment
- * warns on a standalone comment in this file that explains *why* rather than
- * labelling a block. The token stream cannot separate the two, which is why
- * that rule is advisory, and rewriting this package's explanatory comments is
- * out of scope for #159 — so the warning is recorded here like any other
- * sniff's output rather than special-cased away.
+ * The one exception, recorded rather than silenced, arrived with #159:
+ * CleanCode.ClearCode.SectionComment warns on a standalone comment in this file
+ * that explains *why* rather than labelling a block. The token stream cannot
+ * separate the two, which is why that rule is advisory, and rewriting this
+ * package's explanatory comments is out of scope for #159 — so the warning is
+ * recorded here like any other sniff's output rather than special-cased away.
  */
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
@@ -106,7 +95,6 @@ it('passes the standard it belongs to', function (): void {
     );
 
     expect(array_column($report, 'source'))->toBe([
-        'CleanCode.Classes.RequireProperties.MissingProperty',
         'CleanCode.ClearCode.SectionComment.Found',
     ]);
 });

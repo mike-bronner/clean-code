@@ -53,7 +53,7 @@ class ExcessiveClassComplexitySniff implements Sniff
 
         while (($ptr = $phpcsFile->findNext(T_FUNCTION, ($ptr + 1), $end)) !== false) {
             if ($this->isDeclaredDirectlyIn($tokens, $ptr, $classPtr) === true) {
-                $count += CyclomaticComplexity::forDeclaration($phpcsFile, $ptr);
+                $count += (new CyclomaticComplexity())->forDeclaration($phpcsFile, $ptr);
             }
         }
 

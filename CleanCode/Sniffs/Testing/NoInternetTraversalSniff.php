@@ -61,6 +61,11 @@ class NoInternetTraversalSniff implements Sniff
         '*/tests/Feature/*',
     ];
 
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -101,6 +106,8 @@ class NoInternetTraversalSniff implements Sniff
 
     private function processCall(File $phpcsFile, int $stackPtr): void
     {
+        $functionCalls = $this->functionCalls;
+
         $tokens = $phpcsFile->getTokens();
         $name = strtolower($tokens[$stackPtr]['content']);
         $isNetworkFunction = in_array($name, self::NETWORK_FUNCTIONS, true);
@@ -112,7 +119,7 @@ class NoInternetTraversalSniff implements Sniff
             return;
         }
 
-        if (FunctionCalls::isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
+        if ($functionCalls->isGlobalFunctionCall($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -189,7 +196,7 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         return $this->endsArgument($phpcsFile, $urlPtr, $closePtr) === true
-            ? StringLiteral::inner($tokens[$urlPtr]['content'])
+            ? (new StringLiteral())->inner($tokens[$urlPtr]['content'])
             : null;
     }
 

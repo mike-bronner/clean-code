@@ -31,18 +31,18 @@ final class Markup
         'wbr',
     ];
 
-    public static function containsHtmlElement(string $text): bool
+    public function containsHtmlElement(string $text): bool
     {
-        return preg_match(self::elementPattern(), $text) === 1;
+        return preg_match($this->elementPattern(), $text) === 1;
     }
 
-    public static function tagSpanPattern(): string
+    public function tagSpanPattern(): string
     {
         return '#<(?:' . implode('|', self::HTML_TAGS) . ')(?=[\s/>])'
             . '(?:"[^"]*"|\'[^\']*\'|[^<>"\'])*>#i';
     }
 
-    private static function elementPattern(): string
+    private function elementPattern(): string
     {
         return '#</?(?:' . implode('|', self::HTML_TAGS) . ')(?=[\s/>])[^<>]*>#i';
     }

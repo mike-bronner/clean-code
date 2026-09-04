@@ -30,8 +30,9 @@ it('gives one file the same key every time', function (): void {
     [$config, $ruleset] = buildRuleset();
     $file = new DummyFile(TOKEN_STREAMS_SOURCE, $ruleset, $config);
     $file->parse();
+    $tokenStreams = new TokenStreams();
 
-    expect(TokenStreams::key($file))->toBe(TokenStreams::key($file));
+    expect($tokenStreams->key($file))->toBe($tokenStreams->key($file));
 });
 
 /**
@@ -47,10 +48,11 @@ it('gives two files different keys, identical content included', function (): vo
     $second = new DummyFile(TOKEN_STREAMS_SOURCE, $ruleset, $config);
     $first->parse();
     $second->parse();
+    $tokenStreams = new TokenStreams();
 
     expect($first->getFilename())->toBe($second->getFilename())
         ->and(count($first->getTokens()))->toBe(count($second->getTokens()))
-        ->and(TokenStreams::key($first))->not->toBe(TokenStreams::key($second));
+        ->and($tokenStreams->key($first))->not->toBe($tokenStreams->key($second));
 });
 
 /**
@@ -69,9 +71,10 @@ it('gives two files different keys, identical content included', function (): vo
 it('does not hand a collected file identity to the next one', function (): void {
     [$config, $ruleset] = buildRuleset();
 
+    $tokenStreams = new TokenStreams();
     $first = new DummyFile(TOKEN_STREAMS_SOURCE, $ruleset, $config);
     $first->parse();
-    $firstKey = TokenStreams::key($first);
+    $firstKey = $tokenStreams->key($first);
     $firstObjectId = spl_object_id($first);
 
     unset($first);
@@ -80,5 +83,5 @@ it('does not hand a collected file identity to the next one', function (): void 
     $second->parse();
 
     expect(spl_object_id($second))->toBe($firstObjectId)
-        ->and(TokenStreams::key($second))->not->toBe($firstKey);
+        ->and($tokenStreams->key($second))->not->toBe($firstKey);
 });

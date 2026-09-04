@@ -59,7 +59,7 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
             // form, while an ordinary `$with` parameter declares nothing. See
             // ParameterDeclaration for why the two are indistinguishable by
             // position.
-            if (ParameterDeclaration::isPlainParameter($phpcsFile, $ptr) === true) {
+            if ((new ParameterDeclaration())->isPlainParameter($phpcsFile, $ptr) === true) {
                 continue;
             }
 

@@ -78,7 +78,7 @@ class TooManyFieldsSniff implements Sniff
         }
 
         if (empty($tokens[$variablePtr]['nested_parenthesis']) === false) {
-            return ParameterDeclaration::isPromotedParameter($phpcsFile, $variablePtr);
+            return (new ParameterDeclaration())->isPromotedParameter($phpcsFile, $variablePtr);
         }
 
         return $this->isPropertyDeclaration($phpcsFile, $variablePtr);

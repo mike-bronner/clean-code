@@ -574,13 +574,13 @@ class ComponentMarkupSniff implements Sniff
         // prefix, which is all frameworkAttribute() and OWN_WIRE_DIRECTIVE ask
         // of it.
         if ($matched === false) {
-            return self::whitespaceSeparated($names);
+            return $this->whitespaceSeparated($names);
         }
 
         return $matches[1];
     }
 
-    private static function whitespaceSeparated(string $text): array
+    private function whitespaceSeparated(string $text): array
     {
         $pieces = explode(' ', str_replace(["\t", "\n", "\r", "\v", "\f"], ' ', $text));
 

@@ -9,22 +9,22 @@ use WeakMap;
 
 final class TokenStreams
 {
-    private static ?WeakMap $identities = null;
+    private ?WeakMap $identities = null;
 
-    private static int $lastIdentity = 0;
+    private int $lastIdentity = 0;
 
-    public static function key(File $phpcsFile): string
+    public function key(File $phpcsFile): string
     {
-        return self::identity($phpcsFile)
+        return $this->identity($phpcsFile)
             . '|' . count($phpcsFile->getTokens())
             . '|' . ($phpcsFile->fixer
                 ->loops ?? 0);
     }
 
-    private static function identity(File $phpcsFile): int
+    private function identity(File $phpcsFile): int
     {
-        self::$identities ??= new WeakMap();
+        $this->identities ??= new WeakMap();
 
-        return self::$identities[$phpcsFile] ??= ++self::$lastIdentity;
+        return $this->identities[$phpcsFile] ??= ++$this->lastIdentity;
     }
 }

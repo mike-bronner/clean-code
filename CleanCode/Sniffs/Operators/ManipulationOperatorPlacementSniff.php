@@ -94,7 +94,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
         // Inside an if/elseif/while/for condition, OneConditionPerLine reports
         // (and fixes) the same wrap wholesale, so stand down there exactly
         // where CleanCode.Operators.OperatorLineBreak does.
-        if (ConditionOperatorOwnership::isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
+        if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;
         }
 
@@ -324,7 +324,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return false;
         }
 
-        $dividers = ConditionOperatorOwnership::checkedRegion($phpcsFile, $owner);
+        $dividers = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $owner);
 
         return $dividers !== null && in_array($stackPtr, $dividers, true);
     }

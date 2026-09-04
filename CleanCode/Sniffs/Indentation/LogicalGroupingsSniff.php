@@ -33,6 +33,11 @@ class LogicalGroupingsSniff implements Sniff
         'lineStarts.steps' => 0,
     ];
 
+    public function __construct(
+        private TokenStreams $tokenStreams = new TokenStreams()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
@@ -352,7 +357,9 @@ class LogicalGroupingsSniff implements Sniff
 
     private function indexLineStarts(File $phpcsFile): void
     {
-        $key = TokenStreams::key($phpcsFile);
+        $tokenStreams = $this->tokenStreams;
+
+        $key = $tokenStreams->key($phpcsFile);
 
         if ($this->lineStartsKey === $key) {
             $this->cacheCounts['lineStarts.hits']++;

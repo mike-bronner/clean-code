@@ -207,10 +207,10 @@ class MultilineStringsSniff implements Sniff
 
     private function buildDocString(File $phpcsFile, string $raw): ?string
     {
-        $prefix = StringLiteral::prefix($raw);
-        $inner = StringLiteral::inner($raw);
+        $prefix = (new StringLiteral())->prefix($raw);
+        $inner = (new StringLiteral())->inner($raw);
 
-        if (StringLiteral::delimiter($raw) === "'") {
+        if ((new StringLiteral())->delimiter($raw) === "'") {
             $body = $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES);
             $opener = $prefix . "<<<'" . self::MARKER . "'";
         } else {

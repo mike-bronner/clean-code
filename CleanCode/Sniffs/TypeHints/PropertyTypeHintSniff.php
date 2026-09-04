@@ -16,7 +16,7 @@ class PropertyTypeHintSniff extends SlevomatPropertyTypeHint
     // TypeError in the consumer's run rather than in this repository's.
     public function process(File $phpcsFile, $pointer): void
     {
-        if (InheritedMembers::isCodeSnifferClass($phpcsFile, $pointer) === true) {
+        if ((new InheritedMembers())->isCodeSnifferClass($phpcsFile, $pointer) === true) {
             return;
         }
 

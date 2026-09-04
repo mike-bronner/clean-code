@@ -254,7 +254,7 @@ const FUNCTION_CALLS_PROBE_SNIFF = 'CleanCode.Constructors.DisallowCombinedConst
  * - n-1 hits keeps it from passing vacuously, since a helper that stopped
  *   consulting the held analysis would report one build and no hits.
  *
- * Mutation-checked by deleting the `self::$analysisKey === $key` guard, so
+ * Mutation-checked by deleting the `$this->analysisKey === $key` guard, so
  * every name rebuilds: `composer test` then fails here at the smallest size,
  * n=2, reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0
  * against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
@@ -265,9 +265,13 @@ it('reads its stream once per analysis, not once per name', function (): void {
             . '        $this->mode = ' . implode(' || ', array_fill(0, $size, 'is_string($value)'))
             . " ? 1 : 2;\n    }\n}\n";
 
-        $before = FunctionCalls::analysisCounts();
+        // buildRuleset() memoises the ruleset per sniff-code key, so this is the
+        // same sniff instance analyzeStdinSource() drives below, and its
+        // FunctionCalls is the one that answers the run.
+        $sniff = sniffInstance(FUNCTION_CALLS_PROBE_SNIFF);
+        $before = $sniff->analysisCounts();
         $file = analyzeStdinSource([FUNCTION_CALLS_PROBE_SNIFF], $source);
-        $counted = cacheCountsDelta($before, FunctionCalls::analysisCounts());
+        $counted = cacheCountsDelta($before, $sniff->analysisCounts());
 
         expect($file->getWarningCount())->toBe($size, "n={$size}: every predicate is still reported")
             ->and($counted['builds'])->toBe(
