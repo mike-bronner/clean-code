@@ -33,18 +33,6 @@ class EscapeNestedQuotesSniff implements Sniff
             return;
         }
 
-        if ($this->isSafeToConvert($inner) === false) {
-            $phpcsFile->addError(
-                'Prefer a double-quoted string with escaped inner quotes over single quotes;'
-                    . ' this literal needs manual conversion (it contains a variable, brace, or'
-                    . ' escape)',
-                $stackPtr,
-                'UnescapedQuote'
-            );
-
-            return;
-        }
-
         $fix = $phpcsFile->addFixableError(
             'Use a double-quoted string with escaped inner quotes instead of switching to single'
                 . ' quotes to avoid escaping',
@@ -56,15 +44,10 @@ class EscapeNestedQuotesSniff implements Sniff
             return;
         }
 
-        $phpcsFile->fixer
-            ->replaceToken(
-                $stackPtr,
-                (new StringLiteral())->prefix($content) . "\"" . str_replace("\"", '\\"', $inner) . "\""
-            );
-    }
+        $literal = new StringLiteral();
+        $body = $literal->singleQuotedInnerAsDoubleQuoted($inner);
 
-    private function isSafeToConvert(string $inner): bool
-    {
-        return strpbrk($inner, '${\\') === false;
+        $phpcsFile->fixer
+            ->replaceToken($stackPtr, "{$literal->prefix($content)}\"{$body}\"");
     }
 }

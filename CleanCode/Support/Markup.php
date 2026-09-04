@@ -39,7 +39,7 @@ final class Markup
     public function tagSpanPattern(): string
     {
         return '#<(?:' . implode('|', self::HTML_TAGS) . ')(?=[\s/>])'
-            . '(?:"[^"]*"|\'[^\']*\'|[^<>"\'])*>#i';
+            . "(?:\"[^\"]*\"|'[^']*'|[^<>\"'])*>#i";
     }
 
     private function elementPattern(): string

@@ -68,6 +68,24 @@ final class StringLiteral
         return $value;
     }
 
+    // A single-quoted literal's inner text, rewritten to sit inside double
+    // quotes with its value unchanged.
+    //
+    // Two conversions, in this order. A single-quoted body resolves only `\\`
+    // and `\'`, so those come back to the characters they stand for first;
+    // every other backslash in it was already literal. Then the whole thing is
+    // escaped for a double-quoted body, where a backslash, a quote and a `$`
+    // each mean something.
+    //
+    // Escaping `$` covers the brace triggers too: `{$` becomes `{\$` and `${`
+    // becomes `\${`, neither of which interpolates, so a lone `{` needs nothing.
+    public function singleQuotedInnerAsDoubleQuoted(string $inner): string
+    {
+        $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
+
+        return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
+    }
+
     // Only the whitespace escapes, and only where the delimiter resolves them.
     // Nothing else matters to a caller reading the text for its shape, and
     // resolving more would mean reimplementing PHP's own unescaping.

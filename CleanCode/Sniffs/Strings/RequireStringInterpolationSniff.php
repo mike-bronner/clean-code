@@ -311,7 +311,7 @@ class RequireStringInterpolationSniff implements Sniff
         // `$namespace . '\\' . $name` — unfixable.
         $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
 
-        return str_replace(['\\', "\"", '$'], ['\\\\', '\\"', '\\$'], $resolved);
+        return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
     }
 
     private function escapeTrailingDollar(string $inner): string

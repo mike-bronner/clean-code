@@ -272,7 +272,7 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
 
     private function literalValue(string $content): string
     {
-        return str_replace('\\\\', '\\', trim($content, '\'"'));
+        return str_replace('\\\\', '\\', trim($content, "'\""));
     }
 
     private function isHttpClient(string $written): bool

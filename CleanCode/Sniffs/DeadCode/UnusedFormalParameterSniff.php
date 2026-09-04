@@ -262,7 +262,7 @@ class UnusedFormalParameterSniff implements Sniff
 
         for ($argument = $opener + 1; $argument < $closer; $argument++) {
             if ($tokens[$argument]['code'] === T_CONSTANT_ENCAPSED_STRING) {
-                $names[trim($tokens[$argument]['content'], '\'"')] = true;
+                $names[trim($tokens[$argument]['content'], "'\"")] = true;
             }
         }
 

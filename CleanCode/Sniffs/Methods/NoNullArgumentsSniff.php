@@ -13,7 +13,7 @@ class NoNullArgumentsSniff implements Sniff
     private const CODE = 'PositionalNull';
 
     private const MESSAGE = 'Do not pass null positionally into the optional '
-        . 'parameter $%s; use the named argument "%s: null" instead';
+        . "parameter \$%s; use the named argument \"%s: null\" instead";
 
     private const UNNAMEABLE_ARGUMENT = ' (cannot be fixed automatically: a later argument in this call'
         . ' cannot be named)';

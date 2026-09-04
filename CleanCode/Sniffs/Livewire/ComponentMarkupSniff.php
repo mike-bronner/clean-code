@@ -11,21 +11,21 @@ class ComponentMarkupSniff implements Sniff
 {
     private const LIVEWIRE_MARKUP = '/wire:[a-z]|<livewire:|@livewire\b/i';
 
-    private const ELEMENT_TAG = '/<([A-Za-z][A-Za-z0-9._:-]*)((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/';
+    private const ELEMENT_TAG = "/<([A-Za-z][A-Za-z0-9._:-]*)((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/";
 
     private const ELEMENT_TAG_START = '/<[A-Za-z]/';
 
     private const COMPONENT_TAG =
-        '/<(\/)?(livewire:[A-Za-z0-9._-]+)((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/i';
+        "/<(\\/)?(livewire:[A-Za-z0-9._-]+)((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/i";
 
-    private const TEMPLATE_TAG = '/<template((?:"[^"]*"|\'[^\']*\'|[^<>"\'])*)>/i';
+    private const TEMPLATE_TAG = "/<template((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/i";
 
-    private const TEMPLATE_WRAPPER = '/<\/?template(?:"[^"]*"|\'[^\']*\'|[^<>"\'])*>/i';
+    private const TEMPLATE_WRAPPER = "/<\\/?template(?:\"[^\"]*\"|'[^']*'|[^<>\"'])*>/i";
 
     private const OWN_WIRE_DIRECTIVE = '/^wire:(?:blur|change|click|confirm|focus|init'
         . '|keydown|keyup|model|poll|submit)\b/i';
 
-    private const WIRE_KEY_ATTRIBUTE = '/\bwire:key\s*=\s*("[^"]*"|\'[^\']*\')/i';
+    private const WIRE_KEY_ATTRIBUTE = "/\\bwire:key\\s*=\\s*(\"[^\"]*\"|'[^']*')/i";
 
     private const COMMENT_DELIMITERS = [
         ['<!--', '-->'],
@@ -562,8 +562,8 @@ class ComponentMarkupSniff implements Sniff
         // readable; the values come with them, so an interpolated one can be
         // read as a name of its own, which costs a report that should not have
         // been made rather than a report that should have been.
-        $names = preg_replace('/=\s*(?:"[^"]*"|\'[^\']*\')/', '=', $attributes) ?? $attributes;
-        $matched = preg_match_all('/(?:^|\s)([^\s=<>"\'\/]+)/', $names, $matches);
+        $names = preg_replace("/=\\s*(?:\"[^\"]*\"|'[^']*')/", '=', $attributes) ?? $attributes;
+        $matched = preg_match_all("/(?:^|\\s)([^\\s=<>\"'\\/]+)/", $names, $matches);
 
         // The name read failed, so $matches[1] is either empty or, when the
         // pattern never compiled, not there at all — and an empty list is what
@@ -606,7 +606,7 @@ class ComponentMarkupSniff implements Sniff
             return null;
         }
 
-        return trim($match[1], '"\'');
+        return trim($match[1], "\"'");
     }
 
     private function lineAt(string $markup, int $offset): int

@@ -77,7 +77,7 @@ class HtmlAttributeQuotesSniff implements Sniff
     {
         // Double-quoted PHP context escapes the replacement quotes (`\"`);
         // single-quoted context takes them literally (`"`).
-        $quote = $apostrophe === "\\'" ? "\"" : '\\"';
+        $quote = $apostrophe === "\\'" ? "\"" : "\\\"";
         $unsafe = false;
 
         // Audited, unguarded on purpose: a failed span read returns null, and
@@ -127,7 +127,7 @@ class HtmlAttributeQuotesSniff implements Sniff
 
     private function isSafeToConvert(string $value): bool
     {
-        return strpbrk($value, '"\\') === false;
+        return strpbrk($value, "\"\\") === false;
     }
 
     private function tagSpans(string $content): array

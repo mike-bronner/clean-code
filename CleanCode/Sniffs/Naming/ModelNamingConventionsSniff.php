@@ -88,7 +88,7 @@ class ModelNamingConventionsSniff implements Sniff
     ];
 
     private const MESSAGE_BOOLEAN_PROPERTY =
-        'Boolean model property "$%s" must read as a yes/no question — prefix it with is, has, should, …';
+        "Boolean model property \"\$%s\" must read as a yes/no question — prefix it with is, has, should, …";
 
     private const MESSAGE_BOOLEAN_METHOD =
         "Boolean model method \"%s()\" must read as a yes/no question — prefix it with has, is, should, …";
