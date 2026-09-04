@@ -34,9 +34,9 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private const NO_POINTER = -1;
 
-    private const MESSAGE = <<<'MESSAGE'
+    private const MESSAGE = <<<MESSAGE
         Model method %s() is declared in the class body; extract it to the model's %s trait
-        (e.g. App\Concerns\%s\Book) so the model stays lean
+        (e.g. App\\Concerns\\%s\\Book) so the model stays lean
         (see docs/standards/models-structure-attributes-queries-traits.md)
         MESSAGE;
 

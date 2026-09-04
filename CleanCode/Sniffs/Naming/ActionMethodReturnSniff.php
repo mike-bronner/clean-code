@@ -43,7 +43,7 @@ class ActionMethodReturnSniff implements Sniff
 
     private const NO_POINTER = -1;
 
-    private const MESSAGE = <<<'MESSAGE'
+    private const MESSAGE = <<<MESSAGE
         The %s() method starts with the action verb "%s", so it commands rather than
         answers and should not return a value — return nothing, or rename it for what
         it hands back (see docs/standards/methods-naming.md)

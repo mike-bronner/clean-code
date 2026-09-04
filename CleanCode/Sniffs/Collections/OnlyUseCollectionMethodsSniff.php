@@ -9,6 +9,10 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
+// A sniff is one rule, and its class name is the sniff code consumers write
+// in their rulesets — so the unit is fixed from outside and splitting the
+// class into collaborators would distribute the work without reducing it.
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods -- see above
 class OnlyUseCollectionMethodsSniff implements Sniff
 {
     private const GENERIC_FUNCTIONS = [
@@ -156,6 +160,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         return [T_OPEN_TAG];
     }
 
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- interface-mandated, see CONTRIBUTING.md
     public function process(File $phpcsFile, $stackPtr): int
     {
         // Order matters: the alias map decides what counts as a Collection type
@@ -923,6 +928,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         int $opener,
         string $function,
         array $collectionArgument,
+        // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- picks the PHPCS reporting API for one shared message
         bool $isFixable
     ): void {
         $tokens = $phpcsFile->getTokens();
@@ -1031,6 +1037,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         int $ptr,
         int $end,
         array $variables,
+        // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $provable is threaded down one walk, not a call-site mode
         bool $provable
     ): ?int {
         $functionCalls = $this->functionCalls;
@@ -1224,6 +1231,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         return null;
     }
 
+    // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $provable is threaded down one walk, not a call-site mode
     private function isCollectionVariable(File $phpcsFile, int $ptr, array $variables, bool $provable): bool
     {
         $name = $phpcsFile->getTokens()[$ptr]['content'];
@@ -1241,6 +1249,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         return $tracked !== null && ($provable === false || $tracked === true);
     }
 
+    // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $provable is threaded down one walk, not a call-site mode
     private function arrowParameterBinding(int $ptr, string $name, bool $provable): ?bool
     {
         $binding = null;
@@ -1338,6 +1347,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         return $phpcsFile->findPrevious(Tokens::$emptyTokens, ($previous - 1), null, true);
     }
 
+    // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $isAliasable narrows which names count, not what is done
     private function isCollectionClass(string $shortName, bool $isAliasable): bool
     {
         if ($shortName === '') {

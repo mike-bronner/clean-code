@@ -15,8 +15,8 @@ class ComponentMarkupSniff implements Sniff
 
     private const ELEMENT_TAG_START = '/<[A-Za-z]/';
 
-    private const COMPONENT_TAG =
-        "/<(\\/)?(livewire:[A-Za-z0-9._-]+)((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/i";
+    private const COMPONENT_TAG
+        = "/<(\\/)?(livewire:[A-Za-z0-9._-]+)((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/i";
 
     private const TEMPLATE_TAG = "/<template((?:\"[^\"]*\"|'[^']*'|[^<>\"'])*)>/i";
 
@@ -368,8 +368,8 @@ class ComponentMarkupSniff implements Sniff
 
         if (isset($templates[$wrapper]) === false) {
             $phpcsFile->addErrorOnLine(
-                'Livewire component <%s> is adjacent to another component and is not wrapped in a'
-                    . " <template wire:key=\"...\"> tag",
+                'Livewire component %s is adjacent to another component and is not wrapped in a'
+                    . ' template tag carrying a wire:key attribute',
                 $tag['line'],
                 'AdjacentComponentNotWrapped',
                 [$tag['name']]
@@ -388,8 +388,8 @@ class ComponentMarkupSniff implements Sniff
         }
 
         $phpcsFile->addErrorOnLine(
-            'The <template> wrapping adjacent Livewire component <%s> must carry the same wire:key'
-                . ' as the component',
+            'The template tag wrapping adjacent Livewire component %s must carry the same'
+                . ' wire:key as the component',
             $tag['line'],
             'TemplateKeyMismatch',
             [$tag['name']]

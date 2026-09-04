@@ -5,7 +5,7 @@
 - Use **interpolation** in favor of concatenation.
 - HTML attributes should always use **double quotes**, never apostrophes.
 - Defining HTML or other code to be rendered within code should be done using
-  **HereDocs**.
+  **HereDocs**, never NowDocs.
 - **Escape quotes** when rendering inside other quotes.
 
 **Why:**
@@ -18,7 +18,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 2 (custom sniffs)
 
-No bundled or Slevomat sniff matches this standard, so four custom sniffs in
+No bundled or Slevomat sniff matches this standard, so five custom sniffs in
 the **`CleanCode.Strings`** category enforce it. The candidates named in the
 issue were evaluated and rejected rather than bent to fit:
 
@@ -127,7 +127,7 @@ break and `'a\nb'` carries two characters, so a config block written with double
 quotes is recognised and a Windows path written with single quotes is not
 mistaken for one.
 
-Compliant HereDoc/NowDoc bodies tokenize separately and never trip the sniff. No
+Compliant HereDoc bodies tokenize separately and never trip the sniff. No
 auto-fixer — converting an inline string to a HereDoc is a structural edit (a
 dedented closing marker, no trailing concatenation) the standard leaves to the
 developer.
@@ -140,9 +140,35 @@ switching the whole literal to single quotes just to dodge the escape. Flags a
 single-quoted literal that carries a double quote (`'He said "hi"'`) and, when
 meaning-preserving, rewrites it to `"He said \"hi\""`. (PHP cannot tokenize an
 *un*escaped delimiter nested in a same-quoted string at all, so the
-delimiter-switch dodge is the reachable form of the rule.) The fixer runs only
-when the literal carries no `$`/`{` interpolation trigger and no backslash
-escape; otherwise the violation is reported for manual conversion.
+delimiter-switch dodge is the reachable form of the rule.) Every literal it
+reports is fixed: a single-quoted body resolves only `\\` and `\x27`, so both come
+back to the characters they stand for before the whole thing is escaped for a
+double-quoted body, where a backslash, a quote and a `$` each mean something.
+Escaping the `$` covers `{$` and `${` too, so no output of this fixer
+interpolates.
+
+### `CleanCode.Strings.DisallowNowdoc` — auto-fixable
+
+A multi-line string uses a HEREDOC, never a NOWDOC. The two are the same
+construct and differ only in the quotes around the opening identifier, and that
+one character changes how every later reader has to think about the body: a
+NOWDOC is inert, a HEREDOC is the form the rest of this standard's fixers emit
+and the form a template, a query or a message is normally written in. Carrying
+both means a reader checks the delimiter before trusting what the body says, so
+the package keeps one.
+
+Nothing is lost in the conversion, which is why it is auto-fixable rather than
+detection-only. A HEREDOC body carries any literal text a NOWDOC can, with two
+escapes added: a backslash doubles, and a `$` is escaped. Escaping the `$` covers
+both interpolation triggers — `{$` becomes `{\$` and `${` becomes `\${` — so a
+lone brace needs nothing. A `"` needs no escape at all, which is the readability
+gain a HEREDOC has over both quoted forms. The test suite proves the fixer is
+value-preserving by executing the before and after fixtures and comparing every
+variable.
+
+The sniff registers on `T_START_NOWDOC` alone, so quoted strings are untouched:
+`CleanCode.Strings.MultilineStrings` owns the multi-line quoted form, and it now
+emits a HEREDOC too.
 
 ## Known limitations
 
@@ -199,7 +225,8 @@ escape; otherwise the violation is reported for manual conversion.
   its `B"` opener `T_NONE` and swallows the source after it, so a fixer emitting
   that shape corrupts the file for the next pass. `EscapeNestedQuotes` and
   `MultilineStrings` therefore keep the prefix — their output never interpolates
-  (`B'He said "hi"'` → `B"He said \"hi\""`; `B'a\nb'` → `B<<<'TEXT'`) — while
+  (`B'He said "hi"'` → `B"He said \"hi\""`; a multi-line `B'…'` → `B<<<TEXT`
+  with every `$` in the body escaped) — while
   `RequireStringInterpolation` refuses a prefixed literal outright, because its
   output always does, and reports it as detection-only instead. Dropping the
   prefix would rest on it being a no-op, which is not this standard's call to
@@ -214,9 +241,9 @@ escape; otherwise the violation is reported for manual conversion.
 
 These sniffs follow the repo-wide fixture contract (see `CONTRIBUTING.md`):
 per-sniff fixtures at `tests/fixtures/<SniffClassName>/` under the fixed names
-`passing.php`, `failing.php`, and — for the three auto-fixable sniffs —
-`autofixed.php`, which is `phpcbf`'s own output for `failing.php`. All four
-sniffs are registered in `SWEPT_SNIFFS` (and the three fixable ones in
+`passing.php`, `failing.php`, and — for the four auto-fixable sniffs —
+`autofixed.php`, which is `phpcbf`'s own output for `failing.php`. All five
+sniffs are registered in `SWEPT_SNIFFS` (and the four fixable ones in
 `AUTOFIXABLE_SNIFFS`) in `tests/Sniffs.php`, which gives them the generic
 passing/failing/autofix/idempotence sweep plus the shipped-package smoke test.
 Per-sniff line/column behaviour lives in `tests/Standards/*Test.php`, and the

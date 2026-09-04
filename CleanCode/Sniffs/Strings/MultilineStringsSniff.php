@@ -21,14 +21,14 @@ class MultilineStringsSniff implements Sniff
 
     private const HEREDOC_RESOLVED_ESCAPES = "\"";
 
-    private const NOWDOC_RESOLVED_ESCAPES = '\\\'';
+    private const SINGLE_QUOTE_RESOLVED_ESCAPES = '\\\'';
 
-    private const MESSAGE_STRING =
-        'Multi-line strings must use HEREDOC/NOWDOC syntax instead of a quoted string spanning multiple lines';
+    private const MESSAGE_STRING
+        = 'Multi-line strings must use HEREDOC syntax instead of a quoted string spanning multiple lines';
 
     private const MESSAGE_CONCATENATION
-        = 'This concatenation spans %s lines, more than the %s allowed; a block of text'
-        . ' that long reads as the block it is in a HEREDOC/NOWDOC';
+        = 'This text is %s lines long, more than the %s allowed; a block that long reads'
+        . ' as the block it is in a HEREDOC';
 
     // Left untyped, and public, because PHP_CodeSniffer assigns a ruleset
     // <property> as a string: a native int here throws TypeError in a consumer's
@@ -153,7 +153,6 @@ class MultilineStringsSniff implements Sniff
             return;
         }
 
-        $lastLine = max($tokens[$stackPtr]['line'], $tokens[$left]['line']);
         $ptr = $stackPtr;
 
         // Walk the chain rightward: every '.' must be followed by a string
@@ -171,41 +170,41 @@ class MultilineStringsSniff implements Sniff
                 return;
             }
 
-            $lastLine = max($lastLine, $tokens[$operand]['line']);
-
             while ($this->isStringLiteral($tokens, ($operand + 1))) {
                 $operand++;
-                $lastLine = max($lastLine, $tokens[$operand]['line']);
             }
 
             $ptr = $phpcsFile->findNext(Tokens::$emptyTokens, ($operand + 1), null, true);
         }
 
-        $this->reportChain($phpcsFile, $firstString, $lastLine);
+        $this->reportChain($phpcsFile, $firstString);
     }
 
-    // A chain is reported for one of two reasons, and they are separate rules.
+    // Lines of *text*, never lines of source.
     //
-    // Length: past maximumLines the wrapping is no longer a line-width
-    // concession, it is a block of text, and a HEREDOC reads as the block it is.
-    // At or under the threshold the wrapping is what the 100-character limit and
-    // the leading-operator rule between them require, so flagging it would put
-    // three rules in contradiction.
+    // A sentence wrapped across four source lines is one line of text, and a
+    // HEREDOC cannot express it: the body would have to sit on one line, which
+    // breaks the 120-character limit, or wrap, which puts real newlines into the
+    // value. Measuring the source made this rule demand something unreachable
+    // and report what could not be fixed. Measuring the text means every report
+    // names a string a HEREDOC can hold, with the newlines it already has.
     //
-    // Structure: SQL, markup, or markdown belongs in a HEREDOC at any length,
-    // because that is what gives it syntax highlighting in an editor. Length has
-    // nothing to do with that, so the check does not consult the threshold.
-    private function reportChain(File $phpcsFile, int $firstString, int $lastLine): void
+    // Source layout is somebody else's concern: the 100-character limit governs
+    // how long a line may be, and the leading-operator rule governs where it
+    // breaks. Between them they produce the wrapping this rule used to flag.
+    private function reportChain(File $phpcsFile, int $firstString): void
     {
         $tokens = $phpcsFile->getTokens();
-        $lines = ($lastLine - $tokens[$firstString]['line']) + 1;
+        $value = (new StringLiteral())->concatenated($tokens, $firstString);
 
         // Embedded languages belong to CleanCode.Strings.RequireHeredocForStructuredText,
         // which owns them at any length. Reporting one here as well would put two
         // sniffs on one concern and double every finding.
-        if ((new StructuredText())->isStructured((new StringLiteral())->concatenated($tokens, $firstString)) === true) {
+        if ((new StructuredText())->isStructured($value) === true) {
             return;
         }
+
+        $lines = preg_match_all('/\R/', $value) + 1;
 
         if ($lines <= $this->maximumLines) {
             return;
@@ -243,22 +242,28 @@ class MultilineStringsSniff implements Sniff
         return isset($tokens[$ptr]) && in_array($tokens[$ptr]['code'], self::STRING_TOKENS, true);
     }
 
-    // A single-quoted source becomes a NOWDOC and a double-quoted one a
-    // HEREDOC, which differ in both the escapes their body resolves and the
-    // opener they carry.
+    // Always a HEREDOC, whatever the source was quoted with. The two forms
+    // differ only in the quotes around the opening identifier, and carrying both
+    // means a reader checks the delimiter before trusting what the body says —
+    // see CleanCode.Strings.DisallowNowdoc, which holds the same line.
+    //
+    // What differs is the body. A single-quoted source resolves only `\\` and
+    // `\'`, so those come back to the characters they stand for and the whole
+    // thing is then escaped for a HEREDOC, where a backslash and a `$` each mean
+    // something. A double-quoted source already uses the escapes a HEREDOC
+    // resolves; only its quote escape is unnecessary there.
     private function docStringParts(string $raw, string $prefix, string $inner): array
     {
-        if ((new StringLiteral())->delimiter($raw) === "'") {
-            return [
-                $this->docStringBody($inner, self::NOWDOC_RESOLVED_ESCAPES),
-                $prefix . "<<<'" . self::MARKER . "'",
-            ];
+        $literal = new StringLiteral();
+        $opener = "{$prefix}<<<" . self::MARKER;
+
+        if ($literal->delimiter($raw) === "'") {
+            $resolved = $this->docStringBody($inner, self::SINGLE_QUOTE_RESOLVED_ESCAPES);
+
+            return [$literal->asHeredocBody($resolved), $opener];
         }
 
-        return [
-            $this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES),
-            $prefix . '<<<' . self::MARKER,
-        ];
+        return [$this->docStringBody($inner, self::HEREDOC_RESOLVED_ESCAPES), $opener];
     }
 
     private function buildDocString(File $phpcsFile, string $raw): ?string

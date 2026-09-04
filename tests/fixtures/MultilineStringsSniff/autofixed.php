@@ -17,13 +17,13 @@ she said "hi"
 bye
 TEXT;
 
-$sq = <<<'TEXT'
+$sq = <<<TEXT
 raw one
 raw two
 TEXT;
 
-$esc = <<<'TEXT'
-it's a\b
+$esc = <<<TEXT
+it's a\\b
 next
 TEXT;
 
@@ -33,8 +33,8 @@ TEXTUAL context
 and \$notvar
 TEXT;
 
-$literal = <<<'TEXT'
-keep \n and \t
+$literal = <<<TEXT
+keep \\n and \\t
 literally
 TEXT;
 
@@ -43,7 +43,7 @@ TEXT;
 // Reading the delimiter off it never matched `'`, so a single-quoted literal
 // took the interpolating HEREDOC branch, lost its prefix, and kept its real
 // opening quote in the body — a value one byte longer than the original.
-$binarySingle = B<<<'TEXT'
+$binarySingle = B<<<TEXT
 raw one
 raw two
 TEXT;

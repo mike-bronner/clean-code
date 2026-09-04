@@ -6,9 +6,15 @@
  * issue #53). Fixtures live in tests/fixtures/MultilineStringsSniff/.
  *
  * Two shapes are covered: a quoted string literal spanning multiple lines
- * (QuotedString, auto-fixed to HEREDOC/NOWDOC) and a multi-line concatenation
- * of quoted strings (Concatenation, detection-only). The fixer assertions prove
+ * (QuotedString, auto-fixed to a HEREDOC) and a multi-line concatenation of
+ * quoted strings (Concatenation, detection-only). The fixer assertions prove
  * the conversion is byte-for-byte value-preserving.
+ *
+ * The fixer emits a HEREDOC whatever the source was quoted with. A NOWDOC is
+ * the same construct with a quoted opening identifier, and carrying both means
+ * a reader checks the delimiter before trusting the body — see
+ * CleanCode.Strings.DisallowNowdoc, which holds the same line for hand-written
+ * code.
  */
 
 declare(strict_types=1);
@@ -34,9 +40,9 @@ it('produces no violations on the compliant fixture', function (): void {
  * Double-quoted, interpolated, escaped-quote, single-quoted, escaped
  * single-quote, and binary-prefixed strings — each reported once, on its first
  * line. $escapes and $literal exercise the fixer's generic escape passthrough
- * (\t, \\, \$ in a double-quoted string → HEREDOC body; literal \n, \t in a
- * single-quoted string → NOWDOC body), and the last two the uppercase
- * binary-string prefix on each delimiter.
+ * (\t, \\, \$ in a double-quoted string carry into a HEREDOC body unchanged;
+ * literal \n, \t in a single-quoted string are re-escaped for one), and the
+ * last two the uppercase binary-string prefix on each delimiter.
  */
 it('flags multi-line string literals at their opening quote', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'failing.php');
@@ -55,29 +61,49 @@ it('flags multi-line string literals at their opening quote', function (): void 
 });
 
 /**
- * Length only. This sniff counts source lines and never reads the text: an
- * embedded language belongs to CleanCode.Strings.RequireHeredocForStructuredText, which
- * owns it at any size. The fixture's SQL and markdown chains are therefore
- * absent from this list — they are that sniff's, and reporting them here too
- * would double every finding.
+ * Lines of *text*, never lines of source. This is the distinction the rule got
+ * wrong for as long as it counted the source: a sentence wrapped over four
+ * source lines is one line of text, and a HEREDOC cannot express it. The body
+ * would have to sit on one line, which breaks the 120-character limit, or wrap,
+ * which puts real newlines into the value. So the rule reported what no fix
+ * could satisfy.
  *
- * Line 21 is the only length violation: four lines is past maximumLines, so the
- * wrapping is a block of text rather than a line-width concession. The two- and
- * three-line prose chains above it stay silent deliberately — that shape is
- * what the 100-character limit and the leading-operator rule produce between
- * them, so flagging it would leave no compliant way to write a long sentence.
+ * $wrapped (line 12) is exactly that shape and must stay silent. $threeLines
+ * (line 18) is within maximumLines. Both violations at lines 25 and 32 carry
+ * four lines of text, and line 32 is the case source-counting missed outright —
+ * four lines of text on a single source line.
  *
- * The two chains of the ternary at the end of the fixture carry the dedup case:
- * keying on findStartOfStatement() (which does not treat ?/: as boundaries)
- * would collapse them into one. They report through the sibling sniff, which
- * pins the same behaviour there.
+ * The two chains of the ternary (lines 38 and 42) carry the dedup case: keying
+ * on findStartOfStatement(), which does not treat ?/: as boundaries, would
+ * collapse them into one and drop the second.
+ *
+ * Structure is a separate concern. An embedded language belongs to
+ * CleanCode.Strings.RequireHeredocForStructuredText, which owns it at any size,
+ * so the fixture's SQL and markdown chains are absent from this list —
+ * reporting them here too would double every finding.
  */
 it('flags multi-line concatenation once at its first string operand', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'concatenation.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 21, 'column' => 14, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 25, 'column' => 14, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 32, 'column' => 18, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 38, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 42, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
     ]);
+});
+
+/**
+ * The regression the rewrite exists to prevent: a chain whose source spans more
+ * than maximumLines but whose *value* is a single line. Reported for as long as
+ * the rule counted source lines, and unfixable by construction — a HEREDOC of
+ * one 230-character line breaks the 120-character limit, and breaking that line
+ * changes the value.
+ */
+it('stays silent on a sentence wrapped across more source lines than the limit', function (): void {
+    $file = analyzeFixture(MULTILINE_STRINGS, 'concatenation.php');
+
+    expect(violationSourcesByLine($file->getErrors()))->not->toHaveKey(12);
 });
 
 it('converts multi-line strings to doc syntax when fixed', function (): void {

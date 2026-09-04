@@ -86,6 +86,18 @@ final class StringLiteral
         return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
     }
 
+    // Literal text rewritten to sit in a HEREDOC body with its value unchanged.
+    //
+    // A HEREDOC resolves the same escapes a double-quoted string does and
+    // interpolates the same expressions, so a backslash and a `$` each have to
+    // be escaped. Escaping `$` covers `{$` and `${` too, which is why a lone
+    // brace needs nothing. A `"` needs nothing either — that is the readability
+    // gain a HEREDOC has over both quoted forms.
+    public function asHeredocBody(string $text): string
+    {
+        return str_replace(['\\', '$'], ['\\\\', '\\$'], $text);
+    }
+
     // Only the whitespace escapes, and only where the delimiter resolves them.
     // Nothing else matters to a caller reading the text for its shape, and
     // resolving more would mean reimplementing PHP's own unescaping.

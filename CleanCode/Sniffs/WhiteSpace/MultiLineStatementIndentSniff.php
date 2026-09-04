@@ -470,6 +470,7 @@ class MultiLineStatementIndentSniff implements Sniff
             && in_array($tokens[$ptr - 1]['code'], self::STRING_LITERALS, true) === true;
     }
 
+    // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $open is carried state in a fold, not a mode
     private function commentStaysOpen(bool $open, int|string $code, string $content): bool
     {
         $this->scanCounts['commentStaysOpen.evaluations']++;

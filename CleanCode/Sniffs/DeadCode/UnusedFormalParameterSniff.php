@@ -35,8 +35,8 @@ class UnusedFormalParameterSniff implements Sniff
         T_HEREDOC,
     ];
 
-    private const INTERPOLATION_PATTERN =
-        '/(?<!\\\\)(?:\\\\\\\\)*\K\$\{?(?P<name>[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/';
+    private const INTERPOLATION_PATTERN
+        = '/(?<!\\\\)(?:\\\\\\\\)*\K\$\{?(?P<name>[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/';
 
     private ?string $declarationsKey = null;
 

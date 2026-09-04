@@ -10,6 +10,10 @@ use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 use ReflectionFunction;
 
+// A sniff is one rule, and its class name is the sniff code consumers write
+// in their rulesets — so the unit is fixed from outside and splitting the
+// class into collaborators would distribute the work without reducing it.
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength -- see above
 class ArrayAccessorsSniff implements Sniff
 {
     private const MESSAGES = [

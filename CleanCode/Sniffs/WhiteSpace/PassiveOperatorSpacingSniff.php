@@ -167,7 +167,6 @@ class PassiveOperatorSpacingSniff implements Sniff
 
     private function processBacktickString(File $phpcsFile, int $openPtr): void
     {
-        $tokens = $phpcsFile->getTokens();
         $closePtr = $phpcsFile->findNext(T_BACKTICK, ($openPtr + 1));
 
         if ($closePtr === false) {

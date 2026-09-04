@@ -87,23 +87,23 @@ class ModelNamingConventionsSniff implements Sniff
         'refresh',
     ];
 
-    private const MESSAGE_BOOLEAN_PROPERTY =
-        "Boolean model property \"\$%s\" must read as a yes/no question — prefix it with is, has, should, …";
+    private const MESSAGE_BOOLEAN_PROPERTY
+        = "Boolean model property \"\$%s\" must read as a yes/no question — prefix it with is, has, should, …";
 
-    private const MESSAGE_BOOLEAN_METHOD =
-        "Boolean model method \"%s()\" must read as a yes/no question — prefix it with has, is, should, …";
+    private const MESSAGE_BOOLEAN_METHOD
+        = "Boolean model method \"%s()\" must read as a yes/no question — prefix it with has, is, should, …";
 
-    private const MESSAGE_FIND_PREFIX =
-        "Model method \"%s()\" returns a single model instance and must be prefixed \"find\", e.g. findUserByName()";
+    private const MESSAGE_FIND_PREFIX
+        = "Model method \"%s()\" returns a single model instance and must be prefixed \"find\", e.g. findUserByName()";
 
-    private const MESSAGE_FIND_MODEL_NAME =
-        "Model method \"%s()\" must name the model it returns (\"%s\"), e.g. find%sByName()";
+    private const MESSAGE_FIND_MODEL_NAME
+        = "Model method \"%s()\" must name the model it returns (\"%s\"), e.g. find%sByName()";
 
-    private const MESSAGE_GET_PREFIX =
-        "Model method \"%s()\" returns a collection and must be prefixed \"get\", e.g. getUsersByType()";
+    private const MESSAGE_GET_PREFIX
+        = "Model method \"%s()\" returns a collection and must be prefixed \"get\", e.g. getUsersByType()";
 
-    private const MESSAGE_LEGACY_ATTRIBUTE =
-        "Model accessor \"%s()\" uses the legacy attribute style — use the new Attribute implementation instead";
+    private const MESSAGE_LEGACY_ATTRIBUTE
+        = "Model accessor \"%s()\" uses the legacy attribute style — use the new Attribute implementation instead";
 
     public function register(): array
     {

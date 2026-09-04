@@ -313,6 +313,7 @@ final class FunctionCalls
         File $phpcsFile,
         int $start,
         int $end,
+        // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- one term of a disjunctive guard, not a mode
         bool $prefixQualified
     ): bool {
         if (

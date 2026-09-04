@@ -36,7 +36,7 @@ class ManualModelResolutionSniff implements Sniff
         T_CLOSE_PARENTHESIS,
     ];
 
-    private const MESSAGE = <<<'MESSAGE'
+    private const MESSAGE = <<<MESSAGE
         Model %s resolved by hand from %s, a parameter of %s(); type-hint the model on the
         action signature instead and let route-model binding resolve it
         (see docs/standards/controllers-route-model-binding.md)

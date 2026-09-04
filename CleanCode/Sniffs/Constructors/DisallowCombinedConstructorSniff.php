@@ -9,6 +9,10 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
+// A sniff is one rule, and its class name is the sniff code consumers write
+// in their rulesets — so the unit is fixed from outside and splitting the
+// class into collaborators would distribute the work without reducing it.
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods -- see above
 class DisallowCombinedConstructorSniff implements Sniff
 {
     private const CLASS_LIKE_SCOPES = [T_CLASS, T_ANON_CLASS, T_TRAIT];
@@ -110,6 +114,13 @@ class DisallowCombinedConstructorSniff implements Sniff
     private array $chainHeadCache = [];
 
     private array $ternaryElse = [];
+
+    // Memoised because it folds six token tables together and the result never
+    // varies. An instance property rather than a function static: PHP_CodeSniffer
+    // builds one sniff instance per run and reuses it for every file, so the two
+    // have identical lifetime, and only one of them is visible to a reader of
+    // the class.
+    private array $groupingPreceders = [];
 
     private array $cacheCounts = [
         'ternarySides.walks' => 0,
@@ -530,14 +541,18 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private function groupingPreceders(): array
     {
-        static $preceders = null;
+        if ($this->groupingPreceders !== []) {
+            return $this->groupingPreceders;
+        }
 
-        return $preceders ??= Tokens::$operators
+        $this->groupingPreceders = Tokens::$operators
             + Tokens::$booleanOperators
             + Tokens::$comparisonTokens
             + Tokens::$assignmentTokens
             + Tokens::$castTokens
             + array_combine(self::GROUPING_PRECEDERS, self::GROUPING_PRECEDERS);
+
+        return $this->groupingPreceders;
     }
 
     private function isTypePredicate(File $phpcsFile, int $opener): bool

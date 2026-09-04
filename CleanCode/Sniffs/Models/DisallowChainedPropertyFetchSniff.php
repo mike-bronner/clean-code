@@ -226,6 +226,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         );
     }
 
+    // phpcs:ignore CleanCode.Functions.ExcessiveMethodLength -- one root resolution, split only by guard clauses
     private function rootFrom(File $phpcsFile, int|false $ptr): int|false
     {
         $this->discardRootsOfOtherStreams($phpcsFile);

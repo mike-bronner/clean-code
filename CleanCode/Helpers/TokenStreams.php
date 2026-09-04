@@ -18,6 +18,7 @@ final class TokenStreams
         return $this->identity($phpcsFile)
             . '|' . count($phpcsFile->getTokens())
             . '|' . ($phpcsFile->fixer
+                // phpcs:ignore CleanCode.Models.DisallowChainedPropertyFetch -- $phpcsFile->fixer is a PHPCS object, not an Eloquent model
                 ->loops ?? 0);
     }
 

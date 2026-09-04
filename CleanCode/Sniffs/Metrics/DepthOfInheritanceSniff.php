@@ -190,7 +190,7 @@ class DepthOfInheritanceSniff implements Sniff
         $index = [];
 
         foreach ($this->filesetPaths($config, $phpcsFile) as $path) {
-            $source = @file_get_contents($path);
+            $source = $this->readQuietly($path);
 
             // A file PHPCS listed but this sniff cannot read is left out of the
             // index, which makes anything extending it *unseen* rather than
@@ -247,9 +247,36 @@ class DepthOfInheritanceSniff implements Sniff
         return $paths;
     }
 
+    // PHPCS lists a file it can see; between that listing and this read the file
+    // can vanish or lose its permissions, and either raises a warning that says
+    // nothing about the source under analysis. Suppressed with a handler rather
+    // than `@`, which Generic.PHP.NoSilencedErrors forbids because it hides every
+    // diagnostic in the expression instead of the one being answered for. The
+    // false return is still checked by the caller.
+    private function readQuietly(string $path): string|false
+    {
+        set_error_handler(static fn (): bool => true);
+
+        try {
+            return file_get_contents($path);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    // Source PHPCS handed over can still be a file this sniff was pointed at by
+    // a glob and that PHP cannot tokenize cleanly. A tokenizer warning about it
+    // is noise in the report, and the malformed result is handled below.
     private function declarationsIn(string $source): array
     {
-        $tokens = @token_get_all($source);
+        set_error_handler(static fn (): bool => true);
+
+        try {
+            $tokens = token_get_all($source);
+        } finally {
+            restore_error_handler();
+        }
+
         $declarations = [];
         $namespace = '';
         $namespaceDepth = 0;
@@ -435,6 +462,7 @@ class DepthOfInheritanceSniff implements Sniff
         return [$imports, $count];
     }
 
+    // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- one term of a disjunctive guard, not a mode
     private function addImport(array &$imports, string $prefix, string $name, ?string $alias, bool $skip): void
     {
         if (

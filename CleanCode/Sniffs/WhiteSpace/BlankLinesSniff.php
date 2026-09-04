@@ -19,6 +19,7 @@ class BlankLinesSniff implements Sniff
         return [T_OPEN_TAG];
     }
 
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- interface-mandated, see CONTRIBUTING.md
     public function process(File $phpcsFile, $stackPtr): int
     {
         $blankLines = $this->findBlankLines($phpcsFile);

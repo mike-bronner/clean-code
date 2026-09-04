@@ -8,6 +8,10 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
+// A sniff is one rule, and its class name is the sniff code consumers write
+// in their rulesets — so the unit is fixed from outside and splitting the
+// class into collaborators would distribute the work without reducing it.
+// phpcs:ignore CleanCode.CodeSize.TooManyMethods -- see above
 class NPathComplexitySniff implements Sniff
 {
     public $minimum = 200;
@@ -499,6 +503,7 @@ class NPathComplexitySniff implements Sniff
         return null;
     }
 
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function labelBodyStart(File $phpcsFile, array $tokens, int $label, int $end): int
     {
         $colon = $phpcsFile->findNext([T_COLON, T_SEMICOLON], $label, $end);
@@ -653,6 +658,7 @@ class NPathComplexitySniff implements Sniff
             || $code === T_INSTANCEOF;
     }
 
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function ternaryElse(File $phpcsFile, array $tokens, int $thenPtr, int $end): ?int
     {
         $depth = 0;
@@ -746,6 +752,7 @@ class NPathComplexitySniff implements Sniff
         return ($thenPtr - 1);
     }
 
+    // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- signature kept parallel to its sibling walkers
     private function expressionEnd(File $phpcsFile, array $tokens, int $elsePtr, int $end): int
     {
         if (isset($this->branchEnds[$elsePtr]) === true) {

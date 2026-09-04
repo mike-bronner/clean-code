@@ -42,11 +42,43 @@ class OperatorLineBreakSniff implements Sniff
             return;
         }
 
-        $phpcsFile->addError(
+        $fix = $phpcsFile->addFixableError(
             "A \"%s\" operator must not end a line; place it at the start of the continuation line instead",
             $stackPtr,
             'OperatorAtLineEnd',
             [$tokens[$stackPtr]['content']]
         );
+
+        if ($fix === false) {
+            return;
+        }
+
+        $this->moveToContinuationLine($phpcsFile, $stackPtr, $next);
+    }
+
+    // Position only: the token sequence is unchanged, and just the line break
+    // moves from after the operator to before it. The operator is inserted
+    // before the next *code* token, which puts it after that line's indent
+    // rather than in front of it.
+    private function moveToContinuationLine(File $phpcsFile, int $stackPtr, int $next): void
+    {
+        $tokens = $phpcsFile->getTokens();
+
+        $phpcsFile->fixer
+            ->beginChangeset();
+        $phpcsFile->fixer
+            ->replaceToken($stackPtr, '');
+
+        // The space that sat in front of the operator would otherwise be left
+        // hanging off the end of the line.
+        if ($tokens[$stackPtr - 1]['code'] === T_WHITESPACE) {
+            $phpcsFile->fixer
+                ->replaceToken($stackPtr - 1, '');
+        }
+
+        $phpcsFile->fixer
+            ->addContentBefore($next, "{$tokens[$stackPtr]['content']} ");
+        $phpcsFile->fixer
+            ->endChangeset();
     }
 }
