@@ -50,10 +50,10 @@ reason:
   because the fixture declares `@return` without a native hint; rename every
   one of them to `isX()` and it reports the same twelve lines unchanged.
 
-So the rule is the custom `CleanCode.Naming.BooleanGetMethodName` sniff, wired
-into the master ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+So the rule is the custom `CleanCode.Naming.BooleanGetMethodName` sniff, registered automatically
+from `CleanCode/Sniffs/` when the standard loads
 ([#116](https://github.com/mike-bronner/phpcs-rules/issues/116)). Running
-`phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does not have
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 
 - **Detection** — a method is a boolean getter when all three hold:
@@ -77,7 +77,7 @@ to run separately for it.
 - **Two sources for the return type, where PHPMD has one.** PHPMD reads the doc
   comment only. This sniff reads the native return type as well, which
   [#116](https://github.com/mike-bronner/phpcs-rules/issues/116) requires and
-  which is the shape that actually occurs here: `rules.xml` requires a native
+  which is the shape that actually occurs here: `CleanCode/ruleset.xml` requires a native
   return type on every method
   (`SlevomatCodingStandard.TypeHints.ReturnTypeHint`), so the native
   declaration is the one that is always present and the doc comment is the
@@ -95,7 +95,7 @@ to run separately for it.
   a bare `@return` followed by `@see bool` does not borrow the latter's text.
 - **Error severity** — the sniff reports errors, so a boolean getter fails a
   `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed in
-  `rules.xml`, unlike the two Tier 1 mappings.
+  `CleanCode/ruleset.xml`, unlike the two Tier 1 mappings.
 - **Not auto-fixable** — matching PHPMD. Renaming a method rewrites every call
   site, and `is` versus `has` is a judgement about what the method asks;
   neither is a mechanical rewrite.
@@ -161,7 +161,7 @@ fixtures named.
    is still a method.
 
 All six extra reports are true defects, so they are kept — the same call
-`rules.xml` records for `VariableAnalysis` under
+`CleanCode/ruleset.xml` records for `VariableAnalysis` under
 [#85](https://github.com/mike-bronner/phpcs-rules/issues/85).
 
 ## Overlap with the Models: Naming Conventions standard (#44)
@@ -184,5 +184,5 @@ The two **complement** each other and neither subsumes the other:
 
 So #44 stays open. When it lands, the two overlap on exactly one shape — a
 boolean-returning `getX()` method — and #44's sniff can either exclude that
-shape or defer to this one, the way `rules.xml` already dedupes the operator
+shape or defer to this one, the way `CleanCode/ruleset.xml` already dedupes the operator
 spacing sniffs.

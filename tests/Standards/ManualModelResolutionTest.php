@@ -13,7 +13,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml. No path scoping is needed for this
+ * sibling standards land in CleanCode/ruleset.xml. No path scoping is needed for this
  * sniff — it only ever speaks inside a *Controller class — so the fixtures
  * are processed where they live.
  */
@@ -50,9 +50,9 @@ it('is registered in the master ruleset', function (): void {
 });
 
 /**
- * The sniff's own source passes rules.xml, the standard it belongs to — the
- * claim rules.xml makes about this file, and the reason the file reads the way
- * it does: match(true) guard chains instead of if
+ * The sniff's own source passes the CleanCode standard it belongs to — the
+ * claim that standard makes about this file, and the reason the file reads the
+ * way it does: match(true) guard chains instead of if
  * (CleanCode.Conditionals.AvoidConditionals), the File API instead of the token
  * array (CleanCode.Arrays.ArrayAccessors), a max() fold instead of
  * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection) and a
@@ -69,7 +69,7 @@ it('is registered in the master ruleset', function (): void {
  * that read errors only would have stayed green through exactly the drift that
  * happened.
  *
- * Every sniff wired into rules.xml is active, not just this one, because the
+ * Every sniff wired into CleanCode/ruleset.xml is active, not just this one, because the
  * claim is about the whole standard. Run through the *installed* phpcs rather
  * than an in-process ruleset, because "exits 0" is a claim about the binary a
  * consumer runs — the same reason CyclomaticComplexityTest.php reaches for this
@@ -90,7 +90,7 @@ it('is registered in the master ruleset', function (): void {
  */
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
-        cleanCodeRoot() . '/rules.xml',
+        'CleanCode',
         cleanCodeRoot() . '/CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php'
     );
 

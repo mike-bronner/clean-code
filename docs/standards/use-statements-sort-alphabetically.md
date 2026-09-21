@@ -13,7 +13,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (existing sniffs)
 
 Fully enforceable, but by **three** Slevomat sniffs rather than one, all wired
-into the master `rules.xml`
+into the master `CleanCode/ruleset.xml`
 ([#67](https://github.com/mike-bronner/phpcs-rules/issues/67)):
 
 | Sniff | Role |

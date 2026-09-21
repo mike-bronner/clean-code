@@ -28,9 +28,9 @@ _Source: [phpmd.org/rules/cleancode.html](https://phpmd.org/rules/cleancode.html
 | `CleanCode/ErrorControlOperator` | `Generic.PHP.NoSilencedErrors` (message code `.Forbidden`) |
 
 Enforced by `Generic.PHP.NoSilencedErrors`, wired into the master ruleset
-(`rules.xml`) — no custom sniff needed
+(`CleanCode/ruleset.xml`) — no custom sniff needed
 ([#82](https://github.com/mike-bronner/phpcs-rules/issues/82)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 
 The issue's Tier-2 estimate ("expect a custom sniff") did not survive contact
@@ -49,7 +49,7 @@ detection, so this landed as Tier 1.
   sniff never sees them. `tests/fixtures/NoSilencedErrorsSniff/passing.php`
   carries every one of those shapes and asserts silence on all of them.
 - **Severity raised to error** — the sniff reports a *warning* out of the box.
-  `rules.xml` sets the sniff's own `error` property to `true`, which reports an
+  `CleanCode/ruleset.xml` sets the sniff's own `error` property to `true`, which reports an
   error under the `.Forbidden` code instead of a warning under `.Discouraged`,
   so suppression fails a `phpcs` run the way it fails a `phpmd` run. Left as a
   warning, `phpcs` would exit `0` on suppressed errors and the mapping would not

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Integration test for the PSR1/2/12 industry standards wired into rules.xml.
+ * Integration test for the PSR1/2/12 industry standards wired into CleanCode/ruleset.xml.
  *
  * Runs the master ruleset against the fixtures in fixtures/ via PHPCS's own
  * API and asserts the exact violations (line => count), mirroring the contract
@@ -174,7 +174,7 @@ it('reports the expected violations', function (
 /**
  * The four opening-tag sniffs the master ruleset activates through
  * <rule ref="PSR12"/> without naming them. No other fixture in the suite
- * reports any of the four, so before these an <exclude> slipped into rules.xml
+ * reports any of the four, so before these an <exclude> slipped into CleanCode/ruleset.xml
  * would have disabled opening-tag enforcement silently.
  *
  * These assert the violation *source*, not just a per-line count: each fixture
@@ -241,7 +241,7 @@ it('produces the expected fixer output', function (string $fixture) use ($integr
  * reference in the master ruleset. The only accepted violations are structural
  * fixture noise (procedural code sharing a file with a class), pinned exactly —
  * so any new PSR12-vs-custom conflict fails here and gets carved out of the
- * PSR12 reference in rules.xml via <exclude>.
+ * PSR12 reference in CleanCode/ruleset.xml via <exclude>.
  */
 it('keeps custom-standard-shaped code PSR12-clean', function (string $path, array $expected): void {
     $file = analyzeWithMasterRuleset($path);

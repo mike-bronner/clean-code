@@ -7,12 +7,12 @@
  * holds every violation code in every comment style.
  *
  * The sniff owns only HACK and XXX. TODO and FIXME are PHPCS core's, wired
- * into rules.xml and covered by tests/Ruleset/DebtMarkerCommentsTest.php —
+ * into CleanCode/ruleset.xml and covered by tests/Ruleset/DebtMarkerCommentsTest.php —
  * which is also where the four keywords are asserted to behave as one rule.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

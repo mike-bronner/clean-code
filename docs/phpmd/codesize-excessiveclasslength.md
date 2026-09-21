@@ -25,9 +25,9 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html#e
 | `CodeSize/ExcessiveClassLength` | `CleanCode.Classes.ExcessiveClassLength` (message code `.TooLong`) |
 
 Enforced by the custom `CleanCode.Classes.ExcessiveClassLength` sniff, wired
-into the master ruleset (`rules.xml`) with PHPMD's own thresholds
+into the master ruleset (`CleanCode/ruleset.xml`) with PHPMD's own thresholds
 ([#93](https://github.com/mike-bronner/phpcs-rules/issues/93)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 
 ### Why no existing sniff fits
@@ -75,7 +75,7 @@ against live runs of both tools over the fixtures in
 | `minimum` | `1000` | `minimum` |
 | `ignoreWhitespace` | `false` | `ignore-whitespace` |
 
-`rules.xml` writes both out explicitly rather than leaning on the sniff's own
+`CleanCode/ruleset.xml` writes both out explicitly rather than leaning on the sniff's own
 defaults, so the shipped configuration is the one under test.
 
 **`ignoreWhitespace` is not "the same count without the blank lines."** PHPMD

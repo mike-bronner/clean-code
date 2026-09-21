@@ -15,7 +15,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs narrowed to it) so these assertions stay stable as sibling
- * standards land in rules.xml.
+ * standards land in CleanCode/ruleset.xml.
  *
  * Each of the sniff's guards was mutation-checked against these fixtures, and
  * the result of each mutation is recorded here rather than assumed:

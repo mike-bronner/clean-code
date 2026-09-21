@@ -23,12 +23,12 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 | --- | --- |
 | `Design/DevelopmentCodeFragment` | `CleanCode.Debug.DisallowDebugFunctions` (message code `.Found`) |
 
-Enforced by the custom `CleanCode.Debug.DisallowDebugFunctions` sniff, which the
-master ruleset (`rules.xml`) already pulls in via
-`<rule ref="./CleanCode/ruleset.xml"/>` — no ruleset edit was needed for this
-mapping ([#86](https://github.com/mike-bronner/phpcs-rules/issues/86)). Running
-`phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does not have
-to run separately for it.
+Enforced by the custom `CleanCode.Debug.DisallowDebugFunctions` sniff,
+registered automatically from `CleanCode/Sniffs/` when the standard loads — no
+ruleset edit was needed for this mapping
+([#86](https://github.com/mike-bronner/phpcs-rules/issues/86)). Running `phpcs`
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
+have to run separately for it.
 
 - **`unwanted-functions` parity** — PHPMD's default list is `var_dump`,
   `print_r`, `debug_zval_dump`, `debug_print_backtrace`. The sniff's

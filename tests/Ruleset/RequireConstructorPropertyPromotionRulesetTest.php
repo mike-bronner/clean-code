@@ -3,7 +3,7 @@
 /**
  * Integration test for the Constructors: Property Promotion standard (#47),
  * enforced by Slevomat's RequireConstructorPropertyPromotion sniff wired into
- * the master ruleset (rules.xml).
+ * the master ruleset (CleanCode/ruleset.xml).
  *
  * Fixtures live in tests/fixtures/RequireConstructorPropertyPromotionSniff/:
  * passing.php must produce zero property-promotion violations, failing.php must
@@ -16,7 +16,7 @@
  * fixtures pack several classes into one namespace-less file, so PSR1's
  * one-class-per-file rule (and any other standard wired into the shared master
  * ruleset) also fires on them — those are out of scope here and are filtered
- * out, so unrelated additions to rules.xml cannot break this test. The fixer
+ * out, so unrelated additions to CleanCode/ruleset.xml cannot break this test. The fixer
  * assertion likewise restricts the ruleset to this sniff (keeping its
  * master-ruleset configuration), so no other auto-fixing rule can alter the
  * fixed output.

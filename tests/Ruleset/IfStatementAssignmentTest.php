@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Generic.CodeAnalysis.AssignmentInCondition rule as
- * configured in the master rules.xml, which replaces PHPMD's
+ * configured in the master CleanCode/ruleset.xml, which replaces PHPMD's
  * CleanCode/IfStatementAssignment rule (issue #79). Fixtures live in
  * tests/fixtures/AssignmentInConditionSniff/.
  *
@@ -29,13 +29,13 @@
  *   though the Generic sniff alone does not.
  *
  * Every fixture is run through both sniffs at once, and only those two, so a
- * sibling standard landing in rules.xml cannot shift the line map. Both are
+ * sibling standard landing in CleanCode/ruleset.xml cannot shift the line map. Both are
  * needed in every run: the point of the mapping is that together they cover
  * what PHPMD covers, and asserting the source on each report is what keeps the
  * division of labour between them visible.
  *
  * Two properties beyond plain detection are pinned. The sniff reports warnings
- * out of the box; rules.xml raises its Found code to an error so an assignment
+ * out of the box; CleanCode/ruleset.xml raises its Found code to an error so an assignment
  * in a condition fails a phpcs run the way it fails a phpmd run. It also has no
  * fixer, matching PHPMD, which the fixable-count assertion pins.
  *
@@ -196,7 +196,7 @@ it('lowers the while-condition code to a warning and leaves every other conditio
 });
 
 /**
- * The bare <rule ref> that has to sit beside the code-scoped one in rules.xml.
+ * The bare <rule ref> that has to sit beside the code-scoped one in CleanCode/ruleset.xml.
  *
  * Without it, Ruleset::processRule reads a lone code-scoped ref as "include
  * only this message", sets the sniff's own severity to 0 and the named code's
@@ -233,7 +233,7 @@ it('closes the list() destructuring gap with the custom sniff', function (): voi
 });
 
 /**
- * Error, not warning. The sniff ships as a warning and rules.xml raises it, so
+ * Error, not warning. The sniff ships as a warning and CleanCode/ruleset.xml raises it, so
  * a dropped <type> element leaves detection identical and only a severity
  * assertion catches it — an error is what makes phpcs fail the run the way
  * phpmd does.

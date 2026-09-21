@@ -40,7 +40,7 @@ it('produces no violations on the compliant fixture', function (): void {
 
 /**
  * All four inherited message codes, one per line. Keeping the parent's codes
- * is what makes the swap in rules.xml invisible to anything that references
+ * is what makes the swap in CleanCode/ruleset.xml invisible to anything that references
  * them; a renamed code would show up here.
  *
  * Every column is the offending sign's own position, which is what pins line 17

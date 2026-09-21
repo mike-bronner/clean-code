@@ -2,7 +2,7 @@
 
 /**
  * Tests the SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn
- * configuration in the master rules.xml — the auto-fixable slice of
+ * configuration in the master CleanCode/ruleset.xml — the auto-fixable slice of
  * "Conditionals: Avoid Conditionals" (#12).
  *
  * Two things are configuration, not sniff behaviour, and both are pinned here:
@@ -51,7 +51,7 @@ it('reports every boolean-return if', function () use ($booleanReturnFixture): v
 });
 
 /**
- * The <type>warning</type> override in rules.xml. Slevomat reports this sniff
+ * The <type>warning</type> override in CleanCode/ruleset.xml. Slevomat reports this sniff
  * as an error out of the box, so without the override these violations would
  * appear in getErrors() and fail a consumer's build over an advisory standard.
  */

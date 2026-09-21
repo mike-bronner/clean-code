@@ -29,14 +29,14 @@ _Source: [phpmd.org/rules/naming.html](https://phpmd.org/rules/naming.html)
 | `Naming/ConstructorWithNameAsEnclosingClass` | `Generic.NamingConventions.ConstructorName` (message code `.OldStyle`) |
 
 Enforced by `Generic.NamingConventions.ConstructorName`, wired into the master
-ruleset (`rules.xml`) — no custom sniff needed
+ruleset (`CleanCode/ruleset.xml`) — no custom sniff needed
 ([#113](https://github.com/mike-bronner/phpcs-rules/issues/113)). Running
-`phpcs` with `rules.xml` therefore covers this rule, with the three exceptions
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, with the three exceptions
 recorded under [Divergences](#divergences-from-phpmd) below.
 
 - **Detection** — the sniff walks each class body and compares every method's
   name against the enclosing class's. PHPMD has no threshold or configurable
-  property for this rule, so there is nothing to tune and `rules.xml` configures
+  property for this rule, so there is nothing to tune and `CleanCode/ruleset.xml` configures
   no `<properties>`.
 - **Case-insensitive on both sides** — the sniff lowercases both names before
   comparing; PHPMD uses `strcasecmp()`. A method differing from its class only
@@ -46,7 +46,7 @@ recorded under [Divergences](#divergences-from-phpmd) below.
   against that fixture.
 - **No severity override needed** — unlike the `Squiz.PHP.Eval` and
   `VariableAnalysis` mappings, this sniff reports through `addError()` already,
-  so `phpcs` exits non-zero on a violation without help from `rules.xml`. The
+  so `phpcs` exits non-zero on a violation without help from `CleanCode/ruleset.xml`. The
   test asserts it rather than assuming it, so a vendor change to warning
   severity surfaces as a failure instead of a silent hole in the mapping.
 - **Not auto-fixable** — matching PHPMD. Renaming a PHP 4 constructor to
@@ -55,7 +55,7 @@ recorded under [Divergences](#divergences-from-phpmd) below.
 - **`OldStyleCall` excluded** — the sniff also reports PHP 4-style *calls* to a
   parent constructor (`parent::ParentName()`). PHPMD's rule only ever inspects a
   method's own declared name against its enclosing class, so a call site has no
-  counterpart in the rule being replicated. `rules.xml` excludes the code rather
+  counterpart in the rule being replicated. `CleanCode/ruleset.xml` excludes the code rather
   than shipping it as a side effect, the same treatment the
   [UndefinedVariable](cleancode-undefinedvariable.md) mapping gives its extra
   codes.

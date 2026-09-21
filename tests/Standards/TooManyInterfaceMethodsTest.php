@@ -15,10 +15,10 @@
  * contract means deciding which client needs which signature, which no
  * mechanical rewrite can do.
  *
- * rules.xml does not path-scope this sniff, so the fixtures are processed
+ * CleanCode/ruleset.xml does not path-scope this sniff, so the fixtures are processed
  * where they live. The sniff is isolated from the rest of the master ruleset
  * (loaded, then $ruleset->sniffs is narrowed to it) so these assertions stay
- * stable as sibling standards land in rules.xml.
+ * stable as sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -35,12 +35,12 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * The master ruleset configures the threshold explicitly, so a consumer
- * reading rules.xml sees the value it is running under.
+ * reading CleanCode/ruleset.xml sees the value it is running under.
  *
  * Both halves of that are asserted, because neither alone pins the block. The
- * parsed `<property>` element comes first: the sniff is picked up by the
- * ./CleanCode/ruleset.xml reference whether or not rules.xml says anything
- * about it, and the shipped value equals the class default, so deleting the
+ * parsed `<property>` element comes first: the sniff is registered from
+ * `CleanCode/Sniffs/` whether or not the ruleset says anything about it,
+ * and the shipped value equals the class default, so deleting the
  * whole block would leave a test that only read the sniff instance green. The
  * instance is then read too, since the element carries the value as the string
  * `'5'` and only the assignment proves it reaches a typed `int $maxMethods`

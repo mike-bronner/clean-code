@@ -1,8 +1,37 @@
 # Contributing
 
 This package is a PHP_CodeSniffer standard (`composer.json` type
-`phpcodesniffer-standard`). Custom sniffs live in the **CleanCode** standard;
-the master ruleset consumers run is **`rules.xml`** at the package root.
+`phpcodesniffer-standard`). It ships **exactly one** installed standard, and a
+consumer who installs the package gets it in `vendor/bin/phpcs -i`:
+
+**`CleanCode`**, in `CleanCode/ruleset.xml`. That one file is the whole rule
+set: the custom sniffs in `CleanCode/Sniffs/`, the PSR and Slevomat wiring, the
+`php_version` pin, the Blade `extensions` argument and the
+`Internal.NoCodeFound` suppression. A consumer writes `<rule ref="CleanCode"/>`
+and gets all of it.
+
+Two mechanics make that one file work, and both are worth knowing before you
+edit it:
+
+- A standard's *name* is the name of the directory holding its `ruleset.xml`,
+  never the `name=` attribute inside. So `CleanCode/` is this package's public
+  API. It is also the prefix on every code the custom sniffs report, which is
+  why the directory is not free to be renamed: `CleanCode.Naming.ShortVariable`
+  in a report, `CleanCode` in a consumer's config, and
+  `MikeBronner\CleanCode\Sniffs\…` in the source are the same word in three
+  places.
+- A ruleset's sibling `Sniffs/` directory is registered automatically when the
+  ruleset loads. Nothing in `CleanCode/ruleset.xml` refers to the custom sniffs,
+  and nothing needs to.
+
+Adding a second directory with a `ruleset.xml` in it would install a second
+standard. `tests/Contract/InstalledStandardTest.php` fails if one appears.
+
+**On "the master ruleset",** which this document, the sniff docs and the
+test docblocks all use. It means `CleanCode/ruleset.xml`: the one ruleset that
+wires every rule the package ships, as opposed to an individual sniff or a
+consumer's own ruleset. There is no second file for it to be master *of* any
+more, and the phrase is kept because it is what ~300 comments already say.
 
 Tests are written with **[Pest](https://pestphp.com/)** and live under `tests/`.
 New tests never use PHP_CodeSniffer's own `AbstractSniffUnitTest` harness: it
@@ -29,9 +58,8 @@ and `tests/fixtures/UnusedPrivateElementsSniff/`.
 ## Layout
 
 ```
-rules.xml                                  # master ruleset — standards get wired in here
 CleanCode/
-├── ruleset.xml                            # the installable CleanCode standard
+├── ruleset.xml                            # the CleanCode standard, entire — rules get wired in here
 ├── Helpers/<Name>.php                     # token-stream decisions shared by several sniffs
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
@@ -51,7 +79,7 @@ tests/
 ├── Helpers/                               # the shared classes under CleanCode/Helpers/, plus the staging teardown
 ├── Standards/                             # a custom sniff's own behaviour — one file per sniff
 ├── Rules/                                 # four older files doing tests/Ruleset/'s job — closed to new work
-├── Ruleset/                               # a standard as rules.xml wires and configures it, plus its own fixtures/
+├── Ruleset/                               # a standard as CleanCode/ruleset.xml wires and configures it, plus its own fixtures/
 └── Integration/                           # whole-ruleset behaviour, with its own fixtures/
 ```
 
@@ -85,7 +113,7 @@ They divide by what the test is a verdict about:
 | Suite | The question it answers | Put new tests here? |
 |---|---|---|
 | `tests/Standards/` | Does this **sniff** behave correctly? One file per custom CleanCode sniff, driven by `analyzeFixture()` against `tests/fixtures/<Name>Sniff/`. | Yes — every new custom sniff. |
-| `tests/Ruleset/` | Does **`rules.xml`** wire and configure this standard correctly? Registration, the configured `<properties>`, the `<exclude>`s, and the several sniffs of one standard together. | Yes — every standard carried by third-party sniffs. |
+| `tests/Ruleset/` | Does **`CleanCode/ruleset.xml`** wire and configure this standard correctly? Registration, the configured `<properties>`, the `<exclude>`s, and the several sniffs of one standard together. | Yes — every standard carried by third-party sniffs. |
 | `tests/Rules/` | The same question as `tests/Ruleset/`, under an older name. | No — `tests/Ruleset/` is the canonical home. |
 
 `tests/Rules/` holds exactly four files — `AvoidConditionalsRulesTest`,
@@ -100,22 +128,22 @@ standard. Three of `tests/Rules/`'s four already carry it; the directory is
 legacy in name only, not in rigour.
 
 Four files reach that verdict **indirectly** instead, asserting violations that
-can only appear if the sniff is wired into `rules.xml` — whether by running the
+can only appear if the sniff is wired into `CleanCode/ruleset.xml` — whether by running the
 master ruleset and scoping the assertions, narrowing the built ruleset, or
 filtering the phpcs run with `--sniffs`:
 `tests/Rules/LineLengthRulesTest.php`,
 `tests/Ruleset/CasingConventionsRulesetTest.php`,
 `tests/Ruleset/NoDeadCodeRulesetTest.php` and
-`tests/Ruleset/UnusedLocalVariableTest.php`. A sniff dropped from `rules.xml`
+`tests/Ruleset/UnusedLocalVariableTest.php`. A sniff dropped from `CleanCode/ruleset.xml`
 falls out of the report and their violation assertions fail, so the wiring is
 still pinned. Prefer the explicit `sniffCodes` key check anyway: it names the
 missing rule instead of reporting an absent violation.
 
-**One `tests/Standards/` file is the norm even when `rules.xml` configures the
+**One `tests/Standards/` file is the norm even when `CleanCode/ruleset.xml` configures the
 sniff.** Exactly two custom sniffs carry a live `<properties>` block —
 `CleanCode.CodeSize.TooManyMethods` and `CleanCode.Classes.ExcessiveClassLength`
 — and only one of them is split. `buildRuleset()` hands back the ruleset
-`rules.xml` actually parsed, so a behaviour test can read the configured
+`CleanCode/ruleset.xml` actually parsed, so a behaviour test can read the configured
 instance and pin the shipped values where it stands:
 `tests/Standards/TooManyMethodsTest.php` asserts `maxmethods` is 25 and
 `ignorepattern` is the shipped regex, in the same file as the behaviour. Do not
@@ -144,7 +172,7 @@ these four.
 #### Layouts this table supersedes
 
 Before this table existed, several PRs each settled on their own way to test a
-rule wired into `rules.xml`. This section records what survived of each, so a
+rule wired into `CleanCode/ruleset.xml`. This section records what survived of each, so a
 reader of those PRs does not copy a dead pattern. Rows are in the order they
 landed on `main`, which is what "first" means throughout — several of these
 branches were written in a different order than they merged:
@@ -256,10 +284,10 @@ views (`CleanCode.Livewire.ComponentMarkup`). Its three contract fixtures stay
 contract sweep resolves them by fixed name; two extra `.blade.php` fixtures sit
 beside them, for the two things only the real file type can assert:
 
-- `component.blade.php` — the extension registered in `rules.xml` reaches the
+- `component.blade.php` — the extension registered in `CleanCode/ruleset.xml` reaches the
   sniff, tested through the whole master ruleset rather than assumed.
 - `no-php-code.blade.php` — a view with no `<?php` tag at all, which is what
-  the `Internal.NoCodeFound` exclude-pattern in `rules.xml` exists for. Every
+  the `Internal.NoCodeFound` exclude-pattern in `CleanCode/ruleset.xml` exists for. Every
   `.php` fixture carries a trailing open tag instead, because that suppression
   deliberately does not cover `.php`.
 
@@ -297,9 +325,9 @@ you will reach for:
   `_rulesets/` equivalent, for a standard carried by several sniffs.
 - `analyzeWithMasterRuleset($path)` — the *whole* ruleset, every sniff active.
   Use it when the point is how rules interact; scope the assertions to the
-  sources under test so unrelated additions to `rules.xml` cannot break them.
+  sources under test so unrelated additions to `CleanCode/ruleset.xml` cannot break them.
 - `analyzeWithStandard($standard, $path)` — a whole *vendor* standard by name,
-  outside `rules.xml`. Narrow: `rules.xml` references vendor sniffs one at a
+  outside `CleanCode/ruleset.xml`. Narrow: `CleanCode/ruleset.xml` references vendor sniffs one at a
   time, so the master ruleset can only report on what is already wired in. Use
   this when the question is "does anything in this vendor standard already
   cover the case?" — the one a new custom sniff has to settle, and the one a
@@ -321,7 +349,7 @@ Every helper that narrows to particular sniffs builds the master ruleset and
 *then* narrows `$ruleset->sniffs`, rather than restricting PHPCS via
 `$config->sniffs`. This is load-bearing: under
 `PHP_CODESNIFFER_IN_TESTS` a `$config->sniffs` restriction makes `Ruleset` skip
-parsing `rules.xml` altogether — which is what pulls the custom CleanCode sniffs
+parsing `CleanCode/ruleset.xml` altogether — which is what pulls the custom CleanCode sniffs
 in and what applies the `<properties>` configured there.
 
 ## Adding a new sniff
@@ -396,7 +424,7 @@ in and what applies the `<properties>` configured there.
    A sniff **scoped by path** is the one exception: the sweep processes each
    fixture where it lives, under `tests/`, and the scoping is decided from the
    file's path alone, so the failing fixture would report nothing. That covers
-   a sniff scoped by `rules.xml` with an `<include-pattern>`/`<exclude-pattern>`
+   a sniff scoped by `CleanCode/ruleset.xml` with an `<include-pattern>`/`<exclude-pattern>`
    and one that scopes itself from its own property — the sweep configures
    nothing, so a property-scoped sniff cannot even be pointed at its own
    fixtures there. Leave it out of the datasets, record why in a comment beside
@@ -410,7 +438,7 @@ in and what applies the `<properties>` configured there.
 
    **Carry the shipped-install run over too.** The sweep is not only generic
    coverage: through `tests/Contract/ShippedPackageSmokeTest.php` it is the only
-   place a sniff is executed by the real `vendor/bin/phpcs` against `rules.xml`.
+   place a sniff is executed by the real `vendor/bin/phpcs` against `CleanCode/ruleset.xml`.
    Every other test drives PHP_CodeSniffer in process through `ConfigDouble`,
    which supplies the registration Composer would have supplied — so a package
    that never registered itself with the installed standards passes all of them,
@@ -420,7 +448,7 @@ in and what applies the `<properties>` configured there.
    out-of-scope path and `passing.php` stay silent at status 0. Every path-scoped
    sniff carries one; `tests/Standards/UnitTestExternalConcernsTest.php` is the
    property-scoped shape and `tests/Standards/NoProceduralCodeTest.php` the
-   `rules.xml`-scoped one.
+   `CleanCode/ruleset.xml`-scoped one.
 4. **Add its behaviour test** at `tests/Standards/<Name>Test.php`, asserting the
    exact lines, columns, and violation sources — see
    `tests/Standards/NotOperatorSpacingTest.php` for the simple shape and
@@ -428,17 +456,17 @@ in and what applies the `<properties>` configured there.
    Sitting in `tests/Standards/` with a `Test.php` suffix is what collects it —
    see "How a test gets collected"; there is nothing else to register.
 
-   **One file is normally the whole answer, even when `rules.xml` configures
+   **One file is normally the whole answer, even when `CleanCode/ruleset.xml` configures
    the sniff.** Read the configured instance off `buildRuleset()` and pin the
    shipped `<properties>` right here, as `tests/Standards/TooManyMethodsTest.php`
    does. Add a second file at `tests/Ruleset/<Name>Test.php` only when this test
    has to *override* the shipped configuration to do its own job — see "Which
    suite a test goes in" and the `ExcessiveClassLength` pair.
-5. **Wire third-party rules into `rules.xml`** when a standard is enforced by an
+5. **Wire third-party rules into `CleanCode/ruleset.xml`** when a standard is enforced by an
    existing sniff instead of a custom one, e.g.
    `<rule ref="SlevomatCodingStandard.TypeHints.DeclareStrictTypes"/>`. Custom
-   CleanCode sniffs are already picked up via the
-   `<rule ref="./CleanCode/ruleset.xml"/>` line. Pin the registration and the
+   CleanCode sniffs need no ref at all — `CleanCode/Sniffs/` beside the ruleset
+   is registered automatically when it loads. Pin the registration and the
    configured behaviour with a test in `tests/Ruleset/` — see
    `tests/Ruleset/UnusedUsesTest.php` for the single-sniff shape and
    `tests/Ruleset/TypeHintsRulesetTest.php` for a standard carried by several
@@ -459,11 +487,11 @@ in and what applies the `<properties>` configured there.
    Composer writes the path into `CodeSniffer.conf` on install, but every test
    builds its `Config` through `ConfigDouble`, which blanks that file — so a
    package missing from the list does not fail on its own sniff, it makes the
-   whole `rules.xml` parse fail and takes the entire suite down with it.
+   whole `CleanCode/ruleset.xml` parse fail and takes the entire suite down with it.
 
    Where a third-party sniff emits more codes than the standard being adopted,
    `<exclude>` the extra ones and pin **both halves**: that they stay silent
-   through `rules.xml`, and that they still fire without the excludes.
+   through `CleanCode/ruleset.xml`, and that they still fire without the excludes.
    Otherwise a fixture that trips nothing looks exactly like a working exclude
    list. `tests/Ruleset/UndefinedVariableTest.php` is the template.
 6. **Document the standard** under `docs/standards/` and link it from the
@@ -498,7 +526,7 @@ composer lint:self # the shipped ruleset against CleanCode/, at zero errors
 
 vendor/bin/pest --testsuite=Standards      # one suite
 vendor/bin/pest --filter='flags every'     # one test
-vendor/bin/phpcs --standard=rules.xml <file>   # run the master ruleset
+vendor/bin/phpcs --standard=CleanCode/ruleset.xml <file>   # run the standard
 ```
 
 ### The self-lint
@@ -535,7 +563,7 @@ each argued at the exclusion in `phpcs.self.xml`:
   what the work *is*. Splitting a walk into more methods moves the branches
   without removing them and costs the reader the one place the walk can be seen.
 
-All nine stay at full severity in `rules.xml`, so a consumer's application code
+All nine stay at full severity in `CleanCode/ruleset.xml`, so a consumer's application code
 is still held to every one of them. Application code branches because somebody
 made a decision; a token walker branches because the grammar does.
 
@@ -586,7 +614,7 @@ Keep a comment when a reader would otherwise be surprised:
 Cut anything that restates what the code or config line already says, narrates
 how a decision was reached, or repeats a `docs/standards/*.md` the line already
 points at. An XML comment and a docblock cannot be tested, so they drift in
-silence — `rules.xml` has shipped three false claims that way.
+silence — `CleanCode/ruleset.xml` has shipped three false claims that way.
 
 Never make a comment a test's expected value. An enumeration a test needs is
 data, so it belongs in code: see `MultiLineStatementIndentSniff`'s

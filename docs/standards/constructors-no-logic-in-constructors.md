@@ -22,7 +22,7 @@ constructor body. Slevomat's
 pushes assignments into promoted parameters but says nothing about other logic,
 and was evaluated against this standard's test suite without matching it. The
 standard is therefore enforced by the custom `CleanCode.Constructors.NoLogic`
-sniff, wired into the master `rules.xml` via the CleanCode standard
+sniff, wired into the master `CleanCode/ruleset.xml` via the CleanCode standard
 ([#40](https://github.com/mike-bronner/phpcs-rules/issues/40)).
 
 - **Detection** — the sniff walks the top-level statements of every

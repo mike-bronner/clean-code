@@ -23,9 +23,9 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 | --- | --- |
 | `Design/EvalExpression` | `Squiz.PHP.Eval` (message code `.Discouraged`) |
 
-Enforced by `Squiz.PHP.Eval`, wired into the master ruleset (`rules.xml`) — no
+Enforced by `Squiz.PHP.Eval`, wired into the master ruleset (`CleanCode/ruleset.xml`) — no
 custom sniff needed ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107)).
-Running `phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does
+Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 
 - **Detection** — the sniff listens for the `eval` language construct and
@@ -34,7 +34,7 @@ not have to run separately for it.
   expression. PHPMD has no threshold or configurable property for this rule, so
   there is nothing to tune.
 - **Severity raised to error** — the sniff reports a *warning* out of the box.
-  `rules.xml` overrides it with `<type>error</type>` so that `eval()` fails a
+  `CleanCode/ruleset.xml` overrides it with `<type>error</type>` so that `eval()` fails a
   `phpcs` run the way it fails a `phpmd` run. Left as a warning, `phpcs` would
   exit `0` on eval usage and the mapping would not actually replace `phpmd`.
 - **Not auto-fixable** — matching PHPMD. There is no mechanical rewrite from an

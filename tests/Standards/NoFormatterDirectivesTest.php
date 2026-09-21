@@ -81,7 +81,7 @@ const NO_FORMATTER_DIRECTIVES_MESSAGES = [
  * what configures the sniff — the route a consuming project's ruleset takes.
  *
  * Builds its own Config rather than going through buildRuleset(), which always
- * parses rules.xml. The sniff is referenced by file path from the XML, so no
+ * parses CleanCode/ruleset.xml. The sniff is referenced by file path from the XML, so no
  * installed_paths entry is needed; the fresh ConfigDouble resets PHPCS's static
  * config state, exactly as tests/Standards/ConvertToCollectionTest.php does, so
  * nothing here leaks into a memoised ruleset later in the run.
@@ -279,13 +279,13 @@ it('ignores a configured directive that is empty once trimmed', function (): voi
 /**
  * This sniff is the one in the standard whose subject is prose, so the package's
  * own comments are inside its reach. Every PHP file here ships — there is no
- * .gitattributes export-ignore — and rules.xml deliberately keeps this sniff
+ * .gitattributes export-ignore — and CleanCode/ruleset.xml deliberately keeps this sniff
  * over tests/ rather than excluding it the way two sibling rules do, so a marker
  * written into any docblock in the package makes a consuming project's scan
  * report the package's own files.
  *
  * The scan is why the reach is worth stating: `composer lint` runs PSR-12, and
- * CI's rules.xml step reads one file, so neither loads this sniff over this tree
+ * CI's CleanCode/ruleset.xml step reads one file, so neither loads this sniff over this tree
  * and neither could report a CleanCode.CodeStyle finding here at all. The same
  * gap let a sniff flag its own source unnoticed once before, on #279.
  *

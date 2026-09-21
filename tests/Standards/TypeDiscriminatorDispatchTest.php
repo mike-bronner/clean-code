@@ -425,7 +425,7 @@ it('reports those same constructs once minimumBranches is lowered', function ():
 });
 
 /**
- * The shipped default, read off the instance rules.xml parsed rather than off
+ * The shipped default, read off the instance CleanCode/ruleset.xml parsed rather than off
  * the class, so a `<properties>` block added there would have to be reflected
  * here. It is the value every assertion above depends on.
  */

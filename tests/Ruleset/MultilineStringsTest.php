@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the custom CleanCode.Strings.MultilineStrings sniff as
- * wired into the master rules.xml (Code Style: Multiline Strings (HEREDOC),
+ * wired into the master CleanCode/ruleset.xml (Code Style: Multiline Strings (HEREDOC),
  * issue #53). Fixtures live in tests/fixtures/MultilineStringsSniff/.
  *
  * Two shapes are covered: a quoted string literal spanning multiple lines

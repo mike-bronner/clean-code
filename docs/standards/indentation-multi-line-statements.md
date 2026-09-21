@@ -135,7 +135,7 @@ the standard gets one custom sniff covering every construct uniformly.
 
 One of those partial matches had to be switched off to let this one run.
 `PSR2.Methods.FunctionCallSignature.Indent` — reached through the `PSR12`
-reference in `rules.xml` — measures a multi-line call's argument lines and
+reference in `CleanCode/ruleset.xml` — measures a multi-line call's argument lines and
 closing bracket, which is a subset of what this sniff measures for every
 multi-line statement, so both reported the same lines. Both also auto-fix, and
 they disagree about one shape: where a statement starts on the line a
@@ -144,7 +144,7 @@ comment and folds that line's leading whitespace into the token, so the
 fragment's column is 1 and PSR-12 concludes the call sits at indent 0. `phpcbf`
 then alternated between the two answers until it exhausted its 50-pass budget
 and abandoned the file whole — discarding every *other* sniff's fixes in it,
-silently. The code is excluded in `rules.xml`, which leaves the rest of
+silently. The code is excluded in `CleanCode/ruleset.xml`, which leaves the rest of
 `FunctionCallSignature` (bracket spacing, argument placement) in force;
 `tests/Ruleset/MultiLineStatementIndentRulesetTest.php` pins both halves of
 that trade — the lines it used to report are still reported, and the fixer

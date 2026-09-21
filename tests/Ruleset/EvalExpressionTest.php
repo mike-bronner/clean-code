@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Squiz.PHP.Eval rule as configured in the master
- * rules.xml, which replaces PHPMD's Design/EvalExpression rule (issue #107).
+ * CleanCode/ruleset.xml, which replaces PHPMD's Design/EvalExpression rule (issue #107).
  * Fixtures live in tests/fixtures/EvalSniff/.
  *
  * There is no autofixed.php because the rule is not auto-fixable —
@@ -12,7 +12,7 @@
  * autofix fixture stays an asserted fact rather than an assumption.
  *
  * The severity override is pinned here too: the sniff reports a *warning* out
- * of the box and rules.xml raises it to an error, so eval() fails a phpcs run
+ * of the box and CleanCode/ruleset.xml raises it to an error, so eval() fails a phpcs run
  * the way it fails a phpmd run. That is why the tests assert the reports land
  * in getErrors() and that getWarnings() stays empty.
  */

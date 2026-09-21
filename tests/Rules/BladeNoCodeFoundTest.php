@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Tests the Internal.NoCodeFound suppression in the master rules.xml, the
+ * Tests the Internal.NoCodeFound suppression in the master CleanCode/ruleset.xml, the
  * other half of scanning Blade views (#46).
  *
  * Registering `blade.php/php` hands PHPCS's PHP tokenizer a file that, by
@@ -35,7 +35,7 @@ $sourcesWithoutShortOpenTags = static function (string $path): array {
         '-d',
         'short_open_tag=Off',
         cleanCodeRoot() . '/vendor/bin/phpcs',
-        '--standard=' . cleanCodeRoot() . '/rules.xml',
+        '--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml',
         '--report=csv',
         '--no-cache',
         $path,

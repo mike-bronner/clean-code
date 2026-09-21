@@ -50,14 +50,14 @@ Two candidates do report on that fixture, and neither for its subject:
   short class and enum entirely, and a suffixed name satisfies them however
   little it says.
 - `PSR1.Classes.ClassDeclaration`, already active through the `PSR12` reference
-  in `rules.xml`, reports the fixture for having no namespace and several types
+  in `CleanCode/ruleset.xml`, reports the fixture for having no namespace and several types
   per file — again, nothing to do with name length.
 
-So the rule is the custom `CleanCode.Naming.ShortClassName` sniff, wired into
-the master ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+So the rule is the custom `CleanCode.Naming.ShortClassName` sniff, registered
+automatically from `CleanCode/Sniffs/` when the standard loads
 ([#103](https://github.com/mike-bronner/phpcs-rules/issues/103)). Running
-`phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does not have
-to run separately for it.
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd`
+does not have to run separately for it.
 
 - **Detection** — the declaration's **unqualified** name is measured in *bytes*
   (`strlen()`, as PHPMD's own rule does) and reported when it is shorter than
@@ -79,7 +79,7 @@ to run separately for it.
   replaces.
 - **Error severity** — the sniff reports errors, so a short class name fails a
   `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed in
-  `rules.xml`, unlike the two Tier 1 mappings.
+  `CleanCode/ruleset.xml`, unlike the two Tier 1 mappings.
 - **Not auto-fixable** — matching PHPMD. Renaming a type rewrites every
   reference to it and, under PSR-4, the file it lives in; that is a refactor,
   not a mechanical rewrite.

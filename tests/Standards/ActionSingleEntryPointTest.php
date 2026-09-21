@@ -19,10 +19,10 @@
  * class, moving a method, and rewriting every call site that reaches it. There
  * is no autofixed fixture.
  *
- * rules.xml does not path-scope this sniff, so the fixtures are processed where
+ * CleanCode/ruleset.xml does not path-scope this sniff, so the fixtures are processed where
  * they live. The sniff is isolated from the rest of the master ruleset (loaded,
  * then $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (existing sniffs)
 
 Only the PHP-identifier cases are statically checkable. Three existing sniffs
-enforce them under the master `rules.xml` ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)).
+enforce them under the master `CleanCode/ruleset.xml` ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)).
 One is referenced explicitly; the other two arrive with the ruleset's `PSR12`
 reference, which includes `PSR1` wholesale
 ([#217](https://github.com/mike-bronner/phpcs-rules/issues/217)):

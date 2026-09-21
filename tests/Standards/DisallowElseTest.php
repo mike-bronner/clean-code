@@ -15,7 +15,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -68,7 +68,7 @@ it('produces no violations on the compliant fixture', function (): void {
  * code outside a function, and misses the braceless else because it matches a
  * ScopeStatement, which PDepend only builds for a braced body. Both are the
  * same avoidable branch the rule targets. Dropping either line contradicts
- * docs/phpmd/cleancode-elseexpression.md and rules.xml.
+ * docs/phpmd/cleancode-elseexpression.md and CleanCode/ruleset.xml.
  *
  * Lines 45, 58, 244, 275, 297, 345, and 357 are the `elseif`/`else if`
  * reports #14 added. PHPMD reports none of them: its rule fires on the else

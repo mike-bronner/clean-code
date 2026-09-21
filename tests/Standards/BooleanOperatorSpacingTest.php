@@ -10,7 +10,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml. The assertions that deliberately do
+ * sibling standards land in CleanCode/ruleset.xml. The assertions that deliberately do
  * *not* narrow are the disjointness tests at the bottom, which are about how
  * this sniff relates to every other sniff that touches its tokens.
  */
@@ -147,12 +147,12 @@ it('shares no registered token with the sniffs that own the rest of the standard
  *
  * - PSR12.Operators.OperatorSpacing adds Tokens::$booleanOperators to the Squiz
  *   base set it inherits, and is held out by the blanket
- *   <exclude name="PSR12.Operators.OperatorSpacing"/> in rules.xml. Narrowing
+ *   <exclude name="PSR12.Operators.OperatorSpacing"/> in CleanCode/ruleset.xml. Narrowing
  *   that exclude to the assignment/concatenation codes it was originally
  *   written for — which its own comment describes — would silently double every
  *   violation this sniff reports.
  * - Squiz.WhiteSpace.LogicalOperatorSpacing enforces the same "exactly one
- *   space" rule on the same five tokens. Nothing excludes it; rules.xml simply
+ *   space" rule on the same five tokens. Nothing excludes it; CleanCode/ruleset.xml simply
  *   never refs it, individually or via the whole Squiz standard. Adding either
  *   would double them the same way.
  *

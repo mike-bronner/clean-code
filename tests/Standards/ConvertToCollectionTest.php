@@ -113,7 +113,7 @@ $analyzeWithArrayFunctions = static function (string $fixture, array $arrayFunct
  * configures the sniff — the route a consuming project's ruleset takes.
  *
  * Builds its own Config rather than going through buildRuleset(), which always
- * parses rules.xml. The sniff is referenced by file path from the XML, so no
+ * parses CleanCode/ruleset.xml. The sniff is referenced by file path from the XML, so no
  * installed_paths entry is needed; the fresh ConfigDouble resets PHPCS's static
  * config state, exactly as tests/Ruleset/UndefinedVariableTest.php does, so
  * nothing here leaks into a memoised ruleset later in the run.

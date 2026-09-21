@@ -6,7 +6,7 @@ namespace App;
 
 /**
  * Every construct here trips one of the three VariableAnalysis codes that
- * rules.xml excludes, and none of them is an undefined-variable read or an
+ * CleanCode/ruleset.xml excludes, and none of them is an undefined-variable read or an
  * unused local. The test proves both halves: silent through the master
  * ruleset, noisy through the unconfigured standard.
  *

@@ -2,14 +2,14 @@
 
 /**
  * Integration test for the SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly
- * rule as configured in the master rules.xml, which replaces PHPMD's CleanCode
+ * rule as configured in the master CleanCode/ruleset.xml, which replaces PHPMD's CleanCode
  * MissingImport rule (issue #84). Fixtures live in
  * tests/fixtures/ReferenceUsedNamesOnlySniff/.
  *
  * Every parity and divergence claim below was checked against a live PHPMD
  * 2.15.0 run over the same fixture files, with only MissingImport enabled.
  *
- * rules.xml sets two properties and leaves the rest at their vendor defaults.
+ * CleanCode/ruleset.xml sets two properties and leaves the rest at their vendor defaults.
  * Both halves of each property are pinned: the configured behaviour, and that
  * the fixture would report without it. A test that only asserted silence would
  * pass just as well if the property were dropped and the fixture were wrong.
@@ -26,7 +26,7 @@
  *   issue #63, which rewrites a caught \Exception to a fully qualified
  *   \Throwable that this sniff then asks to be imported.
  *
- * Unlike the other PHPMD mappings in rules.xml, no <type> override is needed:
+ * Unlike the other PHPMD mappings in CleanCode/ruleset.xml, no <type> override is needed:
  * the sniff reports errors out of the box, so phpcs already fails a run the way
  * phpmd does. The error/warning split is asserted below so that stays a checked
  * fact rather than an assumption.
@@ -83,7 +83,7 @@ it('is registered in the master ruleset', function (): void {
  * imported names in every position failing.php gets wrong — the trait use among
  * them — `self` and `static` (which PHPMD skips explicitly), a fallback global
  * function and constant, and the fully qualified global function and constant
- * rules.xml allows.
+ * CleanCode/ruleset.xml allows.
  */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(REFERENCE_USED_NAMES_ONLY, 'passing.php');
@@ -146,7 +146,7 @@ it('imports a fully qualified trait use when it fixes the failing fixture', func
 });
 
 /**
- * The sniff reports errors on its own account, which is why rules.xml carries
+ * The sniff reports errors on its own account, which is why CleanCode/ruleset.xml carries
  * no <type> override for it — unlike Squiz.PHP.Eval and VariableAnalysis, whose
  * warnings have to be raised so phpcs fails the run the way phpmd does.
  */
@@ -161,7 +161,7 @@ it('reports fully qualified references as errors rather than warnings', function
 /**
  * PHPMD's `ignore-global` property maps onto allowFullyQualifiedGlobalClasses,
  * and both tools default it off — so `new \stdClass()` is a violation for both
- * out of the box. rules.xml leaves the default alone; this pins that the
+ * out of the box. CleanCode/ruleset.xml leaves the default alone; this pins that the
  * mapping is real by driving the property from a test the way a consuming
  * ruleset would, and asserting the exact set that drops out.
  *
@@ -193,7 +193,7 @@ it('silences global-namespace classes when ignore-global is switched on', functi
  * namespace.
  *
  * allowWhenNoNamespace is what governs this, and its name reads backwards: its
- * *false* branch is an early return that skips such files entirely. rules.xml
+ * *false* branch is an early return that skips such files entirely. CleanCode/ruleset.xml
  * therefore leaves it at the vendor default, true. The second assertion pins
  * that, so flipping the property to "match PHPMD" fails here instead of
  * silently dropping every namespace-less file from the rule.
@@ -223,7 +223,7 @@ it('flags a fully qualified reference in a file with no namespace', function ():
  * ignore-global is on; the sniff still reports it, because the
  * without-a-namespace branch runs before the global-classes gate.
  *
- * rules.xml leaves both properties at the shared default, so nothing here is
+ * CleanCode/ruleset.xml leaves both properties at the shared default, so nothing here is
  * live — this exists so the divergence stays a recorded fact if anyone ever
  * turns ignore-global on, and it is documented alongside the rest in
  * docs/phpmd/cleancode-missingimport.md.
@@ -244,14 +244,14 @@ it('keeps reporting namespace-less files even with ignore-global switched on', f
 });
 
 /**
- * rules.xml allows fully qualified *global* functions and constants, because
+ * CleanCode/ruleset.xml allows fully qualified *global* functions and constants, because
  * MissingImport walks allocation expressions only and so has no opinion on
  * either, while the leading backslash on them is a deliberate idiom.
  *
  * passing.php's silence alone would not prove the properties do anything — a
  * fixture that tripped nothing looks identical. So each property is reverted to
  * its vendor default in turn, and the report it brings back is asserted
- * exactly. Drop either property from rules.xml and its half of this fails.
+ * exactly. Drop either property from CleanCode/ruleset.xml and its half of this fails.
  */
 it('allows fully qualified global functions and constants, and would report them without that', function (): void {
     $file = analyzeFixture(
@@ -330,7 +330,7 @@ it('leaves no violation behind on its own fixed output', function (): void {
 });
 
 /**
- * The one live collision inside rules.xml. ReferenceThrowableOnly (#63)
+ * The one live collision inside CleanCode/ruleset.xml. ReferenceThrowableOnly (#63)
  * rewrites a caught \Exception to the literal `\Throwable`, fully qualified —
  * which this sniff then reports. Leaving allowFullyQualifiedExceptions at its
  * default false is deliberate: switching it on would also silence

@@ -20,7 +20,7 @@ pieces of code in different layers, not the shape of any one of them. A PHPCS
 sniff sees one file's token stream at a time, so neither half is reachable.
 
 - **The front-end half carries no token to register on.** A JavaScript bundle
-  is outside `rules.xml`'s `extensions="php"` scope entirely. A Blade template
+  is outside `CleanCode/ruleset.xml`'s `extensions="php"` scope entirely. A Blade template
   is nominally in scope — `*.blade.php` does end in `.php` — but the
   restriction there is a directive or a markup attribute, and even when PHPCS
   tokenizes the file there is nothing in it that names the back-end guard it
@@ -42,7 +42,7 @@ false-positive rate is set by the project's routing conventions rather than
 by anything in the file — no threshold makes it useful.
 
 No subset of the standard survives that, so no partial-enforcement sniff issue
-is opened and no rule is wired into `rules.xml`. The assessment is recorded on
+is opened and no rule is wired into `CleanCode/ruleset.xml`. The assessment is recorded on
 [#52](https://github.com/mike-bronner/phpcs-rules/issues/52).
 
 ## What remains code review

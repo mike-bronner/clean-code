@@ -20,7 +20,7 @@
 declare(strict_types=1);
 
 /**
- * Every sniff wired into rules.xml that reports errors.
+ * Every sniff wired into CleanCode/ruleset.xml that reports errors.
  */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
@@ -101,7 +101,7 @@ const SWEPT_SNIFFS = [
 ];
 
 /**
- * Every sniff wired into rules.xml that reports warnings.
+ * Every sniff wired into CleanCode/ruleset.xml that reports warnings.
  *
  * Deliberately absent, alongside CleanCode.Models.DisallowExternalPersistenceCalls
  * and CleanCode.Models.DisallowChainedPropertyFetch:
@@ -229,7 +229,7 @@ const SHIPPED_SMOKE_EXCLUSIONS = [
  * This package's own sniffs among a swept dataset's entries, minus the ones
  * covered elsewhere.
  *
- * Third-party entries are dropped: rules.xml configures Generic.*,
+ * Third-party entries are dropped: CleanCode/ruleset.xml configures Generic.*,
  * SlevomatCodingStandard.*, Squiz.* and VariableAnalysis.* sniffs this package
  * did not author, and whose own suites cover their own shipping.
  *

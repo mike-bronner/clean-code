@@ -8,7 +8,7 @@ namespace App;
  * Every case where the configured sniff and PHPMD's UnusedLocalVariable rule
  * do not behave identically, plus the shape both tools miss. Each was checked
  * by running both tools over this file: PHPMD 2.15.0 with only
- * UnusedLocalVariable enabled, and phpcs with the master rules.xml.
+ * UnusedLocalVariable enabled, and phpcs with the master CleanCode/ruleset.xml.
  *
  * The two tools agree on *which names* are unused. They part company on how
  * many times to say so, because PHPMD reports a name once — at its first

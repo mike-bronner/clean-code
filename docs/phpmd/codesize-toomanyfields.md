@@ -29,10 +29,10 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html)
 
 No bundled PHPCS, Slevomat, or Generic sniff counts a class's fields — the only
 metric sniffs shipped are `Generic.Metrics.CyclomaticComplexity` and
-`Generic.Metrics.NestingLevel` — so the rule is a custom sniff, wired into the
-master ruleset (`rules.xml`) through the `./CleanCode/ruleset.xml` reference
+`Generic.Metrics.NestingLevel` — so the rule is a custom sniff, registered
+automatically from `CleanCode/Sniffs/` when the standard loads
 ([#98](https://github.com/mike-bronner/phpcs-rules/issues/98)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 
 - **Detection** — the sniff counts the fields a class declares itself and
@@ -41,7 +41,7 @@ separately for it.
   PHPMD, whose test is `vars <= maxfields`.
 - **Reports errors** — the sniff raises an error rather than a warning, so a
   `phpcs` run fails on the violation the way a `phpmd` run does. The two Tier 1
-  PHPMD mappings need a `<type>error</type>` override in `rules.xml` for this;
+  PHPMD mappings need a `<type>error</type>` override in `CleanCode/ruleset.xml` for this;
   a custom sniff simply reports the right severity itself.
 - **Not auto-fixable** — matching PHPMD. Splitting a class means extracting a
   new object and re-pointing every use of the moved fields, which is a design
@@ -61,7 +61,7 @@ it in its own ruleset:
 </rule>
 ```
 
-`rules.xml` does not set the property. The sniff already defaults to PHPMD's
+`CleanCode/ruleset.xml` does not set the property. The sniff already defaults to PHPMD's
 15, and repeating the number there would only create a second place for it to
 drift.
 
@@ -109,7 +109,7 @@ property modifiers.
 
 **The promoted-property divergence is load-bearing, not a nicety.** This ruleset
 requires promotion — `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion`
-is wired into `rules.xml` — so a compliant class keeps its fields in the
+is wired into `CleanCode/ruleset.xml` — so a compliant class keeps its fields in the
 constructor signature. Copying PDepend's blind spot would leave the rule unable
 to see the fields of the very classes it exists to police.
 

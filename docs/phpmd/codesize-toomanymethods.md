@@ -34,9 +34,9 @@ neighbours measure something else entirely — `SlevomatCodingStandard.Classes
 and `Generic.Metrics.CyclomaticComplexity` scores branching within a single
 method — so this rule is the custom
 [`CleanCode.CodeSize.TooManyMethods`](../../CleanCode/Sniffs/CodeSize/TooManyMethodsSniff.php)
-sniff, wired into the master ruleset (`rules.xml`) with PHPMD's default
+sniff, wired into the master ruleset (`CleanCode/ruleset.xml`) with PHPMD's default
 thresholds ([#80](https://github.com/mike-bronner/phpcs-rules/issues/80)).
-Running `phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does
+Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 
 ## Configurable properties
@@ -46,7 +46,7 @@ not have to run separately for it.
 | `maxmethods` | `25` | The largest counted method total a class may declare |
 | `ignorepattern` | `(^(set\|get\|is\|has\|with))i` | Methods whose name matches are left out of the count |
 
-Both are set explicitly in `rules.xml`, so the thresholds a project runs under
+Both are set explicitly in `CleanCode/ruleset.xml`, so the thresholds a project runs under
 are readable there rather than implied by the sniff's defaults:
 
 ```xml

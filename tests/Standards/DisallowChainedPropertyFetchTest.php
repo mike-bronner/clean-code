@@ -9,7 +9,7 @@
  * suppression comment in suppressed.php, and source PHP itself would reject in
  * malformed.php.
  *
- * rules.xml scopes the sniff out of test paths, and these fixtures live under
+ * CleanCode/ruleset.xml scopes the sniff out of test paths, and these fixtures live under
  * tests/ — so processing one in place reports nothing whatever the sniff does.
  * Every assertion about the sniff's own behaviour therefore runs against a copy
  * staged outside the repository ($stagedRun below), and the exclusion itself is
@@ -19,7 +19,7 @@
  *
  * Most assertions isolate the sniff from the rest of the master ruleset
  * (loaded, then $ruleset->sniffs is narrowed to it) so they stay stable as
- * sibling standards land in rules.xml. The whole-master-ruleset test
+ * sibling standards land in CleanCode/ruleset.xml. The whole-master-ruleset test
  * deliberately does not isolate: it is what pins the severity end to end.
  */
 
@@ -163,7 +163,7 @@ const CHAINED_TOKENS_ADDED_IN = [
 ];
 
 // Fixtures are copied outside the repository before processing, because PHPCS
-// decides rules.xml's test-path exclusion from the file's path alone. The
+// decides CleanCode/ruleset.xml's test-path exclusion from the file's path alone. The
 // staged copies are removed by the afterEach() hook in tests/Pest.php.
 $stagedRun = static fn (string $fixture) => analyzeWithSniffs(
     [CHAINED],
@@ -516,7 +516,7 @@ it('gates a token name only for the PHP versions that predate it', function (): 
 /**
  * The standard mandates the accessor, so violations are errors — and they have
  * to survive the master ruleset as errors, not just leave the sniff as one.
- * This is the only test that runs the whole of rules.xml unedited: a
+ * This is the only test that runs the whole of CleanCode/ruleset.xml unedited: a
  * `<severity>` or `<type>` override on the rule, or an exclude-pattern broader
  * than the intended test-path one, would silence or demote the sniff without
  * touching the addError() call the other tests exercise.
@@ -546,7 +546,7 @@ it('errors through the whole master ruleset', function (): void {
 
 /**
  * Test suites build object graphs inline and read straight through them, so
- * rules.xml scopes the sniff out of test paths. The exclusion is a path match,
+ * CleanCode/ruleset.xml scopes the sniff out of test paths. The exclusion is a path match,
  * so processing failing.php where it actually lives — under tests/ — must report
  * nothing, even though the same bytes produce an error on every line of
  * CHAINED_FAILING_LINES from outside the repository.
@@ -847,7 +847,7 @@ it('keeps no record across files', function () use ($stagedRun): void {
  * the registration Composer would have supplied — so a package that never
  * registered itself with the installed standards passes all of them. This one
  * executes the real vendor/bin/phpcs as a separate process from outside the
- * package, against rules.xml, the file a consumer points --standard at. The
+ * package, against CleanCode/ruleset.xml, the file a consumer points --standard at. The
  * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
  * sniff: it drives each fixture where it lives, under tests/, and this sniff's
  * <exclude-pattern> makes that path report nothing whatever the sniff does.
@@ -861,7 +861,7 @@ it('keeps no record across files', function () use ($stagedRun): void {
  *   fixable, which is what this detection-only rule owes. Status 2 would mean
  *   phpcbf had been offered a fix, and 3 is what a broken install exits with.
  * - the in-repo copy of the same bytes reports nothing and exits 0, so the
- *   reporting half cannot be coming from a run that ignores rules.xml's
+ *   reporting half cannot be coming from a run that ignores CleanCode/ruleset.xml's
  *   exclusion.
  * - passing.php staged the same way reports nothing and exits 0 — the negative
  *   control, without which a shell-out that always reported would satisfy the
@@ -905,7 +905,7 @@ it('reports the violation end to end through the installed package', function ()
  * variable. Under the old key B read A's verdict for that pointer, was ruled
  * not variable-rooted, and its violation was never reported.
  *
- * rules.xml scopes this sniff out of test paths, and that exclusion is decided
+ * CleanCode/ruleset.xml scopes this sniff out of test paths, and that exclusion is decided
  * from the analysed file's own path; STDIN has none, so these three analyses
  * reach the sniff where a fixture under tests/ would not.
  *

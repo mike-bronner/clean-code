@@ -391,8 +391,8 @@ it('stays linear on long runs and deep nesting', function (): void {
 });
 
 /**
- * rules.xml claims no sniff already in the ruleset covers this standard. This
- * is what pins that claim: the whole of rules.xml, every sniff active, over a
+ * CleanCode/ruleset.xml claims no sniff already in the ruleset covers this standard. This
+ * is what pins that claim: the whole of CleanCode/ruleset.xml, every sniff active, over a
  * fixture holding one chain pair and one guard pair and nothing else — and at
  * each flagged line, exactly two sources.
  *

@@ -36,14 +36,15 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 
 No PHPCS, Slevomat, or Generic sniff counts the distinct types a class names.
 The nearest candidates measure something else:
-`SlevomatCodingStandard.Namespaces.UnusedUses` reads imports, but only to reject
-the ones nothing uses; `SlevomatCodingStandard.Complexity.Cognitive` scores one
-method's control flow; `Generic.Metrics.CyclomaticComplexity` and
+`SlevomatCodingStandard.Namespaces.UnusedUses` reads imports, but only to
+reject the ones nothing uses; `SlevomatCodingStandard.Complexity.Cognitive`
+scores one method's control flow; `Generic.Metrics.CyclomaticComplexity` and
 `Generic.Metrics.NestingLevel` score control flow too; and
 `SlevomatCodingStandard.Classes.ClassLength` counts lines. So this rule is a
 custom sniff ([#114](https://github.com/mike-bronner/phpcs-rules/issues/114)),
-wired in through `rules.xml`; running `phpcs` with that ruleset covers the rule
-and `phpmd` does not have to run separately for it.
+registered automatically from `CleanCode/Sniffs/` when the standard loads;
+running `phpcs` with it covers the rule and `phpmd` does not have to run
+separately for it.
 
 - **Detection** — the sniff registers on `T_CLASS` and `T_ANON_CLASS`, collects
   the types the class names, and reports once on the declaration line. The
@@ -142,7 +143,7 @@ than behaviour PHPMD's rule documents.
 **The unused import** is the one divergence #114 asks for directly: it lists
 `use` statements as a dependency source, and PDepend only ever sees a type that
 is actually used. The gap cannot show up in code this ruleset passes, because
-`rules.xml` also wires `SlevomatCodingStandard.Namespaces.UnusedUses`, which
+`CleanCode/ruleset.xml` also wires `SlevomatCodingStandard.Namespaces.UnusedUses`, which
 makes an unused import an error in its own right. `imports.php` measures it:
 PHPMD scores `ImportsAlone` at 0 and `ImportAndUsage` at 6, this sniff scores
 both at 7.
@@ -159,7 +160,7 @@ among its scalar types and so models them as classes, which makes
 `function m(mixed $a, object $b)` two dependencies to PHPMD and none here.
 
 **Docblock-only types** are the one place this sniff sees less than PHPMD, and
-`rules.xml` closes it from the other side: it requires
+`CleanCode/ruleset.xml` closes it from the other side: it requires
 `SlevomatCodingStandard.TypeHints.ParameterTypeHint`, `.ReturnTypeHint`, and
 `.PropertyTypeHint`, so a type that exists only in an annotation is already an
 error under this ruleset.

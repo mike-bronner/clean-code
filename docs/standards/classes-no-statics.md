@@ -23,7 +23,7 @@ targets late static *binding* usage (`static::`), a different construct, and
 was evaluated against this standard's test suite without matching it. The
 standard is therefore enforced by the custom
 `CleanCode.Classes.DisallowStaticMembers` sniff, wired into the master
-`rules.xml` via the CleanCode standard
+`CleanCode/ruleset.xml` via the CleanCode standard
 ([#19](https://github.com/mike-bronner/phpcs-rules/issues/19)).
 
 - **Detection** — every static method and static property declaration is

@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the SlevomatCodingStandard.Namespaces.UnusedUses rule
- * as configured in the master rules.xml (Use Statements: No Unused Entries,
+ * as configured in the master CleanCode/ruleset.xml (Use Statements: No Unused Entries,
  * issue #68). Fixtures live in tests/fixtures/UnusedUsesSniff/.
  */
 

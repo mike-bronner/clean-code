@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 `Generic.Files.LineLength` ships with PHP_CodeSniffer and enforces exactly
 this standard once configured, so no custom sniff is needed. The master
-`rules.xml` sets `lineLimit` to 100 and `absoluteLineLimit` to 120
+`CleanCode/ruleset.xml` sets `lineLimit` to 100 and `absoluteLineLimit` to 120
 ([#3](https://github.com/mike-bronner/phpcs-rules/issues/3)).
 
 - **Warning above 100** — a line of exactly 100 characters is compliant;

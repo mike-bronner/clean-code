@@ -4,12 +4,12 @@
  * End-to-end integration test for the "Arrays: Operator spacing & line breaks"
  * standard (#35). Unlike the per-sniff tests in tests/Rules and tests/Standards
  * — which narrow $ruleset->sniffs to one sniff before processing — this runs
- * the *entire* master rules.xml against one fixture and asserts every real
+ * the *entire* master CleanCode/ruleset.xml against one fixture and asserts every real
  * violation is reported exactly once.
  *
  * That whole-ruleset view is where operator diagnostics can duplicate:
  *   - the stricter CleanCode.Operators.BinaryOperatorSpacing stacking on the "at least
- *     one space" PSR12.Operators.OperatorSpacing (excluded in rules.xml), and
+ *     one space" PSR12.Operators.OperatorSpacing (excluded in CleanCode/ruleset.xml), and
  *   - CleanCode.Operators.OperatorLineBreak overlapping
  *     CleanCode.Conditionals.OneConditionPerLine on an operator dangling inside
  *     a wrapped condition (OperatorLineBreak defers there), and

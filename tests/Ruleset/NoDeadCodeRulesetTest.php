@@ -8,9 +8,9 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Integration tests for the No Dead Code standard as wired into the master
- * rules.xml: third-party rules (Squiz commented-out code, Slevomat unused
+ * CleanCode/ruleset.xml: third-party rules (Squiz commented-out code, Slevomat unused
  * imports) plus the custom UnusedPrivateElements and UnusedFormalParameter
- * sniffs, exercised through the phpcs/phpcbf CLI against the real rules.xml.
+ * sniffs, exercised through the phpcs/phpcbf CLI against the real CleanCode/ruleset.xml.
  *
  * The unused-parameter half of this standard was carried by
  * SlevomatCodingStandard.Functions.UnusedParameter until #120 landed, and is
@@ -22,10 +22,10 @@ use PHPUnit\Framework\TestCase;
  * The runs scope to this standard's own sniffs via --sniffs (see SNIFFS): the
  * fixtures are clean only of dead code, not of every other standard sharing
  * the master ruleset (line length, one-thought-per-line, …), so scoping keeps
- * the zero-violation assertions honest and means later additions to rules.xml
+ * the zero-violation assertions honest and means later additions to CleanCode/ruleset.xml
  * cannot break this test — matching the TypeHints and Exceptions ruleset tests.
  * Wiring is still proven: --sniffs only filters the loaded ruleset, so a sniff
- * removed from rules.xml drops out of the report and its negative-case
+ * removed from CleanCode/ruleset.xml drops out of the report and its negative-case
  * assertion fails.
  *
  * Fixtures live in tests/Ruleset/fixtures/ and use the .inc extension so the
@@ -35,7 +35,7 @@ use PHPUnit\Framework\TestCase;
 class NoDeadCodeRulesetTest extends TestCase
 {
     /**
-     * The sniffs the No Dead Code standard owns, as wired into rules.xml. The
+     * The sniffs the No Dead Code standard owns, as wired into CleanCode/ruleset.xml. The
      * phpcs/phpcbf runs scope to these so that sibling standards sharing the
      * master ruleset cannot trip the zero-violation fixtures.
      */
@@ -176,6 +176,6 @@ class NoDeadCodeRulesetTest extends TestCase
 
     private function ruleset(): string
     {
-        return dirname(__DIR__, 2) . '/rules.xml';
+        return dirname(__DIR__, 2) . '/CleanCode/ruleset.xml';
     }
 }

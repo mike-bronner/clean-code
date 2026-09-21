@@ -25,7 +25,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  *
  * Two tests at the foot of this file stage their subjects outside the
  * repository instead, because a committed fixture cannot express what they
@@ -487,7 +487,7 @@ it('reads the test-case receiver case-sensitively', function (): void {
  * that never registered itself with the installed standards passes all of them,
  * including "it is registered in the master ruleset", whose buildRuleset() runs
  * through that same double. This one executes the real vendor/bin/phpcs as a
- * separate process from outside the package, against rules.xml, the file a
+ * separate process from outside the package, against CleanCode/ruleset.xml, the file a
  * consumer points --standard at.
  *
  * The shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach

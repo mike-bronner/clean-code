@@ -25,8 +25,8 @@ resolves it. None of that is visible to a token-based sniff reading one file at
 a time, so the core stays with code review.
 
 One same-file slice **is** token-visible, and is enforced:
-`CleanCode.Classes.DisallowConstructorInstantiation`, wired into the master
-`rules.xml` via the `./CleanCode/ruleset.xml` reference. The scoping of the
+`CleanCode.Classes.DisallowConstructorInstantiation`, registered automatically
+from `CleanCode/Sniffs/` when the standard loads. The scoping of the
 slice is recorded on
 [#176](https://github.com/mike-bronner/phpcs-rules/issues/176).
 

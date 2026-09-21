@@ -126,7 +126,7 @@ it('counts only the public members a class or trait declares itself', function (
  *   line 68   a constructor promoting 44 public properties, counted as 1
  *   line 128  an anonymous class of 45 public methods, which PHPMD skips
  *
- * The promoted-property gap matters most here: rules.xml requires
+ * The promoted-property gap matters most here: CleanCode/ruleset.xml requires
  * SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion, so
  * promotion is this standard's mandated way to declare a public property.
  * Following PDepend would leave the rule blind to the shape the ruleset itself

@@ -13,7 +13,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

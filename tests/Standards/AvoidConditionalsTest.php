@@ -12,12 +12,12 @@
  *
  * The auto-fixable slice of the same standard — the boolean-return if — is
  * carried by SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn
- * as wired into rules.xml, and is covered in
+ * as wired into CleanCode/ruleset.xml, and is covered in
  * tests/Rules/AvoidConditionalsRulesTest.php instead.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs narrowed to it) so these assertions stay stable as sibling
- * standards land in rules.xml.
+ * standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

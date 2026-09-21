@@ -18,7 +18,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -501,7 +501,7 @@ it('reports shapes that PHPMD cannot see or exempts wholesale', function (): voi
 /**
  * The whole point of the sniff: running the master ruleset the package ships
  * covers the rule, so `phpmd` no longer has to run for it. The assertion is
- * scoped to this sniff's own source so that unrelated additions to rules.xml
+ * scoped to this sniff's own source so that unrelated additions to CleanCode/ruleset.xml
  * cannot break it — the fixture trips other standards too.
  */
 it('reports through the master ruleset', function (): void {

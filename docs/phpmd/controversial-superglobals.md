@@ -23,10 +23,10 @@ _Source: [phpmd.org/rules/controversial.html](https://phpmd.org/rules/controvers
 | --- | --- |
 | `Controversial/Superglobals` | `CleanCode.Controversial.Superglobals` (message code `.Found`) |
 
-Enforced by the custom `CleanCode.Controversial.Superglobals` sniff, picked up
-automatically through the `./CleanCode/ruleset.xml` reference in the master
-ruleset (`rules.xml`) — see [#90](https://github.com/mike-bronner/phpcs-rules/issues/90).
-Running `phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does
+Enforced by the custom `CleanCode.Controversial.Superglobals` sniff, registered
+automatically from `CleanCode/Sniffs/` when the standard loads — see
+[#90](https://github.com/mike-bronner/phpcs-rules/issues/90).
+Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 
 ### The names flagged
@@ -68,7 +68,7 @@ inside backticks as a variable rather than as part of the string.
 
 PHPMD's rule has no threshold and no configurable property, so there is nothing
 to tune and this sniff exposes no public property either. That is why the
-`rules.xml` block for this rule sets no `<properties>`, unlike the metric rules
+`CleanCode/ruleset.xml` block for this rule sets no `<properties>`, unlike the metric rules
 next to it.
 
 ### Not auto-fixable
@@ -80,7 +80,7 @@ is for, so there is no safe mechanical rewrite.
 ### Severity raised to error
 
 The sniff reports errors, not warnings, for the same reason `Squiz.PHP.Eval` and
-`VariableAnalysis` are raised to error in `rules.xml`: PHPMD fails a run on this
+`VariableAnalysis` are raised to error in `CleanCode/ruleset.xml`: PHPMD fails a run on this
 violation, and a warning would leave `phpcs` exiting `0`, so `phpmd` would still
 have to run separately for this rule.
 
@@ -118,7 +118,7 @@ Superglobals rule is silent.
 | A **plain parameter** carrying the name, which nothing in the body reads | PHPMD keys on reads, so a parameter no statement reads is invisible to it. The name is still the wrong name for a local, and it is what a later read would bind to. |
 
 All three are true superglobal names in code, so all three are kept rather than
-suppressed for parity — the posture `rules.xml` already takes for the extra
+suppressed for parity — the posture `CleanCode/ruleset.xml` already takes for the extra
 `VariableAnalysis` and `DisallowExitExpression` reports. Adopting this ruleset
 can therefore surface findings a previous `phpmd` run did not.
 

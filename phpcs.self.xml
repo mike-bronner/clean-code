@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         name="MikeBronnerCleanCodeSelf"
+         name="CleanCodeSelf"
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
     <description>Self-lint for mike-bronner/phpcs-rules: the shipped ruleset applied to its own sniff sources, at zero errors. Run with `composer lint:self`. See CONTRIBUTING.md.</description>
 
@@ -24,7 +24,17 @@
     -->
     <config name="ignore_warnings_on_exit" value="1"/>
 
-    <rule ref="./rules.xml"/>
+    <!--
+        The ruleset's own path rather than the bare standard name. A relative
+        rule ref resolves against this file's directory, and `CleanCode` there
+        would find ./CleanCode as a plain directory whether or not the standard
+        had ever registered — so the name would make this gate depend on the
+        file layout while looking like it depended on the install. The path says
+        what it means. The name is exercised where it can be a real statement
+        about installation, from outside the package, in
+        tests/Contract/InstalledStandardTest.php and in CI.
+    -->
+    <rule ref="./CleanCode/ruleset.xml"/>
 
     <!--
         Three rules that prescribe a Laravel helper this package does not depend
@@ -72,7 +82,7 @@
         is not free to shorten.
 
         Application code is a different case, which is why these stay at full
-        severity in rules.xml for consumers.
+        severity in CleanCode/ruleset.xml for consumers.
     -->
     <rule ref="CleanCode.Naming.ShortVariable">
         <severity>0</severity>
@@ -97,7 +107,7 @@
         branches without removing them, and costs the reader the one place the
         whole walk could be seen.
 
-        These stay at full severity in rules.xml. Application code branches
+        These stay at full severity in CleanCode/ruleset.xml. Application code branches
         because a decision was made, and the metric is a good question to ask of
         it. A token walker branches because the grammar does.
     -->

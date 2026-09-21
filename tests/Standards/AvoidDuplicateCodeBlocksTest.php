@@ -12,7 +12,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs narrowed to it) so these assertions stay stable as sibling
- * standards land in rules.xml.
+ * standards land in CleanCode/ruleset.xml.
  *
  * Every threshold below is configured as a *string*, the way PHP_CodeSniffer
  * hands a ruleset's <property> value to a sniff — it passes on the text it read

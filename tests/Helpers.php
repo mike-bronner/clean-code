@@ -4,10 +4,10 @@
  * Pest helper functions for driving PHP_CodeSniffer against the fixtures in
  * tests/fixtures/.
  *
- * Every helper builds the *master* ruleset (rules.xml) and then narrows it,
+ * Every helper builds the *master* ruleset (CleanCode/ruleset.xml) and then narrows it,
  * rather than restricting PHPCS via $config->sniffs. The distinction is
  * load-bearing: under PHP_CODESNIFFER_IN_TESTS a $config->sniffs restriction
- * makes Ruleset skip parsing rules.xml altogether, which is what pulls the
+ * makes Ruleset skip parsing CleanCode/ruleset.xml altogether, which is what pulls the
  * custom CleanCode sniffs in and what applies the <properties> configured
  * there. Narrowing $ruleset->sniffs after the parse keeps both.
  */
@@ -54,7 +54,7 @@ function sniffFixtureDirectory(string $sniffCode): string
 }
 
 /**
- * Every third-party standard rules.xml references, as an absolute path.
+ * Every third-party standard CleanCode/ruleset.xml references, as an absolute path.
  *
  * Composer registers these in CodeSniffer.conf relative to the PHP_CodeSniffer
  * install it wrote them for, and absolute is what the callers here need: the
@@ -66,7 +66,7 @@ function sniffFixtureDirectory(string $sniffCode): string
  *
  * tests/Ruleset/UndefinedVariableTest.php deliberately lists one of these on
  * its own rather than calling this: its subject is VariableAnalysis without
- * rules.xml, so the shorter list is the point of the test, not a copy of this
+ * CleanCode/ruleset.xml, so the shorter list is the point of the test, not a copy of this
  * one that drifted.
  *
  * @return array<int, string>
@@ -94,7 +94,7 @@ function restoreInstalledPaths(): void
 /**
  * A freshly built master ruleset plus the config it was built from.
  *
- * Results are memoised per cache key so rules.xml is parsed once per distinct
+ * Results are memoised per cache key so CleanCode/ruleset.xml is parsed once per distinct
  * sniff selection rather than once per fixture. Each entry is built
  * immediately after its own ConfigDouble construction, which resets PHPCS's
  * static Config state — so no entry can inherit defaults latched by a
@@ -116,10 +116,10 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
     }
 
     // restoreInstalledPaths() puts back what ConfigDouble blanks, and has to
-    // run before the rules.xml parse. The explicit argv stops Config falling
+    // run before the CleanCode/ruleset.xml parse. The explicit argv stops Config falling
     // back to parsing the live $_SERVER['argv'] as PHPCS flags, which would
     // leak the test runner's own arguments in.
-    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml']);
+    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml']);
     $config->cache = false;
 
     restoreInstalledPaths();
@@ -208,7 +208,7 @@ function analyzeWithMasterRuleset(string $path): LocalFile
  * Processes a file through a whole third-party standard, by name, outside the
  * master ruleset.
  *
- * rules.xml references vendor sniffs one at a time, never a whole category, so
+ * CleanCode/ruleset.xml references vendor sniffs one at a time, never a whole category, so
  * narrowing the master ruleset can only ever report on the sniffs already
  * wired in — it cannot answer "does anything in this vendor standard cover
  * this?", which is the question a new custom sniff has to settle before it is
@@ -462,13 +462,13 @@ function analyzeRulesetFixture(array $sniffCodes, string $directory, string $fix
  * severity to 0 (Ruleset::processRule()), so restoring the default severity of
  * 5 is precisely "the same ruleset without that exclude" — and it keeps the
  * rule's configured `<properties>` live, which rebuilding the rule from XML
- * here would not: a transcript of rules.xml's properties drifts the moment
- * rules.xml changes, and a control run under different properties says nothing
+ * here would not: a transcript of CleanCode/ruleset.xml's properties drifts the moment
+ * CleanCode/ruleset.xml changes, and a control run under different properties says nothing
  * about the exclude.
  *
- * A code that rules.xml does not actually exclude fails closed rather than
+ * A code that CleanCode/ruleset.xml does not actually exclude fails closed rather than
  * quietly passing: raising the severity of a code already reporting at 5
- * changes nothing, so the paired "silent through rules.xml" assertion is what
+ * changes nothing, so the paired "silent through CleanCode/ruleset.xml" assertion is what
  * reddens.
  *
  * Always builds a fresh ruleset, so lifted excludes can never leak into a later
@@ -493,7 +493,7 @@ function analyzeWithoutExcludes(array $sniffCodes, array $excludedCodes, string 
 
 /**
  * Processes a fixture through a *consumer* ruleset — one that references
- * rules.xml and then overrides a sniff's properties in XML, exactly as a
+ * CleanCode/ruleset.xml and then overrides a sniff's properties in XML, exactly as a
  * consuming project's own ruleset does.
  *
  * Distinct from analyzeFixture()'s $configure callback, and deliberately so.
@@ -540,7 +540,7 @@ function analyzeWithConfiguredRuleset(
         '<?xml version="1.0"?>',
         '<ruleset name="Consumer">',
         '    <description>Consumer ruleset built by the test suite.</description>',
-        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="' . cleanCodeRoot() . '/CleanCode/ruleset.xml"/>',
         '    <rule ref="' . $sniffCode . '">',
         '        <properties>',
         implode("\n", $lines),
@@ -551,7 +551,7 @@ function analyzeWithConfiguredRuleset(
     ]));
 
     // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
-    // third-party standards rules.xml references have to be restored in memory
+    // third-party standards CleanCode/ruleset.xml references have to be restored in memory
     // before the parse or the whole ruleset fails to resolve.
     $config = new ConfigDouble(['--standard=' . $standard]);
     $config->cache = false;
@@ -586,9 +586,10 @@ function analyzeWithConfiguredRuleset(
  * a consumer does, reading the real CodeSniffer.conf.
  *
  * $standard is passed to `--standard` verbatim, so it takes either a ruleset
- * file's path (rules.xml, the file a consumer points at) or an installed
- * standard's name (CleanCode). The run happens from a working directory
- * *outside* the package, which is what keeps those two distinct: PHPCS resolves
+ * file's path (CleanCode/ruleset.xml, the one ruleset this package ships) or
+ * the installed standard's name (CleanCode). The run happens
+ * from a working directory *outside* the package, which is what keeps those two
+ * distinct: PHPCS resolves
  * `--standard=CleanCode` against the working directory first, so run from the
  * package root the name would find ./CleanCode/ruleset.xml as a plain relative
  * path and prove nothing about the package being installed at all. Measured,
@@ -681,11 +682,47 @@ function installedPhpcsRun(string $standard, string $path, array $extraArguments
 }
 
 /**
+ * Every standard the shipped `vendor/bin/phpcs -i` reports, as a list of names.
+ *
+ * This is the one question the rest of the harness cannot answer. Every helper
+ * above names a standard and asks what it reports; this one asks which names
+ * exist at all, which is what a consumer's `<rule ref="CleanCode"/>` depends on
+ * and what the dealerdirect installer's installed_paths entry is for.
+ *
+ * Run through runOutsidePackage() like the rest, so the answer is the real
+ * CodeSniffer.conf's rather than anything the working directory supplies.
+ *
+ * Fails closed in both directions a broken run can look like an empty list: a
+ * missing binary, and output that is not the sentence phpcs prints. An assertion
+ * that a standard is absent must not be satisfiable by a run that never happened.
+ *
+ * @return array<int, string>
+ */
+function installedStandardNames(): array
+{
+    $binary = cleanCodeRoot() . '/vendor/bin/phpcs';
+
+    if (is_file($binary) === false) {
+        throw new RuntimeException("the installed phpcs binary is missing at {$binary}; run composer install");
+    }
+
+    [$stdout, $stderr, $status] = runOutsidePackage(
+        implode(' ', array_map('escapeshellarg', [PHP_BINARY, $binary, '-i']))
+    );
+
+    if ($status !== 0 || preg_match('/^The installed coding standards are (.+?)\.?\s*$/', $stdout, $matches) !== 1) {
+        throw new RuntimeException("phpcs -i listed no standards; stdout: {$stdout} stderr: {$stderr}");
+    }
+
+    return array_map('trim', (array) preg_split('/,\s*|\s+and\s+/', $matches[1]));
+}
+
+/**
  * One sniff's end-to-end verdict from the installed package: the messages the
  * shipped binary reported for it, and the status the process exited with.
  *
- * --standard points at rules.xml, the file the README tells a consumer to
- * point at, so the run carries that ruleset's <properties> and its
+ * --standard names the installed CleanCode standard, the way a consumer does,
+ * so the run carries that ruleset's <properties> and its
  * <include-pattern>/<exclude-pattern> path scoping — measured, not assumed: a
  * fixture staged inside src/ reports 14 CleanCode.Files.NoProceduralCode errors
  * through this route and the same fixture read at its in-repo path reports
@@ -700,13 +737,13 @@ function installedPhpcsRun(string $standard, string $path, array $extraArguments
  * failing fixture exits 2 rather than 1 as soon as some other sniff finds
  * something fixable in it. Narrowing is what makes the pass/fail land on the
  * sniff named. It costs nothing in reach — the standard is still resolved from
- * the installed package, and rules.xml is still parsed in full.
+ * the installed package, and the ruleset is still parsed in full.
  *
  * @return array{status: int, messages: array<int, array<string, mixed>>}
  */
 function installedSniffRun(string $sniffCode, string $path): array
 {
-    return installedPhpcsRun(cleanCodeRoot() . '/rules.xml', $path, ['--sniffs=' . $sniffCode]);
+    return installedPhpcsRun('CleanCode', $path, ['--sniffs=' . $sniffCode]);
 }
 
 /**
@@ -1052,7 +1089,7 @@ function stageSource(string $source, string $filename = 'view.blade.php'): strin
 
 /**
  * Copies a fixture to a directory outside the repository and returns the new
- * path. Two sniffs are scoped by path in rules.xml, and PHPCS decides the
+ * path. Two sniffs are scoped by path in CleanCode/ruleset.xml, and PHPCS decides the
  * scoping from the file's path alone — so this is what lets either of them see
  * its own fixtures at all.
  *
@@ -1221,10 +1258,10 @@ function stageThrowawayPhpcsInstall(): string
  * The Ruleset PHPCS builds for an arbitrary standard, for a test whose subject
  * is what the shipped rulesets *declare* rather than what a sniff does.
  *
- * buildRuleset() answers the same question for rules.xml alone. This one takes
- * the path because CleanCode/ruleset.xml is independently loadable — a consumer
- * may point a standard argument straight at it — so a rule declared for
- * consumers has two entry points to hold at, not one.
+ * buildRuleset() answers that question for the package's own ruleset and
+ * nothing else. This one takes a path, so a caller can build a *staged*
+ * consumer-style ruleset — one that references the standard and then overrides
+ * it — and assert on what PHPCS merges for that consumer rather than for us.
  *
  * Not memoised: the callers compare whole rulesets, and a shared instance
  * across standards is the one thing that would make that comparison vacuous.
@@ -1242,7 +1279,7 @@ function buildRulesetForStandard(string $standard): Ruleset
 }
 
 /**
- * Stages a consumer-style ruleset that loads rules.xml and then gives
+ * Stages a consumer-style ruleset that loads CleanCode/ruleset.xml and then gives
  * CleanCode.Metrics.NumberOfChildren.OrdinalIndex back a reporting severity,
  * and returns its path.
  *
@@ -1269,7 +1306,7 @@ function stageOrdinalDiagnosticRuleset(): string
         '<?xml version="1.0"?>',
         '<ruleset name="OrdinalIndexDiagnostic">',
         '    <description>Consumer ruleset built by the test suite.</description>',
-        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="' . cleanCodeRoot() . '/CleanCode/ruleset.xml"/>',
         '    <rule ref="CleanCode.Metrics.NumberOfChildren.OrdinalIndex">',
         '        <severity>5</severity>',
         '    </rule>',
@@ -1819,8 +1856,8 @@ function tokenNamesInConstant(string $path, string $constant, array $sniffCodes)
 function analyzeFileset(array $sniffCodes, string $directory): array
 {
     // Mirrors buildRuleset(): ConfigDouble blanks CodeSniffer.conf, so the
-    // installed paths have to be restored before the rules.xml parse.
-    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/rules.xml', $directory]);
+    // installed paths have to be restored before the CleanCode/ruleset.xml parse.
+    $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml', $directory]);
     $config->cache = false;
 
     restoreInstalledPaths();

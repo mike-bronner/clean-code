@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the custom CleanCode.Classes.DisallowStaticMembers
- * sniff as wired into the master rules.xml (Classes: No Statics, issue #19).
+ * sniff as wired into the master CleanCode/ruleset.xml (Classes: No Statics, issue #19).
  * Fixtures live in tests/fixtures/DisallowStaticMembersSniff/.
  *
  * The sniff is detection-only, so there is no autofixed fixture — instead the

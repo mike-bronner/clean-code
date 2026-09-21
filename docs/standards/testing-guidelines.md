@@ -182,7 +182,7 @@ Three public properties configure it from a consuming ruleset:
 
 `firstPartyNamespaces` ships **empty on the sniff class**: nothing in one file
 says which roots a project owns, so an unconfigured sniff is a no-op rather
-than a guesser. This package's own `rules.xml` configures `App`, the root of
+than a guesser. This package's own `CleanCode/ruleset.xml` configures `App`, the root of
 the Laravel layout these standards are written against; a project with
 different roots replaces the element list, and a class under **any** listed
 root is first-party. Roots are compared segment-wise and case-insensitively, so

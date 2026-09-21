@@ -4,11 +4,11 @@
  * Tests the "Conditionals: No Inline If-Statements" standard (#9), enforced by
  * Generic.ControlStructures.InlineControlStructure.
  *
- * PSR12 (referenced in rules.xml) already bundles this sniff, so it is active
- * in the master ruleset regardless; rules.xml also references it explicitly as
+ * PSR12 (referenced in CleanCode/ruleset.xml) already bundles this sniff, so it is active
+ * in the master ruleset regardless; CleanCode/ruleset.xml also references it explicitly as
  * belt-and-suspenders (CONTRIBUTING — third-party rules a standard depends on
  * are wired in by name). The registration test therefore proves the sniff is
- * reachable through rules.xml (via either route), not that the explicit ref
+ * reachable through CleanCode/ruleset.xml (via either route), not that the explicit ref
  * alone is load-bearing. The behaviour tests pin the sniff in isolation against
  * the fixture, so they stay stable as sibling standards land in the shared
  * ruleset.

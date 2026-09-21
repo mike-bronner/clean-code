@@ -37,8 +37,9 @@ inheritance chain reaches. The nearest candidates measure something else:
 `Generic.Metrics.CyclomaticComplexity` and `Generic.Metrics.NestingLevel` score
 control flow, and nothing in either standard follows an `extends` link at all.
 So this rule is a custom sniff
-([#112](https://github.com/mike-bronner/phpcs-rules/issues/112)), picked up
-through `rules.xml`; running `phpcs` with that ruleset covers the rule and
+([#112](https://github.com/mike-bronner/phpcs-rules/issues/112)), registered automatically
+from `CleanCode/Sniffs/` when the standard loads; running `phpcs` with it covers
+the rule and
 `phpmd` does not have to run separately for it.
 
 - **Detection** — the sniff registers on `T_CLASS`, walks the chain above the

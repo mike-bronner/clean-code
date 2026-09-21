@@ -29,8 +29,8 @@ segment names.
 
 That slice is enforced by the custom sniff
 **`CleanCode.ClearCode.JunkDrawerNamespace`**
-([#190](https://github.com/mike-bronner/phpcs-rules/issues/190)), picked up
-automatically through `./CleanCode/ruleset.xml`.
+([#190](https://github.com/mike-bronner/phpcs-rules/issues/190)), registered
+automatically from `CleanCode/Sniffs/` when the standard loads.
 
 - **Detection** — every segment of a `namespace` declaration is compared
   against a discouraged list, case-insensitively and whole-segment. Both

@@ -37,7 +37,7 @@ around operators, not whether a wrapped operator leads or trails its line;
 PSR-12 even permits boolean operators at either end of the line. None matched
 this standard's test suite, so the standard is enforced by **three cooperating
 CleanCode sniffs, each owning a disjoint slice of the operator list** — two of
-which were already wired into `rules.xml` for earlier standards. Only the math
+which were already wired into `CleanCode/ruleset.xml` for earlier standards. Only the math
 and bitwise groups needed a new sniff
 ([#59](https://github.com/mike-bronner/phpcs-rules/issues/59)).
 

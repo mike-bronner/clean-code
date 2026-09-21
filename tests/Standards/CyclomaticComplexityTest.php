@@ -63,17 +63,17 @@ it('is registered in the master ruleset', function (): void {
  * helpers hand the installed standards back. That harness settles what the
  * sniff measures and nothing about whether the shipped package works: it
  * supplies the registration itself, so a package that never registered would
- * pass all the same — and the registration test above reads rules.xml through
+ * pass all the same — and the registration test above reads CleanCode/ruleset.xml through
  * exactly that scaffolding.
  *
  * This one uses none of it, and names both identifiers a consumer can point
  * `--standard` at, because each fails for a reason the other cannot catch.
  * Both were confirmed by mutation, not reasoned about:
  *
- * - `rules.xml` — the master ruleset the README tells a consumer to use.
- *   Excluding the sniff from the ./CleanCode/ruleset.xml ref there reddens this
- *   case alone; the standard-by-name case stays green, because CleanCode's own
- *   ruleset still carries the sniff.
+ * - `CleanCode/ruleset.xml` — the ruleset's own path, which resolves with no
+ *   installed_paths entry at all. That is what it adds: deleting the entry
+ *   leaves this case green and reddens the one below, so the two cannot both
+ *   be satisfied by a broken install.
  * - `CleanCode` — the standard by *name*, which resolves through the
  *   installed_paths entry dealerdirect/phpcodesniffer-composer-installer writes
  *   on install. Deleting that entry reddens this case alone. It only discriminates
@@ -106,7 +106,7 @@ it('reports the violation end to end through the installed package', function (s
         ->and($violations[4]['message'])
         ->toContain('heavyStandalone() has a cyclomatic complexity of 10');
 })->with([
-    'the master ruleset' => fn (): string => cleanCodeRoot() . '/rules.xml',
+    'the ruleset path' => fn (): string => cleanCodeRoot() . '/CleanCode/ruleset.xml',
     'the standard by name' => 'CleanCode',
 ]);
 
@@ -125,10 +125,10 @@ it('reports the violation end to end through the installed package', function (s
  *
  * Narrowed to this sniff with --sniffs, unlike the test above, because a status
  * belongs to the run rather than to a sniff. Not a precaution: passing.php read
- * through the whole of rules.xml reports 244 messages and exits 2 — PSR-1 and a
+ * through the whole of CleanCode/ruleset.xml reports 244 messages and exits 2 — PSR-1 and a
  * dozen sibling CleanCode rules, none of them this one — measured, so without
  * the narrowing neither assertion here could be made at all. The standard is
- * still rules.xml, still resolved from outside the package.
+ * still CleanCode/ruleset.xml, still resolved from outside the package.
  */
 it('stays silent on its compliant fixture through the installed package', function (): void {
     $run = installedSniffFixtureRun(CYCLOMATIC_COMPLEXITY, 'passing.php');

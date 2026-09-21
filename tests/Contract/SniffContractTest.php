@@ -1,7 +1,7 @@
 <?php
 
 /**
- * The floor every sniff wired into rules.xml has to clear, swept across the
+ * The floor every sniff wired into CleanCode/ruleset.xml has to clear, swept across the
  * enumerations in tests/Sniffs.php rather than restated here.
  */
 

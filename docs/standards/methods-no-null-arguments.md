@@ -29,7 +29,7 @@ is the *inverse* rule (it bans the very syntax this standard requires), and
 only governs whitespace around an argument that is already named. Both were
 evaluated against this standard's test suite without matching it. The standard
 is therefore enforced by the custom `CleanCode.Methods.NoNullArguments` sniff,
-wired into the master `rules.xml` via the CleanCode standard
+wired into the master `CleanCode/ruleset.xml` via the CleanCode standard
 ([#71](https://github.com/mike-bronner/phpcs-rules/issues/71)).
 
 - **Detection** — a literal `null` passed as a *positional* argument to a

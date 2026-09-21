@@ -44,7 +44,7 @@ class MixedAndObject
 /**
  * PDepend reads `@var`, `@return`, and `@throws`, so PHPMD counts three
  * dependencies here. This sniff reads declarations only, and there are none —
- * a shape rules.xml already rejects through
+ * a shape CleanCode/ruleset.xml already rejects through
  * SlevomatCodingStandard.TypeHints.PropertyTypeHint and its siblings.
  */
 class DocblockOnly

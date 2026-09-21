@@ -61,14 +61,14 @@ behaves as PHPMD does at that property's default of `true`, exempting a
 | `Naming/ShortVariable` | `CleanCode.Naming.ShortVariable` (message code `.TooShort`) |
 
 No existing PHPCS or Slevomat sniff measures variable-name *length*.
-`Squiz.NamingConventions.ValidVariableName`, which `rules.xml` already wires
+`Squiz.NamingConventions.ValidVariableName`, which `CleanCode/ruleset.xml` already wires
 in for the casing conventions, judges casing and underscores;
 `VariableAnalysis.CodeAnalysis.VariableAnalysis` judges whether a variable is
 defined and used; and `slevomat/coding-standard` ships no name-length rule at
 all. So this is a custom sniff
-([#106](https://github.com/mike-bronner/phpcs-rules/issues/106)), picked up
-automatically via the `./CleanCode/ruleset.xml` ref in `rules.xml`. Running
-`phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does not have
+([#106](https://github.com/mike-bronner/phpcs-rules/issues/106)), registered
+automatically from `CleanCode/Sniffs/` when the standard loads. Running
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 
 - **What counts as a variable** — a property (PHPMD's `ClassAware` and

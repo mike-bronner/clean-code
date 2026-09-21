@@ -17,7 +17,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 The standard is enforced by **four sniffs, each owning a disjoint slice of the
 list** ([#62](https://github.com/mike-bronner/phpcs-rules/issues/62)). Three of
-them were already wired into `rules.xml` for
+them were already wired into `CleanCode/ruleset.xml` for
 [#35](https://github.com/mike-bronner/phpcs-rules/issues/35); only the boolean
 connectives needed a new sniff.
 
@@ -58,7 +58,7 @@ newline-wrapped, which `ignoreNewlines` deliberately suppresses here.
 
 Narrowing `register()` prevents this sniff from doubling its siblings. It does
 nothing about the reverse — two sniffs cover these same five tokens outright,
-and only their absence from `rules.xml` keeps each violation to one diagnostic:
+and only their absence from `CleanCode/ruleset.xml` keeps each violation to one diagnostic:
 
 | Sniff | Overlap | Kept out by |
 |---|---|---|
@@ -75,7 +75,7 @@ expression breaks, `Generic.PHP.LowerCaseKeyword` for the word forms' casing).
 
 - **Exactly one space** on each side of every operator in the list. For
   assignments this includes alignment padding before `=`, which the stock Squiz
-  sniff permits and `rules.xml` switches off via
+  sniff permits and `CleanCode/ruleset.xml` switches off via
   `ignoreSpacingBeforeAssignments`.
 - **Unary `!`** acts on the operand that follows it, so it requires exactly one
   space after itself only; spacing before it belongs to the preceding token's

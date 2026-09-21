@@ -45,7 +45,7 @@ Three sniffs carry it, split by what PHPCS core already ships:
 | `HACK` | `CleanCode.Commenting.DebtMarkers` (custom) | `.HackTaskFound`, `.HackCommentFound` |
 | `XXX` | `CleanCode.Commenting.DebtMarkers` (custom) | `.XxxTaskFound`, `.XxxCommentFound` |
 
-The two core sniffs are wired into `rules.xml` rather than reimplemented. The
+The two core sniffs are wired into `CleanCode/ruleset.xml` rather than reimplemented. The
 custom sniff exists only because core ships no equivalent for `HACK` or `XXX`;
 it mirrors the core pair's registered tokens, keyword pattern and message shape
 so the four keywords behave as one rule. Every code reports the keyword in its
@@ -57,7 +57,7 @@ except the `phpcs:` annotations. The `.TaskFound` half of each pair carries the
 text following the keyword; `.CommentFound` is the marker standing alone.
 
 **Warnings, never errors.** `Generic.Commenting.Fixme` reports errors out of the
-box and `rules.xml` lowers it with `<type>warning</type>` to match the other
+box and `CleanCode/ruleset.xml` lowers it with `<type>warning</type>` to match the other
 two. A marker is honest documentation of known debt: keeping it visible is the
 point, and failing a build over it invites deleting the comment instead of
 paying the debt. For the same reason none of the three is auto-fixable — the

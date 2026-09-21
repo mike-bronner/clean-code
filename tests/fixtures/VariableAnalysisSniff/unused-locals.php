@@ -27,7 +27,7 @@ class UnusedLocals
 
     /**
      * A foreach value nobody reads. PHPMD's allow-unused-foreach-variables
-     * defaults to false, and rules.xml sets the sniff's inverted default to
+     * defaults to false, and CleanCode/ruleset.xml sets the sniff's inverted default to
      * match, so this is flagged.
      */
     public function foreachValue(array $rows): int

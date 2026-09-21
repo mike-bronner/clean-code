@@ -21,10 +21,10 @@
  * The rule is detection-only: extracting a method to a trait means writing
  * another file, which the fixer cannot do, so there is no autofixed fixture.
  *
- * rules.xml does not path-scope this sniff, so the fixtures are processed
+ * CleanCode/ruleset.xml does not path-scope this sniff, so the fixtures are processed
  * where they live. The sniff is isolated from the rest of the master ruleset
  * (loaded, then $ruleset->sniffs is narrowed to it) so these assertions stay
- * stable as sibling standards land in rules.xml.
+ * stable as sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -302,9 +302,9 @@ it('reads a group import past its function and constant members', function (): v
 });
 
 /**
- * The sniff's own source passes rules.xml, the standard it belongs to — the
- * claim rules.xml makes about this file, and the reason the file reads the way
- * it does: match(true) guard chains instead of if
+ * The sniff's own source passes the CleanCode standard it belongs to — the
+ * claim that standard makes about this file, and the reason the file reads the
+ * way it does: match(true) guard chains instead of if
  * (CleanCode.Conditionals.AvoidConditionals), the File API instead of the token
  * array (CleanCode.Arrays.ArrayAccessors), flat const value lists instead of
  * stacked one-per-line tables (CleanCode.Pattern.AvoidDuplicateCodeBlocks) and
@@ -314,13 +314,13 @@ it('reads a group import past its function and constant members', function (): v
  * no accessor for those bounds.
  *
  * Asserted here because nothing else does, and because a sibling standard
- * landing in rules.xml later can falsify the claim without touching this file
+ * landing in CleanCode/ruleset.xml later can falsify the claim without touching this file
  * — which is exactly what happened to ManualModelResolutionSniff.php, whose
  * own copy of this test exists for that reason. Warnings are counted alongside
  * errors on purpose: this sniff reports warnings itself, so a check that read
  * errors only would stay green through exactly that drift.
  *
- * Every sniff wired into rules.xml is active, not just this one, because the
+ * Every sniff wired into CleanCode/ruleset.xml is active, not just this one, because the
  * claim is about the whole standard. Run through the *installed* phpcs rather
  * than an in-process ruleset, because "exits 0" is a claim about the binary a
  * consumer runs.
@@ -338,7 +338,7 @@ it('reads a group import past its function and constant members', function (): v
  */
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
-        cleanCodeRoot() . '/rules.xml',
+        'CleanCode',
         cleanCodeRoot() . '/CleanCode/Sniffs/Models/ModelMagicMethodLocationSniff.php'
     );
 

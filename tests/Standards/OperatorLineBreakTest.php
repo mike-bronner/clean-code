@@ -10,7 +10,7 @@
  * test pins that decision.
  *
  * The sniff is isolated from the rest of the master ruleset so these
- * assertions stay stable as sibling standards land in rules.xml.
+ * assertions stay stable as sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

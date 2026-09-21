@@ -1,21 +1,30 @@
 <?php
 
 /**
- * Tests the `extensions` argument in the master rules.xml: PHPCS scans
- * `.blade.php` views as well as plain `.php` files, so the Livewire markup
- * standard (#46) has something to read.
+ * Tests the `extensions` argument in the master ruleset, as PHPCS parses it.
  *
  * `$config->extensions` is not a restatement of the XML — it is the parsed
- * result PHPCS itself consults. `Filters\Filter::shouldProcessFile()` looks a
- * candidate path's extension up in exactly this map and skips the file when it
- * is absent, which is why a Blade view is invisible to a run without the entry
- * and scanned with it.
+ * result PHPCS itself consults, so this pins that the argument survives the
+ * ruleset parse in the shape the file writes it, and that registering Blade did
+ * not displace `php`.
  *
- * The value is the *tokenizer* each extension maps to, so `blade.php => PHP`
- * is the whole point: Blade views are handed to the PHP tokenizer, which is
- * what turns their markup into the T_INLINE_HTML tokens
- * CleanCode.Livewire.ComponentMarkup reads. Asserting the whole map rather
- * than one key also pins that registering Blade did not displace `php`.
+ * What it does *not* establish, corrected 2026-09-21 after the claim was
+ * measured: that the entry is why Blade views get scanned. This docblock used
+ * to say `Filters\Filter::shouldProcessFile()` looks a path's extension up in
+ * this map and skips the file when absent, making a view invisible without the
+ * entry. That is not what it does. It builds every multi-part suffix of the
+ * name — `component.blade.php` yields `blade.php` *and* `php` — and matches on
+ * any of them, and `php` is in PHP_CodeSniffer's default list already. Nor does
+ * the `/php` half pick the tokenizer for a view: `Files\File::__construct()`
+ * pops only the last dot-segment, so it looks up `php`, never `blade.php`, and
+ * defaults to the PHP tokenizer regardless.
+ *
+ * The entry's one real effect is that it *replaces* the default list rather
+ * than extending it, so `.inc`, `.js` and `.css` stop being scanned. The
+ * behaviour it was added for — a Blade view is linted end to end, through both
+ * of the package's entry points — is pinned in
+ * tests/Contract/InstalledStandardTest.php instead, and that test's docblock
+ * records that deleting this argument leaves it green.
  */
 
 declare(strict_types=1);

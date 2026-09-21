@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Integration test for the three Slevomat rules the master rules.xml wires
+ * Integration test for the three Slevomat rules the master CleanCode/ruleset.xml wires
  * together to enforce "Use Statements: Sort Alphabetically" (issue #67).
  * Because the standard is carried by several sniffs rather than one, its
  * fixtures live in tests/fixtures/_rulesets/SortedUses/.
@@ -39,7 +39,7 @@ const MULTIPLE_USES_PER_LINE = 'SlevomatCodingStandard.Namespaces.MultipleUsesPe
 const SORTED_USES_SNIFFS = [SORTED_USES, DISALLOW_GROUP_USE, MULTIPLE_USES_PER_LINE];
 
 /**
- * Runs a fixture through the trio as rules.xml configures it. A closure rather
+ * Runs a fixture through the trio as CleanCode/ruleset.xml configures it. A closure rather
  * than a named function so this file declares no symbols beside its constants,
  * matching tests/Ruleset/CasingConventionsRulesetTest.php.
  */

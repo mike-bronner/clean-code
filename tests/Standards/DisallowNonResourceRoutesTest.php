@@ -21,7 +21,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -280,7 +280,7 @@ it('reports detection-only warnings', function () use ($routeRun): void {
  * supplies the registration Composer would have supplied — so a package that
  * never registered itself with the installed standards passes all of them. This
  * one executes the real vendor/bin/phpcs as a separate process from outside the
- * package, against rules.xml, the file a consumer points --standard at. The
+ * package, against CleanCode/ruleset.xml, the file a consumer points --standard at. The
  * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
  * sniff: it drives each fixture where it lives, under tests/, where the default
  * glob matches nothing.

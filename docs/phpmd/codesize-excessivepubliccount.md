@@ -30,14 +30,15 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html)
 | --- | --- |
 | `CodeSize/ExcessivePublicCount` | `CleanCode.Metrics.ExcessivePublicCount` (message code `.Found`) |
 
-No PHPCS, Slevomat, or Generic sniff counts a type's public surface. The nearest
-candidates measure something else entirely: `Generic.Metrics.CyclomaticComplexity`
-and `Generic.Metrics.NestingLevel` score control flow,
-`SlevomatCodingStandard.Classes.ClassLength` counts lines, and
+No PHPCS, Slevomat, or Generic sniff counts a type's public surface. The
+nearest candidates measure something else entirely:
+`Generic.Metrics.CyclomaticComplexity` and `Generic.Metrics.NestingLevel` score
+control flow, `SlevomatCodingStandard.Classes.ClassLength` counts lines, and
 `SlevomatCodingStandard.Complexity.Cognitive` scores one method at a time. So
-this rule is a custom sniff ([#96](https://github.com/mike-bronner/phpcs-rules/issues/96)),
-wired in through `rules.xml`; running `phpcs` with that ruleset covers the rule
-and `phpmd` does not have to run separately for it.
+this rule is a custom sniff
+([#96](https://github.com/mike-bronner/phpcs-rules/issues/96)), registered
+automatically from `CleanCode/Sniffs/` when the standard loads; running `phpcs`
+with it covers the rule and `phpmd` does not have to run separately for it.
 
 - **Detection** — the sniff registers on `T_CLASS`, `T_ANON_CLASS`, and
   `T_TRAIT`, counts the public methods and public properties the type declares
@@ -123,7 +124,7 @@ hides a genuinely excessive public surface, so all three are kept.
 | A constructor's promoted public properties | 0 — PDepend does not model promotion | one each |
 | An anonymous class's own members | not reported | counted as its own scope |
 
-The promoted-property gap is the one that matters most here. `rules.xml`
+The promoted-property gap is the one that matters most here. `CleanCode/ruleset.xml`
 requires `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion`,
 so promotion is this standard's mandated way to declare a public property.
 Deferring to PDepend would leave the rule blind to the exact shape the ruleset

@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Generic.PHP.NoSilencedErrors rule as configured in
- * the master rules.xml, which replaces PHPMD's CleanCode/ErrorControlOperator
+ * the master CleanCode/ruleset.xml, which replaces PHPMD's CleanCode/ErrorControlOperator
  * rule (issue #82). Fixtures live in tests/fixtures/NoSilencedErrorsSniff/.
  *
  * Two pieces of configuration are pinned here, because both are invisible in

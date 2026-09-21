@@ -32,8 +32,8 @@ No PHPCS, Generic, Squiz, or Slevomat sniff compares array keys for equality.
 keys at all, and every code it emits is about layout — whether a key is
 present (`KeySpecified`, `NoKeySpecified`) and how keys, arrows, and commas are
 spaced and aligned — never about two keys naming the same slot. So the rule is
-the custom `CleanCode.Arrays.DuplicatedArrayKey` sniff, wired into the master
-`rules.xml` through the `./CleanCode/ruleset.xml` ref
+the custom `CleanCode.Arrays.DuplicatedArrayKey` sniff, registered
+automatically from `CleanCode/Sniffs/` when the standard loads
 ([#81](https://github.com/mike-bronner/phpcs-rules/issues/81)).
 
 - **Detection** — each duplicate is reported at the *later*, overriding key,
@@ -129,7 +129,7 @@ made in error.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/cleancode.xml/DuplicatedArrayKey`, and
-`phpcs --standard=rules.xml`. The PHPMD half of the comparison ran against a
+`phpcs --standard=CleanCode/ruleset.xml`. The PHPMD half of the comparison ran against a
 copy of each fixture wrapped in a function, since PHPMD's rule is method- and
 function-aware.
 

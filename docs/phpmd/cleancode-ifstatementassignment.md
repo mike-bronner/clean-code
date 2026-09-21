@@ -23,7 +23,7 @@ deliberate assign-and-test, and PHPMD flags it too.
 
 ## How it is enforced
 
-`rules.xml` wires in PHPCS's bundled `Generic.CodeAnalysis.AssignmentInCondition`
+`CleanCode/ruleset.xml` wires in PHPCS's bundled `Generic.CodeAnalysis.AssignmentInCondition`
 sniff and raises its `.Found` code from a warning to an error, so an assignment
 in a condition fails a `phpcs` run the way it fails a `phpmd` run.
 
@@ -109,5 +109,5 @@ already covered by the Generic sniff, so only the long form needs the custom one
 ## Running it
 
 ```bash
-vendor/bin/phpcs --standard=rules.xml src/
+vendor/bin/phpcs --standard=CleanCode/ruleset.xml src/
 ```

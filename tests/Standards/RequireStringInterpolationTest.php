@@ -7,7 +7,7 @@
  * contract.
  *
  * The sniff is isolated from the rest of the master ruleset so these
- * assertions stay stable as sibling standards land in rules.xml — in
+ * assertions stay stable as sibling standards land in CleanCode/ruleset.xml — in
  * particular CleanCode.Strings.MultilineStrings, which also registers on the
  * string tokens these fixtures are built from.
  */

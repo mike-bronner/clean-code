@@ -18,7 +18,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (analyzeFixture()
  * narrows the ruleset to it) so these assertions stay stable as sibling
- * standards land in rules.xml — "zero violations" on passing.php means zero
+ * standards land in CleanCode/ruleset.xml — "zero violations" on passing.php means zero
  * from *this* sniff.
  */
 

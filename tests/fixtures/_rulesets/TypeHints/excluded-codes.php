@@ -1,6 +1,6 @@
 <?php
 
-// Both properties below trip a code rules.xml <exclude>s from the #45
+// Both properties below trip a code CleanCode/ruleset.xml <exclude>s from the #45
 // PropertyTypeHint rule. Both police docblock hygiene rather than a missing
 // native hint, so through the master ruleset this file must be silent — and
 // without the excludes both codes must fire.

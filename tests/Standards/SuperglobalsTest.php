@@ -363,7 +363,7 @@ it('reports detection-only violations', function (): void {
  *   optional brace, so removing the brace leaves this expectation short.
  *
  * All five are true superglobal reads, so they are kept rather than suppressed
- * for parity — the posture rules.xml already takes for the extra
+ * for parity — the posture CleanCode/ruleset.xml already takes for the extra
  * VariableAnalysis and DisallowExitExpression reports.
  */
 it('reports the shapes PHPMD misses', function (): void {
@@ -479,8 +479,8 @@ it('measures the vendor candidates the comparison table rejects', function (): v
 });
 
 /**
- * Pins the prose to the measurement above. Both the docs table and rules.xml
- * quote the candidates' counts as fact, and a wrong one there is what a reader
+ * Pins the prose to the measurement above. Both the docs table and the master
+ * ruleset quote the candidates' counts as fact, and a wrong one is what a reader
  * deciding whether this sniff had to exist would act on — the count in the docs
  * table shipped as 11 and was caught in review, not by a test.
  *
@@ -489,7 +489,7 @@ it('measures the vendor candidates the comparison table rejects', function (): v
  * prose, so a file-wide search for "12 of 26" would pass over the exact cell
  * edit this test exists to catch.
  */
-it('quotes those measurements accurately in the docs and in rules.xml', function (): void {
+it('quotes those measurements accurately in the docs and in the master ruleset', function (): void {
     $reportsCell = static function (string $candidate): string {
         $rows = array_filter(
             file(cleanCodeRoot() . '/docs/phpmd/controversial-superglobals.md'),
@@ -502,7 +502,11 @@ it('quotes those measurements accurately in the docs and in rules.xml', function
     };
 
     $comments = [];
-    preg_match_all('/<!--(.*?)-->/s', (string) file_get_contents(cleanCodeRoot() . '/rules.xml'), $comments);
+    // Read as text, not as a merged ruleset: the claim being pinned is prose in
+    // a comment, which no amount of rule merging exposes.
+    $master = (string) file_get_contents(cleanCodeRoot() . '/CleanCode/ruleset.xml');
+
+    preg_match_all('/<!--(.*?)-->/s', $master, $comments);
     $superglobals = array_values(array_filter(
         $comments[1],
         static fn (string $comment): bool => str_contains($comment, 'DisallowSuperGlobalVariable was run')

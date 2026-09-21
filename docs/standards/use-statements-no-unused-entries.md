@@ -15,7 +15,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 Fully enforceable by Slevomat's
 [`SlevomatCodingStandard.Namespaces.UnusedUses`](https://github.com/slevomat/coding-standard/blob/master/doc/namespaces.md#slevomatcodingstandardnamespacesunuseduses-)
-sniff, wired into the master `rules.xml`
+sniff, wired into the master `CleanCode/ruleset.xml`
 ([#68](https://github.com/mike-bronner/phpcs-rules/issues/68)).
 
 - **Detection** — every `use` statement that is never referenced in the file

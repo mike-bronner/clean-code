@@ -28,7 +28,7 @@ No PHPCS, Generic, or Slevomat sniff covers undefined variables. The
 well-known external standard
 [`sirbrillig/phpcs-variable-analysis`](https://github.com/sirbrillig/phpcs-variable-analysis)
 does, through its single `VariableAnalysis.CodeAnalysis.VariableAnalysis`
-sniff, wired into the master `rules.xml`
+sniff, wired into the master `CleanCode/ruleset.xml`
 ([#85](https://github.com/mike-bronner/phpcs-rules/issues/85)).
 
 - **Detection** — every read of a name the scope never assigns is flagged at
@@ -40,7 +40,7 @@ sniff, wired into the master `rules.xml`
   so there is nothing for `phpcbf` to write. Both codes are reported without a
   fixer hook, matching PHPMD, which reports rather than rewrites.
 - **Reported as an error, not a warning** — the sniff reports warnings out of
-  the box; `rules.xml` raises the severity, as it does for `Squiz.PHP.Eval`. A
+  the box; `CleanCode/ruleset.xml` raises the severity, as it does for `Squiz.PHP.Eval`. A
   warning leaves `phpcs` exiting 0 on an undefined variable, which would mean
   `phpmd` still had to run for this rule — the one thing this issue exists to
   stop.
@@ -52,7 +52,7 @@ sniff, wired into the master `rules.xml`
 ### Codes deliberately excluded
 
 The sniff is broader than PHPMD's rule: it emits six codes. Two are this rule.
-`rules.xml` excludes the three that correspond to no PHPMD rule at all, so this
+`CleanCode/ruleset.xml` excludes the three that correspond to no PHPMD rule at all, so this
 standard does not quietly deliver rules that belong elsewhere.
 
 | Excluded code | Why it is not this rule |
@@ -105,7 +105,7 @@ rule. PHPMD folds the closure into its enclosing method and reports neither.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/cleancode.xml/UndefinedVariable`, and
-`phpcs --standard=rules.xml`.
+`phpcs --standard=CleanCode/ruleset.xml`.
 
 Ruleset-integration tests covering compliant code, per-line violation
 reporting, the error severity, the absence of a fixer, both halves of the

@@ -64,7 +64,7 @@ rather than a sniff built under this documentation-only standard:
   its own line, as `ProceduralStatement`. Each declaration after the first is
   reported as `MultipleDeclarations`.
 - **Stricter than `PSR1.Files.SideEffects`**, which the PSR12 reference in
-  `rules.xml` already brings in. PSR-1 forbids only *mixing* a declaration
+  `CleanCode/ruleset.xml` already brings in. PSR-1 forbids only *mixing* a declaration
   with side effects, so a file that is nothing but procedural code declares no
   symbol and passes it silently. Nothing in Slevomat's standard speaks about a
   file's declaration count either.
@@ -72,7 +72,7 @@ rather than a sniff built under this documentation-only standard:
   decides which class, which method, and which visibility, so there is no
   mechanical rewrite to offer.
 - **Boundaries** — the sniff never looks at the file's path; scoping is a
-  ruleset concern. `rules.xml` restricts it to `src/` and `app/` with
+  ruleset concern. `CleanCode/ruleset.xml` restricts it to `src/` and `app/` with
   `<include-pattern>`, because entry points (`public/index.php`, `artisan`),
   config files (a top-level `return []`), route files, and pre-Laravel-9-style
   migrations (`return new class …`) are legitimately procedural and all of

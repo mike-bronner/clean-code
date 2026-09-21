@@ -996,7 +996,7 @@ it('leaves a reading assignment target and an invoking right-hand side alone', f
  * `CleanCode.Models.DisallowChainedPropertyFetch` under Models: Relationship
  * Properties, so that claim is asserted rather than stated: the same two lines
  * report `NO_LOGIC_CHAINED_ERROR` when the composed ruleset runs. That sniff is
- * test-path-excluded in `rules.xml`, so the fixture is staged outside the
+ * test-path-excluded in `CleanCode/ruleset.xml`, so the fixture is staged outside the
  * repository first — processed where it lives, it would report nothing and the
  * assertion would prove nothing.
  */

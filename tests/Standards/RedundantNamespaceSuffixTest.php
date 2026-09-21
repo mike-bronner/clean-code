@@ -19,7 +19,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -243,7 +243,7 @@ it('passes over a declaration keyword with no name', function (): void {
 });
 
 /**
- * The claim `rules.xml` and docs/standards/classes-class-naming.md both rest
+ * The claim `CleanCode/ruleset.xml` and docs/standards/classes-class-naming.md both rest
  * on — that Slevomat's five Superfluous*Naming sniffs, the closest existing
  * rules, judge a name without reading the namespace it sits in — measured
  * against the installed version rather than against its documentation, and

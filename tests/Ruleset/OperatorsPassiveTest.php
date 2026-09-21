@@ -1,19 +1,19 @@
 <?php
 
 /**
- * Operators: Passive (#64) as wired into rules.xml — the whole standard rather
+ * Operators: Passive (#64) as wired into CleanCode/ruleset.xml — the whole standard rather
  * than the one custom sniff that anchors it.
  *
  * Four sniffs carry it: CleanCode.WhiteSpace.PassiveOperatorSpacing for
  * identity, negation, error control and execution, plus three third-party
- * sniffs configured in rules.xml for increment/decrement, `->` and `[]`.
+ * sniffs configured in CleanCode/ruleset.xml for increment/decrement, `->` and `[]`.
  * Fixtures live in tests/fixtures/_rulesets/OperatorsPassive/ because no single
  * sniff owns the standard.
  *
  * The last test here is the one that matters most. Every previous round of this
  * standard's review found the same defect: a fixer in the master ruleset that
  * re-inserted a space this standard's fixer had just removed, so
- * `phpcbf --standard=rules.xml` never settled and gave up on the whole file
+ * `phpcbf --standard=CleanCode/ruleset.xml` never settled and gave up on the whole file
  * (exit 2). It is a whole-ruleset failure by construction — the isolated
  * assertions above cannot see it — so it is asserted against the real phpcbf
  * binary over the real master ruleset.
@@ -46,7 +46,7 @@ it('reports nothing on the compliant fixture', function (): void {
 /**
  * Every operator in the standard, flagged, and by the sniff that owns it. The
  * assertion is per line and per source, so a rule silently dropped from
- * rules.xml shows up as a missing line rather than a smaller total.
+ * CleanCode/ruleset.xml shows up as a missing line rather than a smaller total.
  */
 it('flags every passive operator through the sniff that owns it', function (): void {
     $file = analyzeRulesetFixture(OPERATORS_PASSIVE_SNIFFS, 'OperatorsPassive', 'failing.php');
@@ -102,7 +102,7 @@ it('converges under the real phpcbf over the whole master ruleset', function ():
     $command = sprintf(
         '%s --standard=%s --no-cache %s',
         escapeshellarg(__DIR__ . '/../../vendor/bin/phpcbf'),
-        escapeshellarg(__DIR__ . '/../../rules.xml'),
+        escapeshellarg('CleanCode'),
         escapeshellarg($staged)
     );
 

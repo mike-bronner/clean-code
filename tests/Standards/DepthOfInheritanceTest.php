@@ -43,7 +43,7 @@ it('resolves through the master ruleset', function (): void {
 });
 
 /**
- * The shipped threshold, read off the instance rules.xml actually configured.
+ * The shipped threshold, read off the instance CleanCode/ruleset.xml actually configured.
  * PHPMD's own default, spelled with PHPMD's own property name.
  */
 it('ships PHPMD\'s default minimum of 6', function (): void {

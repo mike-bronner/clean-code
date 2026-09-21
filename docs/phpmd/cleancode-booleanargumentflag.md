@@ -39,11 +39,10 @@ nothing on its fifteen boolean flag arguments:
   whatever its type.
 
 So the rule is the custom `CleanCode.Functions.DisallowBooleanArgumentFlag`
-sniff, wired into the master ruleset (`rules.xml`) through
-`CleanCode/ruleset.xml`
-([#76](https://github.com/mike-bronner/phpcs-rules/issues/76)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
-separately for it.
+sniff, registered automatically from `CleanCode/Sniffs/` when the standard
+loads ([#76](https://github.com/mike-bronner/phpcs-rules/issues/76)). Running
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd`
+does not have to run separately for it.
 
 - **Detection** — a parameter is a boolean flag when either half holds:
   - its native type declaration resolves to `bool` — `bool`, `?bool`,
@@ -56,7 +55,7 @@ separately for it.
   file scope.
 - **Error severity** — the sniff reports errors, so a flag argument fails a
   `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed in
-  `rules.xml`, unlike the two Tier 1 mappings.
+  `CleanCode/ruleset.xml`, unlike the two Tier 1 mappings.
 - **Not auto-fixable** — matching PHPMD. Removing a flag argument splits the
   callee in two and rewrites every call site; that is a design change, not a
   mechanical rewrite.
@@ -120,7 +119,7 @@ fixtures named.
    reports when that value is exactly `true` or `false`; a type declaration
    never reaches its check. Enforcing the type half as well is required by
    [#76](https://github.com/mike-bronner/phpcs-rules/issues/76), and it is what
-   makes the rule useful here: `rules.xml` requires a native type hint on every
+   makes the rule useful here: `CleanCode/ruleset.xml` requires a native type hint on every
    parameter (`SlevomatCodingStandard.TypeHints.ParameterTypeHint`), so the
    untyped shape PHPMD keys on barely occurs in code this ruleset governs.
 2. **Closures at file scope.** PHPMD's rule visits method and function nodes and
@@ -134,5 +133,5 @@ fixtures named.
    written inside it.
 
 All three extra reports are true defects, so they are kept — the same call
-`rules.xml` records for `VariableAnalysis` under
+`CleanCode/ruleset.xml` records for `VariableAnalysis` under
 [#85](https://github.com/mike-bronner/phpcs-rules/issues/85).

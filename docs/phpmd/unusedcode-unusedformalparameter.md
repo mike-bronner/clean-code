@@ -26,7 +26,7 @@ _Source: [phpmd.org/rules/unusedcode.html](https://phpmd.org/rules/unusedcode.ht
 ## Enforceability — Tier 2 (custom sniff)
 
 The custom sniff `CleanCode.DeadCode.UnusedFormalParameter` carries this rule,
-wired into the master `rules.xml`
+wired into the master `CleanCode/ruleset.xml`
 ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)).
 
 - **Detection** — a parameter no statement in the body reads is flagged at the
@@ -237,7 +237,7 @@ measured:
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedFormalParameter`, and
-`phpcs --standard=rules.xml`. On `failing.php` the two reports are identical:
+`phpcs --standard=CleanCode/ruleset.xml`. On `failing.php` the two reports are identical:
 fifty-four findings, same lines, same parameters. On `passing.php` this
 ruleset is silent, and PHPMD reports the six parameters covered by the two
 divergence rows above (`func_get_args()` in a namespace, and `#[\Override]`).

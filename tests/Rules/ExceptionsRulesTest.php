@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Evaluates the Slevomat rules wired into the master rules.xml for the
+ * Evaluates the Slevomat rules wired into the master CleanCode/ruleset.xml for the
  * Exceptions standard: catches must reference \Throwable rather than the
  * general \Exception, and a caught variable that is never used must be
  * dropped (non-capturing catch).
  *
- * Coverage comes in two parts. A wiring test parses the master rules.xml
+ * Coverage comes in two parts. A wiring test parses the master CleanCode/ruleset.xml
  * through PHPCS's real ruleset path and asserts both rules are registered,
  * so dropping or misspelling a <rule ref> breaks the build. The behaviour
  * tests then pin each sniff in isolation against its fixture, keeping the

@@ -18,7 +18,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -36,8 +36,8 @@ it('is registered in the master ruleset', function (): void {
 });
 
 /**
- * The sniff's own source passes rules.xml, the standard it belongs to. That is
- * the claim rules.xml makes about this file, and the reason the file reads the
+ * The sniff's own source passes CleanCode/ruleset.xml, the standard it belongs to. That is
+ * the claim CleanCode/ruleset.xml makes about this file, and the reason the file reads the
  * way it does: match(true) guard chains instead of `if`
  * (CleanCode.Conditionals.AvoidConditionals), counted folds instead of
  * array_map()/array_filter() (CleanCode.Arrays.ConvertToCollection), the File
@@ -52,10 +52,10 @@ it('is registered in the master ruleset', function (): void {
  * unrun once already on this sniff — the source reported 18 errors and 30
  * warnings while the box was ticked — and the sibling precedent is worse: the
  * same claim on ManualModelResolutionSniff.php was true when written and then
- * quietly falsified by a *later* standard landing in rules.xml, with no test to
+ * quietly falsified by a *later* standard landing in CleanCode/ruleset.xml, with no test to
  * notice. A comment cannot catch either failure; this can.
  *
- * Every sniff wired into rules.xml is active, not just this one, because the
+ * Every sniff wired into CleanCode/ruleset.xml is active, not just this one, because the
  * claim is about the whole standard. Run through the *installed* phpcs rather
  * than an in-process ruleset, because "exits 0" is a claim about the binary a
  * consumer runs. Warnings are counted alongside errors deliberately: this sniff
@@ -82,7 +82,7 @@ it('is registered in the master ruleset', function (): void {
  */
 it('passes the standard it belongs to', function (): void {
     $run = installedPhpcsRun(
-        cleanCodeRoot() . '/rules.xml',
+        'CleanCode',
         cleanCodeRoot() . '/CleanCode/Sniffs/Naming/ActionMethodReturnSniff.php'
     );
 
@@ -228,7 +228,7 @@ it('flags every action method that returns a value in the failing fixture', func
 /**
  * The question a new custom sniff has to settle: does a vendor standard already
  * answer this? Four candidates come closest, and this runs each one's *whole*
- * standard over the failing fixture rather than only what rules.xml has already
+ * standard over the failing fixture rather than only what CleanCode/ruleset.xml has already
  * wired in, because the master ruleset can only report on sniffs it references.
  *
  * None of them pairs a name against what the declaration hands back:
@@ -483,7 +483,7 @@ it('matches nothing for an empty verb in the configured list', function (): void
 });
 
 /**
- * The shipped defaults, pinned where the behaviour is. rules.xml configures no
+ * The shipped defaults, pinned where the behaviour is. CleanCode/ruleset.xml configures no
  * `<properties>` for this sniff, so what the sniff declares is what a consuming
  * project gets, and #172 names both the list and the exemption's direction.
  */

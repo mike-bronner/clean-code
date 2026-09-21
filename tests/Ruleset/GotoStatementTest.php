@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Generic.PHP.DiscourageGoto rule as configured in the
- * master rules.xml, which replaces PHPMD's Design/GotoStatement rule (issue
+ * master CleanCode/ruleset.xml, which replaces PHPMD's Design/GotoStatement rule (issue
  * #109). Fixtures live in tests/fixtures/DiscourageGotoSniff/.
  *
  * There is no autofixed.php because the rule is not auto-fixable —
@@ -11,14 +11,14 @@
  * for a goto either. The fixable-count test below pins that, so the absent
  * autofix fixture stays an asserted fact rather than an assumption.
  *
- * Two rules.xml overrides are pinned here:
+ * Two CleanCode/ruleset.xml overrides are pinned here:
  *
- *   - Severity. The sniff reports a *warning* out of the box; rules.xml raises
+ *   - Severity. The sniff reports a *warning* out of the box; CleanCode/ruleset.xml raises
  *     it to an error, so a goto fails a phpcs run the way it fails a phpmd run.
  *     That is why the tests assert the reports land in getErrors() and that
  *     getWarnings() stays empty.
  *   - Message. The stock text calls goto "discouraged", which contradicts that
- *     error severity and names no remedy. rules.xml overrides it, which PHPCS
+ *     error severity and names no remedy. CleanCode/ruleset.xml overrides it, which PHPCS
  *     only honours when the rule is referenced by its message code
  *     (Generic.PHP.DiscourageGoto.Found) rather than by sniff name — pinning
  *     the text here is what stops that reference being "simplified" back to the
@@ -128,8 +128,8 @@ it('reports goto usage as errors rather than warnings', function (): void {
 });
 
 /**
- * The rules.xml <message> override, pinned against the stock sniff text. The
- * override is only honoured because rules.xml references the rule by its
+ * The CleanCode/ruleset.xml <message> override, pinned against the stock sniff text. The
+ * override is only honoured because CleanCode/ruleset.xml references the rule by its
  * message code; drop back to the sniff name and every violation reverts to
  * "Use of the GOTO language construct is discouraged" — which this asserts
  * against explicitly, so the failure names the cause.

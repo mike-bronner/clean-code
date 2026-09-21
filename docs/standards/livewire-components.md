@@ -26,16 +26,34 @@ positives; the rest of the standard stays with code review.
 
 ### Blade views are scanned
 
-`rules.xml` registers `blade.php` in its `extensions` argument, mapped to the
-PHP tokenizer:
+A Blade view's markup arrives as `T_INLINE_HTML` and its embedded PHP is
+tokenized like any other PHP, so the rest of the ruleset applies to a view's PHP
+as well.
+
+The master ruleset also registers `blade.php` in its `extensions` argument,
+mapped to the PHP tokenizer:
 
 ```xml
 <arg name="extensions" value="php,blade.php/php"/>
 ```
 
-Without that entry PHPCS's file filter skips Blade views outright. With it, a
-view's markup arrives as `T_INLINE_HTML` and its embedded PHP is tokenized like
-any other PHP — so the rest of the ruleset applies to a view's PHP as well.
+**That entry is not what makes Blade views visible**, contrary to what this
+section said until 2026-09-21. Measured against PHP_CodeSniffer 3.13.6 and
+confirmed in its source, it is a no-op for `.blade.php` on both counts it was
+credited with:
+
+- `Filters\Filter::shouldProcessFile()` builds *every* multi-part suffix of a
+  filename — `component.blade.php` yields both `blade.php` and `php` — and
+  intersects them with the configured list. `php` is in PHP_CodeSniffer's own
+  default list, so a view is admitted with or without the entry.
+- `Files\File::__construct()` pops only the last dot-segment when choosing a
+  tokenizer, so it looks up `php` and never `blade.php`, and it falls back to
+  the PHP tokenizer when that lookup misses in any case.
+
+What the entry does do is *replace* PHP_CodeSniffer's default extension list
+rather than extend it, so a project using this standard stops scanning `.inc`,
+`.js` and `.css`. That is current shipped behaviour and the entry is left as it
+is; whether the narrowing is wanted is its own consumer-visible question.
 
 #### `Internal.NoCodeFound` is suppressed on Blade views
 
@@ -43,8 +61,8 @@ Handing a Blade view to the PHP tokenizer has one unavoidable side effect. A
 view is normally all markup and directives with no raw `<?php ?>` tag anywhere,
 and PHPCS answers a file it found no PHP in with `Internal.NoCodeFound` — a
 warning, which still exits 1. Unsuppressed, installing this ruleset would fail a
-consumer's CI on every idiomatic Blade view, whatever the view contains. So
-`rules.xml` turns the check off for Blade views only:
+consumer's CI on every idiomatic Blade view, whatever the view contains. So the
+master ruleset turns the check off for Blade views only:
 
 ```xml
 <rule ref="Internal.NoCodeFound">

@@ -9,7 +9,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml. What the sniff does *alongside* the
+ * sibling standards land in CleanCode/ruleset.xml. What the sniff does *alongside* the
  * rest of the ruleset — the part that decides whether phpcbf converges — is
  * pinned separately by tests/Ruleset/OperatorsPassiveTest.php.
  */

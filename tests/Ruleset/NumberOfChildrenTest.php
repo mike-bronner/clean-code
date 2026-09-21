@@ -5,7 +5,7 @@
  * rulesets declare it* (#378). The sniff's own behaviour lives in
  * tests/Standards/NumberOfChildrenTest.php; what is asserted here is the
  * shipped severity, which is what decides whether a consumer running
- * `phpcs --standard=rules.xml` can be shown a diagnostic they never asked for.
+ * `phpcs --standard=CleanCode/ruleset.xml` can be shown a diagnostic they never asked for.
  *
  * OrdinalIndex is instrumentation. It exists so the performance test in the
  * Standards file can read the sniff's own counters back out of a real phpcs
@@ -20,9 +20,9 @@
  *
  * The severity-0 declaration in CleanCode/ruleset.xml closes that off. These
  * tests hold both halves of it: that the declaration survives into the ruleset
- * PHPCS actually merges, by either route a consumer can load the package, and
- * that a real install carrying a real persisted config value stays quiet
- * anyway.
+ * PHPCS actually merges, including when a consumer re-references the sniff to
+ * tune it, and that a real install carrying a real persisted config value stays
+ * quiet anyway.
  */
 
 declare(strict_types=1);
@@ -94,23 +94,19 @@ $reportedSources = static function (string $json): array {
 /**
  * The declaration has to survive into the ruleset PHPCS *merges*, which is not
  * the same claim as the string being present in a file. Reading it back off
- * Ruleset::$ruleset is what tells the two apart: a rules.xml that re-declared a
- * nonzero severity after its rule ref would leave CleanCode/ruleset.xml
- * untouched and still reopen the hazard on the file every consumer installs.
+ * Ruleset::$ruleset is what tells the two apart: an `<exclude>` elsewhere, a
+ * consumer-style re-reference, or a rule ordering that reopened the code would
+ * all leave the declaration's text in place while the merged severity came out
+ * nonzero.
  *
- * Both entry points are checked because both are reachable. rules.xml is the
- * master ruleset, and CleanCode/ruleset.xml is independently loadable — it
- * carries the sniffs, so a consumer may point a standard argument straight at
- * it — which is why the declaration lives in the latter and not the former.
+ * One entry point, because there is one: CleanCode/ruleset.xml is the only
+ * ruleset the package ships.
  */
-it('merges the ordinal diagnostic to severity 0', function (string $standard): void {
-    $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/' . $standard);
+it('merges the ordinal diagnostic to severity 0', function (): void {
+    $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/CleanCode/ruleset.xml');
 
     expect($ruleset->ruleset[ORDINAL_INDEX_DIAGNOSTIC]['severity'] ?? null)->toBe(0);
-})->with([
-    'rules.xml',
-    'CleanCode/ruleset.xml',
-]);
+});
 
 /**
  * The backstop must silence the one message code and nothing else. Severity is
@@ -123,16 +119,13 @@ it('merges the ordinal diagnostic to severity 0', function (string $standard): v
  * value written here, 5 included, would be a second place for the shipped
  * behaviour to drift from PHPCS's default.
  */
-it('leaves the sniff itself reporting', function (string $standard): void {
-    $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/' . $standard);
+it('leaves the sniff itself reporting', function (): void {
+    $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/CleanCode/ruleset.xml');
 
     expect($ruleset->sniffCodes)->toHaveKey(ORDINAL_INDEX_SNIFF)
         ->and($ruleset->ruleset[ORDINAL_INDEX_SNIFF]['severity'] ?? null)->toBeNull()
         ->and($ruleset->ruleset[ORDINAL_INDEX_FOUND]['severity'] ?? null)->toBeNull();
-})->with([
-    'rules.xml',
-    'CleanCode/ruleset.xml',
-]);
+});
 
 /**
  * docs/phpmd/design-numberofchildren.md tells a consumer to tune this rule by
@@ -149,7 +142,7 @@ it('keeps the diagnostic silent when a consumer tunes the sniff', function (): v
         '<?xml version="1.0"?>',
         '<ruleset name="Tuned">',
         '    <description>The consumer example from docs/phpmd/design-numberofchildren.md.</description>',
-        '    <rule ref="' . cleanCodeRoot() . '/rules.xml"/>',
+        '    <rule ref="' . cleanCodeRoot() . '/CleanCode/ruleset.xml"/>',
         '    <rule ref="' . ORDINAL_INDEX_SNIFF . '">',
         '        <properties>',
         '            <property name="minimum" value="8"/>',
@@ -219,7 +212,7 @@ it('stays silent on an ordinary run against an install carrying a persisted conf
     [$shown] = $runThrowawayPhpcs($binary, ['--config-show']);
 
     [$ordinary] = $runThrowawayPhpcs($binary, [
-        '--standard=' . cleanCodeRoot() . '/rules.xml',
+        '--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml',
         '--sniffs=' . ORDINAL_INDEX_SNIFF,
         '--report=json',
         '--no-cache',

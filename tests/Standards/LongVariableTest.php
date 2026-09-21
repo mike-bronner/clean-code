@@ -220,7 +220,7 @@ it('subtracts one prefix and one suffix, each the first that matches', function 
 /**
  * The same two lines, configured the way a *consuming ruleset* configures them:
  * as strings through `Ruleset::setSniffProperty()`, which is the path a
- * `<properties>` element in rules.xml actually takes. The test above assigns to
+ * `<properties>` element in CleanCode/ruleset.xml actually takes. The test above assigns to
  * the properties directly and so always hands over a correctly typed value;
  * only this path proves the sniff is configurable from XML at all, which is
  * what a consumer of this package does.

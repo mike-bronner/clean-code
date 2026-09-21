@@ -2,14 +2,14 @@
 
 /**
  * Integration test for the VariableAnalysis.CodeAnalysis.VariableAnalysis rule
- * as configured in the master rules.xml, which replaces PHPMD's CleanCode
+ * as configured in the master CleanCode/ruleset.xml, which replaces PHPMD's CleanCode
  * UndefinedVariable rule (issue #85). Fixtures live in
  * tests/fixtures/VariableAnalysisSniff/.
  *
- * The sniff emits six codes; rules.xml keeps the two that mean "a variable is
+ * The sniff emits six codes; CleanCode/ruleset.xml keeps the two that mean "a variable is
  * read before it is defined" and excludes three that belong to no PHPMD rule.
  * Both halves are pinned below: the excluded codes stay silent through
- * rules.xml, and the same fixture proves they would fire without the excludes
+ * CleanCode/ruleset.xml, and the same fixture proves they would fire without the excludes
  * — so dropping an <exclude> fails this suite.
  *
  * The sixth code, UnusedVariable, is neither kept for this rule nor excluded:
@@ -23,7 +23,7 @@
  *   neither tool catches. Pinned by a test so the gap cannot drift back into
  *   an unearned parity claim; described in
  *   docs/phpmd/cleancode-undefinedvariable.md.
- * - excluded-codes.php — the three sniff codes rules.xml excludes.
+ * - excluded-codes.php — the three sniff codes CleanCode/ruleset.xml excludes.
  *
  * There is no autofixed.php: the rule is not fixable. That is asserted by the
  * fixable-count and per-violation fixable-flag test below; the byte-identical
@@ -32,7 +32,7 @@
  * round-trip check.
  *
  * The severity override is pinned here too. The sniff reports warnings out of
- * the box and rules.xml raises them to errors, so an undefined variable fails a
+ * the box and CleanCode/ruleset.xml raises them to errors, so an undefined variable fails a
  * phpcs run the way it fails a phpmd run — which is what lets phpmd stop
  * running for this rule at all. That is why these tests assert the reports land
  * in getErrors() and that getWarnings() stays empty.
@@ -61,11 +61,11 @@ const VARIABLE_ANALYSIS_EXCLUDED_CODES = [
 
 /**
  * Processes a fixture through the *unconfigured* VariableAnalysis standard —
- * the sniff as its vendor ships it, with none of rules.xml's excludes and none
+ * the sniff as its vendor ships it, with none of CleanCode/ruleset.xml's excludes and none
  * of its severity override. Under it the sniff reports warnings, not errors,
  * which is why both callers read through allViolationSourcesByLine().
  *
- * The shared buildRuleset() helper always builds rules.xml, which is precisely
+ * The shared buildRuleset() helper always builds CleanCode/ruleset.xml, which is precisely
  * what the two "without our config" tests below have to exclude, so this builds
  * its own Config. Nothing is memoised: each call resets PHPCS's static config
  * state through a fresh ConfigDouble, so it cannot leak into a helper-built
@@ -121,7 +121,7 @@ it('flags each undefined read at its own line', function (): void {
 });
 
 /**
- * rules.xml raises the sniff's built-in warning to an error. Without it phpcs
+ * CleanCode/ruleset.xml raises the sniff's built-in warning to an error. Without it phpcs
  * exits 0 on an undefined variable, and phpmd would still have to run for this
  * rule — the one thing issue #85 exists to stop.
  */
@@ -238,7 +238,7 @@ it('keeps the excluded codes silent through the master ruleset', function (): vo
 
 /**
  * Guards the test above from passing vacuously: the same fixture, run through
- * the unconfigured VariableAnalysis standard, must raise every code rules.xml
+ * the unconfigured VariableAnalysis standard, must raise every code CleanCode/ruleset.xml
  * excludes. Without this, a fixture that trips nothing at all would look like a
  * working exclude list.
  */

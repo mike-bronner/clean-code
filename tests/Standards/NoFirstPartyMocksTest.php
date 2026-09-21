@@ -16,7 +16,7 @@
  * fixture.
  *
  * $firstPartyNamespaces ships EMPTY on the sniff class, so every assertion here
- * that expects a warning depends on rules.xml configuring `App` — which is the
+ * that expects a warning depends on CleanCode/ruleset.xml configuring `App` — which is the
  * same route a consuming project takes. The unconfigured no-op is pinned
  * separately below, from the shipped class default rather than from a value the
  * test invents.
@@ -29,7 +29,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -222,11 +222,11 @@ it('names the resolved class and the standard in the warning message', function 
  * Both configurations are asserted, because each catches a different half of
  * that defect and neither catches the other:
  *
- * - under the `App` root rules.xml ships, the doubled name still matches by
+ * - under the `App` root CleanCode/ruleset.xml ships, the doubled name still matches by
  *   plain prefix luck — `app\` *is* a prefix of `app\\` — so line 10 reports
  *   either way and only the message shows the doubled separators baked into
  *   the resolved name.
- * - under a multi-segment `App\Models` root, which is the shape rules.xml's own
+ * - under a multi-segment `App\Models` root, which is the shape CleanCode/ruleset.xml's own
  *   example consumer configuration offers, the luck runs out: `app\models\` is
  *   not a prefix of `app\\models\\`, so line 10 falls silent altogether — a
  *   first-party mock the sniff simply misses. Line 19 sits under `App` but
@@ -264,7 +264,7 @@ it('collapses an escaped separator in either quote style', function (): void {
  * Both directions are pinned on one fixture, because the phantom alias hides in
  * a different way under each root:
  *
- * - under the `App` root rules.xml ships, line 22's `Sdk` must resolve inside
+ * - under the `App` root CleanCode/ruleset.xml ships, line 22's `Sdk` must resolve inside
  *   the declared namespace as `App\Tests\Unit\Sdk` and report. The phantom
  *   alias would send it to `Vendor\Sdk` and swallow the warning.
  * - under a `Vendor` root it is the inverse, and the false *positive* the AC
@@ -398,7 +398,7 @@ it('keeps every segment written past an import alias', function (): void {
 /**
  * The namespace list is a list: a class under *any* configured root is
  * first-party, not just one under the first. That is the sniff's own documented
- * extensibility path — rules.xml teaches a two-root consumer configuration — so
+ * extensibility path — CleanCode/ruleset.xml teaches a two-root consumer configuration — so
  * it is asserted rather than left to the single-root tests above, all of which
  * a comparison that only ever read `firstPartyNamespaces[0]` would pass.
  *
@@ -408,7 +408,7 @@ it('keeps every segment written past an import alias', function (): void {
  * pair is what forces a real union rather than either entry winning alone.
  *
  * Configured through XML rather than the callback, because two `<element>`
- * entries under one property is the exact spelling rules.xml documents and the
+ * entries under one property is the exact spelling CleanCode/ruleset.xml documents and the
  * one a consuming project writes.
  */
 it('treats a class under any configured namespace root as first-party', function (): void {
@@ -457,7 +457,7 @@ it('is a no-op until its first-party namespaces are configured', function (): vo
 
 /**
  * Both name lists are public sniff properties. One fixture pins both
- * directions for each: under the `App` root rules.xml configures, line 10
+ * directions for each: under the `App` root CleanCode/ruleset.xml configures, line 10
  * warns and line 11 does not; replacing the root with `Vendor` swaps them, and
  * replacing $mockCreators with `double` moves the single warning to line 15. A
  * property that was ignored would leave every run identical and fail the second
@@ -490,7 +490,7 @@ it('exposes configurable namespace and mock-creator lists', function (): void {
 
 /**
  * The route a consuming project actually takes: a ruleset that references
- * rules.xml and then replaces the namespace list with `<element>` entries. This
+ * CleanCode/ruleset.xml and then replaces the namespace list with `<element>` entries. This
  * is a different parse path from the $configure callback above — PHPCS builds
  * the array itself from the XML — and it is the one the sniff's doc advertises,
  * so it is asserted rather than assumed. Both directions again: `Vendor`

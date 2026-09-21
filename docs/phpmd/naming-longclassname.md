@@ -31,9 +31,9 @@ instead (`Squiz.Classes.ValidClassName`,
 `Generic.NamingConventions.TraitNameSuffix`,
 `SlevomatCodingStandard.Classes.Superfluous*Naming`). Slevomat's
 `Classes.ClassLength` counts a class's *lines*, not its name. So this rule is
-carried by a custom sniff, wired into the master `rules.xml`
+carried by a custom sniff, wired into the master `CleanCode/ruleset.xml`
 ([#101](https://github.com/mike-bronner/phpcs-rules/issues/101)). Running
-`phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does not have
+`phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 
 - **Detection** — every `class`, `interface`, `trait`, and `enum` declaration is
@@ -56,12 +56,12 @@ to run separately for it.
 - **Error severity.** The sniff raises errors out of the box, so `phpcs` exits
   non-zero on a violation exactly as `phpmd` does. Unlike the `Squiz.PHP.Eval`
   and `VariableAnalysis` mappings, no `<type>error</type>` override is needed in
-  `rules.xml`.
+  `CleanCode/ruleset.xml`.
 
 ## Configurable properties
 
 The sniff carries PHPMD's three properties under PHPCS's camelCase spelling,
-with PHPMD's defaults. `rules.xml` configures none of them, so the defaults
+with PHPMD's defaults. `CleanCode/ruleset.xml` configures none of them, so the defaults
 apply as shipped.
 
 | PHPMD property | Sniff property | Default | Meaning |

@@ -9,7 +9,7 @@
  * autofixed.php — the sniff is detection-only, because deleting a member is
  * not a rewrite a fixer can make safely.
  *
- * tests/Ruleset/NoDeadCodeRulesetTest.php remains the record of how rules.xml
+ * tests/Ruleset/NoDeadCodeRulesetTest.php remains the record of how CleanCode/ruleset.xml
  * wires this sniff alongside the three third-party sniffs the No Dead Code
  * standard also needs. This file owns the sniff's own behaviour.
  *

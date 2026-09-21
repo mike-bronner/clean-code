@@ -3,34 +3,61 @@ PHPCS linter rules for all coding standards defined in https://mikebronner.dev/c
 
 ## Installation
 
+Composer 2.2 and later will not run a plugin the consuming project has not
+allowed, and the codesniffer installer is a plugin. Allow it **first**:
+
 ```bash
+composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
 composer require --dev mike-bronner/phpcs-rules
 ```
 
-The package is a `phpcodesniffer-standard`, so the **CleanCode** standard
-auto-registers with PHP_CodeSniffer on install (via the dealerdirect composer
-installer) — `vendor/bin/phpcs -i` lists it.
+Or add it to `composer.json` by hand:
+
+```json
+{
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    }
+}
+```
+
+Without that opt-in the installer never runs, PHP_CodeSniffer's
+`installed_paths` is never written, and the standard does not register —
+`phpcs` then reports the standard as not installed, with nothing pointing at the
+plugin as the cause. It is the most common reason an install appears to do
+nothing.
+
+With the plugin allowed, `vendor/bin/phpcs -i` lists one standard from this
+package, **`CleanCode`**. It is the whole rule set: the custom sniffs, the PSR
+and Slevomat wiring, the PHP version pin and Blade support.
 
 ## Usage
 
-Run the master ruleset (`rules.xml`), which wires together the CleanCode
-sniffs and any referenced Slevomat rules:
-
-```bash
-vendor/bin/phpcs --standard=vendor/mike-bronner/phpcs-rules/rules.xml src/
-```
-
-Or reference it from your project's own `phpcs.xml.dist`:
+Reference the standard by name from your project's own `phpcs.xml` (or
+`phpcs.xml.dist`):
 
 ```xml
-<rule ref="vendor/mike-bronner/phpcs-rules/rules.xml"/>
+<rule ref="CleanCode"/>
 ```
+
+Or run it directly:
+
+```bash
+vendor/bin/phpcs --standard=CleanCode src/
+```
+
+The name works from anywhere in your project and survives a custom Composer
+`vendor-dir`, which a path reference does not. It is also the prefix on every
+code the custom sniffs report, so `CleanCode.Naming.ShortVariable` in a report
+and `CleanCode` in your config are the same word.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the package layout, how a new
-sniff/standard plugs into `rules.xml`, the test-fixture contract, and how to
-add its Pest test.
+sniff or standard plugs into `CleanCode/ruleset.xml`, the test-fixture
+contract, and how to add its Pest test.
 
 ## Standards
 
@@ -39,9 +66,9 @@ entry below carries the tier assigned in that document's *Enforceability*
 section, and summarizes how the standard is enforced.
 
 - **Tier 1** and **Tier 2** standards are enforced automatically, by rules wired
-  into the master `rules.xml`: a bundled standard, an existing PHPCS or Slevomat
-  rule (configured where needed), a custom `CleanCode` sniff, or a combination
-  of these.
+  into the `CleanCode` standard: a bundled standard, an existing PHPCS or
+  Slevomat rule (configured where needed), a custom sniff, or a combination of
+  these.
 - **Tier 3** standards are the ones a token-based sniff cannot verify. They are
   enforced by code review and developer discipline rather than a PHPCS rule. A
   few carry a rule over one narrow slice that *is* token-visible — the tier
@@ -65,7 +92,7 @@ what stays with code review.
 - [Classes: Introspection / Type Casting](docs/standards/classes-introspection-type-casting.md) — Tier 2, custom sniff `CleanCode.Classes.DisallowTypeIntrospection`: flags `instanceof` and `get_class()`/`get_debug_type()`/`gettype()`/`is_a()`/`is_subclass_of()` where they decide a branch (if/elseif/while/switch/match/ternary), detection-only ([#73](https://github.com/mike-bronner/phpcs-rules/issues/73))
 - [Classes: No Statics](docs/standards/classes-no-statics.md) — Tier 2, custom sniff `CleanCode.Classes.DisallowStaticMembers`: flags static method/property declarations in any class/interface/trait/enum, detection-only. A member a resolvable ancestor declares static and non-private is skipped, because PHP refuses to load a class that drops the keyword — a Laravel facade's `getFacadeAccessor()` is the common case ([#19](https://github.com/mike-bronner/phpcs-rules/issues/19))
 - [Clear Code: One Thought Per Line](docs/standards/clear-code-one-thought-per-line.md) — Tier 2, custom sniff `CleanCode.ClearCode.OneThoughtPerLine`: one access operator per chain per line, auto-fixable. An operator still held by an unclosed `(`, `[`, or short-array opener is exempt, so argument lists, array literals and statement conditions stay on one line; the exemption stops at a brace, so a closure body's chains are still counted ([#7](https://github.com/mike-bronner/phpcs-rules/issues/7))
-- [Code Style: Industry Standards (PSR1/2/12)](docs/standards/code-style-industry-standards-psr1-2-12.md) — Tier 1, bundled standard: PHPCS `PSR12` (includes PSR1; supersedes PSR2) wired into `rules.xml` ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49))
+- [Code Style: Industry Standards (PSR1/2/12)](docs/standards/code-style-industry-standards-psr1-2-12.md) — Tier 1, bundled standard: PHPCS `PSR12` (includes PSR1; supersedes PSR2) wired into the CleanCode standard ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49))
 - [Code Style: Multiline Strings (HEREDOC)](docs/standards/code-style-multiline-strings-heredoc.md) — Tier 2, custom sniff `CleanCode.Strings.MultilineStrings`, which owns **length only**: flags multi-line quoted strings (auto-fixed to a HEREDOC, whatever the source was quoted with) and quoted-string concatenation whose **value** carries more than `maximumLines` lines (default 3, detection-only). Lines of text, never lines of source — a sentence wrapped across four source lines is one line of text, and a HEREDOC cannot express it without either breaking the 120-character limit or putting real newlines into the value, so counting the source made the rule report what no fix could satisfy. Source layout is already governed by the 100-character limit and the leading-operator rule. Embedded languages belong to `CleanCode.Strings.RequireHeredocForStructuredText` at any length, so the two hold disjoint slices ([#53](https://github.com/mike-bronner/phpcs-rules/issues/53))
 - [Collections: Only Use Collection Methods](docs/standards/collections-only-use-collection-methods.md) — Tier 2, custom sniff `CleanCode.Collections.OnlyUseCollectionMethods`: flags generic PHP array/string functions applied to a Collection, auto-fixable for the unambiguous 1:1 swaps (`count()`, `array_sum()`) on a provably-typed receiver ([#28](https://github.com/mike-bronner/phpcs-rules/issues/28))
 - [Conditionals: Avoid Conditionals](docs/standards/conditionals-avoid-conditionals.md) — Tier 2, custom sniff `CleanCode.Conditionals.AvoidConditionals`: one warning per if/elseif/ternary/switch, detection only, plus `SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn` lowered to warning for the auto-fixable boolean-return `if`; whether a branch was avoidable stays with code review ([#12](https://github.com/mike-bronner/phpcs-rules/issues/12))
@@ -90,7 +117,7 @@ what stays with code review.
 - [Methods: Declared Parameters](docs/standards/methods-declared-parameters.md) — Tier 2, custom sniff `CleanCode.Methods.DeclaredParameters`: flags `func_get_args()` / `func_get_arg()` / `func_num_args()` calls, exempting magic methods, detection-only ([#69](https://github.com/mike-bronner/phpcs-rules/issues/69))
 - [Livewire: Components](docs/standards/livewire-components.md) — Tier 2, custom sniff `CleanCode.Livewire.ComponentMarkup`: reads Blade views (registered via the `blade.php` extension) and reports framework attributes on a component's root element, a `<livewire:…>` tag in a loop without `wire:key`, and adjacent components missing a key-matched `<template>` wrapper; heuristic and detection-only, so root-element count and `wire:key` uniqueness stay with code review ([#46](https://github.com/mike-bronner/phpcs-rules/issues/46))
 - [Methods: No Null Arguments](docs/standards/methods-no-null-arguments.md) — Tier 2, custom sniff `CleanCode.Methods.NoNullArguments`: flags a literal `null` passed positionally into an optional parameter, auto-fixed to a named argument wherever the file proves which declaration the call reaches ([#71](https://github.com/mike-bronner/phpcs-rules/issues/71))
-- [Methods: Type Hints](docs/standards/methods-type-hints.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` + `TypeHints.ReturnTypeHint`, configured in `rules.xml`, plus the custom `CleanCode.TypeHints.InferredReturnType`, which carries the fixer Slevomat cannot: Slevomat writes a return type only from a `@return` annotation, while this one writes it wherever it is provable from the source — a type a resolvable ancestor already declares (read by reflection), a body whose returns are all literals, one returning `$this`, or one returning a typed parameter. It stays silent on everything else, because a guessed return type is a runtime `TypeError` rather than a lint finding, and cedes the magic-method, `@return`-annotated and returns-nothing cases to Slevomat outright ([#70](https://github.com/mike-bronner/phpcs-rules/issues/70))
+- [Methods: Type Hints](docs/standards/methods-type-hints.md) — Tier 1, Slevomat `TypeHints.ParameterTypeHint` + `TypeHints.ReturnTypeHint`, configured in the CleanCode standard, plus the custom `CleanCode.TypeHints.InferredReturnType`, which carries the fixer Slevomat cannot: Slevomat writes a return type only from a `@return` annotation, while this one writes it wherever it is provable from the source — a type a resolvable ancestor already declares (read by reflection), a body whose returns are all literals, one returning `$this`, or one returning a typed parameter. It stays silent on everything else, because a guessed return type is a runtime `TypeError` rather than a lint finding, and cedes the magic-method, `@return`-annotated and returns-nothing cases to Slevomat outright ([#70](https://github.com/mike-bronner/phpcs-rules/issues/70))
 - [Models: Eager Loading](docs/standards/models-eager-loading.md) — Tier 2, two custom sniffs, both detection-only: `CleanCode.Models.RequireLazyLoadingPrevention` warns when the application service provider never calls `Model::preventLazyLoading()` (or `Model::shouldBeStrict()`), leaving Laravel's runtime lazy-loading safety check switched off ([#154](https://github.com/mike-bronner/phpcs-rules/issues/154)); `CleanCode.Models.DisallowAlwaysOnEagerLoading` warns on a populated `$with` property in a class extending a model-shaped parent, the always-on eager loading the standard's first rule prohibits ([#153](https://github.com/mike-bronner/phpcs-rules/issues/153))
 - [Models: Organization (member ordering)](docs/standards/models-organization.md) — Tier 2, custom sniff `CleanCode.Models.MemberOrdering`: in a class extending a model-shaped parent — named or anonymous, each ordered against itself — errors on a trait use, property, relationship method, getter/setter, or other method that is out of alphabetical order, on a property whose visibility group precedes the previous property's, and on a `use` statement declaring several traits; detection-only, because reordering members would move doc blocks and comments bound to a declaration by nothing but adjacency ([#75](https://github.com/mike-bronner/phpcs-rules/issues/75))
 - [Models: Naming Conventions](docs/standards/models-naming-conventions.md) — Tier 2, custom sniff `CleanCode.Naming.ModelNamingConventions`: yes/no prefixes on boolean model properties/methods, `find`/`get` prefixes keyed off the return type, and legacy `getXAttribute()` accessors, detection-only ([#44](https://github.com/mike-bronner/phpcs-rules/issues/44))
@@ -125,7 +152,7 @@ what stays with code review.
 
 ## PHPMD rule coverage
 
-`rules.xml` also replicates PHPMD rules, so a project running this ruleset does
+The `CleanCode` standard also replicates PHPMD rules, so a project running this ruleset does
 not need to run `phpmd` separately for them. Each mapping is documented under
 [`docs/phpmd/`](docs/phpmd/).
 

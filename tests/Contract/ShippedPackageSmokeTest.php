@@ -11,7 +11,19 @@
  * would have supplied, so a package that never registered itself passes all the
  * same. These tests use none of it. They execute the real vendor/bin/phpcs as a
  * separate process, from a working directory outside the package, against
- * rules.xml — the file the README tells a consumer to point --standard at.
+ * the installed standard by name — `--standard=CleanCode`, exactly what the
+ * README tells a consumer to write.
+ *
+ * The name rather than a path to the ruleset, deliberately. A path resolves
+ * whether or not the package ever registered itself, so a sweep built on one
+ * would keep passing through the precise failure these tests exist to catch.
+ * The name resolves only through PHP_CodeSniffer's installed_paths, which only
+ * the dealerdirect installer writes. Every sniff below is therefore also a
+ * statement that the standard is really installed.
+ *
+ * That the name reaches the ruleset in this repository, rather than some other
+ * CleanCode/ on the machine, is pinned separately in
+ * tests/Contract/InstalledStandardTest.php.
  *
  * Both directions are asserted for every covered sniff, because either half
  * alone is satisfiable by a mechanism that never works:

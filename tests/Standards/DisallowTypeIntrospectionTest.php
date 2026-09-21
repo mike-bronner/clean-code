@@ -6,7 +6,7 @@
  * Fixtures live in tests/fixtures/DisallowTypeIntrospectionSniff/.
  *
  * No PHPCS or Slevomat sniff flags type introspection by the role it plays, so
- * this is a custom sniff rather than a rules.xml wiring — the candidates and the
+ * this is a custom sniff rather than a CleanCode/ruleset.xml wiring — the candidates and the
  * reasons they were rejected are in
  * docs/standards/classes-introspection-type-casting.md.
  *
@@ -293,7 +293,7 @@ it('does not treat a name declared as a function in the file as the global one',
  * or an expression boundary, and a boolean chain is made of neither: `||` ends
  * no expression, so every check in `$a instanceof X || $b instanceof Y || …`
  * used to walk on to the statement's own end, once per check. That is quadratic
- * in the length of the chain, and nothing in rules.xml, the workflow, or PHPCS
+ * in the length of the chain, and nothing in CleanCode/ruleset.xml, the workflow, or PHPCS
  * itself bounds a file's length — one generated or accidentally-linted vendor
  * file was enough to inflate this one sniff superlinearly while every other
  * sniff in the same run stayed flat.

@@ -388,11 +388,11 @@ it('still flags adjacent components that each wrap their own content', function 
  * fixture contract, and `LocalFile` tokenises them the same way either
  * extension would. This one is a real `.blade.php`, run through the *whole*
  * master ruleset, so the wiring the standard actually ships — the extension
- * registration in rules.xml, plus the sniff reaching a Blade file through it —
+ * registration in CleanCode/ruleset.xml, plus the sniff reaching a Blade file through it —
  * is asserted end to end rather than assumed.
  *
  * Assertions are scoped to this sniff's own sources, per CONTRIBUTING, so a
- * sibling standard landing in rules.xml cannot break them.
+ * sibling standard landing in CleanCode/ruleset.xml cannot break them.
  */
 it('flags a real .blade.php view through the master ruleset', function (): void {
     $file = analyzeWithMasterRuleset(fixturePath('ComponentMarkupSniff', 'component.blade.php'));

@@ -13,7 +13,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (existing rules + custom sniff)
 
 Most of this standard is covered by existing sniffs wired into the master
-`rules.xml`; unused private elements needed a custom sniff. Focused issue:
+`CleanCode/ruleset.xml`; unused private elements needed a custom sniff. Focused issue:
 [#29](https://github.com/mike-bronner/phpcs-rules/issues/29).
 
 - **Commented-out code** — `Squiz.PHP.CommentedOutCode` (warning): flags

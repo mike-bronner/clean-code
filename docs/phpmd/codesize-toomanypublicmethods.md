@@ -38,10 +38,10 @@ reported nothing on its five classes of eleven public methods:
 - `Generic.Metrics.CyclomaticComplexity` — decision points inside one method.
 - `Generic.Metrics.NestingLevel` — block depth inside one method.
 
-So the rule is the custom `CleanCode.Classes.TooManyPublicMethods` sniff, wired
-into the master ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+So the rule is the custom `CleanCode.Classes.TooManyPublicMethods` sniff, registered automatically
+from `CleanCode/Sniffs/` when the standard loads
 ([#83](https://github.com/mike-bronner/phpcs-rules/issues/83)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 
 - **Detection** — the sniff counts the public methods a class *declares
@@ -65,7 +65,7 @@ separately for it.
   matching the line PHPMD reports.
 - **Error severity** — the sniff reports errors, so an over-large class fails a
   `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed in
-  `rules.xml`.
+  `CleanCode/ruleset.xml`.
 - **Not auto-fixable** — matching PHPMD. Splitting a class into finer-grained
   objects rewrites its call sites; that is a design change, not a mechanical
   rewrite.

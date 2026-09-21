@@ -55,10 +55,12 @@ jobs:
         run: composer install --no-interaction --no-progress
 
       - name: Standard auto-registers with PHPCS
-        run: vendor/bin/phpcs -i | grep -q CleanCode
+        run: vendor/bin/phpcs -i | grep -qE '(^|[ ,])CleanCode([ ,]|$)'
 
-      - name: Master ruleset loads and runs
-        run: vendor/bin/phpcs --standard=rules.xml tests/bootstrap.php
+      - name: Standard loads and runs
+        run: |
+          vendor/bin/phpcs --standard="$PWD/CleanCode/ruleset.xml" tests/bootstrap.php
+          cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/vendor/bin/phpcs" --standard=CleanCode "$GITHUB_WORKSPACE/tests/bootstrap.php"
 
       - name: Self-lint (PSR-12)
         run: composer lint

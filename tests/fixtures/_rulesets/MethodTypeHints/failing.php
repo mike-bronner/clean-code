@@ -76,7 +76,7 @@ class ClosureViolations
 }
 
 // Violations: docblock-only complex types must be promoted to native hints.
-// These exercise the enable* properties pinned in rules.xml — with a flag
+// These exercise the enable* properties pinned in CleanCode/ruleset.xml — with a flag
 // disabled, the annotation is not promotable and the behaviour changes.
 class DocblockOnlyComplexTypes
 {

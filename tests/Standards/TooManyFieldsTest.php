@@ -197,10 +197,10 @@ it('says nothing about an unterminated class body', function (): void {
 });
 
 /**
- * The whole ruleset, not just the isolated sniff: rules.xml pulls the sniff in
- * through its CleanCode standard reference, and this is what proves a consuming
- * project running `phpcs --standard=rules.xml` gets the rule — which is the
- * point of replacing PHPMD for it.
+ * The whole ruleset, not just the isolated sniff: the standard registers this
+ * sniff from `CleanCode/Sniffs/` along with every other, and this is what proves
+ * a consuming project running `phpcs --standard=CleanCode` gets the rule — which
+ * is the point of replacing PHPMD for it.
  */
 it('reports through the master ruleset', function (): void {
     $file = analyzeWithMasterRuleset(fixturePath('TooManyFieldsSniff', 'failing.php'));

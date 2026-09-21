@@ -26,7 +26,7 @@ same-named symbols it mistakes for calls, a `namespace\`-relative qualifier and
 a return-by-reference declaration.
 Slevomat ships no sniff covering dynamic argument lists at all. Rather than
 weaken the tests to fit, the standard is enforced by the custom
-`CleanCode.Methods.DeclaredParameters` sniff, wired into the master `rules.xml`
+`CleanCode.Methods.DeclaredParameters` sniff, wired into the master `CleanCode/ruleset.xml`
 via the CleanCode standard
 ([#69](https://github.com/mike-bronner/phpcs-rules/issues/69)).
 

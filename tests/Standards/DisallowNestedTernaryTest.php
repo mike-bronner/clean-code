@@ -3,7 +3,7 @@
 /**
  * Behaviour of CleanCode.Conditionals.DisallowNestedTernary — the nesting half
  * of "Conditionals: Ternary Conditionals" (#20). The "prefer a ternary" half is
- * Slevomat's RequireTernaryOperator, wired in rules.xml and covered by
+ * Slevomat's RequireTernaryOperator, wired in CleanCode/ruleset.xml and covered by
  * tests/Ruleset/TernaryConditionalsTest.php.
  *
  * Line and column numbers refer to tests/fixtures/DisallowNestedTernarySniff/.

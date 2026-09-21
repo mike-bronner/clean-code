@@ -14,7 +14,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * narrowed to it) so these assertions stay stable as sibling standards land in
- * rules.xml.
+ * CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);

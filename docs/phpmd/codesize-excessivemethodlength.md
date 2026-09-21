@@ -52,10 +52,10 @@ closes any of them:
   begins PDepend's node.
 
 So the rule is the custom `CleanCode.Functions.ExcessiveMethodLength` sniff,
-wired into the master ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+registered automatically from `CleanCode/Sniffs/` when the standard loads
 ([#91](https://github.com/mike-bronner/phpcs-rules/issues/91)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
-separately for it.
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
+have to run separately for it.
 
 ## The metric
 
@@ -117,7 +117,7 @@ the live run below).
 
 ## Configuration
 
-Both properties carry PHPMD's defaults, so `rules.xml` configures neither and an
+Both properties carry PHPMD's defaults, so `CleanCode/ruleset.xml` configures neither and an
 unconfigured `phpcs` run reports what an unconfigured `phpmd` run reports.
 
 | PHPMD property | Sniff property | Default |
@@ -145,7 +145,7 @@ switched off.
 
 - **Error severity** — the sniff reports errors, so an over-long method fails a
   `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed in
-  `rules.xml`.
+  `CleanCode/ruleset.xml`.
 - **Not auto-fixable** — matching PHPMD. Shortening a method means extracting
   helpers and naming them, which is a design decision with no mechanical
   rewrite.

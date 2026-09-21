@@ -42,7 +42,7 @@ follow-up issue
   that should carry an accessor. The message quotes the pair with the operator
   the source actually wrote, so a nullsafe hop reads back as `author?->name`.
 - **Error severity** — the standard mandates the accessor, so the sniff calls
-  `addError()`. `rules.xml` adds no `<severity>` or `<type>` override.
+  `addError()`. `CleanCode/ruleset.xml` adds no `<severity>` or `<type>` override.
 - **Detection only** — the fix is a new accessor method plus a default for the
   absent relationship, which cannot be synthesised from the tokens. Nothing
   here is auto-fixable.
@@ -59,7 +59,7 @@ follow-up issue
   reject — a stray closing bracket or a non-identifier member name left
   mid-edit (`$a->b)->c->d`, `$a->5->b->c`) — is refused rather than guessed at,
   so a typo in progress cannot break the build over a chain that is not there
-  yet. `tests/` is excluded via ruleset path scoping in `rules.xml` — test
+  yet. `tests/` is excluded via ruleset path scoping in `CleanCode/ruleset.xml` — test
   suites build object graphs inline and read straight through them.
 
 ### Known limitations

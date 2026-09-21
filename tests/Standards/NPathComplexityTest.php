@@ -474,7 +474,7 @@ it('reports the same values PHPMD reports on the failing fixture', function (): 
  * "minimum" as a tolerated value — reporting only above 200 — would silence the
  * first; reporting from 199 would flag the second. Both fixtures are checked at
  * the default rather than at a configured value, because the default is what
- * consumers of rules.xml get.
+ * consumers of CleanCode/ruleset.xml get.
  */
 it('reports at the minimum and stays silent one below it', function (): void {
     $failing = analyzeFixture(NPATH_COMPLEXITY, 'failing.php');

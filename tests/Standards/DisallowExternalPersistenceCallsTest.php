@@ -9,7 +9,7 @@
  * verdicts swap with the configured method list in configured.php. The rule is
  * detection-only, so there is no autofixed fixture.
  *
- * rules.xml scopes the sniff out of test paths, and these fixtures live under
+ * CleanCode/ruleset.xml scopes the sniff out of test paths, and these fixtures live under
  * tests/ — so processing one in place reports nothing whatever the sniff does.
  * Every assertion about the sniff's own behaviour therefore runs against a copy
  * staged outside the repository ($stagedRun below), and the exclusion itself is
@@ -19,7 +19,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -29,7 +29,7 @@ const PERSISTENCE = 'CleanCode.Models.DisallowExternalPersistenceCalls';
 const PERSISTENCE_WARNING = PERSISTENCE . '.Found';
 
 // Fixtures are copied outside the repository before processing, because PHPCS
-// decides rules.xml's test-path exclusion from the file's path alone. The
+// decides CleanCode/ruleset.xml's test-path exclusion from the file's path alone. The
 // staged copies are removed by the afterEach() hook in tests/Pest.php.
 $stagedRun = static fn (string $fixture, ?callable $configure = null) => analyzeWithSniffs(
     [PERSISTENCE],
@@ -159,7 +159,7 @@ it('exposes a configurable persistence-method list', function () use ($stagedRun
 
 /**
  * Factory chains (`User::factory()->create()`) make generic CRUD calls
- * idiomatic in test suites, so rules.xml scopes the sniff out of test
+ * idiomatic in test suites, so CleanCode/ruleset.xml scopes the sniff out of test
  * paths. The exclusion is a path match, so processing failing.php where it
  * actually lives — under tests/ — must report nothing, even though the same
  * bytes produce twelve warnings from outside the repository.
@@ -232,7 +232,7 @@ it('reports detection-only warnings', function () use ($stagedRun): void {
  * the registration Composer would have supplied — so a package that never
  * registered itself with the installed standards passes all of them. This one
  * executes the real vendor/bin/phpcs as a separate process from outside the
- * package, against rules.xml, the file a consumer points --standard at. The
+ * package, against CleanCode/ruleset.xml, the file a consumer points --standard at. The
  * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
  * sniff: it drives each fixture where it lives, under tests/, and this sniff's
  * <exclude-pattern> makes that path report nothing whatever the sniff does.
@@ -246,7 +246,7 @@ it('reports detection-only warnings', function () use ($stagedRun): void {
  *   detection-only rule owes. Status 2 would mean phpcbf had been offered a
  *   fix, and 3 is what a broken install exits with.
  * - the in-repo copy of the same bytes reports nothing and exits 0, so the
- *   reporting half cannot be coming from a run that ignores rules.xml's
+ *   reporting half cannot be coming from a run that ignores CleanCode/ruleset.xml's
  *   exclusion.
  * - passing.php staged the same way reports nothing and exits 0 — the negative
  *   control, without which a shell-out that always reported would satisfy the

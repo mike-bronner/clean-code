@@ -280,7 +280,7 @@ it('accepts the maximum as the string a ruleset supplies', function (): void {
 /**
  * A `maximum` PHP reads as no number at all. The cast turns it into 0, which
  * reports every class rather than switching the rule off — a configuration
- * mistake over-reports instead of going quiet, the same call rules.xml records
+ * mistake over-reports instead of going quiet, the same call CleanCode/ruleset.xml records
  * for DisallowBooleanArgumentFlag's ignorepattern.
  *
  * Without the cast this would compare an int against a non-numeric string, and

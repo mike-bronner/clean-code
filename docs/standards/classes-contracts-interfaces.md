@@ -36,7 +36,7 @@ No partial token-based enforcement is feasible either:
   tokens at a time.
 
 No subset of the standard survives that, so no partial-enforcement sniff issue
-is opened and no rule is wired into `rules.xml`. The assessment is recorded on
+is opened and no rule is wired into `CleanCode/ruleset.xml`. The assessment is recorded on
 [#10](https://github.com/mike-bronner/phpcs-rules/issues/10).
 
 ## What remains code review

@@ -60,14 +60,14 @@ Run against this rule's own fixtures, the difference is not a matter of degree:
   PDepend scores it 13.
 
 So the rule is the custom `CleanCode.Metrics.ExcessiveClassComplexity` sniff,
-wired into the master ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+registered automatically from `CleanCode/Sniffs/` when the standard loads
 ([#87](https://github.com/mike-bronner/phpcs-rules/issues/87)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
-separately for it.
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
+have to run separately for it.
 
 - **Error severity** — the sniff reports errors, so an over-complex class fails
   a `phpcs` run the way it fails a `phpmd` run. No `<type>` override is needed
-  in `rules.xml`.
+  in `CleanCode/ruleset.xml`.
 - **Not auto-fixable** — matching PHPMD. Splitting a class up moves methods
   between files and rewrites every call site; that is a design change, not a
   mechanical rewrite.

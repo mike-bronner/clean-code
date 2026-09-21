@@ -21,10 +21,10 @@
  * The rule is detection-only, matching PHPMD, so there is no autofixed
  * fixture: splitting a class is a decision about where each behaviour belongs.
  *
- * rules.xml does not path-scope this sniff, so the fixtures are processed
+ * CleanCode/ruleset.xml does not path-scope this sniff, so the fixtures are processed
  * where they live. The sniff is isolated from the rest of the master ruleset
  * (loaded, then $ruleset->sniffs is narrowed to it) so these assertions stay
- * stable as sibling standards land in rules.xml.
+ * stable as sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -43,7 +43,7 @@ it('is registered in the master ruleset', function (): void {
 
 /**
  * The master ruleset configures both properties explicitly, so a consumer
- * reading rules.xml sees the thresholds it is running under. This asserts the
+ * reading CleanCode/ruleset.xml sees the thresholds it is running under. This asserts the
  * values that arrive on the sniff *through that file*, which is the only way
  * to catch a typo in the XML — the defaults on the class would answer for it
  * otherwise.

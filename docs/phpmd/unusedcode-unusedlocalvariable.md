@@ -36,7 +36,7 @@ well-known external standard
 [`sirbrillig/phpcs-variable-analysis`](https://github.com/sirbrillig/phpcs-variable-analysis)
 does, through the `UnusedVariable` code on its single
 `VariableAnalysis.CodeAnalysis.VariableAnalysis` sniff, wired into the master
-`rules.xml` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)).
+`CleanCode/ruleset.xml` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)).
 
 That is the same sniff already wired for PHPMD's `UndefinedVariable`
 ([#85](https://github.com/mike-bronner/phpcs-rules/issues/85),
@@ -53,7 +53,7 @@ same class would silently fight over them.
   nothing safe for `phpcbf` to write. The code is reported without a fixer
   hook, matching PHPMD, which reports rather than rewrites.
 - **Reported as an error, not a warning** — the sniff reports warnings out of
-  the box; `rules.xml` raises the severity, as it does for `Squiz.PHP.Eval` and
+  the box; `CleanCode/ruleset.xml` raises the severity, as it does for `Squiz.PHP.Eval` and
   for `UndefinedVariable`. A warning leaves `phpcs` exiting 0 on an unused
   local, which would mean `phpmd` still had to run for this rule — the one
   thing this issue exists to stop.
@@ -67,7 +67,7 @@ same class would silently fight over them.
 PHPMD's rule asks a narrower question than the sniff's `UnusedVariable` code
 does, so three properties are set to close the gap. Each is pinned by a pair of
 tests — the configured behaviour, and the same fixture under the opposite
-setting — so a property deleted from `rules.xml` fails the suite rather than
+setting — so a property deleted from `CleanCode/ruleset.xml` fails the suite rather than
 quietly widening the rule.
 
 | Property | Set to | Why |
@@ -96,7 +96,7 @@ already match PHPMD:
 The sniff is not a drop-in match for PHPMD. Both tools agree on *which names*
 are unused — verified name for name over
 `tests/fixtures/VariableAnalysisSniff/unused-locals.php`, where PHPMD 2.15.0
-and `phpcs --standard=rules.xml` report the same ten lines and nothing else.
+and `phpcs --standard=CleanCode/ruleset.xml` report the same ten lines and nothing else.
 They part company on how many times to say so.
 
 | Shape | PHPMD 2.15.0 | This ruleset |
@@ -136,7 +136,7 @@ this ruleset can surface findings a previous `phpmd` run did not.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/unusedcode.xml/UnusedLocalVariable`, and
-`phpcs --standard=rules.xml`.
+`phpcs --standard=CleanCode/ruleset.xml`.
 
 Ruleset-integration tests covering compliant code, per-line and per-column
 violation reporting, the error severity, the absence of a fixer, all five

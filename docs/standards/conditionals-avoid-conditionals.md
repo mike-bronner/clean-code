@@ -13,7 +13,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 2 (partial: warning-level sniff + one auto-fix)
 
-The standard is enforced in two halves, both wired into the master `rules.xml`
+The standard is enforced in two halves, both wired into the master `CleanCode/ruleset.xml`
 ([#12](https://github.com/mike-bronner/phpcs-rules/issues/12)):
 
 | Half | Rule | Severity | Fixable |

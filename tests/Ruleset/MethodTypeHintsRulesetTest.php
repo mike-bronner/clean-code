@@ -2,7 +2,7 @@
 
 /**
  * Methods: Type Hints (#70) — the Slevomat ParameterTypeHint and ReturnTypeHint
- * rules as configured in the master ruleset (rules.xml). Every function-like
+ * rules as configured in the master ruleset (CleanCode/ruleset.xml). Every function-like
  * declaration must carry native parameter and return type hints, so the sniffs
  * cover class methods, closures, and free functions alike.
  *
@@ -27,12 +27,12 @@
  *
  * The docblock-only fixture cases (union, intersection, mixed, object, static,
  * never, standalone true/false/null, nullable) are what hold the enable* pins
- * in rules.xml: each annotation is promoted to a native hint only while its flag
+ * in CleanCode/ruleset.xml: each annotation is promoted to a native hint only while its flag
  * is on, so flipping a pin changes either the line map below or autofixed.php.
  *
  * excluded-codes.php holds the other half of the configuration — the five
- * message codes rules.xml excludes. Both halves are pinned, per CONTRIBUTING.md:
- * the codes stay silent through rules.xml, and the same fixture proves they
+ * message codes CleanCode/ruleset.xml excludes. Both halves are pinned, per CONTRIBUTING.md:
+ * the codes stay silent through CleanCode/ruleset.xml, and the same fixture proves they
  * would fire without the excludes, so dropping an <exclude> fails this suite.
  */
 
@@ -64,7 +64,7 @@ const RETURN_USELESS = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessA
 const RETURN_LESS_SPECIFIC = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint';
 
 /**
- * The five codes rules.xml excludes from the two sniffs #70 owns. Each acts on
+ * The five codes CleanCode/ruleset.xml excludes from the two sniffs #70 owns. Each acts on
  * what a docblock says rather than on a missing native hint, so the standard
  * drops it.
  */

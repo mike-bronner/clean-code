@@ -2,13 +2,13 @@
 
 /**
  * Integration test for the debt-marker half of Debt: Technical Debt (#24), as
- * wired into the master rules.xml by #138 — docs/standards/debt-technical-debt.md.
+ * wired into the master CleanCode/ruleset.xml by #138 — docs/standards/debt-technical-debt.md.
  *
  * Three sniffs carry one rule. PHPCS core's Generic.Commenting.Todo and
  * Generic.Commenting.Fixme are wired in for TODO and FIXME; the custom
  * CleanCode.Commenting.DebtMarkers sniff carries HACK and XXX, which core
  * ships nothing for. This file owns the wiring verdict — that each of the
- * three resolves through rules.xml, that all three report at warning severity,
+ * three resolves through CleanCode/ruleset.xml, that all three report at warning severity,
  * and that between them the four keywords are found in every comment style.
  * The custom sniff's own behaviour is tests/Standards/DebtMarkersTest.php's.
  *
@@ -64,7 +64,7 @@ it('flags the core markers at every line and comment style', function (string $s
 ]);
 
 /**
- * Generic.Commenting.Fixme calls addError(), not addWarning(); rules.xml
+ * Generic.Commenting.Fixme calls addError(), not addWarning(); CleanCode/ruleset.xml
  * lowers it with <type>warning</type> so that reaching for FIXME rather than
  * TODO cannot decide whether a consumer's build goes red. Asserted on the
  * severity buckets directly — drop the <type> element and the errors arrive

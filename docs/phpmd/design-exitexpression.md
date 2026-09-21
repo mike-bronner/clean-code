@@ -26,8 +26,8 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 | `Design/ExitExpression` | `CleanCode.ControlStructures.DisallowExitExpression` (message code `.Found`) |
 
 Enforced by a custom sniff, shipped in the CleanCode standard and therefore
-active through the master ruleset (`rules.xml`) — running `phpcs` with
-`rules.xml` covers this rule, and `phpmd` does not have to run separately for
+active through the master ruleset (`CleanCode/ruleset.xml`) — running `phpcs` with
+`CleanCode/ruleset.xml` covers this rule, and `phpmd` does not have to run separately for
 it.
 
 ### Existing sniffs were evaluated first — none match

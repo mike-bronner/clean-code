@@ -34,7 +34,7 @@ _Source: [phpmd.org/rules/cleancode.html](https://phpmd.org/rules/cleancode.html
 
 Slevomat's
 [`SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly`](https://github.com/slevomat/coding-standard)
-covers this rule and is wired into the master `rules.xml`
+covers this rule and is wired into the master `CleanCode/ruleset.xml`
 ([#84](https://github.com/mike-bronner/phpcs-rules/issues/84)).
 
 - **Detection** — a fully qualified name used inline is flagged at its own line
@@ -66,7 +66,7 @@ they differ only in what they suggest writing instead.
 
 ### Properties configured
 
-`rules.xml` sets two of the sniff's properties and leaves the rest at their
+`CleanCode/ruleset.xml` sets two of the sniff's properties and leaves the rest at their
 vendor defaults.
 
 | Property | Value | Why |
@@ -99,7 +99,7 @@ Three defaults are load-bearing and left alone on purpose.
 not referenced. Both police fully qualified names in doc blocks, which PHPMD's
 rule never reads — it walks the parsed AST's allocation expressions. Enabling
 either would report code `phpmd` passes. (The `searchAnnotations="true"` on
-`SlevomatCodingStandard.Namespaces.UnusedUses` in the same `rules.xml` runs the
+`SlevomatCodingStandard.Namespaces.UnusedUses` in the same `CleanCode/ruleset.xml` runs the
 other way: there it stops live docblock references being called dead.)
 
 ### Where the sniff and PHPMD differ
@@ -124,7 +124,7 @@ standard describes, in a position PHPMD happens not to visit.
 One divergence runs the other way, and only under a non-default setting: with
 `ignore-global` on, PHPMD skips `new \stdClass()` in a namespace-less file,
 while the sniff still reports it — its without-a-namespace branch runs before
-the global-classes gate. `rules.xml` leaves both properties at the shared
+the global-classes gate. `CleanCode/ruleset.xml` leaves both properties at the shared
 default, so nothing here is live; it is recorded so the difference stays a known
 fact if anyone turns `ignore-global` on.
 
@@ -133,7 +133,7 @@ code review.
 
 Verified by running both tools over the same fixtures — PHPMD 2.15.0 with a
 ruleset enabling only `rulesets/cleancode.xml/MissingImport`, and
-`phpcs --standard=rules.xml`.
+`phpcs --standard=CleanCode/ruleset.xml`.
 
 ### Interaction with the Throwable rule
 
@@ -151,7 +151,7 @@ are pinned by tests.
 
 Ruleset-integration tests covering compliant code, per-line and per-column
 violation reporting, the error severity, the fixer's output and totality, both
-halves of every property `rules.xml` sets, the `ignore-global` mapping, the
+halves of every property `CleanCode/ruleset.xml` sets, the `ignore-global` mapping, the
 namespace-less path, the divergences above, and the Throwable interaction live
 at `tests/Ruleset/MissingImportTest.php`.
 

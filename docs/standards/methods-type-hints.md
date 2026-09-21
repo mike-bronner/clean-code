@@ -13,7 +13,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 1 (Slevomat, configured)
 
-Enforced by two existing Slevomat sniffs wired into the master `rules.xml`:
+Enforced by two existing Slevomat sniffs wired into the master `CleanCode/ruleset.xml`:
 
 - `SlevomatCodingStandard.TypeHints.ParameterTypeHint` — every parameter must
   carry a native type hint. Reported as `MissingAnyTypeHint` when neither a

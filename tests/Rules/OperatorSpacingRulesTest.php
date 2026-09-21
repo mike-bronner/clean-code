@@ -2,13 +2,13 @@
 
 /**
  * Tests the binary-operator and concatenation spacing configured in the master
- * rules.xml for "Arrays: Operator spacing & line breaks" (#35): the bundled
+ * CleanCode/ruleset.xml for "Arrays: Operator spacing & line breaks" (#35): the bundled
  * CleanCode.Operators.BinaryOperatorSpacing (the Squiz.WhiteSpace.OperatorSpacing
- * subclass rules.xml wires in for #64's sake) and Squiz.Strings.ConcatenationSpacing
+ * subclass CleanCode/ruleset.xml wires in for #64's sake) and Squiz.Strings.ConcatenationSpacing
  * sniffs enforce exactly one space on each side. It also pins that both custom
  * CleanCode.Operators.* sniffs are reachable through the master ruleset.
  *
- * The two spacing sniffs are isolated together (loaded from rules.xml with
+ * The two spacing sniffs are isolated together (loaded from CleanCode/ruleset.xml with
  * their configured properties, then $ruleset->sniffs narrowed to the pair) so
  * the behaviour and autofix assertions are unaffected by sibling standards.
  * Because the standard is implemented by two sniffs rather than one, its

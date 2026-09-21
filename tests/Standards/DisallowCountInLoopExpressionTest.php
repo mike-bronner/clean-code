@@ -6,7 +6,7 @@
  * (issue #99). Fixtures live in tests/fixtures/DisallowCountInLoopExpressionSniff/.
  *
  * No existing PHPCS, Slevomat, or Generic sniff matches the rule, which is why
- * this is a custom sniff rather than a rules.xml wiring — the two candidates and
+ * this is a custom sniff rather than a CleanCode/ruleset.xml wiring — the two candidates and
  * the reasons they were rejected are set out in
  * docs/phpmd/design-countinloopexpression.md.
  *

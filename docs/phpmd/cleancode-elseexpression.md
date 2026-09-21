@@ -42,10 +42,10 @@ PHPMD reports neither. Running `phpcs` still covers everything `phpmd` would
 report for this rule, which is what the mapping has to guarantee; it simply
 reports more besides.
 
-Enforced by the custom `CleanCode.Conditionals.DisallowElse` sniff, which the
-master ruleset (`rules.xml`) picks up through its `./CleanCode/ruleset.xml`
-reference ([#77](https://github.com/mike-bronner/phpcs-rules/issues/77)).
-Running `phpcs` with `rules.xml` therefore covers this rule, and `phpmd` does
+Enforced by the custom `CleanCode.Conditionals.DisallowElse` sniff, registered
+automatically from `CleanCode/Sniffs/` when the standard loads
+([#77](https://github.com/mike-bronner/phpcs-rules/issues/77)).
+Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 
 - **Detection** — the sniff registers on the `else` keyword and reports each
@@ -88,7 +88,7 @@ measurement that settled the choice rather than a count of the fixture as it
 stands now. The comparison itself is unchanged: `EarlyExit` still reports only
 where it can rewrite, and this sniff still reports every occurrence.
 
-`EarlyExit` is deliberately **not** wired into `rules.xml` alongside the custom
+`EarlyExit` is deliberately **not** wired into `CleanCode/ruleset.xml` alongside the custom
 sniff: it would add no detection and would double-report those two lines. #14
 answered the remaining question — whether the fixable subset was worth carrying
 — by adding a fixer to this sniff rather than by wiring `EarlyExit` in beside
@@ -131,4 +131,4 @@ widened the sniff. Both shapes sit in
 
 PHPMD reports the violation at the line of the else *body's opening brace*;
 this sniff reports it at the `else` keyword. The two differ only when the brace
-sits on its own line, which PSR-12 — wired into `rules.xml` — already forbids.
+sits on its own line, which PSR-12 — wired into `CleanCode/ruleset.xml` — already forbids.

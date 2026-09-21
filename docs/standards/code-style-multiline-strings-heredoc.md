@@ -57,7 +57,7 @@ flags concatenation of *adjacent* string literals for concision — it does not
 flag a double- or single-quoted string that spans source lines, and it was
 evaluated against this standard's test suite without matching it. The standard
 is therefore enforced by the custom `CleanCode.Strings.MultilineStrings` sniff,
-wired into the master `rules.xml` via the CleanCode standard
+wired into the master `CleanCode/ruleset.xml` via the CleanCode standard
 ([#53](https://github.com/mike-bronner/phpcs-rules/issues/53)).
 
 **This sniff owns length only.** It counts lines of text and never reads the

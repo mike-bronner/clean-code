@@ -501,7 +501,7 @@ it('reads a group import without recursing once per brace', function (): void {
         '-d',
         'memory_limit=128M',
         cleanCodeRoot() . '/vendor/bin/phpcs',
-        '--standard=' . cleanCodeRoot() . '/rules.xml',
+        '--standard=CleanCode',
         '--sniffs=' . NUMBER_OF_CHILDREN,
         '--report=json',
         '--no-cache',
@@ -547,14 +547,14 @@ it('reads a group import without recursing once per brace', function (): void {
  * reaches — the counts travel back in the run's own JSON report, reported once
  * per file at its last indexed declaration.
  *
- * The run loads a consumer-style ruleset rather than rules.xml directly, and
+ * The run loads a consumer-style ruleset rather than CleanCode/ruleset.xml directly, and
  * that is not incidental (#378). CleanCode/ruleset.xml ships the OrdinalIndex
  * message code at severity 0, because gating the diagnostic on a config value
  * alone lets a stale `phpcs --config-set` on a shared install leak it into
  * every ordinary consumer run. PHPCS resolves a ruleset-declared severity per
  * message code, statically, and blind to which of the three config routes
  * supplied the gate value — so that backstop silences `--runtime-set` too, and
- * this test cannot read its counters out of a plain rules.xml run any more.
+ * this test cannot read its counters out of a plain CleanCode/ruleset.xml run any more.
  * stageOrdinalDiagnosticRuleset() asks for them back the way a consumer would,
  * which keeps the override scoped to this one invocation and doubles as the
  * live proof that the documented escape hatch works.

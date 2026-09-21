@@ -2,14 +2,14 @@
 
 /**
  * Integration test for the Generic.NamingConventions.ConstructorName rule as
- * configured in the master rules.xml, which replaces PHPMD's Naming
+ * configured in the master CleanCode/ruleset.xml, which replaces PHPMD's Naming
  * ConstructorWithNameAsEnclosingClass rule (issue #113). Fixtures live in
  * tests/fixtures/ConstructorNameSniff/.
  *
- * The sniff emits two codes; rules.xml keeps OldStyle (a PHP4-style constructor
+ * The sniff emits two codes; CleanCode/ruleset.xml keeps OldStyle (a PHP4-style constructor
  * declaration, which is PHPMD's rule) and excludes OldStyleCall (a PHP4-style
  * call to a parent constructor, which has no counterpart in it). Both halves are
- * pinned below: the excluded code stays silent through rules.xml, and the same
+ * pinned below: the excluded code stays silent through CleanCode/ruleset.xml, and the same
  * fixture proves it would fire without the exclude — so dropping the <exclude>
  * fails this suite.
  *
@@ -20,7 +20,7 @@
  *   than PHPMD.
  * - phpmd-only-divergences.php — the two shapes where PHPMD is stricter than
  *   this ruleset.
- * - excluded-codes.php — the sniff code rules.xml excludes.
+ * - excluded-codes.php — the sniff code CleanCode/ruleset.xml excludes.
  *
  * The two divergence files are separate on purpose. PHPMD's rule skips every
  * class outside the global namespace, and that guard is file-wide, so a
@@ -56,9 +56,9 @@ const CONSTRUCTOR_NAME_OLD_STYLE_CALL = CONSTRUCTOR_NAME_SNIFF . '.OldStyleCall'
 
 /**
  * Processes a fixture through the *unconfigured* Generic standard — the sniff
- * as PHPCS ships it, without rules.xml's exclude.
+ * as PHPCS ships it, without CleanCode/ruleset.xml's exclude.
  *
- * The shared buildRuleset() helper always builds rules.xml, which is precisely
+ * The shared buildRuleset() helper always builds CleanCode/ruleset.xml, which is precisely
  * what the "without our config" tests below have to exclude, so this builds its
  * own Config. Generic is a bundled standard, so unlike the VariableAnalysis
  * equivalent it needs no installed_paths entry. Nothing is memoised: each call
@@ -139,7 +139,7 @@ it('reports each violation at the function keyword token', function (): void {
 });
 
 /**
- * The other two PHPMD mappings in rules.xml raise a warning to an error; this
+ * The other two PHPMD mappings in CleanCode/ruleset.xml raise a warning to an error; this
  * one must not need to. Pinned so a vendor change to addWarning() fails here,
  * rather than leaving phpcs exiting 0 on a PHP4 constructor and quietly putting
  * phpmd back in the pipeline for this rule — the one thing issue #113 exists to
@@ -187,7 +187,7 @@ it('stays silent on the shapes only PHPMD flags', function (): void {
 });
 
 /**
- * Guards the test above from crediting rules.xml's exclude for that silence: the
+ * Guards the test above from crediting CleanCode/ruleset.xml's exclude for that silence: the
  * same fixture, run through the unconfigured Generic standard, says nothing
  * either. The silence is the sniff's own — it registers on T_CLASS/T_ANON_CLASS
  * only, and suppresses OldStyle when the class already declares __construct.
@@ -252,7 +252,7 @@ it('keeps the excluded call-site code silent through the master ruleset', functi
 
 /**
  * Guards the test above from passing vacuously: the same fixture, run through
- * the unconfigured Generic standard, must raise the code rules.xml excludes.
+ * the unconfigured Generic standard, must raise the code CleanCode/ruleset.xml excludes.
  * Without this, a fixture that trips nothing at all would look exactly like a
  * working exclude list.
  */

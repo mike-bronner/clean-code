@@ -3,7 +3,7 @@
 /**
  * Pins the one wiring decision CleanCode.WhiteSpace.MultiLineStatementIndent
  * (Indentation: Multi-Line Statements, issue #38) required in the master
- * rules.xml: PSR2.Methods.FunctionCallSignature.Indent is excluded from the
+ * CleanCode/ruleset.xml: PSR2.Methods.FunctionCallSignature.Indent is excluded from the
  * PSR12 reference.
  *
  * The two sniffs measure the same thing on a multi-line call — the argument

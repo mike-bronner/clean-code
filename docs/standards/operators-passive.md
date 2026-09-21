@@ -21,7 +21,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (auto-fixable)
 
 The standard is enforced by a **combination of rules** wired into the master
-`rules.xml` ([#64](https://github.com/mike-bronner/phpcs-rules/issues/64)). No
+`CleanCode/ruleset.xml` ([#64](https://github.com/mike-bronner/phpcs-rules/issues/64)). No
 single existing sniff covers every passive operator, and
 `Squiz.WhiteSpace.OperatorSpacing` — the obvious candidate — was evaluated
 against the fixture suite and flags **none** of them: it deliberately skips
@@ -60,7 +60,7 @@ Four contexts diverged: a sign after `@`, after `;`, after `<?php`, and after
 but PHPCS's bundled `Squiz.WhiteSpace.OperatorSpacing` reads it as binary.
 
 Rather than narrow this standard, the collision is resolved at the ruleset
-level. `rules.xml` wires in `CleanCode.Operators.BinaryOperatorSpacing` — that
+level. `CleanCode/ruleset.xml` wires in `CleanCode.Operators.BinaryOperatorSpacing` — that
 Squiz sniff subclassed, with the same checks, message codes and properties, and
 its unary detection corrected — which cedes those four contexts. Every sign
 therefore has exactly one owner, and this standard enforces flush passive
@@ -92,7 +92,7 @@ Tests split by scope. `tests/Standards/PassiveOperatorSpacingTest.php` drives
 the custom sniff on its own — the unary-vs-binary distinction, the sign-merge
 guard, the ceded contexts it owns, and the `phpcbf` auto-fix (violating fixture
 → recorded output). `tests/Ruleset/OperatorsPassiveTest.php` covers the standard
-as wired into `rules.xml` — all four sniffs together, per-line violation
+as wired into `CleanCode/ruleset.xml` — all four sniffs together, per-line violation
 reporting attributed to the sniff that owns each operator, the auto-fix, and the
 real-`phpcbf` convergence check described above.
 

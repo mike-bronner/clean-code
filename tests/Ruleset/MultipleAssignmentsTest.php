@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Squiz.PHP.DisallowMultipleAssignments rule as
- * configured in the master rules.xml, which carries the chained-assignment half
+ * configured in the master CleanCode/ruleset.xml, which carries the chained-assignment half
  * of Clear Code: One Idea Per Statement (issue #157, spun out of #8). Fixtures
  * live in tests/fixtures/DisallowMultipleAssignmentsSniff/.
  *
@@ -160,7 +160,7 @@ it('flags every binding beyond the first in a chained assignment', function (): 
 });
 
 /**
- * Error, not warning. The sniff reports errors out of the box and rules.xml
+ * Error, not warning. The sniff reports errors out of the box and CleanCode/ruleset.xml
  * adds no <type>, so this pins the absence of an override as much as the
  * severity: a <type>warning</type> added to that rule element would leave
  * detection identical and only this assertion would catch it.

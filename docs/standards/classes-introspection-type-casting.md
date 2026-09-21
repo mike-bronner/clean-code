@@ -36,7 +36,7 @@ written:
 
 The standard is therefore enforced by the custom
 `CleanCode.Classes.DisallowTypeIntrospection` sniff, wired into the master
-`rules.xml` via the CleanCode standard
+`CleanCode/ruleset.xml` via the CleanCode standard
 ([#73](https://github.com/mike-bronner/phpcs-rules/issues/73)).
 
 - **Detection** — type introspection is flagged *only where it decides which

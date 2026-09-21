@@ -238,7 +238,7 @@ it('resolves an alias and its import to a single dependency', function (): void 
  *                              type, so both are ignored here
  *   line 50   DocblockOnly     PHPMD scores 3 by reading `@var`, `@return`, and
  *                              `@throws`; this sniff reads declarations only,
- *                              and rules.xml already requires them through
+ *                              and CleanCode/ruleset.xml already requires them through
  *                              SlevomatCodingStandard.TypeHints.PropertyTypeHint
  *                              and its siblings
  *

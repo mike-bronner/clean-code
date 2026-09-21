@@ -303,8 +303,8 @@ it('reports that same chain once minimumBranches is lowered', function (): void 
 });
 
 /**
- * rules.xml claims no sniff already in the ruleset covers this standard. This
- * is what pins that claim: the whole of rules.xml, every sniff active, over the
+ * CleanCode/ruleset.xml claims no sniff already in the ruleset covers this standard. This
+ * is what pins that claim: the whole of CleanCode/ruleset.xml, every sniff active, over the
  * failing fixture — and at each flagged chain head, exactly two sources.
  *
  * CleanCode.Conditionals.AvoidConditionals is the expected second one. It
@@ -313,7 +313,7 @@ it('reports that same chain once minimumBranches is lowered', function (): void 
  * sniff would need re-evaluating rather than keeping the claim in a comment.
  *
  * Assertions are scoped to the five chain-head lines, per the helper's
- * contract, so unrelated additions to rules.xml cannot break them.
+ * contract, so unrelated additions to CleanCode/ruleset.xml cannot break them.
  */
 it('leaves the chain to no other sniff in the ruleset', function (): void {
     $sources = allViolationSourcesByLine(

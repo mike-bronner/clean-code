@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Tests the Generic.Files.LineLength configuration in the master rules.xml:
+ * Tests the Generic.Files.LineLength configuration in the master CleanCode/ruleset.xml:
  * warning above 100 characters, error above 120, reporting-only.
  *
  * Unlike the per-sniff tests, these run the *whole* master ruleset over the

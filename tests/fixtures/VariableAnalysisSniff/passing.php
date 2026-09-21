@@ -76,7 +76,7 @@ class Passing
     /**
      * A formal parameter nobody reads. PHPMD splits these into its own
      * UnusedFormalParameter rule (#120), so UnusedLocalVariable stays silent
-     * and rules.xml configures the sniff to match.
+     * and CleanCode/ruleset.xml configures the sniff to match.
      */
     public function unusedParameter(string $ignored): string
     {
@@ -162,7 +162,7 @@ class Passing
 }
 
 // PHPMD's UnusedLocalVariable is FunctionAware and MethodAware only, so it
-// never looks at a file's top-level scope. rules.xml sets
+// never looks at a file's top-level scope. CleanCode/ruleset.xml sets
 // allowUnusedVariablesInFileScope to match, which is why this assignment is
 // not a violation even though nothing reads it.
 $fileScopeAssignment = 'never read';

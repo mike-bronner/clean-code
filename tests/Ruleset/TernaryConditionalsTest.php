@@ -2,18 +2,18 @@
 
 /**
  * The "Conditionals: Ternary Conditionals" standard (#20) as wired into the
- * master rules.xml — Slevomat's ControlStructures.RequireTernaryOperator for
+ * master CleanCode/ruleset.xml — Slevomat's ControlStructures.RequireTernaryOperator for
  * the if/else that only assigns or returns, plus the custom
  * CleanCode.Conditionals.DisallowNestedTernary sniff for the nesting half.
  *
  * The sniff's own behaviour is covered by
  * tests/Standards/DisallowNestedTernaryTest.php. What is asserted here is the
- * wiring: that both halves are reachable through rules.xml at once, at the
+ * wiring: that both halves are reachable through CleanCode/ruleset.xml at once, at the
  * severity and fixability the standard claims, and that the custom sniff is
  * still needed at all.
  *
  * Every fixture is run through both sniffs together, and only those two, so a
- * sibling standard landing in rules.xml cannot shift the line map — the
+ * sibling standard landing in CleanCode/ruleset.xml cannot shift the line map — the
  * fixtures deliberately carry if/else statements, which several other rules in
  * the master ruleset also speak about.
  *
@@ -58,7 +58,7 @@ const TERNARY_CONDITIONALS_VIOLATIONS = [
 /**
  * Fixability per report, in the order above. The two halves differ here and the
  * difference is the standard's, not an accident: RequireTernaryOperator ships a
- * fixer and rules.xml leaves it on, while the nesting half is detection only
+ * fixer and CleanCode/ruleset.xml leaves it on, while the nesting half is detection only
  * because unfolding a nested ternary means naming an intermediate value.
  *
  * The false entries at 35 and 44 are the third state — reported by a fixable

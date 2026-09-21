@@ -46,7 +46,7 @@ the follow-up issue
   client library's `save()`) triggers a false positive.
 - **Boundaries** — static `Model::create([...])` stays out: at the token
   level it is indistinguishable from named constructors and factory APIs.
-  `tests/` is excluded via ruleset path scoping in `rules.xml` — factory
+  `tests/` is excluded via ruleset path scoping in `CleanCode/ruleset.xml` — factory
   chains (`User::factory()->create()`) make the pattern idiomatic there.
   Query-builder calls inside a model's own Queries traits share the token
   shape and will warn; scope those paths out in the ruleset or suppress

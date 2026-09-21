@@ -12,8 +12,8 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 Enforced by `Generic.ControlStructures.InlineControlStructure` — no custom
 sniff needed ([#9](https://github.com/mike-bronner/phpcs-rules/issues/9)). The
-`PSR12` standard in the master ruleset (`rules.xml`) already bundles this sniff,
-so it is active as part of the industry baseline. `rules.xml` also references it
+`PSR12` standard in the master ruleset (`CleanCode/ruleset.xml`) already bundles this sniff,
+so it is active as part of the industry baseline. `CleanCode/ruleset.xml` also references it
 by name as intentional belt-and-suspenders (per CONTRIBUTING step 3, standards
 name the third-party sniff they depend on), keeping the standard enforced even
 if the PSR12 baseline is ever narrowed.

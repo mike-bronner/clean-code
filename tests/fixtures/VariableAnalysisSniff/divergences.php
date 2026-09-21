@@ -8,7 +8,7 @@ namespace App;
  * Every case where the configured sniff and PHPMD's UndefinedVariable rule do
  * not behave identically. Each was checked by running both tools over this
  * file: PHPMD 2.15.0 with only UndefinedVariable enabled, and phpcs with the
- * master rules.xml.
+ * master CleanCode/ruleset.xml.
  *
  * The two tools ask different questions. PHPMD asks whether the enclosing
  * method assigns the name anywhere at all; the sniff asks whether an

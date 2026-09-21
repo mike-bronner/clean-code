@@ -128,7 +128,7 @@ it('reports detection-only violations', function (): void {
  * model a method of a file-scope anonymous class as a method, and it does not
  * recognise the fully qualified `\exit` / `\die` spelling. Both are real exit
  * expressions inside a method or function, so this sniff reports them — the
- * same posture rules.xml already takes for VariableAnalysis, where extra
+ * same posture CleanCode/ruleset.xml already takes for VariableAnalysis, where extra
  * reports that are true defects are kept rather than suppressed for parity.
  *
  * The anonymous-class half is specifically a parser blind spot, not a PHPMD

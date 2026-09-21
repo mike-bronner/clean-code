@@ -18,7 +18,7 @@
  *   real constructor present the same-named method is an ordinary method, so
  *   again the sniff's silence is the defensible half.
  *
- * Both silences are the sniff's own behaviour, not an effect of rules.xml —
+ * Both silences are the sniff's own behaviour, not an effect of CleanCode/ruleset.xml —
  * the test asserts that against the unconfigured Generic standard too.
  */
 

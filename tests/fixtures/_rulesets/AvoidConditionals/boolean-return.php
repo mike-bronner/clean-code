@@ -6,7 +6,7 @@ declare(strict_types=1);
  * The auto-fixable slice of "Conditionals: Avoid Conditionals" — the
  * boolean-return if, carried by
  * SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn as
- * wired into the master rules.xml.
+ * wired into the master CleanCode/ruleset.xml.
  *
  * Two shapes are fixable (the condition already evaluates to a boolean, so
  * collapsing it cannot change the return type) and one is not (a truthy

@@ -34,9 +34,10 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 No PHPCS, Slevomat, or Generic sniff counts a class's subclasses, and none
 could without leaving the file: PHP_CodeSniffer hands a sniff one file at a
 time, and a parent's children are declared in files of their own. So this rule
-is a custom sniff ([#110](https://github.com/mike-bronner/phpcs-rules/issues/110)),
-wired in through `rules.xml`; running `phpcs` with that ruleset covers the rule
-and `phpmd` does not have to run separately for it.
+is a custom sniff
+([#110](https://github.com/mike-bronner/phpcs-rules/issues/110)), registered
+automatically from `CleanCode/Sniffs/` when the standard loads; running `phpcs`
+with it covers the rule and `phpmd` does not have to run separately for it.
 
 - **Detection** — the sniff registers on `T_CLASS`, resolves each declaration's
   fully qualified name, and reports once on the declaration line. The message

@@ -164,7 +164,7 @@ it('flags each misindented line at its own line and column', function (): void {
  *   rather than the line's indent, so that line is the comment's and is left
  *   alone — in the block form (256) and the doc form (262) alike. Neither the
  *   tail nor the misindented opening line above it reports, because a comment
- *   line is never measured here; under the shipped `rules.xml` that opening
+ *   line is never measured here; under the shipped `CleanCode/ruleset.xml` that opening
  *   line is `PSR2.Methods.FunctionCallSignature.Indent`'s to report, the same
  *   division of labour the string case has with the multi-line-string sniff.
  * - **a line that opens inside a comment measures nowhere on itself**: what

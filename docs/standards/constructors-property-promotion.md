@@ -17,7 +17,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 Enforced by Slevomat's
 `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion`, wired
-into the master `rules.xml`.
+into the master `CleanCode/ruleset.xml`.
 
 - **Detection** — a property declared in the class body is flagged (on the
   declaration line) when the constructor takes a same-named, same-typed

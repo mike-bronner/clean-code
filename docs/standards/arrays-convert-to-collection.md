@@ -112,7 +112,7 @@ per-site tally above stays scoped to that set rather than widened to cover
 reviews nobody performed.
 
 Nothing is suppressed to reach that state — no `phpcs:ignore`, no
-`exclude-pattern`, and no ruleset registration for this sniff. `rules.xml`
+`exclude-pattern`, and no ruleset registration for this sniff. `CleanCode/ruleset.xml`
 carries the same account in its "Arrays: Convert To Collection" comment block.
 
 ## What remains code review

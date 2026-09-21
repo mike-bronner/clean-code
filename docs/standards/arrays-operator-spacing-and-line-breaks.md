@@ -24,7 +24,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (configured rules + custom sniffs)
 
 The standard is enforced by a combination of two configured bundled sniffs and
-two custom CleanCode sniffs, wired into the master `rules.xml`
+two custom CleanCode sniffs, wired into the master `CleanCode/ruleset.xml`
 ([#35](https://github.com/mike-bronner/phpcs-rules/issues/35)).
 
 ### Binary-operator spacing — `Squiz.WhiteSpace.OperatorSpacing`

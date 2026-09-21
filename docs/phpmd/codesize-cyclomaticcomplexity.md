@@ -47,11 +47,11 @@ fixtures with live PHPMD 2.15.0 and PHP_CodeSniffer 3.13.6:
 
 So the rule is the custom `CleanCode.Metrics.CyclomaticComplexity` sniff, with
 a token walk of its own — it neither extends nor delegates to
-`Generic.Metrics.CyclomaticComplexitySniff`. It is wired into the master
-ruleset (`rules.xml`) through `CleanCode/ruleset.xml`
+`Generic.Metrics.CyclomaticComplexitySniff`. It is registered automatically
+from `CleanCode/Sniffs/` when the standard loads
 ([#88](https://github.com/mike-bronner/phpcs-rules/issues/88)). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
-separately for it.
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
+have to run separately for it.
 
 The measurement itself lives in `CleanCode/Support/CyclomaticComplexity.php`,
 shared with `CleanCode.Metrics.ExcessiveClassComplexity`
@@ -62,7 +62,7 @@ drifting apart on a construct only one of them has a fixture for.
 
 - **Error severity** — the sniff reports errors, so an over-complex declaration
   fails a `phpcs` run the way it fails a `phpmd` run. No `<type>` override is
-  needed in `rules.xml`.
+  needed in `CleanCode/ruleset.xml`.
 - **Not auto-fixable** — matching PHPMD. Breaking a declaration into smaller
   ones is a design change, not a mechanical rewrite.
 - **The report is attached to the declaration**, on the line the `function`

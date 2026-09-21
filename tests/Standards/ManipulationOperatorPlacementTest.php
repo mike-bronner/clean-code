@@ -6,7 +6,7 @@
  * tests/fixtures/ManipulationOperatorPlacementSniff/.
  *
  * The sniff is isolated from the rest of the master ruleset so these assertions
- * stay stable as sibling standards land in rules.xml. The one place that
+ * stay stable as sibling standards land in CleanCode/ruleset.xml. The one place that
  * *needs* the whole ruleset — that no other sniff reports the same wrap — is
  * tests/Integration/OperatorRulesIntegrationTest.php, which pins every operator
  * source line by line.

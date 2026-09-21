@@ -19,7 +19,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -123,14 +123,14 @@ it('names the declaration and the parameter in the message', function (): void {
  *
  * - line 7, `bool $silent` with no default. PHPMD only ever inspects a
  *   parameter's resolved default value, so a type declaration alone never
- *   reaches its check. #76 requires this half, and rules.xml requires a native
+ *   reaches its check. #76 requires this half, and CleanCode/ruleset.xml requires a native
  *   type hint on every parameter, so it is the shape that actually occurs here.
  * - line 13, a closure at file scope. PHPMD's rule visits method and function
  *   nodes and searches their subtrees, so it sees a closure nested in one but
  *   never a closure that is nested in nothing.
  *
  * Both extra reports are true defects, so they are kept — the same call
- * rules.xml records for VariableAnalysis. Neither direction loses a PHPMD
+ * CleanCode/ruleset.xml records for VariableAnalysis. Neither direction loses a PHPMD
  * finding, which is what keeps `phpmd` out of the pipeline for this rule.
  */
 it('reports the two shapes PHPMD misses', function (): void {

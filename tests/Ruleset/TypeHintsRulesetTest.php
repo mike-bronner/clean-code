@@ -2,7 +2,7 @@
 
 /**
  * Integration test for the Slevomat TypeHints rules wired into the master
- * ruleset (rules.xml). It runs the shipped ruleset, so it covers the combined
+ * ruleset (CleanCode/ruleset.xml). It runs the shipped ruleset, so it covers the combined
  * TypeHints surface: PropertyTypeHint (owned by the "Type Hints and Return
  * Types" standard, #45) plus ParameterTypeHint / ReturnTypeHint (owned by the
  * "Methods: Type Hints" standard, #70). This test guards that the master
@@ -21,11 +21,11 @@
  * namespace-less file, so PSR1's one-class-per-file / namespace rules (and
  * any other standard wired into the shared master ruleset) also fire on
  * them — those are out of scope here and are filtered out, so unrelated
- * additions to rules.xml cannot break this test.
+ * additions to CleanCode/ruleset.xml cannot break this test.
  *
- * excluded-codes.php carries the two message codes rules.xml excludes from
+ * excluded-codes.php carries the two message codes CleanCode/ruleset.xml excludes from
  * PropertyTypeHint. Both halves are pinned, per CONTRIBUTING.md: the codes stay
- * silent through rules.xml, and the same fixture proves they would fire without
+ * silent through CleanCode/ruleset.xml, and the same fixture proves they would fire without
  * the excludes, so dropping an <exclude> fails this suite.
  */
 
@@ -52,7 +52,7 @@ const TYPE_HINTS_SNIFFS = [
 const PROPERTY_TYPE_HINT_SNIFF = 'CleanCode.TypeHints.PropertyTypeHint';
 
 /**
- * The two codes rules.xml excludes from PropertyTypeHint. Both police docblock
+ * The two codes CleanCode/ruleset.xml excludes from PropertyTypeHint. Both police docblock
  * hygiene rather than a missing native hint, so #45 drops them — the same
  * reasoning that drops five codes from #70's two sniffs, pinned the same way in
  * tests/Ruleset/MethodTypeHintsRulesetTest.php.

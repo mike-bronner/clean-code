@@ -18,7 +18,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (bundled standards)
 
 Fully enforced by PHPCS's bundled `PSR12` standard, wired into the master
-`rules.xml` as-is ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49)):
+`CleanCode/ruleset.xml` as-is ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49)):
 
 ```xml
 <rule ref="PSR12"/>
@@ -39,7 +39,7 @@ Fully enforced by PHPCS's bundled `PSR12` standard, wired into the master
 ## Precedence — custom standards override the industry baseline
 
 The `PSR12` reference sits *before* the custom clean-code rules in
-`rules.xml` on purpose: PHPCS applies later same-sniff configuration over
+`CleanCode/ruleset.xml` on purpose: PHPCS applies later same-sniff configuration over
 earlier, so a custom rule that reconfigures a sniff the PSR12 bundle also
 includes wins automatically. Where a custom standard contradicts a PSR12
 check outright, the conflicting sniff gets carved out of the PSR12 reference
@@ -64,7 +64,7 @@ gets carved out here.
 
 ## Tests
 
-`tests/Integration/IndustryStandardsTest.php` runs the master `rules.xml`
+`tests/Integration/IndustryStandardsTest.php` runs the master `CleanCode/ruleset.xml`
 against the fixtures in `tests/Integration/fixtures/`, asserting exact
 `line => violation count` maps:
 

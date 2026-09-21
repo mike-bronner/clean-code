@@ -2,24 +2,24 @@
 
 /**
  * Integration test for the VariableAnalysis.CodeAnalysis.VariableAnalysis
- * rule's UnusedVariable code as configured in the master rules.xml, which
+ * rule's UnusedVariable code as configured in the master CleanCode/ruleset.xml, which
  * replaces PHPMD's UnusedCode UnusedLocalVariable rule (issue #118). Fixtures
  * live in tests/fixtures/VariableAnalysisSniff/.
  *
  * One sniff carries two PHPMD rules here. tests/Ruleset/UndefinedVariableTest
  * covers the same sniff's UndefinedVariable half (#85) and the three codes
- * rules.xml excludes; this file covers UnusedVariable and nothing else, so the
+ * CleanCode/ruleset.xml excludes; this file covers UnusedVariable and nothing else, so the
  * two rules can be read — and can fail — independently.
  *
- * Unlike #85, this rule *is* configured: rules.xml sets three properties to
+ * Unlike #85, this rule *is* configured: CleanCode/ruleset.xml sets three properties to
  * make the sniff's UnusedVariable code answer the question PHPMD asks. Every
  * one of them is pinned below by a pair of tests — the configured behaviour,
  * and the same fixture under the opposite setting. Without the second half a
- * property could be deleted from rules.xml and every "stays silent" assertion
+ * property could be deleted from CleanCode/ruleset.xml and every "stays silent" assertion
  * would still pass, because the shape would simply never be reached.
  *
  * The severity override is pinned too. The sniff reports warnings out of the
- * box and rules.xml raises them to errors, so an unused local fails a phpcs
+ * box and CleanCode/ruleset.xml raises them to errors, so an unused local fails a phpcs
  * run the way it fails a phpmd run — which is what lets phpmd stop running for
  * this rule at all. That is why these tests assert the reports land in
  * getErrors() and that getWarnings() stays empty.
@@ -110,7 +110,7 @@ it('flags each unused local at its own line and column', function () use ($parit
 });
 
 /**
- * rules.xml raises the sniff's built-in warning to an error. Without it phpcs
+ * CleanCode/ruleset.xml raises the sniff's built-in warning to an error. Without it phpcs
  * exits 0 on an unused local, and phpmd would still have to run for this rule
  * — the one thing issue #118 exists to stop.
  */
@@ -151,7 +151,7 @@ it('reports unused locals without offering an auto-fix', function (): void {
  * assertion, not independent confirmation of it, and it does not check the
  * fixable flag the test above reads. Nor could that flag ever be wrong here:
  * the sniff emits UnusedVariable through addWarning(), never
- * addFixableError(), so no rules.xml property can make the count non-zero.
+ * addFixableError(), so no CleanCode/ruleset.xml property can make the count non-zero.
  *
  * It still earns its place as the one assertion that PHPCS reassembles this
  * fixture from its token stream unchanged: Fixer::getContents() concatenates
@@ -173,7 +173,7 @@ it('round-trips the unused-locals fixture byte-identically through the fixer', f
  * allowUnusedFunctionParameters=true — the boundary with PHPMD's separate
  * UnusedFormalParameter rule (#120). PHPMD's UnusedLocalVariable drops formal
  * parameters in removeParameters(); the sniff has one code for locals and
- * parameters alike, so rules.xml silences the parameter half here.
+ * parameters alike, so CleanCode/ruleset.xml silences the parameter half here.
  *
  * passing.php::unusedParameter() carries a parameter nobody reads.
  */
@@ -194,7 +194,7 @@ it('would flag that same parameter without the configured property', function ()
 /**
  * allowUnusedVariablesInFileScope=true — PHPMD's rule is FunctionAware and
  * MethodAware only, so it never looks at a file's top-level scope. The sniff
- * does by default; rules.xml restores parity.
+ * does by default; CleanCode/ruleset.xml restores parity.
  *
  * passing.php ends with a top-level assignment nobody reads.
  */
@@ -255,7 +255,7 @@ it('silences only the associative foreach value when the property is flipped', f
 /**
  * PHPMD's `exceptions` property takes a comma-separated list of names to skip.
  * The sniff's analogue is validUnusedVariableNames, which is space-separated;
- * rules.xml leaves it unset, matching PHPMD's own empty default.
+ * CleanCode/ruleset.xml leaves it unset, matching PHPMD's own empty default.
  *
  * Asserting the whole remaining set, not just the absence of $i, proves the
  * property is selective — a value that silenced the sniff outright would fail

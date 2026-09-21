@@ -8,7 +8,7 @@
  * failing.php, and one fixture per edge case the standard has to settle. The
  * rule is detection-only, so there is no autofixed fixture.
  *
- * rules.xml scopes the sniff to source directories with <include-pattern>, and
+ * CleanCode/ruleset.xml scopes the sniff to source directories with <include-pattern>, and
  * PHPCS decides that from the file's path alone — so these fixtures report
  * nothing where they live, under tests/. Every assertion about the sniff's own
  * behaviour therefore runs against a copy staged into a `src/` directory
@@ -19,7 +19,7 @@
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in rules.xml.
+ * sibling standards land in CleanCode/ruleset.xml.
  */
 
 declare(strict_types=1);
@@ -33,7 +33,7 @@ const PROCEDURAL_STATEMENT = PROCEDURAL . '.ProceduralStatement';
 const PROCEDURAL_DECLARATIONS = PROCEDURAL . '.MultipleDeclarations';
 
 // Fixtures are copied into a src/ directory outside the repository before
-// processing, because rules.xml restricts the sniff to source paths. The
+// processing, because CleanCode/ruleset.xml restricts the sniff to source paths. The
 // staged copies are removed by the afterEach() hook in tests/Pest.php.
 $sourceRun = static fn (string $fixture, string $subdirectory = 'src') => analyzeWithSniffs(
     [PROCEDURAL],
@@ -207,12 +207,12 @@ it('flags a file opened with a short echo tag', function () use ($sourceRun): vo
  * ^8.15, so a later minor could start covering the pure-procedural file and
  * make this sniff redundant with nothing to say so.
  *
- * The whole Slevomat standard is built, not the master ruleset: rules.xml
+ * The whole Slevomat standard is built, not the master ruleset: CleanCode/ruleset.xml
  * references Slevomat sniffs one at a time, so a sniff added in a future minor
  * would not be wired in and a master-ruleset run could never see it. The
  * master ruleset is asserted too, because that is what a consumer actually
  * runs — together they say no Slevomat sniff covers this file today, whether
- * or not rules.xml has opted into it.
+ * or not CleanCode/ruleset.xml has opted into it.
  *
  * The fixture is deliberately clean under Slevomat's own style rules
  * (`strict_types = 1` spaced its way, a Yoda comparison, no imports), so the
@@ -339,7 +339,7 @@ it('stops at a truncated construct without misreading it', function (
 
 /**
  * The point of the sniff: it is stricter than PSR1.Files.SideEffects, which
- * PSR12 already brings into rules.xml. That sniff forbids only *mixing* a
+ * PSR12 already brings into CleanCode/ruleset.xml. That sniff forbids only *mixing* a
  * declaration with side effects, so a file that is nothing but procedural code
  * declares no symbol and passes it silently.
  *
@@ -450,7 +450,7 @@ it('leaves a file with no code alone', function (string $fixture) use ($sourceRu
 })->with(['empty.php', 'comments-only.php']);
 
 /**
- * rules.xml restricts the sniff to source directories, because entry points,
+ * CleanCode/ruleset.xml restricts the sniff to source directories, because entry points,
  * config files, route files and pre-Laravel-9-style migrations are
  * legitimately procedural and all of them live outside src/ and app/. The
  * scoping is a path match, so the same bytes are driven from four paths: both
@@ -488,7 +488,7 @@ it('reports detection-only errors', function () use ($sourceRun): void {
  * the registration Composer would have supplied — so a package that never
  * registered itself with the installed standards passes all of them. This one
  * executes the real vendor/bin/phpcs as a separate process from outside the
- * package, against rules.xml, the file a consumer points --standard at. The
+ * package, against CleanCode/ruleset.xml, the file a consumer points --standard at. The
  * shared sweep in tests/Contract/ShippedPackageSmokeTest.php cannot reach this
  * sniff: it drives each fixture where it lives, under tests/, and this sniff's
  * <include-pattern> makes that path report nothing whatever the sniff does.
@@ -501,7 +501,7 @@ it('reports detection-only errors', function () use ($sourceRun): void {
  *   this detection-only rule owes. Status 2 would mean phpcbf had been offered
  *   a fix, and 3 is what a broken install exits with.
  * - the same bytes outside src/ report nothing and exit 0, so the reporting
- *   half cannot be coming from a run that ignores rules.xml's path scoping.
+ *   half cannot be coming from a run that ignores CleanCode/ruleset.xml's path scoping.
  * - passing.php inside src/ reports nothing and exits 0 — the negative control,
  *   without which a shell-out that always reported would satisfy the first.
  */

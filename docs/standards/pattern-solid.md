@@ -40,7 +40,7 @@ token-visible slice. Being precise about what that means today:
   ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)); and
   Open-Closed, through `CleanCode.Conditionals.TypeDiscriminatorDispatch`
   ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)). All are
-  wired into the master `rules.xml`.
+  wired into the master `CleanCode/ruleset.xml`.
 - **One candidate was rejected** — the specific Dependency Inversion heuristic
   of flagging a concrete type hint. It is rejected for named token-level facts,
   not a general appeal to semantics, and a different DIP slice is shipped in its
@@ -80,8 +80,8 @@ names a class references — sits inside that one scope. Nothing crosses a file
 boundary, so the check is decidable from tokens alone.
 
 **Call: accepted.** No new issue is opened, because every one of these is
-already implemented and wired into the master `rules.xml` through its
-`./CleanCode/ruleset.xml` reference. Each was verified closed as *completed*
+already implemented, and registered automatically from `CleanCode/Sniffs/`
+when the standard loads. Each was verified closed as *completed*
 (not wontfix) with its sniff present in the package:
 
 | Proxy | Issue | Shipped sniff | Maps to |
@@ -239,8 +239,8 @@ stub, not what it overrides.
 
 **Call: accepted.** Shipped as `CleanCode.Pattern.ThrowOnlyMethodOverride`
 under [#131](https://github.com/mike-bronner/phpcs-rules/issues/131),
-warning-level and detection-only, wired into `rules.xml` through the
-`./CleanCode/ruleset.xml` reference. It files under `Pattern/` beside
+warning-level and detection-only, registered automatically from
+`CleanCode/Sniffs/` when the standard loads. It files under `Pattern/` beside
 `AvoidDuplicateCodeBlocks`, the other token-visible slice of a `Pattern:`
 standard.
 
@@ -273,14 +273,14 @@ ever saw an interface.
 
 **Call: accepted, and shipped.** `CleanCode.Pattern.TooManyInterfaceMethods`
 ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) carries it,
-wired into the master `rules.xml` through the `./CleanCode/ruleset.xml`
-reference. It warns once on the interface declaration — the defect is the width
+registered automatically from `CleanCode/Sniffs/` when the standard loads.
+It warns once on the interface declaration — the defect is the width
 of the whole contract, so it has no statement line of its own — and is
 detection-only.
 
 Its `maxMethods` property is a ceiling, not a target: an interface holding
 exactly that many signatures is compliant, and `maxMethods + 1` is reported.
-`rules.xml` sets it to 5, deliberately far below the caps the class-oriented
+`CleanCode/ruleset.xml` sets it to 5, deliberately far below the caps the class-oriented
 metrics carry (25, 10 and 45), because an interface is a contract every
 implementer has to honour whole. A consuming ruleset can tune it:
 
@@ -357,8 +357,8 @@ than on decidability, and it is worth being explicit about both halves:
 needs no name resolution at all: *building* the collaborator instead of
 receiving it. `CleanCode.Classes.DisallowConstructorInstantiation` warns once
 per `new` inside the body of a `__construct` that a class-like scope holds,
-detection-only, and is shipped and wired into `rules.xml` through the
-`./CleanCode/ruleset.xml` reference. It is tracked under
+detection-only, and is shipped, registered automatically from
+`CleanCode/Sniffs/` when the standard loads. It is tracked under
 [Dependency Injection #72](https://github.com/mike-bronner/phpcs-rules/issues/72)
 — closed as completed — with its scoping recorded on
 [#176](https://github.com/mike-bronner/phpcs-rules/issues/176), and documented

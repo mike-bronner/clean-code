@@ -29,11 +29,10 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html#e
 | `CodeSize/ExcessiveParameterList` | `CleanCode.Functions.ExcessiveParameterList` (message code `.Found`) |
 
 Enforced by the custom `CleanCode.Functions.ExcessiveParameterList` sniff,
-picked up automatically via the `./CleanCode/ruleset.xml` reference in the
-master ruleset (`rules.xml`) —
+registered automatically from `CleanCode/Sniffs/` when the standard loads —
 [#95](https://github.com/mike-bronner/phpcs-rules/issues/95). Running `phpcs`
-with `rules.xml` therefore covers this rule, and `phpmd` does not have to run
-separately for it.
+with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
+have to run separately for it.
 
 No existing PHPCS, Slevomat, or PHPCSUtils sniff counts *declared* parameters.
 `Generic.Metrics.CyclomaticComplexity` and `Generic.Metrics.NestingLevel` are
@@ -98,7 +97,7 @@ verbatim:
 </rule>
 ```
 
-`rules.xml` sets no property, leaving the default of 10 in force.
+`CleanCode/ruleset.xml` sets no property, leaving the default of 10 in force.
 
 A `minimum` that is not a positive whole number — `value="ten"`, `value="0"`,
 `value="-3"`, `value="7.5"`, or an empty `value=""` — falls back to 10 rather

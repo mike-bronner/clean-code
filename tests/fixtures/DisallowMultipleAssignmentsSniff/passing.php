@@ -57,7 +57,7 @@ class OneIdeaPerStatement
         // because the sniff's FoundInControlStructure code invites the opposite
         // reading. That code is picked only after a report is decided, from the
         // parentheses the assignment sits inside, so it names a header and
-        // never a body. The body is braced because rules.xml wires
+        // never a body. The body is braced because CleanCode/ruleset.xml wires
         // Generic.ControlStructures.InlineControlStructure: the inline spelling
         // is silent from this sniff for the same reason and an error of its own
         // there.
