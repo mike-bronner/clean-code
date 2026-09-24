@@ -16,10 +16,10 @@ branches whose bodies are token-identical after normalization (comments and
 whitespace stripped) — the same normalized-block comparison
 `CleanCode.Pattern.AvoidDuplicateCodeBlocks` already applies to runs of code
 lines for the DRY standard
-([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
+([#134](https://github.com/mike-bronner/clean-code/issues/134)).
 Two combination patterns are behavior-preserving and safe to flag, and the
 custom sniff `CleanCode.Conditionals.CombinableConditions` reports both
-([#181](https://github.com/mike-bronner/phpcs-rules/issues/181)).
+([#181](https://github.com/mike-bronner/clean-code/issues/181)).
 
 - **Detection — adjacent branches of one `if`/`elseif` chain** — adjacent
   branches whose normalized bodies are identical are always combinable with

@@ -2,7 +2,7 @@
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          name="CleanCodeSelf"
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
-    <description>Self-lint for mike-bronner/phpcs-rules: the shipped ruleset applied to its own sniff sources, at zero errors. Run with `composer lint:self`. See CONTRIBUTING.md.</description>
+    <description>Self-lint for mike-bronner/clean-code: the shipped ruleset applied to its own sniff sources, at zero errors. Run with `composer lint:self`. See CONTRIBUTING.md.</description>
 
     <!--
         Scope comes from <file>, not <exclude-pattern>: PHPCS applies an

@@ -18,7 +18,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (bundled standards)
 
 Fully enforced by PHPCS's bundled `PSR12` standard, wired into the master
-`CleanCode/ruleset.xml` as-is ([#49](https://github.com/mike-bronner/phpcs-rules/issues/49)):
+`CleanCode/ruleset.xml` as-is ([#49](https://github.com/mike-bronner/clean-code/issues/49)):
 
 ```xml
 <rule ref="PSR12"/>

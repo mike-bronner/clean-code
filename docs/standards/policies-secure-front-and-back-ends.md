@@ -43,7 +43,7 @@ by anything in the file — no threshold makes it useful.
 
 No subset of the standard survives that, so no partial-enforcement sniff issue
 is opened and no rule is wired into `CleanCode/ruleset.xml`. The assessment is recorded on
-[#52](https://github.com/mike-bronner/phpcs-rules/issues/52).
+[#52](https://github.com/mike-bronner/clean-code/issues/52).
 
 ## What remains code review
 

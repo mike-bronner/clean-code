@@ -27,18 +27,18 @@ Two takeaways are token-visible slices already tracked by their own focused
 sniff issues, so no new sniff issue is opened here:
 
 - **Keep lines under 100 characters** —
-  [#3 Line Length](https://github.com/mike-bronner/phpcs-rules/issues/3)
+  [#3 Line Length](https://github.com/mike-bronner/clean-code/issues/3)
   (Tier 1).
 - **Remove code that doesn't accomplish anything** —
-  [#29 No Dead Code](https://github.com/mike-bronner/phpcs-rules/issues/29)
+  [#29 No Dead Code](https://github.com/mike-bronner/clean-code/issues/29)
   (Tier 2).
 
 Careful naming and "no abbreviations" are **not** sniff-tracked: they are
 assessed under
-[#18 Naming: Semantic naming principles](https://github.com/mike-bronner/phpcs-rules/issues/18),
+[#18 Naming: Semantic naming principles](https://github.com/mike-bronner/clean-code/issues/18),
 which is itself Tier 3 / code-review-only. Narrow token-visible heuristics
 spun off from that standard get their own focused sniff issues (see
-[#136](https://github.com/mike-bronner/phpcs-rules/issues/136) for magic
+[#136](https://github.com/mike-bronner/clean-code/issues/136) for magic
 numbers); no abbreviation sniff exists today — deciding what counts as an
 abbreviation is a semantic judgement, not a token check — so that slice stays
 in code review.

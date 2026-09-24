@@ -40,7 +40,7 @@ reported nothing on its five classes of eleven public methods:
 
 So the rule is the custom `CleanCode.Classes.TooManyPublicMethods` sniff, registered automatically
 from `CleanCode/Sniffs/` when the standard loads
-([#83](https://github.com/mike-bronner/phpcs-rules/issues/83)). Running `phpcs`
+([#83](https://github.com/mike-bronner/clean-code/issues/83)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 
@@ -97,7 +97,7 @@ The default here is `(^(set|get|is|has|with))i`, copied verbatim — bracket
 delimiters included — from the `<property name="ignorepattern">` element in
 **PHPMD 2.15.0's own `src/main/resources/rulesets/codesize.xml`**.
 
-[#83](https://github.com/mike-bronner/phpcs-rules/issues/83) quotes
+[#83](https://github.com/mike-bronner/clean-code/issues/83) quotes
 `(^(set|get))i` instead, taken from phpmd.org's rule page, which still documents
 the older value. The two disagree, and the shipped ruleset is what PHPMD
 actually runs: verified by running PHPMD 2.15.0 over a class of eleven public

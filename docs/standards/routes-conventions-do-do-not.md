@@ -32,7 +32,7 @@ single-file sniff does not have.
   a high-confidence violation: closure actions cannot be serialized, so they
   break `php artisan route:cache`. Enforced by the custom
   `CleanCode.Routes.DisallowClosureRoutes` sniff. Focused sniff issue:
-  [#174](https://github.com/mike-bronner/phpcs-rules/issues/174).
+  [#174](https://github.com/mike-bronner/clean-code/issues/174).
   - **The nine registration verbs** — `get`, `post`, `put`, `patch`, `delete`,
     `options`, `any`, `match` and `fallback`. Each takes exactly one callable
     parameter, its action, so any closure sitting directly in the argument list
@@ -68,7 +68,7 @@ than failing a build.
 
 - **Do: always use resource routes that point to RESTful controllers.**
   **Shipped** as the custom sniff `CleanCode.Routes.DisallowNonResourceRoutes`
-  ([#248](https://github.com/mike-bronner/phpcs-rules/issues/248)) — see
+  ([#248](https://github.com/mike-bronner/clean-code/issues/248)) — see
   [The resource-route sniff](#the-resource-route-sniff) below for the heuristic
   it implements and its six boundaries. In a routes file, a verb call
   (`Route::get`/`post`/`put`/`patch`/`delete`/`options`/`any`/`match`) registers
@@ -76,7 +76,7 @@ than failing a build.
   `Route::apiResource()` are the compliant shapes.
 - **Do: for special action routes, use invokable controllers.** **Shipped**
   as the custom sniff `CleanCode.Routes.NonInvokableSpecialAction`
-  ([#249](https://github.com/mike-bronner/phpcs-rules/issues/249)). The action
+  ([#249](https://github.com/mike-bronner/clean-code/issues/249)). The action
   argument carries the answer: a bare `FooController::class` is invokable and
   compliant, while an array action `[FooController::class, 'method']` (or the
   legacy `'FooController@method'` string, in either quoting style — a
@@ -231,7 +231,7 @@ The standard permits rare special-action routes, and a special-action route is
 registered with a verb call. A sniff cannot tell a legitimate rare exception
 from a controller that should have been RESTful, so every such route reports;
 warning severity is what stops that from blocking a build.
-[#249](https://github.com/mike-bronner/phpcs-rules/issues/249) covers the
+[#249](https://github.com/mike-bronner/clean-code/issues/249) covers the
 complementary check that the exception at least points at an invokable
 controller.
 
@@ -260,7 +260,7 @@ code review.
 
 #### The `Route` facade is assumed, not resolved
 
-Like [#174](https://github.com/mike-bronner/phpcs-rules/issues/174), the sniff
+Like [#174](https://github.com/mike-bronner/clean-code/issues/174), the sniff
 assumes the Laravel `Route` facade convention. It cannot resolve which `Route`
 symbol an import actually binds from one file's tokens, so an unrelated class
 named `Route` with a `get()` method reports, and a facade pulled in under an
@@ -272,7 +272,7 @@ alias (`use Route as Web;`, then `Web::get(...)`) does not.
 are not `Route::` static calls: the verb sits after `->`, on the registrar the
 modifier returned. This token-level heuristic does not see them. Catching the
 chained form means following a return value through an arbitrary chain, beyond
-what [#248](https://github.com/mike-bronner/phpcs-rules/issues/248) asks for —
+what [#248](https://github.com/mike-bronner/clean-code/issues/248) asks for —
 recorded here as a known false negative rather than pulled into detection scope.
 
 ## What remains code review
@@ -284,6 +284,6 @@ special-action route is rare enough to stay. The sniffs narrow where a reviewer
 looks; they do not make the call.
 
 The assessment is recorded on
-[#65](https://github.com/mike-bronner/phpcs-rules/issues/65), and each
+[#65](https://github.com/mike-bronner/clean-code/issues/65), and each
 enforceable slice is tracked as its own focused sniff issue — one sniff per
 issue, per this repository's convention.

@@ -35,11 +35,11 @@ token-visible slice. Being precise about what that means today:
   size and coupling sniffs; Dependency Inversion, through
   `CleanCode.Classes.DisallowConstructorInstantiation`; Liskov Substitution,
   through `CleanCode.Pattern.ThrowOnlyMethodOverride`
-  ([#131](https://github.com/mike-bronner/phpcs-rules/issues/131)); Interface
+  ([#131](https://github.com/mike-bronner/clean-code/issues/131)); Interface
   Segregation, through `CleanCode.Pattern.TooManyInterfaceMethods`
-  ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)); and
+  ([#132](https://github.com/mike-bronner/clean-code/issues/132)); and
   Open-Closed, through `CleanCode.Conditionals.TypeDiscriminatorDispatch`
-  ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)). All are
+  ([#324](https://github.com/mike-bronner/clean-code/issues/324)). All are
   wired into the master `CleanCode/ruleset.xml`.
 - **One candidate was rejected** — the specific Dependency Inversion heuristic
   of flagging a concrete type hint. It is rejected for named token-level facts,
@@ -60,10 +60,10 @@ Outcome summary:
 | Principle | Candidate heuristic evaluated | Call | Where it lives |
 |---|---|---|---|
 | Single Responsibility | class size and coupling metrics | **accepted** | 7 shipped sniffs (#80, #83, #87, #93, #96, #98, #114) |
-| Open-Closed | `switch`/`if`-`elseif` dispatch on one type discriminator | **accepted** | shipped sniff `CleanCode.Conditionals.TypeDiscriminatorDispatch` ([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)) |
-| Liskov Substitution | method body that is a single `throw` in a subtype | **accepted** | [#131](https://github.com/mike-bronner/phpcs-rules/issues/131) |
-| Interface Segregation | `interface` declaring more than N method signatures | **accepted** | `CleanCode.Pattern.TooManyInterfaceMethods` ([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) |
-| Dependency Inversion | type hint naming a `final`/concrete class | **rejected** (a *different* DIP slice is shipped) | [#72](https://github.com/mike-bronner/phpcs-rules/issues/72) / [#176](https://github.com/mike-bronner/phpcs-rules/issues/176) |
+| Open-Closed | `switch`/`if`-`elseif` dispatch on one type discriminator | **accepted** | shipped sniff `CleanCode.Conditionals.TypeDiscriminatorDispatch` ([#324](https://github.com/mike-bronner/clean-code/issues/324)) |
+| Liskov Substitution | method body that is a single `throw` in a subtype | **accepted** | [#131](https://github.com/mike-bronner/clean-code/issues/131) |
+| Interface Segregation | `interface` declaring more than N method signatures | **accepted** | `CleanCode.Pattern.TooManyInterfaceMethods` ([#132](https://github.com/mike-bronner/clean-code/issues/132)) |
+| Dependency Inversion | type hint naming a `final`/concrete class | **rejected** (a *different* DIP slice is shipped) | [#72](https://github.com/mike-bronner/clean-code/issues/72) / [#176](https://github.com/mike-bronner/clean-code/issues/176) |
 
 ### Single Responsibility — accepted, already shipped
 
@@ -86,13 +86,13 @@ when the standard loads. Each was verified closed as *completed*
 
 | Proxy | Issue | Shipped sniff | Maps to |
 |---|---|---|---|
-| TooManyMethods | [#80](https://github.com/mike-bronner/phpcs-rules/issues/80) | `CleanCode.CodeSize.TooManyMethods` | size |
-| TooManyPublicMethods | [#83](https://github.com/mike-bronner/phpcs-rules/issues/83) | `CleanCode.Classes.TooManyPublicMethods` | size |
-| ExcessiveClassComplexity | [#87](https://github.com/mike-bronner/phpcs-rules/issues/87) | `CleanCode.Metrics.ExcessiveClassComplexity` | complexity |
-| ExcessiveClassLength | [#93](https://github.com/mike-bronner/phpcs-rules/issues/93) | `CleanCode.Classes.ExcessiveClassLength` | size |
-| ExcessivePublicCount | [#96](https://github.com/mike-bronner/phpcs-rules/issues/96) | `CleanCode.Metrics.ExcessivePublicCount` | size |
-| TooManyFields | [#98](https://github.com/mike-bronner/phpcs-rules/issues/98) | `CleanCode.Metrics.TooManyFields` | size |
-| CouplingBetweenObjects | [#114](https://github.com/mike-bronner/phpcs-rules/issues/114) | `CleanCode.Metrics.CouplingBetweenObjects` | coupling |
+| TooManyMethods | [#80](https://github.com/mike-bronner/clean-code/issues/80) | `CleanCode.CodeSize.TooManyMethods` | size |
+| TooManyPublicMethods | [#83](https://github.com/mike-bronner/clean-code/issues/83) | `CleanCode.Classes.TooManyPublicMethods` | size |
+| ExcessiveClassComplexity | [#87](https://github.com/mike-bronner/clean-code/issues/87) | `CleanCode.Metrics.ExcessiveClassComplexity` | complexity |
+| ExcessiveClassLength | [#93](https://github.com/mike-bronner/clean-code/issues/93) | `CleanCode.Classes.ExcessiveClassLength` | size |
+| ExcessivePublicCount | [#96](https://github.com/mike-bronner/clean-code/issues/96) | `CleanCode.Metrics.ExcessivePublicCount` | size |
+| TooManyFields | [#98](https://github.com/mike-bronner/clean-code/issues/98) | `CleanCode.Metrics.TooManyFields` | size |
+| CouplingBetweenObjects | [#114](https://github.com/mike-bronner/clean-code/issues/114) | `CleanCode.Metrics.CouplingBetweenObjects` | coupling |
 
 Every issue in that table is closed as completed and scope-matches a size or
 coupling proxy; none is closed-wontfix and none was cited without its sniff
@@ -132,12 +132,12 @@ OCP smell rather than a generic complexity signal.
 adjacent and neither claims this slice:
 
 - `CleanCode.Conditionals.AvoidConditionals`
-  ([#12](https://github.com/mike-bronner/phpcs-rules/issues/12)) reports *every*
+  ([#12](https://github.com/mike-bronner/clean-code/issues/12)) reports *every*
   `switch` and *every* `if`/`elseif` once, as an undifferentiated complexity
   count. It never asks what the branches dispatch on, so it cannot separate a
   type dispatch from any other conditional.
 - `CleanCode.Conditionals.MappingArrayCandidate`
-  ([#163](https://github.com/mike-bronner/phpcs-rules/issues/163)) is the closer
+  ([#163](https://github.com/mike-bronner/clean-code/issues/163)) is the closer
   match, and it excludes this shape twice over by design: it registers on `if`
   alone, deliberately skipping `switch` and `match`, and it excludes any subject
   that is not a plain variable — `$this->status` and `$row['type']` are named in
@@ -145,7 +145,7 @@ adjacent and neither claims this slice:
   discriminator this heuristic keys on.
 
 The slice was therefore real and unclaimed, and it now ships as the sniff below
-([#324](https://github.com/mike-bronner/phpcs-rules/issues/324)). The overlap
+([#324](https://github.com/mike-bronner/clean-code/issues/324)). The overlap
 with `AvoidConditionals` is **deliberate**: that sniff counts a branch, this one
 names a pattern, and `MappingArrayCandidate` set the precedent for an overlap of
 that kind.
@@ -158,8 +158,8 @@ warning-level prompt, and the judgement stays with review.
 #### The sniffed slice
 
 Spun out of this standard
-([#5](https://github.com/mike-bronner/phpcs-rules/issues/5)) and scoped by
-[#324](https://github.com/mike-bronner/phpcs-rules/issues/324),
+([#5](https://github.com/mike-bronner/clean-code/issues/5)) and scoped by
+[#324](https://github.com/mike-bronner/clean-code/issues/324),
 `CleanCode.Conditionals.TypeDiscriminatorDispatch` warns on a `switch`, or an
 `if`/`elseif` chain, that dispatches on one type-discriminator read across three
 or more literal branches.
@@ -238,7 +238,7 @@ in this same file. The parent's own source is never needed: the signal is the
 stub, not what it overrides.
 
 **Call: accepted.** Shipped as `CleanCode.Pattern.ThrowOnlyMethodOverride`
-under [#131](https://github.com/mike-bronner/phpcs-rules/issues/131),
+under [#131](https://github.com/mike-bronner/clean-code/issues/131),
 warning-level and detection-only, registered automatically from
 `CleanCode/Sniffs/` when the standard loads. It files under `Pattern/` beside
 `AvoidDuplicateCodeBlocks`, the other token-visible slice of a `Pattern:`
@@ -272,7 +272,7 @@ register `T_CLASS` alone, and `CleanCode.Metrics.ExcessivePublicCount` registers
 ever saw an interface.
 
 **Call: accepted, and shipped.** `CleanCode.Pattern.TooManyInterfaceMethods`
-([#132](https://github.com/mike-bronner/phpcs-rules/issues/132)) carries it,
+([#132](https://github.com/mike-bronner/clean-code/issues/132)) carries it,
 registered automatically from `CleanCode/Sniffs/` when the standard loads.
 It warns once on the interface declaration — the defect is the width
 of the whole contract, so it has no statement line of its own — and is
@@ -329,7 +329,7 @@ hand-wave:
    namespace path, not a kind, and PHPCS has no symbol table, no autoloader, and
    no cross-file index — it hands a sniff one file's token stream. This is the
    same limitation already recorded on
-   [#10](https://github.com/mike-bronner/phpcs-rules/issues/10) and in
+   [#10](https://github.com/mike-bronner/clean-code/issues/10) and in
    [Dependency Injection](dependency-injection.md), reached independently here.
 
 The symmetric check — could this have landed on *lintable*? There is a variant
@@ -339,7 +339,7 @@ than on decidability, and it is worth being explicit about both halves:
 - **A hint naming a class-like declared in that same file** needs no resolution
   at all — the `T_CLASS` or `T_INTERFACE` declaration is right there in the
   token stream. But `CleanCode.Files.NoProceduralCode`
-  ([#129](https://github.com/mike-bronner/phpcs-rules/issues/129)) already makes
+  ([#129](https://github.com/mike-bronner/clean-code/issues/129)) already makes
   any top-level statement outside a *single* class-like declaration an error
   under `src/` and `app/`, so a file holding both the hinted type and the class
   that hints it is already a violation of another shipped rule. The population
@@ -359,9 +359,9 @@ receiving it. `CleanCode.Classes.DisallowConstructorInstantiation` warns once
 per `new` inside the body of a `__construct` that a class-like scope holds,
 detection-only, and is shipped, registered automatically from
 `CleanCode/Sniffs/` when the standard loads. It is tracked under
-[Dependency Injection #72](https://github.com/mike-bronner/phpcs-rules/issues/72)
+[Dependency Injection #72](https://github.com/mike-bronner/clean-code/issues/72)
 — closed as completed — with its scoping recorded on
-[#176](https://github.com/mike-bronner/phpcs-rules/issues/176), and documented
+[#176](https://github.com/mike-bronner/clean-code/issues/176), and documented
 in [Dependency Injection](dependency-injection.md). DIP and Dependency Injection
 are the same dependency-abstraction thread seen from two sides, so this
 assessment defers to #72 rather than opening a competing issue: no new sniff

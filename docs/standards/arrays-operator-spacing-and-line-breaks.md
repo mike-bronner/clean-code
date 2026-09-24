@@ -25,7 +25,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 The standard is enforced by a combination of two configured bundled sniffs and
 two custom CleanCode sniffs, wired into the master `CleanCode/ruleset.xml`
-([#35](https://github.com/mike-bronner/phpcs-rules/issues/35)).
+([#35](https://github.com/mike-bronner/clean-code/issues/35)).
 
 ### Binary-operator spacing — `Squiz.WhiteSpace.OperatorSpacing`
 
@@ -45,7 +45,7 @@ this sniff's targets — its `register()` covers comparison, arithmetic/bitwise
 and assignment tokens, and leaves `Tokens::$booleanOperators` out. Their
 spacing is owned by `CleanCode.Operators.BooleanOperatorSpacing`, added for
 [Operators: Active](operators-active.md)
-([#62](https://github.com/mike-bronner/phpcs-rules/issues/62)).
+([#62](https://github.com/mike-bronner/clean-code/issues/62)).
 
 ### Concatenation spacing — `Squiz.Strings.ConcatenationSpacing`
 
@@ -90,7 +90,7 @@ $message = $greeting .
 The math (`+ - * / % **`) and bitwise (`& | ^ << >>`) operators are out of this
 sniff's scope. They carry the same rule under
 [Operators: Manipulative](operators-manipulative.md)
-([#59](https://github.com/mike-bronner/phpcs-rules/issues/59)), whose
+([#59](https://github.com/mike-bronner/clean-code/issues/59)), whose
 `CleanCode.Operators.ManipulationOperatorPlacement` registers exactly the tokens
 this sniff leaves out — so a wrapped expression is reported once, whichever
 group its operator belongs to.

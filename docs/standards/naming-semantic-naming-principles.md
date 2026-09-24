@@ -48,7 +48,7 @@ token stream can see a name's shape, but not whether it tells the truth.
 
 `CleanCode.Naming.DisallowMagicNumbers` warns on a bare numeric literal used
 where a named constant belongs — the "Use Searchable Names" rule's numeric
-half ([#136](https://github.com/mike-bronner/phpcs-rules/issues/136)).
+half ([#136](https://github.com/mike-bronner/clean-code/issues/136)).
 
 | | |
 |---|---|
@@ -95,16 +95,16 @@ a subset:
   standard calls out, and it is detectable by pure single-file token analysis
   (`T_LNUMBER` / `T_DNUMBER` outside declaration sites). Now enforced by
   `CleanCode.Naming.DisallowMagicNumbers` — see the section above
-  ([#136](https://github.com/mike-bronner/phpcs-rules/issues/136)).
+  ([#136](https://github.com/mike-bronner/clean-code/issues/136)).
 - **Searchable names — short identifiers** — *already tracked.* Too-short
   method and function names are enforced by
   `CleanCode.Naming.ShortMethodName` — see
   [PHPMD Naming: ShortMethodName](../phpmd/naming-shortmethodname.md)
-  ([#111](https://github.com/mike-bronner/phpcs-rules/issues/111)). The other
+  ([#111](https://github.com/mike-bronner/clean-code/issues/111)). The other
   two short-identifier shapes are covered by the PHPMD rules still in the
-  backlog: [#106](https://github.com/mike-bronner/phpcs-rules/issues/106)
+  backlog: [#106](https://github.com/mike-bronner/clean-code/issues/106)
   (Naming: ShortVariable) and
-  [#103](https://github.com/mike-bronner/phpcs-rules/issues/103)
+  [#103](https://github.com/mike-bronner/clean-code/issues/103)
   (Naming: ShortClassName). No new issue opened — it would duplicate those.
 - **Pronounceable names** — *no reliable heuristic.* Consonant-cluster or
   dictionary checks misfire constantly on legitimate domain terms, acronyms,

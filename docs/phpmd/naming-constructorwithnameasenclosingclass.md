@@ -30,7 +30,7 @@ _Source: [phpmd.org/rules/naming.html](https://phpmd.org/rules/naming.html)
 
 Enforced by `Generic.NamingConventions.ConstructorName`, wired into the master
 ruleset (`CleanCode/ruleset.xml`) — no custom sniff needed
-([#113](https://github.com/mike-bronner/phpcs-rules/issues/113)). Running
+([#113](https://github.com/mike-bronner/clean-code/issues/113)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, with the three exceptions
 recorded under [Divergences](#divergences-from-phpmd) below.
 

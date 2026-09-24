@@ -19,9 +19,9 @@ parameters. `SomeModel::find($id)` inside a public `*Controller` method, with
 alone — a controller action's scalar parameters come from route segments, so
 fetching a model with one says the parameter should have been the model
 itself. Sniff: `CleanCode.Controllers.ManualModelResolution`
-([#50](https://github.com/mike-bronner/phpcs-rules/issues/50), superseding the
+([#50](https://github.com/mike-bronner/clean-code/issues/50), superseding the
 follow-up issue
-[#169](https://github.com/mike-bronner/phpcs-rules/issues/169)).
+[#169](https://github.com/mike-bronner/clean-code/issues/169)).
 
 - **Detection** — a static `find()` or `findOrFail()` call on a class name,
   whose first argument is a bare variable naming one of the enclosing method's

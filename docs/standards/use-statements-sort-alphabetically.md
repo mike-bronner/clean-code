@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 Fully enforceable, but by **three** Slevomat sniffs rather than one, all wired
 into the master `CleanCode/ruleset.xml`
-([#67](https://github.com/mike-bronner/phpcs-rules/issues/67)):
+([#67](https://github.com/mike-bronner/clean-code/issues/67)):
 
 | Sniff | Role |
 |---|---|

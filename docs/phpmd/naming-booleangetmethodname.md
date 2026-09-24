@@ -52,7 +52,7 @@ reason:
 
 So the rule is the custom `CleanCode.Naming.BooleanGetMethodName` sniff, registered automatically
 from `CleanCode/Sniffs/` when the standard loads
-([#116](https://github.com/mike-bronner/phpcs-rules/issues/116)). Running
+([#116](https://github.com/mike-bronner/clean-code/issues/116)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 
@@ -76,7 +76,7 @@ to run separately for it.
   it.
 - **Two sources for the return type, where PHPMD has one.** PHPMD reads the doc
   comment only. This sniff reads the native return type as well, which
-  [#116](https://github.com/mike-bronner/phpcs-rules/issues/116) requires and
+  [#116](https://github.com/mike-bronner/clean-code/issues/116) requires and
   which is the shape that actually occurs here: `CleanCode/ruleset.xml` requires a native
   return type on every method
   (`SlevomatCodingStandard.TypeHints.ReturnTypeHint`), so the native
@@ -150,7 +150,7 @@ fixtures named.
    `(\*\s*@return\s+bool(ean)?\s)i` against the doc comment and looks nowhere
    else, so a native declaration never reaches its check. Enforcing that half
    is required by
-   [#116](https://github.com/mike-bronner/phpcs-rules/issues/116), and it is
+   [#116](https://github.com/mike-bronner/clean-code/issues/116), and it is
    what makes the rule useful here.
 2. **Nullable and union spellings in the doc comment.** PHPMD's pattern wants
    `bool` or `boolean` immediately after `@return `, and whitespace immediately
@@ -162,11 +162,11 @@ fixtures named.
 
 All six extra reports are true defects, so they are kept — the same call
 `CleanCode/ruleset.xml` records for `VariableAnalysis` under
-[#85](https://github.com/mike-bronner/phpcs-rules/issues/85).
+[#85](https://github.com/mike-bronner/clean-code/issues/85).
 
 ## Overlap with the Models: Naming Conventions standard (#44)
 
-[#44](https://github.com/mike-bronner/phpcs-rules/issues/44) is a broader,
+[#44](https://github.com/mike-bronner/clean-code/issues/44) is a broader,
 Laravel-specific naming standard: boolean *properties* named as a yes/no
 question, boolean methods named `has<Condition in past tense>`, `find`- and
 `get`-prefixed query methods, and Laravel attribute accessors.

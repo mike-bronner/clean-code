@@ -25,7 +25,7 @@ _Source: [phpmd.org/rules/controversial.html](https://phpmd.org/rules/controvers
 
 Enforced by the custom `CleanCode.Controversial.Superglobals` sniff, registered
 automatically from `CleanCode/Sniffs/` when the standard loads — see
-[#90](https://github.com/mike-bronner/phpcs-rules/issues/90).
+[#90](https://github.com/mike-bronner/clean-code/issues/90).
 Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 

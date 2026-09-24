@@ -29,7 +29,7 @@ _Source: [phpmd.org/rules/cleancode.html](https://phpmd.org/rules/cleancode.html
 
 Enforced by `Generic.PHP.NoSilencedErrors`, wired into the master ruleset
 (`CleanCode/ruleset.xml`) — no custom sniff needed
-([#82](https://github.com/mike-bronner/phpcs-rules/issues/82)). Running `phpcs`
+([#82](https://github.com/mike-bronner/clean-code/issues/82)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 

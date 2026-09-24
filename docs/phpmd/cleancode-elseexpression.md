@@ -34,7 +34,7 @@ to tune on either side of the mapping.
 
 The sniff is **stricter than the PHPMD rule**, not equal to it. It also carries
 the clean-code standard
-[#14](https://github.com/mike-bronner/phpcs-rules/issues/14) —
+[#14](https://github.com/mike-bronner/clean-code/issues/14) —
 docs/standards/conditionals-no-else-or-elseif.md — which bans `elseif` as well
 and asks for an auto-fixer. So `elseif` is reported under a second message code
 `.ElseIfFound`, and the mechanically safe subset of both keywords is fixable.
@@ -44,7 +44,7 @@ reports more besides.
 
 Enforced by the custom `CleanCode.Conditionals.DisallowElse` sniff, registered
 automatically from `CleanCode/Sniffs/` when the standard loads
-([#77](https://github.com/mike-bronner/phpcs-rules/issues/77)).
+([#77](https://github.com/mike-bronner/clean-code/issues/77)).
 Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 
@@ -108,7 +108,7 @@ parity. They are pinned by `failing.php` lines 15 and 86 and asserted in
 
 The braceless case never reaches a consumer as a lone diagnostic, incidentally:
 `Generic.ControlStructures.InlineControlStructure` (wired in for
-[#9](https://github.com/mike-bronner/phpcs-rules/issues/9)) requires the braces
+[#9](https://github.com/mike-bronner/clean-code/issues/9)) requires the braces
 anyway.
 
 ### Where PHPMD stays silent and this sniff does not

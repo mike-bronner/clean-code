@@ -39,13 +39,13 @@ this standard's test suite, so the standard is enforced by **three cooperating
 CleanCode sniffs, each owning a disjoint slice of the operator list** — two of
 which were already wired into `CleanCode/ruleset.xml` for earlier standards. Only the math
 and bitwise groups needed a new sniff
-([#59](https://github.com/mike-bronner/phpcs-rules/issues/59)).
+([#59](https://github.com/mike-bronner/clean-code/issues/59)).
 
 | Operators | Sniff | Wired in for |
 |---|---|---|
 | `+`, `-`, `*`, `/`, `%`, `**`, `&`, `\|`, `^`, `<<`, `>>` | `CleanCode.Operators.ManipulationOperatorPlacement` | **#59** |
-| `.`, `&&`, `\|\|` | `CleanCode.Operators.OperatorLineBreak` | [#35](https://github.com/mike-bronner/phpcs-rules/issues/35) |
-| any operator inside an `if`/`elseif`/`while`/`for` condition, where that sniff back-stops it | `CleanCode.Conditionals.OneConditionPerLine` | [#17](https://github.com/mike-bronner/phpcs-rules/issues/17) |
+| `.`, `&&`, `\|\|` | `CleanCode.Operators.OperatorLineBreak` | [#35](https://github.com/mike-bronner/clean-code/issues/35) |
+| any operator inside an `if`/`elseif`/`while`/`for` condition, where that sniff back-stops it | `CleanCode.Conditionals.OneConditionPerLine` | [#17](https://github.com/mike-bronner/clean-code/issues/17) |
 
 ### Why the split is load-bearing
 
@@ -144,7 +144,7 @@ end-to-end over the whole master ruleset, line by line.
   layout judgement, a boundary the "Arrays: Operator Spacing & Line Breaks"
   standard (#35) set and this one does not reopen. So the standard is fully
   *detected* and partly *fixed*. That split is a decision, not an oversight —
-  Mike settled it on [#59](https://github.com/mike-bronner/phpcs-rules/issues/59)
+  Mike settled it on [#59](https://github.com/mike-bronner/clean-code/issues/59)
   rather than force a fixer onto another standard's sniff.
 
   For the groups this sniff owns, the fixer moves the trailing operator down to lead the

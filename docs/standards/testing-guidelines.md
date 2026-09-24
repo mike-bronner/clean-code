@@ -39,7 +39,7 @@ across files, not facts recoverable from a single file's token stream.
 a protected or private member from a test with Reflection instead of going
 through the public API. The sniff reports that mechanism, as a **warning**,
 detection only — replacing a Reflection call with public-API coverage is a
-redesign of the test, not a mechanical rewrite ([#145](https://github.com/mike-bronner/phpcs-rules/issues/145)).
+redesign of the test, not a mechanical rewrite ([#145](https://github.com/mike-bronner/clean-code/issues/145)).
 
 It fires only inside test files, and reports two things:
 
@@ -114,7 +114,7 @@ instead.
 mock-creation call whose class argument resolves into a namespace root the
 project owns. The sniff reports that shape, as a **warning**, detection only —
 replacing a mock of a class you own with the real collaborator is a redesign of
-the test, not a mechanical rewrite ([#146](https://github.com/mike-bronner/phpcs-rules/issues/146)).
+the test, not a mechanical rewrite ([#146](https://github.com/mike-bronner/clean-code/issues/146)).
 
 It fires only inside test files, and only once configured. These are the
 mock-creation calls it recognises:
@@ -229,31 +229,31 @@ roots instead.
 
 Two narrow slices **are** catchable by a sniff, and both are now implemented:
 
-- **Reflection-based access to non-public methods in tests** — [#145](https://github.com/mike-bronner/phpcs-rules/issues/145),
+- **Reflection-based access to non-public methods in tests** — [#145](https://github.com/mike-bronner/clean-code/issues/145),
   **implemented** as `CleanCode.Testing.NoReflectionAccess`, above.
 - **Mocking first-party classes in tests** —
-  [#146](https://github.com/mike-bronner/phpcs-rules/issues/146),
+  [#146](https://github.com/mike-bronner/clean-code/issues/146),
   **implemented** as `CleanCode.Testing.NoFirstPartyMocks`, above.
 
 Adjacent slices already tracked elsewhere:
 
 - **Source class with no corresponding test file** — covered by
-  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128) (opened from
+  [#128](https://github.com/mike-bronner/clean-code/issues/128) (opened from
   *Testing: Development Process (TDD)*), which catches test *absence* for the
   "always write unit and integration tests" bullet. Now implemented as
   `CleanCode.Testing.RequireTestFile`; see
   [testing-development-process-tdd.md](testing-development-process-tdd.md).
 - **Careful test naming** — method naming belongs to the naming standards:
   casing is already enforced as *Naming: Casing Conventions*
-  ([#22](https://github.com/mike-bronner/phpcs-rules/issues/22)) and the wider
+  ([#22](https://github.com/mike-bronner/clean-code/issues/22)) and the wider
   method-naming standard is tracked separately
-  ([#61](https://github.com/mike-bronner/phpcs-rules/issues/61)). A bare
+  ([#61](https://github.com/mike-bronner/clean-code/issues/61)). A bare
   prefix check adds nothing PHPUnit doesn't already require, and "careful"
   naming is a judgement about whether the name describes the behaviour — not
   a shape a sniff can read.
 
 The assessment is recorded on
-[#54](https://github.com/mike-bronner/phpcs-rules/issues/54).
+[#54](https://github.com/mike-bronner/clean-code/issues/54).
 
 ## What remains code review
 

@@ -18,12 +18,12 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 No existing PHPCS or Slevomat sniff flags non-assignment statements inside a
 constructor body. Slevomat's
 [`Classes.RequireConstructorPropertyPromotion`](https://github.com/slevomat/coding-standard/blob/master/doc/classes.md#requireconstructorpropertypromotion)
-(already wired in for [#47](https://github.com/mike-bronner/phpcs-rules/issues/47))
+(already wired in for [#47](https://github.com/mike-bronner/clean-code/issues/47))
 pushes assignments into promoted parameters but says nothing about other logic,
 and was evaluated against this standard's test suite without matching it. The
 standard is therefore enforced by the custom `CleanCode.Constructors.NoLogic`
 sniff, wired into the master `CleanCode/ruleset.xml` via the CleanCode standard
-([#40](https://github.com/mike-bronner/phpcs-rules/issues/40)).
+([#40](https://github.com/mike-bronner/clean-code/issues/40)).
 
 - **Detection** — the sniff walks the top-level statements of every
   `__construct()` body and flags each statement that is not one of the two

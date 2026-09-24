@@ -69,9 +69,9 @@ carries no such suffix. A feature built without a Controller class reports
 nothing. The check never asserts that a Controller has to exist.
 
 The slice was spun out as focused sniff issue
-[#167](https://github.com/mike-bronner/phpcs-rules/issues/167), which was
+[#167](https://github.com/mike-bronner/clean-code/issues/167), which was
 closed as a duplicate of
-[#141](https://github.com/mike-bronner/phpcs-rules/issues/141). It ships as the
+[#141](https://github.com/mike-bronner/clean-code/issues/141). It ships as the
 sniff `CleanCode.Controllers.NoCustomActions`, documented under
 [Controllers: No Business Logic](controllers-no-business-logic.md).
 

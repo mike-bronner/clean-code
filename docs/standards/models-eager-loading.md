@@ -45,7 +45,7 @@ models must be eager loaded, exactly as the standard requires.
 
 The safety check only protects a codebase if somebody enabled it, and that is
 plain token content. Sniff: `CleanCode.Models.RequireLazyLoadingPrevention`
-([#154](https://github.com/mike-bronner/phpcs-rules/issues/154)).
+([#154](https://github.com/mike-bronner/clean-code/issues/154)).
 
 - **Detection** — the application service provider is reported when its class
   body contains no static call to `Model::preventLazyLoading()` or
@@ -75,7 +75,7 @@ plain token content. Sniff: `CleanCode.Models.RequireLazyLoadingPrevention`
 The first rule prohibits a construct that is plain token content: a populated
 `protected $with = [...];` property on a model. Sniff:
 `CleanCode.Models.DisallowAlwaysOnEagerLoading`
-([#153](https://github.com/mike-bronner/phpcs-rules/issues/153)).
+([#153](https://github.com/mike-bronner/clean-code/issues/153)).
 
 - **Detection** — a `$with` property declared on a class — in the class body,
   or promoted in its constructor — with a default that is an array literal

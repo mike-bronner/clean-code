@@ -76,7 +76,7 @@ Enforcement is via code review and developer discipline.
 One narrow slice **is** token-visible: once an Action class exists, its shape
 can be checked. That slice is enforced by the custom sniff
 `CleanCode.ClearCode.ActionSingleEntryPoint`
-([#161](https://github.com/mike-bronner/phpcs-rules/issues/161)), which warns
+([#161](https://github.com/mike-bronner/clean-code/issues/161)), which warns
 on every public method an Action class declares past the first.
 
 **Which classes are examined.** Either half of the convention puts a class in

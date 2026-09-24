@@ -21,7 +21,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (auto-fixable)
 
 The standard is enforced by a **combination of rules** wired into the master
-`CleanCode/ruleset.xml` ([#64](https://github.com/mike-bronner/phpcs-rules/issues/64)). No
+`CleanCode/ruleset.xml` ([#64](https://github.com/mike-bronner/clean-code/issues/64)). No
 single existing sniff covers every passive operator, and
 `Squiz.WhiteSpace.OperatorSpacing` — the obvious candidate — was evaluated
 against the fixture suite and flags **none** of them: it deliberately skips

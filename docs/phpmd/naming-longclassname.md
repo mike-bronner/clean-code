@@ -32,7 +32,7 @@ instead (`Squiz.Classes.ValidClassName`,
 `SlevomatCodingStandard.Classes.Superfluous*Naming`). Slevomat's
 `Classes.ClassLength` counts a class's *lines*, not its name. So this rule is
 carried by a custom sniff, wired into the master `CleanCode/ruleset.xml`
-([#101](https://github.com/mike-bronner/phpcs-rules/issues/101)). Running
+([#101](https://github.com/mike-bronner/clean-code/issues/101)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 

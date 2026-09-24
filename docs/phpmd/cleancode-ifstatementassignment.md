@@ -1,7 +1,7 @@
 # PHPMD CleanCode: IfStatementAssignment
 
 Tier 1 — replicated in PHPCS so `phpmd` no longer has to run for this rule.
-Issue [#79](https://github.com/mike-bronner/phpcs-rules/issues/79).
+Issue [#79](https://github.com/mike-bronner/clean-code/issues/79).
 
 ## The rule
 

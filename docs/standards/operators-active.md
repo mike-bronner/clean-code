@@ -16,9 +16,9 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (auto-fixable)
 
 The standard is enforced by **four sniffs, each owning a disjoint slice of the
-list** ([#62](https://github.com/mike-bronner/phpcs-rules/issues/62)). Three of
+list** ([#62](https://github.com/mike-bronner/clean-code/issues/62)). Three of
 them were already wired into `CleanCode/ruleset.xml` for
-[#35](https://github.com/mike-bronner/phpcs-rules/issues/35); only the boolean
+[#35](https://github.com/mike-bronner/clean-code/issues/35); only the boolean
 connectives needed a new sniff.
 
 | Operators | Sniff | Wired in for |

@@ -29,7 +29,7 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 
 Enforced by `Generic.PHP.DiscourageGoto`, wired into the master ruleset
 (`CleanCode/ruleset.xml`) — no custom sniff needed
-([#109](https://github.com/mike-bronner/phpcs-rules/issues/109)). No Slevomat
+([#109](https://github.com/mike-bronner/clean-code/issues/109)). No Slevomat
 sniff disallows `goto` — it appears there only as a cognitive-complexity
 increment (`Complexity.Cognitive`) and in control-structure spacing. Several
 other PHPCS sniffs read `T_GOTO` for their own purposes (language-construct

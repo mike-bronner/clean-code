@@ -41,7 +41,7 @@ can recover neither.
   run over it. Comment contents are plain single-file token data
   (`T_COMMENT` / doc-comment tokens). Covered by the custom
   `CleanCode.CodeStyle.NoFormatterDirectives` sniff
-  ([#143](https://github.com/mike-bronner/phpcs-rules/issues/143)) — see
+  ([#143](https://github.com/mike-bronner/clean-code/issues/143)) — see
   *The directive-comment sniff* below.
 - **Committed formatter config files** (`.php-cs-fixer.dist.php`, `.php_cs`,
   `pint.json`) — considered and rejected. PHPCS's file scanner skips hidden

@@ -35,7 +35,7 @@ No PHPCS, Slevomat, or Generic sniff counts a class's subclasses, and none
 could without leaving the file: PHP_CodeSniffer hands a sniff one file at a
 time, and a parent's children are declared in files of their own. So this rule
 is a custom sniff
-([#110](https://github.com/mike-bronner/phpcs-rules/issues/110)), registered
+([#110](https://github.com/mike-bronner/clean-code/issues/110)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads; running `phpcs`
 with it covers the rule and `phpmd` does not have to run separately for it.
 
@@ -134,7 +134,7 @@ if ($nocc >= $threshold) {
 
 So exactly 15 children is already a violation. phpmd.org's "maximum number of
 acceptable child classes" reads like a strict `>`, and
-[#110](https://github.com/mike-bronner/phpcs-rules/issues/110)'s acceptance
+[#110](https://github.com/mike-bronner/clean-code/issues/110)'s acceptance
 criteria go further and ask outright for a child count exactly at the threshold
 to be silent — a live PHPMD 2.15.0 run disagrees with both, and the tool is
 what this package replaces. `CleanCode.Metrics.CouplingBetweenObjects` (#114)

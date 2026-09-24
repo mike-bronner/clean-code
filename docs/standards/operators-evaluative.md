@@ -24,7 +24,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 Cleanly enforceable by a static token analyzer: the evaluative operators are
 distinct token types, and a violation is simply a line-number difference
 between the operator and its nearest non-whitespace neighbor. Implemented by
-[#56](https://github.com/mike-bronner/phpcs-rules/issues/56).
+[#56](https://github.com/mike-bronner/clean-code/issues/56).
 
 ### Existing rules evaluated first
 

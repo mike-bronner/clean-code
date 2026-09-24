@@ -1,5 +1,5 @@
 {
-    "name": "mike-bronner/phpcs-rules",
+    "name": "mike-bronner/clean-code",
     "description": "PHPCS ruleset and custom sniffs enforcing the clean-code standards defined at mikebronner.dev/clean-code.",
     "type": "phpcodesniffer-standard",
     "license": "MIT",

@@ -17,7 +17,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (custom sniff)
 
 Implemented by **`CleanCode.ClearCode.OneThoughtPerLine`**
-([#7](https://github.com/mike-bronner/phpcs-rules/issues/7)). No existing
+([#7](https://github.com/mike-bronner/clean-code/issues/7)). No existing
 PHPCS core or Slevomat sniff counts access operators per line —
 `PEAR.WhiteSpace.ObjectOperatorIndent` and
 `Squiz.WhiteSpace.ObjectOperatorSpacing` only format chains that are already

@@ -25,7 +25,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 > **This standard was inverted on 2026-08-21.** It previously *required* the
 > folder-derived suffix (`app/Services/BillingService`). The rule is now its
 > opposite, decided in
-> [#27](https://github.com/mike-bronner/phpcs-rules/issues/27): no
+> [#27](https://github.com/mike-bronner/clean-code/issues/27): no
 > folder-derived suffix, anywhere in `app/`. The source page at
 > mikebronner.dev/clean-code still documents the superseded rule and needs the
 > same correction.
@@ -56,7 +56,7 @@ levels up.
 ## Enforceability — Tier 2, custom sniff
 
 Enforced by the custom `CleanCode.Naming.RedundantNamespaceSuffix` sniff
-([#27](https://github.com/mike-bronner/phpcs-rules/issues/27)), at **error**
+([#27](https://github.com/mike-bronner/clean-code/issues/27)), at **error**
 severity, on classes, interfaces, traits and enums alike — a redundantly named
 interface is the identical violation under a different keyword.
 

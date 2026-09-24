@@ -37,7 +37,7 @@ inheritance chain reaches. The nearest candidates measure something else:
 `Generic.Metrics.CyclomaticComplexity` and `Generic.Metrics.NestingLevel` score
 control flow, and nothing in either standard follows an `extends` link at all.
 So this rule is a custom sniff
-([#112](https://github.com/mike-bronner/phpcs-rules/issues/112)), registered automatically
+([#112](https://github.com/mike-bronner/clean-code/issues/112)), registered automatically
 from `CleanCode/Sniffs/` when the standard loads; running `phpcs` with it covers
 the rule and
 `phpmd` does not have to run separately for it.
@@ -74,7 +74,7 @@ if (($comparison === 1 && $dit > $threshold) ||
 takes. A class with **exactly** 6 parents is therefore already a violation.
 
 This matters because phpmd.org calls `minimum` the "maximum number of
-acceptable parent classes", and [#112](https://github.com/mike-bronner/phpcs-rules/issues/112)'s
+acceptable parent classes", and [#112](https://github.com/mike-bronner/clean-code/issues/112)'s
 acceptance criteria repeat that wording — "a class with exactly `minimum`
 parent classes passes, one more fails". Both describe a strict `>`, which is
 the opposite of what the tool does. A live PHPMD 2.15.0 run over

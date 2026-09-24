@@ -19,7 +19,7 @@ is via code review and developer discipline.
 A narrow token heuristic **can** catch the most common textual footprint of
 an unextracted concept. It is **implemented** as the custom sniff
 `CleanCode.ClearCode.SectionComment`, described below
-([#159](https://github.com/mike-bronner/phpcs-rules/issues/159)).
+([#159](https://github.com/mike-bronner/clean-code/issues/159)).
 
 - **Section-labelling comments** — a standalone `//` comment inside a method
   body that labels the block of statements after it (`// validate the
@@ -35,11 +35,11 @@ an unextracted concept. It is **implemented** as the custom sniff
 - **Size and complexity proxies are already tracked** — an over-long or
   over-branchy method usually holds several concepts, but those proxies have
   their own issues: method length
-  ([#91](https://github.com/mike-bronner/phpcs-rules/issues/91)), cyclomatic
-  complexity ([#88](https://github.com/mike-bronner/phpcs-rules/issues/88)),
+  ([#91](https://github.com/mike-bronner/clean-code/issues/91)), cyclomatic
+  complexity ([#88](https://github.com/mike-bronner/clean-code/issues/88)),
   NPath complexity
-  ([#89](https://github.com/mike-bronner/phpcs-rules/issues/89)), and nesting
-  depth ([#36](https://github.com/mike-bronner/phpcs-rules/issues/36)). This
+  ([#89](https://github.com/mike-bronner/clean-code/issues/89)), and nesting
+  depth ([#36](https://github.com/mike-bronner/clean-code/issues/36)). This
   standard adds no duplicates.
 
 ## The rule: `CleanCode.ClearCode.SectionComment`
@@ -88,8 +88,8 @@ Two comment shapes are excluded because a sibling standard owns them:
 
 | Shape | Owned by | Matching |
 |---|---|---|
-| `TODO`, `FIXME`, `HACK`, `XXX` | Debt: Technical Debt ([#138](https://github.com/mike-bronner/phpcs-rules/issues/138)) | case-insensitive, on word boundaries |
-| `@formatter:off`, `@formatter:on`, `prettier-ignore` | Code Style: Linters & Config ([#143](https://github.com/mike-bronner/phpcs-rules/issues/143)) | case-insensitive substring |
+| `TODO`, `FIXME`, `HACK`, `XXX` | Debt: Technical Debt ([#138](https://github.com/mike-bronner/clean-code/issues/138)) | case-insensitive, on word boundaries |
+| `@formatter:off`, `@formatter:on`, `prettier-ignore` | Code Style: Linters & Config ([#143](https://github.com/mike-bronner/clean-code/issues/143)) | case-insensitive substring |
 
 Both lists are public properties, so a consuming ruleset can extend either:
 

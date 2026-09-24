@@ -14,12 +14,12 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (custom sniff)
 
 Enforced by the auto-fixable **`CleanCode.Indentation.LogicalGroupings`** sniff
-([#41](https://github.com/mike-bronner/phpcs-rules/issues/41)), covering the
+([#41](https://github.com/mike-bronner/clean-code/issues/41)), covering the
 conditions of `if`, `elseif`, `while`, `for`, and `do-while`.
 
 The one-condition-per-line baseline is the concern of the separate
 [Conditionals: One Condition Per Line](conditionals-one-condition-per-line.md)
-standard ([#17](https://github.com/mike-bronner/phpcs-rules/issues/17)). This
+standard ([#17](https://github.com/mike-bronner/clean-code/issues/17)). This
 sniff adds the *indentation of parenthesized condition groups* on top of it:
 
 - **Grouping indented one level deeper** — when a parenthesized sub-grouping of

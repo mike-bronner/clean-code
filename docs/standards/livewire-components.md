@@ -81,7 +81,7 @@ strictly less than a ruleset that cannot be installed.
 
 ### Custom sniff — `CleanCode.Livewire.ComponentMarkup`
 
-One sniff, four codes ([#46](https://github.com/mike-bronner/phpcs-rules/issues/46)).
+One sniff, four codes ([#46](https://github.com/mike-bronner/clean-code/issues/46)).
 Each code can be excluded individually where a project's markup defeats the
 heuristic behind it.
 

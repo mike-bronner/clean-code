@@ -16,7 +16,7 @@
   enforcing the pattern.
 
 This is the model-side counterpart of the
-[Pattern: Repository](https://github.com/mike-bronner/phpcs-rules/issues/6)
+[Pattern: Repository](https://github.com/mike-bronner/clean-code/issues/6)
 standard: that entry rules out dedicated `Repository` classes; this one
 defines the persistence conventions the model itself carries instead.
 
@@ -31,9 +31,9 @@ token-visible signal that persistence is being driven from outside the model.
 Calls on `$this` are the blessed usage: the model's own descriptive methods
 calling `$this->save()` internally. Sniff:
 `CleanCode.Models.DisallowExternalPersistenceCalls`
-([#37](https://github.com/mike-bronner/phpcs-rules/issues/37), superseding
+([#37](https://github.com/mike-bronner/clean-code/issues/37), superseding
 the follow-up issue
-[#186](https://github.com/mike-bronner/phpcs-rules/issues/186)).
+[#186](https://github.com/mike-bronner/clean-code/issues/186)).
 
 - **Detection** — an instance method call (`->` or `?->`) named from the
   configured list on any receiver other than `$this` is flagged, whether the
@@ -52,7 +52,7 @@ the follow-up issue
   shape and will warn; scope those paths out in the ruleset or suppress
   inline. The complementary "no dedicated repository classes" slice has its
   own focused sniff issue,
-  [#126](https://github.com/mike-bronner/phpcs-rules/issues/126), spun out
+  [#126](https://github.com/mike-bronner/clean-code/issues/126), spun out
   of Pattern: Repository.
 
 ## What remains code review

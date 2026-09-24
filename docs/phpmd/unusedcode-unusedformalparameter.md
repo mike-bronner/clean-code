@@ -27,7 +27,7 @@ _Source: [phpmd.org/rules/unusedcode.html](https://phpmd.org/rules/unusedcode.ht
 
 The custom sniff `CleanCode.DeadCode.UnusedFormalParameter` carries this rule,
 wired into the master `CleanCode/ruleset.xml`
-([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)).
+([#120](https://github.com/mike-bronner/clean-code/issues/120)).
 
 - **Detection** — a parameter no statement in the body reads is flagged at the
   parameter's own line and column, in functions, methods, constructors,
@@ -64,7 +64,7 @@ direction that puts `phpmd` back in the pipeline:
 | Candidate | Why it was rejected |
 |---|---|
 | `Generic.CodeAnalysis.UnusedFunctionParameter` | It never changes its *verdict* for an inherited signature — it changes the error *code*, to a `FoundInExtendedClass…` or `FoundInImplementedInterface…` variant, whenever the enclosing class extends or implements anything. Excluding those six codes to buy PHPMD's override exemption also silences the class's own **non-inherited** methods. It additionally exempts an empty or comment-only body and `__unserialize()`, both of which PHPMD reports. |
-| `SlevomatCodingStandard.Functions.UnusedParameter` | It has no inherited-signature exemption at all, so it reports **every** override — the false positive [#120's acceptance criteria](https://github.com/mike-bronner/phpcs-rules/issues/120) explicitly forbid. It was wired here for the No Dead Code standard ([#29](https://github.com/mike-bronner/phpcs-rules/issues/29)) and is replaced by this sniff, which is a strict superset of it apart from the two annotations below. |
+| `SlevomatCodingStandard.Functions.UnusedParameter` | It has no inherited-signature exemption at all, so it reports **every** override — the false positive [#120's acceptance criteria](https://github.com/mike-bronner/clean-code/issues/120) explicitly forbid. It was wired here for the No Dead Code standard ([#29](https://github.com/mike-bronner/clean-code/issues/29)) and is replaced by this sniff, which is a strict superset of it apart from the two annotations below. |
 
 ### How the inherited-signature exemption is decided
 

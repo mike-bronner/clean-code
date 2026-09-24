@@ -37,7 +37,7 @@ nothing to tune. Neither has this sniff.
 
 Enforced by a custom sniff, picked up automatically through the CleanCode
 standard, which the master ruleset (`CleanCode/ruleset.xml`) references
-([#99](https://github.com/mike-bronner/phpcs-rules/issues/99)). Running `phpcs`
+([#99](https://github.com/mike-bronner/clean-code/issues/99)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 

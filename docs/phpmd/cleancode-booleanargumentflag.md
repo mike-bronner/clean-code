@@ -40,7 +40,7 @@ nothing on its fifteen boolean flag arguments:
 
 So the rule is the custom `CleanCode.Functions.DisallowBooleanArgumentFlag`
 sniff, registered automatically from `CleanCode/Sniffs/` when the standard
-loads ([#76](https://github.com/mike-bronner/phpcs-rules/issues/76)). Running
+loads ([#76](https://github.com/mike-bronner/clean-code/issues/76)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd`
 does not have to run separately for it.
 
@@ -118,7 +118,7 @@ fixtures named.
 1. **Type declarations.** PHPMD reads a parameter's resolved *default value* and
    reports when that value is exactly `true` or `false`; a type declaration
    never reaches its check. Enforcing the type half as well is required by
-   [#76](https://github.com/mike-bronner/phpcs-rules/issues/76), and it is what
+   [#76](https://github.com/mike-bronner/clean-code/issues/76), and it is what
    makes the rule useful here: `CleanCode/ruleset.xml` requires a native type hint on every
    parameter (`SlevomatCodingStandard.TypeHints.ParameterTypeHint`), so the
    untyped shape PHPMD keys on barely occurs in code this ruleset governs.
@@ -134,4 +134,4 @@ fixtures named.
 
 All three extra reports are true defects, so they are kept — the same call
 `CleanCode/ruleset.xml` records for `VariableAnalysis` under
-[#85](https://github.com/mike-bronner/phpcs-rules/issues/85).
+[#85](https://github.com/mike-bronner/clean-code/issues/85).

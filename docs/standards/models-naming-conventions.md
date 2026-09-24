@@ -32,7 +32,7 @@ No existing rule fits. `Squiz.NamingConventions.ValidVariableName`,
 reads a declaration's type to decide whether its name is right. So this
 standard is enforced by the custom sniff
 **`CleanCode.Naming.ModelNamingConventions`**
-([#44](https://github.com/mike-bronner/phpcs-rules/issues/44)), registered
+([#44](https://github.com/mike-bronner/clean-code/issues/44)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads.
 
 Every check is **reporting-only**. Renaming an identifier changes every call

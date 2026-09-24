@@ -29,7 +29,7 @@ segment names.
 
 That slice is enforced by the custom sniff
 **`CleanCode.ClearCode.JunkDrawerNamespace`**
-([#190](https://github.com/mike-bronner/phpcs-rules/issues/190)), registered
+([#190](https://github.com/mike-bronner/clean-code/issues/190)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads.
 
 - **Detection** — every segment of a `namespace` declaration is compared
@@ -73,4 +73,4 @@ when a codebase has grown enough to warrant carving out a domain model.
 Whether `Billing` is a genuine domain or a relabeled junk drawer is a
 judgement about the business, not the tokens — that call stays with code
 review, and the standard itself remains tracked as Tier 3 under
-[#16](https://github.com/mike-bronner/phpcs-rules/issues/16).
+[#16](https://github.com/mike-bronner/clean-code/issues/16).

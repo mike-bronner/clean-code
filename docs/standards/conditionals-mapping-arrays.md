@@ -15,7 +15,7 @@ The trigger pattern of this standard **is statically lintable**: an
 `if`/`elseif` chain whose conditions all compare the same variable against
 different scalar literals is token-visible. The custom sniff
 `CleanCode.Conditionals.MappingArrayCandidate`
-([#163](https://github.com/mike-bronner/phpcs-rules/issues/163)) flags such
+([#163](https://github.com/mike-bronner/clean-code/issues/163)) flags such
 chains as mapping-array (or `match`) candidates, once per chain, at the leading
 `if`.
 

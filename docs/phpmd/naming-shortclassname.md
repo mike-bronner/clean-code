@@ -55,7 +55,7 @@ Two candidates do report on that fixture, and neither for its subject:
 
 So the rule is the custom `CleanCode.Naming.ShortClassName` sniff, registered
 automatically from `CleanCode/Sniffs/` when the standard loads
-([#103](https://github.com/mike-bronner/phpcs-rules/issues/103)). Running
+([#103](https://github.com/mike-bronner/clean-code/issues/103)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd`
 does not have to run separately for it.
 

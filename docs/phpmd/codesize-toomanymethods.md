@@ -35,7 +35,7 @@ and `Generic.Metrics.CyclomaticComplexity` scores branching within a single
 method — so this rule is the custom
 [`CleanCode.CodeSize.TooManyMethods`](../../CleanCode/Sniffs/CodeSize/TooManyMethodsSniff.php)
 sniff, wired into the master ruleset (`CleanCode/ruleset.xml`) with PHPMD's default
-thresholds ([#80](https://github.com/mike-bronner/phpcs-rules/issues/80)).
+thresholds ([#80](https://github.com/mike-bronner/clean-code/issues/80)).
 Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 

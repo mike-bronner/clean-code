@@ -17,12 +17,12 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 Every `else` and `elseif` keyword is directly visible in the token stream, so
 the standard is fully enforceable by a static analyzer. Enforced by
 **`CleanCode.Conditionals.DisallowElse`**
-([#14](https://github.com/mike-bronner/phpcs-rules/issues/14)):
+([#14](https://github.com/mike-bronner/clean-code/issues/14)):
 
 - **`Found`** — any `else` (braced, braceless, or alternative syntax). The
   code reads `Found` rather than `ElseFound` because the sniff landed first
   for the PHPMD ElseExpression mapping
-  ([#77](https://github.com/mike-bronner/phpcs-rules/issues/77)) and consumers
+  ([#77](https://github.com/mike-bronner/clean-code/issues/77)) and consumers
   may already exclude it by that name.
 - **`ElseIfFound`** — any `elseif`, including the space-separated `else if`
   form. Separate from `Found` so a project that wants PHPMD's narrower

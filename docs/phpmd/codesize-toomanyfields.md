@@ -31,7 +31,7 @@ No bundled PHPCS, Slevomat, or Generic sniff counts a class's fields — the onl
 metric sniffs shipped are `Generic.Metrics.CyclomaticComplexity` and
 `Generic.Metrics.NestingLevel` — so the rule is a custom sniff, registered
 automatically from `CleanCode/Sniffs/` when the standard loads
-([#98](https://github.com/mike-bronner/phpcs-rules/issues/98)). Running `phpcs`
+([#98](https://github.com/mike-bronner/clean-code/issues/98)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 

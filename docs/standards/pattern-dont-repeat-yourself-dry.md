@@ -25,7 +25,7 @@ repeated code). Slevomat's one whole-declaration metric,
 two. The standard's textual half is therefore enforced by the custom
 `CleanCode.Pattern.AvoidDuplicateCodeBlocks` sniff, wired into the master
 `CleanCode/ruleset.xml` via the CleanCode standard
-([#134](https://github.com/mike-bronner/phpcs-rules/issues/134)).
+([#134](https://github.com/mike-bronner/clean-code/issues/134)).
 
 - **Detection** — a run of code lines in one file that repeats another run is
   reported as a duplication candidate, under

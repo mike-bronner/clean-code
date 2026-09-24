@@ -13,7 +13,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1
 
 Two rules in the master `CleanCode/ruleset.xml` enforce the two halves of the standard
-([#20](https://github.com/mike-bronner/phpcs-rules/issues/20)):
+([#20](https://github.com/mike-bronner/clean-code/issues/20)):
 
 - **Prefer ternaries —
   `SlevomatCodingStandard.ControlStructures.RequireTernaryOperator`** flags an

@@ -30,7 +30,7 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html#e
 
 Enforced by the custom `CleanCode.Functions.ExcessiveParameterList` sniff,
 registered automatically from `CleanCode/Sniffs/` when the standard loads —
-[#95](https://github.com/mike-bronner/phpcs-rules/issues/95). Running `phpcs`
+[#95](https://github.com/mike-bronner/clean-code/issues/95). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
 have to run separately for it.
 
@@ -73,7 +73,7 @@ parameters violate and nine do not.
 
 This contradicts the way the rule is usually read. phpmd.org's message —
 "Consider reducing the number of parameters to less than 10" — and
-[#95](https://github.com/mike-bronner/phpcs-rules/issues/95)'s acceptance
+[#95](https://github.com/mike-bronner/clean-code/issues/95)'s acceptance
 criteria, which paraphrase it as "≤10 declared parameters → no violation", both
 describe a strict `>`. A live PHPMD 2.15.0 run over
 `tests/fixtures/ExcessiveParameterListSniff/boundaries.php` reports the

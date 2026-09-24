@@ -26,7 +26,7 @@ _Source: [phpmd.org/rules/codesize.html](https://phpmd.org/rules/codesize.html#e
 
 Enforced by the custom `CleanCode.Classes.ExcessiveClassLength` sniff, wired
 into the master ruleset (`CleanCode/ruleset.xml`) with PHPMD's own thresholds
-([#93](https://github.com/mike-bronner/phpcs-rules/issues/93)). Running `phpcs`
+([#93](https://github.com/mike-bronner/clean-code/issues/93)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have to run
 separately for it.
 

@@ -41,7 +41,7 @@ reject the ones nothing uses; `SlevomatCodingStandard.Complexity.Cognitive`
 scores one method's control flow; `Generic.Metrics.CyclomaticComplexity` and
 `Generic.Metrics.NestingLevel` score control flow too; and
 `SlevomatCodingStandard.Classes.ClassLength` counts lines. So this rule is a
-custom sniff ([#114](https://github.com/mike-bronner/phpcs-rules/issues/114)),
+custom sniff ([#114](https://github.com/mike-bronner/clean-code/issues/114)),
 registered automatically from `CleanCode/Sniffs/` when the standard loads;
 running `phpcs` with it covers the rule and `phpmd` does not have to run
 separately for it.

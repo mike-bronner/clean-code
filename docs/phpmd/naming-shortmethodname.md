@@ -55,7 +55,7 @@ whether a method name matches its class (`ConstructorName`). And
 `slevomat/coding-standard` ships no name-length rule either — the only
 `strlen()` calls in its sniffs measure line and signature length. So this is a
 custom sniff
-([#111](https://github.com/mike-bronner/phpcs-rules/issues/111)), registered
+([#111](https://github.com/mike-bronner/clean-code/issues/111)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads. Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.

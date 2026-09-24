@@ -25,7 +25,7 @@ about `data_get()`, which is a Laravel helper rather than a language feature.
 Evaluated against this standard's test suite, they match none of it. The
 standard is therefore enforced by the custom `CleanCode.Arrays.ArrayAccessors`
 sniff, wired into the master `CleanCode/ruleset.xml` via the CleanCode standard
-([#33](https://github.com/mike-bronner/phpcs-rules/issues/33)).
+([#33](https://github.com/mike-bronner/clean-code/issues/33)).
 
 - **Detection** — a read through a direct accessor is flagged at the variable
   the accessor chain is rooted in. Element reads (`$payload['name']`) are

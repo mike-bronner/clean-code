@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 Most of this standard is covered by existing sniffs wired into the master
 `CleanCode/ruleset.xml`; unused private elements needed a custom sniff. Focused issue:
-[#29](https://github.com/mike-bronner/phpcs-rules/issues/29).
+[#29](https://github.com/mike-bronner/clean-code/issues/29).
 
 - **Commented-out code** — `Squiz.PHP.CommentedOutCode` (warning): flags
   comments that are mostly code-shaped tokens. An explanatory prose comment
@@ -24,7 +24,7 @@ Most of this standard is covered by existing sniffs wired into the master
 - **Unused parameters** — custom `CleanCode.DeadCode.UnusedFormalParameter`
   sniff (error): flags declared parameters never read in the function body.
   `SlevomatCodingStandard.Functions.UnusedParameter` carried this until
-  [#120](https://github.com/mike-bronner/phpcs-rules/issues/120) landed; it has
+  [#120](https://github.com/mike-bronner/clean-code/issues/120) landed; it has
   no inherited-signature exemption, so it reports every override. The custom
   sniff exempts an override it can resolve in the same file, plus one annotated
   `@inheritdoc` or `#[\Override]`, and is a strict superset otherwise — see

@@ -49,13 +49,13 @@ So the rule is the custom `CleanCode.Metrics.CyclomaticComplexity` sniff, with
 a token walk of its own — it neither extends nor delegates to
 `Generic.Metrics.CyclomaticComplexitySniff`. It is registered automatically
 from `CleanCode/Sniffs/` when the standard loads
-([#88](https://github.com/mike-bronner/phpcs-rules/issues/88)). Running `phpcs`
+([#88](https://github.com/mike-bronner/clean-code/issues/88)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
 have to run separately for it.
 
 The measurement itself lives in `CleanCode/Support/CyclomaticComplexity.php`,
 shared with `CleanCode.Metrics.ExcessiveClassComplexity`
-([#87](https://github.com/mike-bronner/phpcs-rules/issues/87)), which sums the
+([#87](https://github.com/mike-bronner/clean-code/issues/87)), which sums the
 same per-declaration count over a class's methods. PHPMD reads both rules off
 the same PDepend measurement, so keeping one copy is what stops the two from
 drifting apart on a construct only one of them has a fixture for.

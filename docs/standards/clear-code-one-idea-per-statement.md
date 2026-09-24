@@ -18,7 +18,7 @@ discipline.
 
 A narrow token heuristic **can** catch two compound-statement shapes that are
 unambiguously multiple ideas in one statement. Focused sniff issue:
-[#157](https://github.com/mike-bronner/phpcs-rules/issues/157).
+[#157](https://github.com/mike-bronner/clean-code/issues/157).
 
 - **Chained assignments** — `$a = $b = $c;`. Multiple assignment tokens at
   the same nesting depth within one statement assign to several targets in

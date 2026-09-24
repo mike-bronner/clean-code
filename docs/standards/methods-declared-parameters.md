@@ -28,7 +28,7 @@ Slevomat ships no sniff covering dynamic argument lists at all. Rather than
 weaken the tests to fit, the standard is enforced by the custom
 `CleanCode.Methods.DeclaredParameters` sniff, wired into the master `CleanCode/ruleset.xml`
 via the CleanCode standard
-([#69](https://github.com/mike-bronner/phpcs-rules/issues/69)).
+([#69](https://github.com/mike-bronner/clean-code/issues/69)).
 
 - **Detection** — every call to PHP's dynamic argument-list functions —
   `func_get_args()`, `func_get_arg()`, and `func_num_args()` — is flagged at the

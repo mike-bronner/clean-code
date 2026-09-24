@@ -8,7 +8,7 @@ the Models standards rather than dedicated repository classes.
 
 The model-side conventions are defined by
 [Models: Persistence Methods (Repository Pattern)](models-persistence-methods-repository-pattern.md)
-([#37](https://github.com/mike-bronner/phpcs-rules/issues/37)), which asks for
+([#37](https://github.com/mike-bronner/clean-code/issues/37)), which asks for
 descriptive persistence methods on the model itself, organised into single-use
 traits; this entry cross-references that standard rather than restating it.
 
@@ -42,7 +42,7 @@ out, whatever its body does.
 
 That slice is enforced by the custom
 `CleanCode.Pattern.DisallowRepositoryClasses` sniff
-([#126](https://github.com/mike-bronner/phpcs-rules/issues/126)), at **warning**
+([#126](https://github.com/mike-bronner/clean-code/issues/126)), at **warning**
 severity and detection-only. It reads the declaration and nothing else:
 `extends`, `implements`, a trait `use`, an import, and `new` are consumption
 sites, so a class forced to extend a third-party `*Repository` base class is
@@ -65,6 +65,6 @@ dedicated type that can be autoloaded, type-hinted, or bound by name.
 The semantic core — that persistence behaviour lives on the model and in its
 attribute/query traits — stays with code review. The
 `CleanCode.Pattern.DisallowRepositoryClasses` sniff
-([#126](https://github.com/mike-bronner/phpcs-rules/issues/126)) covers one
+([#126](https://github.com/mike-bronner/clean-code/issues/126)) covers one
 naming shape; it says nothing about where behaviour ended up, so the reviewer
 owns that call regardless.

@@ -24,7 +24,7 @@ _Source: [phpmd.org/rules/design.html](https://phpmd.org/rules/design.html)
 | `Design/EvalExpression` | `Squiz.PHP.Eval` (message code `.Discouraged`) |
 
 Enforced by `Squiz.PHP.Eval`, wired into the master ruleset (`CleanCode/ruleset.xml`) — no
-custom sniff needed ([#107](https://github.com/mike-bronner/phpcs-rules/issues/107)).
+custom sniff needed ([#107](https://github.com/mike-bronner/clean-code/issues/107)).
 Running `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does
 not have to run separately for it.
 

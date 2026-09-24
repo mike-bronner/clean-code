@@ -31,9 +31,9 @@ The violation's textual shape is token-visible: a chained property fetch
 fetches with no call parentheses between them) is exactly the traversal the
 standard rules out. Sniff:
 `CleanCode.Models.DisallowChainedPropertyFetch`
-([#42](https://github.com/mike-bronner/phpcs-rules/issues/42), absorbing the
+([#42](https://github.com/mike-bronner/clean-code/issues/42), absorbing the
 follow-up issue
-[#188](https://github.com/mike-bronner/phpcs-rules/issues/188)).
+[#188](https://github.com/mike-bronner/clean-code/issues/188)).
 
 - **Detection** — two or more consecutive plain property-fetch hops
   (`->` or `?->`, mixed freely) rooted in a variable or `$this`. One

@@ -29,7 +29,7 @@ well-known external standard
 [`sirbrillig/phpcs-variable-analysis`](https://github.com/sirbrillig/phpcs-variable-analysis)
 does, through its single `VariableAnalysis.CodeAnalysis.VariableAnalysis`
 sniff, wired into the master `CleanCode/ruleset.xml`
-([#85](https://github.com/mike-bronner/phpcs-rules/issues/85)).
+([#85](https://github.com/mike-bronner/clean-code/issues/85)).
 
 - **Detection** — every read of a name the scope never assigns is flagged at
   its own line, whether the read is a plain variable
@@ -63,9 +63,9 @@ standard does not quietly deliver rules that belong elsewhere.
 
 The sixth code, `UnusedVariable`, is neither this rule's nor excluded: an
 *unused* variable is not an undefined one, and the code carries PHPMD's
-`UnusedLocalVariable` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118),
+`UnusedLocalVariable` ([#118](https://github.com/mike-bronner/clean-code/issues/118),
 [docs](unusedcode-unusedlocalvariable.md)). PHPMD's
-`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120),
+`UnusedFormalParameter` ([#120](https://github.com/mike-bronner/clean-code/issues/120),
 [docs](unusedcode-unusedformalparameter.md)) shares that same code, and stays
 silenced here by the `allowUnusedFunctionParameters` property: it ships through
 the custom sniff `CleanCode.DeadCode.UnusedFormalParameter` instead, so
@@ -98,7 +98,7 @@ positive. Adopting this ruleset can therefore surface findings a previous
 `phpmd` run did not.
 
 The closure-scope row has a second consequence now that `UnusedVariable` is
-also enabled ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)):
+also enabled ([#118](https://github.com/mike-bronner/clean-code/issues/118)):
 a name assigned in a closure and read outside it is undefined at the read *and*
 unused at the assignment, so `divergences.php` reports it twice — once per
 rule. PHPMD folds the closure into its enclosing method and reports neither.

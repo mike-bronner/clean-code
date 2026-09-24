@@ -24,7 +24,7 @@ was evaluated against this standard's test suite without matching it. The
 standard is therefore enforced by the custom
 `CleanCode.Classes.DisallowStaticMembers` sniff, wired into the master
 `CleanCode/ruleset.xml` via the CleanCode standard
-([#19](https://github.com/mike-bronner/phpcs-rules/issues/19)).
+([#19](https://github.com/mike-bronner/clean-code/issues/19)).
 
 - **Detection** — every static method and static property declaration is
   flagged at its `static` keyword, in any object-oriented container: class,

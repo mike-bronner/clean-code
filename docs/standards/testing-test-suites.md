@@ -29,7 +29,7 @@ Two slices are not judgments, and both **are** enforced. The first: a test class
 names its suite twice — once in the directory it sits in, once in its declared
 namespace — and the two can contradict each other. A contradiction is a fact
 about the file. The custom sniff **`CleanCode.Testing.TestSuiteNamespace`**
-([#60](https://github.com/mike-bronner/phpcs-rules/issues/60)) reports it, in
+([#60](https://github.com/mike-bronner/clean-code/issues/60)) reports it, in
 both directions:
 
 - `NamespaceMismatch` — a test class under a suite directory whose namespace
@@ -60,7 +60,7 @@ each is enforced by a sniff of its own.
 A unit test concerns only the class under test. Whether it really does is a
 judgment; three of the ways a Laravel test reaches past its subject are not, and
 `CleanCode.Testing.UnitTestExternalConcerns`
-([#148](https://github.com/mike-bronner/phpcs-rules/issues/148)) reports those:
+([#148](https://github.com/mike-bronner/clean-code/issues/148)) reports those:
 
 - `DatabaseTrait` — a `use` of `RefreshDatabase`, `DatabaseMigrations`,
   `DatabaseTransactions` or `LazilyRefreshDatabase`, in any spelling a `use`
@@ -117,7 +117,7 @@ A feature test must
 not traverse the internet, and the raw primitives that can only traverse it are
 written in the file that calls them. The custom sniff
 **`CleanCode.Testing.NoInternetTraversal`**
-([#149](https://github.com/mike-bronner/phpcs-rules/issues/149)) reports them
+([#149](https://github.com/mike-bronner/clean-code/issues/149)) reports them
 under a single `Found` code, naming the primitive that matched:
 
 - `curl_init()`, `curl_exec()`, `fsockopen()` and `stream_socket_client()` —
@@ -185,11 +185,11 @@ slice carries a focused issue of its own, and all three are now built:
 
 - **External concerns in `tests/Unit/`** — *implemented*, as
   `CleanCode.Testing.UnitTestExternalConcerns`
-  ([#148](https://github.com/mike-bronner/phpcs-rules/issues/148)). See
+  ([#148](https://github.com/mike-bronner/clean-code/issues/148)). See
   "External concerns in `tests/Unit/`" under Enforceability above.
 - **Internet-traversing primitives in `tests/Feature/`** — *implemented*, as
   `CleanCode.Testing.NoInternetTraversal`
-  ([#149](https://github.com/mike-bronner/phpcs-rules/issues/149)). See
+  ([#149](https://github.com/mike-bronner/clean-code/issues/149)). See
   "Internet-traversing primitives in `tests/Feature/`" under Enforceability
   above.
 
@@ -197,7 +197,7 @@ The third is described here rather than under Enforceability:
 
 - **HTTP fakes in `tests/Integration/`** — *implemented*, as the custom sniff
   **`CleanCode.Testing.NoHttpFakesInIntegrationTests`**
-  ([#150](https://github.com/mike-bronner/phpcs-rules/issues/150)). An HTTP
+  ([#150](https://github.com/mike-bronner/clean-code/issues/150)). An HTTP
   double inside an integration test doubles out the very external dependency the
   suite exists to exercise, and installing one is token-visible. It reports two
   shapes:
@@ -224,7 +224,7 @@ The third is described here rather than under Enforceability:
   `$this->http->fake()` is not the static facade call and is left alone; suite
   *intent* is not read at all, so an "integration" test that never calls the
   external service is not flagged (test absence is
-  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128)'s territory);
+  [#128](https://github.com/mike-bronner/clean-code/issues/128)'s territory);
   an aliased import is not resolved, while an unrelated class named `Client` is
   reported; an imported `Illuminate\Http\Client\Factory` written as
   `Factory::class` is not; and the mock creators are matched on member name

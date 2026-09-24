@@ -39,14 +39,14 @@ heuristic can enforce even a subset of it:
 
 The other Tier 3 testing standards each produced a focused partial-enforcement
 issue — Reflection-based access to non-public methods
-([#145](https://github.com/mike-bronner/phpcs-rules/issues/145)), mocking
+([#145](https://github.com/mike-bronner/clean-code/issues/145)), mocking
 first-party classes
-([#146](https://github.com/mike-bronner/phpcs-rules/issues/146)),
-test-absence ([#128](https://github.com/mike-bronner/phpcs-rules/issues/128)),
+([#146](https://github.com/mike-bronner/clean-code/issues/146)),
+test-absence ([#128](https://github.com/mike-bronner/clean-code/issues/128)),
 and the suite-boundary checks
-([#148](https://github.com/mike-bronner/phpcs-rules/issues/148),
-[#149](https://github.com/mike-bronner/phpcs-rules/issues/149),
-[#150](https://github.com/mike-bronner/phpcs-rules/issues/150)). In every one
+([#148](https://github.com/mike-bronner/clean-code/issues/148),
+[#149](https://github.com/mike-bronner/clean-code/issues/149),
+[#150](https://github.com/mike-bronner/clean-code/issues/150)). In every one
 of those, the flagged construct *is itself* the violation: a
 `setAccessible(true)` call in a test is wrong on sight, whatever the rest of
 the project looks like.

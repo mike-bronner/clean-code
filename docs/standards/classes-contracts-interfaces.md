@@ -37,7 +37,7 @@ No partial token-based enforcement is feasible either:
 
 No subset of the standard survives that, so no partial-enforcement sniff issue
 is opened and no rule is wired into `CleanCode/ruleset.xml`. The assessment is recorded on
-[#10](https://github.com/mike-bronner/phpcs-rules/issues/10).
+[#10](https://github.com/mike-bronner/clean-code/issues/10).
 
 ## What remains code review
 

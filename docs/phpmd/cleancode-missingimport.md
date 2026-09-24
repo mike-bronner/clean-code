@@ -35,7 +35,7 @@ _Source: [phpmd.org/rules/cleancode.html](https://phpmd.org/rules/cleancode.html
 Slevomat's
 [`SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly`](https://github.com/slevomat/coding-standard)
 covers this rule and is wired into the master `CleanCode/ruleset.xml`
-([#84](https://github.com/mike-bronner/phpcs-rules/issues/84)).
+([#84](https://github.com/mike-bronner/clean-code/issues/84)).
 
 - **Detection** — a fully qualified name used inline is flagged at its own line
   and column. In a file that declares a namespace the code is
@@ -138,7 +138,7 @@ ruleset enabling only `rulesets/cleancode.xml/MissingImport`, and
 ### Interaction with the Throwable rule
 
 `SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly`, wired in for
-[#63](https://github.com/mike-bronner/phpcs-rules/issues/63), rewrites
+[#63](https://github.com/mike-bronner/clean-code/issues/63), rewrites
 `catch (\Exception $e)` to the literal `\Throwable` — fully qualified, which
 this rule then asks to be imported. The two report on the same line.
 

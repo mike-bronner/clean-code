@@ -26,7 +26,7 @@ Methods](collections-only-use-collection-methods.md), enforced by
 `CleanCode.Collections.OnlyUseCollectionMethods`.
 
 That slice is the custom **`CleanCode.Arrays.ConvertToCollection`** sniff
-([#165](https://github.com/mike-bronner/phpcs-rules/issues/165)). No existing
+([#165](https://github.com/mike-bronner/clean-code/issues/165)). No existing
 PHPCS or Slevomat sniff expresses it: `Generic.PHP.ForbiddenFunctions` detects
 the same call shape but carries no notion of a replacement to name, and
 Slevomat's array rules speak about syntax (short arrays, trailing commas)
@@ -79,7 +79,7 @@ rather than about which API does the manipulating.
 
 ## The package's own source
 
-[#286](https://github.com/mike-bronner/phpcs-rules/issues/286) reviewed every
+[#286](https://github.com/mike-bronner/clean-code/issues/286) reviewed every
 warning this sniff raises against `CleanCode/` and `tests/` one site at a time:
 65 warnings in 37 files, 19 in the shipped sniffs and 46 in the test suite.
 Every one is a native call kept on purpose. The pinned set has since grown with
@@ -94,7 +94,7 @@ install. So `collect()` does not exist here to call — the plain-PHP context th
 warning severity exists for.
 
 Each site's own value was still read before it was left native, and
-[PR #312](https://github.com/mike-bronner/phpcs-rules/pull/312) records what
+[PR #312](https://github.com/mike-bronner/clean-code/pull/312) records what
 consumes it one site at a time for the 65 sites that existed when that review
 ran. 63 of those 65 are consumed by something a
 `Collection` does not satisfy: a strict `in_array()` haystack, an argument to

@@ -36,7 +36,7 @@ nearest candidates measure something else entirely:
 control flow, `SlevomatCodingStandard.Classes.ClassLength` counts lines, and
 `SlevomatCodingStandard.Complexity.Cognitive` scores one method at a time. So
 this rule is a custom sniff
-([#96](https://github.com/mike-bronner/phpcs-rules/issues/96)), registered
+([#96](https://github.com/mike-bronner/clean-code/issues/96)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads; running `phpcs`
 with it covers the rule and `phpmd` does not have to run separately for it.
 

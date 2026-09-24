@@ -36,10 +36,10 @@ well-known external standard
 [`sirbrillig/phpcs-variable-analysis`](https://github.com/sirbrillig/phpcs-variable-analysis)
 does, through the `UnusedVariable` code on its single
 `VariableAnalysis.CodeAnalysis.VariableAnalysis` sniff, wired into the master
-`CleanCode/ruleset.xml` ([#118](https://github.com/mike-bronner/phpcs-rules/issues/118)).
+`CleanCode/ruleset.xml` ([#118](https://github.com/mike-bronner/clean-code/issues/118)).
 
 That is the same sniff already wired for PHPMD's `UndefinedVariable`
-([#85](https://github.com/mike-bronner/phpcs-rules/issues/85),
+([#85](https://github.com/mike-bronner/clean-code/issues/85),
 [docs](cleancode-undefinedvariable.md)). Both rules share one `<rule>` block,
 because a sniff has a single set of properties and two blocks configuring the
 same class would silently fight over them.
@@ -72,7 +72,7 @@ quietly widening the rule.
 
 | Property | Set to | Why |
 |---|---|---|
-| `allowUnusedFunctionParameters` | `true` | PHPMD splits formal parameters into its own `UnusedFormalParameter` rule ([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)); `UnusedLocalVariable` drops them in `removeParameters()`. The sniff has one code for locals and parameters alike, so the parameter half is silenced here until #120 lands. |
+| `allowUnusedFunctionParameters` | `true` | PHPMD splits formal parameters into its own `UnusedFormalParameter` rule ([#120](https://github.com/mike-bronner/clean-code/issues/120)); `UnusedLocalVariable` drops them in `removeParameters()`. The sniff has one code for locals and parameters alike, so the parameter half is silenced here until #120 lands. |
 | `allowUnusedForeachVariables` | `false` | Matches PHPMD's own default for `allow-unused-foreach-variables`. The sniff's default is the opposite, hence the explicit set. |
 | `allowUnusedVariablesInFileScope` | `true` | PHPMD's rule is `FunctionAware` and `MethodAware` only, so it never looks at a file's top-level scope. The sniff does by default. |
 
@@ -159,12 +159,12 @@ only as a tokenizer round-trip check.
 
 Distinct, and no consolidation is needed. This rule's scope is a **local
 variable inside a function or method** that is assigned and never read.
-[#29](https://github.com/mike-bronner/phpcs-rules/issues/29) covers unused
+[#29](https://github.com/mike-bronner/clean-code/issues/29) covers unused
 *declarations* — imports, private class members, and parameters — which are
 different artifacts reported by different sniffs. The one shape that could have
 been claimed by both, an unused formal parameter, is excluded here on purpose:
 it belongs to PHPMD's own separate `UnusedFormalParameter` rule
-([#120](https://github.com/mike-bronner/phpcs-rules/issues/120)).
+([#120](https://github.com/mike-bronner/clean-code/issues/120)).
 
 ## What remains code review
 

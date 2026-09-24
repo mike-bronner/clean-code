@@ -20,7 +20,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 Part of this standard is enforced by the custom
 `CleanCode.Routes.ApiControllerNamespace` sniff, wired into the master
 `CleanCode/ruleset.xml` via the CleanCode standard
-([#66](https://github.com/mike-bronner/phpcs-rules/issues/66)). The rest stays
+([#66](https://github.com/mike-bronner/clean-code/issues/66)). The rest stays
 with code review — see [What remains code review](#what-remains-code-review).
 
 ### Why a custom sniff

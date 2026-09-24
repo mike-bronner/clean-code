@@ -34,7 +34,7 @@ One narrow, token-visible slice was found and is now enforced: **self-declared
 debt markers**. A `TODO` / `FIXME` / `HACK` / `XXX` comment is a developer's
 explicit acknowledgement of debt left unaddressed — recognition of debt, in
 token form, readable by single-file analysis. It landed with
-[#138](https://github.com/mike-bronner/phpcs-rules/issues/138).
+[#138](https://github.com/mike-bronner/clean-code/issues/138).
 
 Three sniffs carry it, split by what PHPCS core already ships:
 

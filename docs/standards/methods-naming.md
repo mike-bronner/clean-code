@@ -27,17 +27,17 @@ One narrow slice **is** token-visible — the command–query separation rule
 with a known action-verb prefix, since declared return types are token-level
 facts. That slice is implemented by the custom
 `CleanCode.Naming.ActionMethodReturn` sniff
-([#172](https://github.com/mike-bronner/phpcs-rules/issues/172)); see
+([#172](https://github.com/mike-bronner/clean-code/issues/172)); see
 [The command–query slice](#the-commandquery-slice) below.
 
 Adjacent slices are already tracked elsewhere and are **not** duplicated
 here:
 
 - Boolean accessor naming (`getX(): bool` → `isX()`/`hasX()`) —
-  [#116](https://github.com/mike-bronner/phpcs-rules/issues/116)
+  [#116](https://github.com/mike-bronner/clean-code/issues/116)
   (PHPMD `BooleanGetMethodName`).
 - Model query-method prefixes (`find*`/`get*`) and attribute naming —
-  [#44](https://github.com/mike-bronner/phpcs-rules/issues/44)
+  [#44](https://github.com/mike-bronner/clean-code/issues/44)
   (Models: Naming Conventions).
 
 ## The command–query slice
@@ -51,8 +51,8 @@ read from tokens:
   `settle()` and `addressOf()` do not — a lower-case continuation means the verb
   was never a word of its own. The match is case-sensitive, because a method
   named `SetName()` is a *casing* violation owned by
-  [#22](https://github.com/mike-bronner/phpcs-rules/issues/22) /
-  [#100](https://github.com/mike-bronner/phpcs-rules/issues/100).
+  [#22](https://github.com/mike-bronner/clean-code/issues/22) /
+  [#100](https://github.com/mike-bronner/clean-code/issues/100).
 - **It hands a value back** when it declares a return type other than `void` or
   `never`, or — lacking a declared type — its own body holds a `return` with an
   expression after it. A bare `return;` is flow control, not a value, and a

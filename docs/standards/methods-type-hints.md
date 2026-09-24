@@ -72,7 +72,7 @@ The Slevomat sniffs register on every `T_FUNCTION`, so this standard covers
 an unhinted parameter or a missing return type is flagged the same as a
 method. This is the deliberate scope for #70: it owns parameter and return
 type hints for every callable. The general Type Hints standard
-([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)) keeps the
+([#45](https://github.com/mike-bronner/clean-code/issues/45)) keeps the
 non-overlapping remainder — `PropertyTypeHint` and docblock hygiene.
 
 ### Configuration decisions
@@ -93,7 +93,7 @@ non-overlapping remainder — `PropertyTypeHint` and docblock hygiene.
   narrowing a declared `: void` to `: never` on the strength of a
   `@return never` annotation. Docblock and property coverage belongs to the
   general Type Hints standard
-  ([#45](https://github.com/mike-bronner/phpcs-rules/issues/45)).
+  ([#45](https://github.com/mike-bronner/clean-code/issues/45)).
 
 ### Edge-case behaviour
 

@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (custom sniff)
 
 Enforced by the auto-fixable **`CleanCode.Conditionals.OneConditionPerLine`**
-sniff ([#17](https://github.com/mike-bronner/phpcs-rules/issues/17)), covering
+sniff ([#17](https://github.com/mike-bronner/clean-code/issues/17)), covering
 `if`, `elseif`, `while`, `for`, and `do-while`:
 
 - **Single condition** — a condition with no top-level boolean operator
@@ -32,7 +32,7 @@ sniff ([#17](https://github.com/mike-bronner/phpcs-rules/issues/17)), covering
   arguments, array literals) are part of a single condition, not separate
   conditions. Ternary expressions are out of scope — they belong to the
   ternary-conditionals standard
-  ([#20](https://github.com/mike-bronner/phpcs-rules/issues/20)).
+  ([#20](https://github.com/mike-bronner/clean-code/issues/20)).
 - **Auto-fixer** — `phpcbf` joins an unnecessarily split single condition,
   splits a collapsed multi-condition, and moves trailing operators to lead
   the next line. The one exception: a split single condition containing a

@@ -53,7 +53,7 @@ closes any of them:
 
 So the rule is the custom `CleanCode.Functions.ExcessiveMethodLength` sniff,
 registered automatically from `CleanCode/Sniffs/` when the standard loads
-([#91](https://github.com/mike-bronner/phpcs-rules/issues/91)). Running `phpcs`
+([#91](https://github.com/mike-bronner/clean-code/issues/91)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
 have to run separately for it.
 

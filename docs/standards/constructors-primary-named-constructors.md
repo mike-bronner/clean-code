@@ -22,7 +22,7 @@ constructor, stay with code review. But both trigger patterns that violate
 the standard **are statically lintable**, and each is tracked in a focused
 sniff issue.
 
-### Slice 1 — named-constructor delegation check ([#184](https://github.com/mike-bronner/phpcs-rules/issues/184))
+### Slice 1 — named-constructor delegation check ([#184](https://github.com/mike-bronner/clean-code/issues/184))
 
 **Enforced** by the custom `CleanCode.Constructors.PrimaryConstructorDelegation`
 sniff, which reports the single code `Missing`.
@@ -89,7 +89,7 @@ than staying silent:
 not count either — `self` there names the anonymous class. Closures and arrow
 functions keep the enclosing class binding, so those are walked into.
 
-### Slice 2 — combined-constructor detection ([#193](https://github.com/mike-bronner/phpcs-rules/issues/193))
+### Slice 2 — combined-constructor detection ([#193](https://github.com/mike-bronner/clean-code/issues/193))
 
 Implemented by `CleanCode.Constructors.DisallowCombinedConstructor`.
 
@@ -220,6 +220,6 @@ constructors where multiple construction scenarios exist, whether a named
 constructor quietly duplicates initialization logic after delegating, and
 whether cross-file construction paths (builders, factories, DI container
 definitions) respect the single primary constructor. The sniffs in
-[#184](https://github.com/mike-bronner/phpcs-rules/issues/184) and
-[#193](https://github.com/mike-bronner/phpcs-rules/issues/193) catch the
+[#184](https://github.com/mike-bronner/clean-code/issues/184) and
+[#193](https://github.com/mike-bronner/clean-code/issues/193) catch the
 mechanical violation shapes; the design judgement stays with review.

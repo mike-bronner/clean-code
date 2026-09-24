@@ -66,7 +66,7 @@ in for the casing conventions, judges casing and underscores;
 `VariableAnalysis.CodeAnalysis.VariableAnalysis` judges whether a variable is
 defined and used; and `slevomat/coding-standard` ships no name-length rule at
 all. So this is a custom sniff
-([#106](https://github.com/mike-bronner/phpcs-rules/issues/106)), registered
+([#106](https://github.com/mike-bronner/clean-code/issues/106)), registered
 automatically from `CleanCode/Sniffs/` when the standard loads. Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.

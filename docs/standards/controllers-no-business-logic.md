@@ -38,7 +38,7 @@ other two are not.
 
 - **Non-RESTful public method names — enforced by
   `CleanCode.Controllers.NoCustomActions`
-  ([#141](https://github.com/mike-bronner/phpcs-rules/issues/141)).** The
+  ([#141](https://github.com/mike-bronner/clean-code/issues/141)).** The
   "RESTful or invokable; no custom actions" rule maps onto data a sniff really
   has: a class name ending in `Controller`, plus the name and visibility of
   each method, are all plain single-file tokens. It is convention-dependent and

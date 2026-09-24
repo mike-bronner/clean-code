@@ -11,7 +11,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 1 (existing sniff)
 
 Enforced by `Generic.ControlStructures.InlineControlStructure` — no custom
-sniff needed ([#9](https://github.com/mike-bronner/phpcs-rules/issues/9)). The
+sniff needed ([#9](https://github.com/mike-bronner/clean-code/issues/9)). The
 `PSR12` standard in the master ruleset (`CleanCode/ruleset.xml`) already bundles this sniff,
 so it is active as part of the industry baseline. `CleanCode/ruleset.xml` also references it
 by name as intentional belt-and-suspenders (per CONTRIBUTING step 3, standards

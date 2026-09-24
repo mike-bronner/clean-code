@@ -14,7 +14,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 2 (partial: warning-level sniff + one auto-fix)
 
 The standard is enforced in two halves, both wired into the master `CleanCode/ruleset.xml`
-([#12](https://github.com/mike-bronner/phpcs-rules/issues/12)):
+([#12](https://github.com/mike-bronner/clean-code/issues/12)):
 
 | Half | Rule | Severity | Fixable |
 |---|---|---|---|
@@ -122,10 +122,10 @@ This standard is the umbrella discipline; the complexity-metric slice it
 anticipates ("not statically enforceable beyond a complexity-metric warning")
 is tracked separately:
 
-- [#88 — PHPMD/CodeSize: CyclomaticComplexity](https://github.com/mike-bronner/phpcs-rules/issues/88)
-- [#89 — PHPMD/CodeSize: NPathComplexity](https://github.com/mike-bronner/phpcs-rules/issues/89)
-- [#87 — PHPMD/CodeSize: ExcessiveClassComplexity](https://github.com/mike-bronner/phpcs-rules/issues/87)
-- [#36 — Indentation: Methods (max 2 nesting levels)](https://github.com/mike-bronner/phpcs-rules/issues/36)
+- [#88 — PHPMD/CodeSize: CyclomaticComplexity](https://github.com/mike-bronner/clean-code/issues/88)
+- [#89 — PHPMD/CodeSize: NPathComplexity](https://github.com/mike-bronner/clean-code/issues/89)
+- [#87 — PHPMD/CodeSize: ExcessiveClassComplexity](https://github.com/mike-bronner/clean-code/issues/87)
+- [#36 — Indentation: Methods (max 2 nesting levels)](https://github.com/mike-bronner/clean-code/issues/36)
 
 Specific *shapes* of avoidable conditionals are likewise catalogued and
 enforced as their own standards — no `else`/`elseif`, mapping arrays over

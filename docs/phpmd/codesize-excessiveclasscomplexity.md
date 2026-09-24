@@ -61,7 +61,7 @@ Run against this rule's own fixtures, the difference is not a matter of degree:
 
 So the rule is the custom `CleanCode.Metrics.ExcessiveClassComplexity` sniff,
 registered automatically from `CleanCode/Sniffs/` when the standard loads
-([#87](https://github.com/mike-bronner/phpcs-rules/issues/87)). Running `phpcs`
+([#87](https://github.com/mike-bronner/clean-code/issues/87)). Running `phpcs`
 with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not
 have to run separately for it.
 

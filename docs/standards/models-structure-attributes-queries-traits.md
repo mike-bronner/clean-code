@@ -26,7 +26,7 @@ One narrow slice **is** token-visible: Laravel's attribute and scope methods
 follow strict naming/typing conventions, so a sniff can flag them when they
 are declared directly in a class body instead of a trait. Sniff:
 `CleanCode.Models.ModelMagicMethodLocation`
-([#192](https://github.com/mike-bronner/phpcs-rules/issues/192)).
+([#192](https://github.com/mike-bronner/clean-code/issues/192)).
 
 - **Legacy accessors/mutators** — a `get<Name>Attribute()` /
   `set<Name>Attribute()` method name.

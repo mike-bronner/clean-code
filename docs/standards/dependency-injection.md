@@ -28,7 +28,7 @@ One same-file slice **is** token-visible, and is enforced:
 `CleanCode.Classes.DisallowConstructorInstantiation`, registered automatically
 from `CleanCode/Sniffs/` when the standard loads. The scoping of the
 slice is recorded on
-[#176](https://github.com/mike-bronner/phpcs-rules/issues/176).
+[#176](https://github.com/mike-bronner/clean-code/issues/176).
 
 ### Detection — one warning per `new` in a constructor body
 
@@ -79,7 +79,7 @@ requires it be assigned or returned rather than used bare,
 [Slevomat's `ControlStructures.NewWithParentheses` / `NewWithoutParentheses`](https://github.com/slevomat/coding-standard/blob/master/doc/control-structures.md)
 prescribe the parentheses, and Slevomat's constructor sniffs
 (`Classes.RequireConstructorPropertyPromotion`, already wired in for
-[#47](https://github.com/mike-bronner/phpcs-rules/issues/47)) speak about
+[#47](https://github.com/mike-bronner/clean-code/issues/47)) speak about
 promotion. None expresses "not inside a constructor body", so this half is a
 custom sniff.
 

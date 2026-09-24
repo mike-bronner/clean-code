@@ -34,7 +34,7 @@ present (`KeySpecified`, `NoKeySpecified`) and how keys, arrows, and commas are
 spaced and aligned — never about two keys naming the same slot. So the rule is
 the custom `CleanCode.Arrays.DuplicatedArrayKey` sniff, registered
 automatically from `CleanCode/Sniffs/` when the standard loads
-([#81](https://github.com/mike-bronner/phpcs-rules/issues/81)).
+([#81](https://github.com/mike-bronner/clean-code/issues/81)).
 
 - **Detection** — each duplicate is reported at the *later*, overriding key,
   and the message names the line of the declaration it overrides. A key written

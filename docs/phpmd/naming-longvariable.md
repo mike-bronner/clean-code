@@ -33,7 +33,7 @@ leading-underscore convention instead, and Slevomat's `Variables` sniffs
 (`UnusedVariable`, `UselessVariable`) are about how a variable is used rather
 than what it is called. So this rule is carried by a custom sniff, wired into
 the master `CleanCode/ruleset.xml`
-([#108](https://github.com/mike-bronner/phpcs-rules/issues/108)). Running
+([#108](https://github.com/mike-bronner/clean-code/issues/108)). Running
 `phpcs` with `CleanCode/ruleset.xml` therefore covers this rule, and `phpmd` does not have
 to run separately for it.
 

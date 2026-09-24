@@ -43,13 +43,13 @@ Two narrow slices **are** catchable by a sniff, and each got a focused issue
 rather than a sniff built under this documentation-only standard:
 
 - **Class with no corresponding test file** —
-  [#128](https://github.com/mike-bronner/phpcs-rules/issues/128), **now
+  [#128](https://github.com/mike-bronner/clean-code/issues/128), **now
   enforced** by the custom sniff `CleanCode.Testing.RequireTestFile`. A sniff on
   class declarations under the source directory can check that a companion
   `*Test.php` exists. This catches test *absence* (a visible end-state
   violation), though never test-first *order*. It is described below.
 - **Procedural code in source files** —
-  [#129](https://github.com/mike-bronner/phpcs-rules/issues/129), **now
+  [#129](https://github.com/mike-bronner/clean-code/issues/129), **now
   enforced** by the custom sniff `CleanCode.Files.NoProceduralCode`. The
   "only implement classes, never procedural code" bullet is directly
   token-visible, and is described below.
@@ -80,7 +80,7 @@ rather than a sniff built under this documentation-only standard:
   elsewhere adds its own `<include-pattern>` for that path. A file that
   declares nothing *and* executes nothing — an empty file, a comment-only
   placeholder — holds no procedural code to point at and is left alone; the
-  absence of a class is what [#128](https://github.com/mike-bronner/phpcs-rules/issues/128)
+  absence of a class is what [#128](https://github.com/mike-bronner/clean-code/issues/128)
   is about, not this slice. A closing tag is left to
   `PSR12.Files.ClosingTag`, which owns it; only the markup after one is
   reported.
