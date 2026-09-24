@@ -126,40 +126,10 @@ const CHAINED_REFUSED_PRECEDERS = [
     'T_LABEL', 'T_ZSR', 'T_REGULAR_EXPRESSION', 'T_EMBEDDED_PHP',
 ];
 
-/**
- * Classified names whose token PHP itself only added in a later version than
- * this package's floor, mapped to the PHP_VERSION_ID that added it.
- *
- * The catalogue test closes the enumeration in both directions, and the second
- * direction — no classified name PHP_CodeSniffer does not define — reads
- * differently on an older interpreter. A refusal recorded for a token PHP has
- * not added yet names nothing there, so it is not a stale entry to be removed;
- * it is an entry the running interpreter cannot see. Without this map the test
- * is red on every PHP below 8.4, which is inside the `^8.1` composer.json
- * declares.
- *
- * `T_PROPERTY_C` is the only such name, and that is measured over the whole
- * supported range rather than assumed from the one failure. Every `T_*`
- * constant a sniff can see was enumerated on php:8.1-cli 8.1.34, php:8.2-cli
- * 8.2.33, php:8.3-cli 8.3.33, php:8.4-cli 8.4.24 and php:8.5-cli 8.5.9, using
- * the command CleanCode/Support/BackportedTokens.php records, against
- * PHP_CodeSniffer 3.13.6. PHP 8.1, 8.2 and 8.3 each answer the same 236 names.
- * PHP 8.4 answers 237, the one addition being `T_PROPERTY_C` — the
- * `__PROPERTY__` magic constant, which PHP_CodeSniffer does not back-port,
- * unlike the `T_PUBLIC_SET` family PHP 8.4 adds beside it. PHP 8.5 answers 239,
- * adding `T_PIPE` and `T_VOID_CAST`. Nothing is removed between any two.
- *
- * The 8.5 pair is deliberately absent from this map: the sniff admits both, so
- * CleanCode/Support/BackportedTokens.php defines them on every version and they
- * are in the catalogue wherever this test runs. Only a refused name — a string
- * that nothing defines — can go missing.
- *
- * A gate only ever subtracts, and only below its own version. On PHP 8.4 and up
- * nothing here is filtered, so a typo or a stale name in either list still
- * reddens the test on the interpreter CI pins and on the newest one.
- */
 const CHAINED_TOKENS_ADDED_IN = [
     'T_PROPERTY_C' => 80400,
+    'T_VOID_CAST' => 80500,
+    'T_PIPE' => 80500,
 ];
 
 // Fixtures are copied outside the repository before processing, because PHPCS
@@ -169,6 +139,17 @@ $stagedRun = static fn (string $fixture) => analyzeWithSniffs(
     [CHAINED],
     stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', $fixture))
 );
+
+// The names the sniff admits by itself, read out of its source: the constants
+// in GROUP_PRECEDERS and the type names in GROUP_PRECEDER_TYPES.
+$namedPreceders = static fn (): array => array_merge(...array_map(
+    static fn (string $constant): array => tokenNamesInConstant(
+        cleanCodeRoot() . '/CleanCode/Sniffs/Models/DisallowChainedPropertyFetchSniff.php',
+        $constant,
+        [CHAINED]
+    ),
+    ['GROUP_PRECEDERS', 'GROUP_PRECEDER_TYPES']
+));
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -363,8 +344,8 @@ it('names the first completing pair and the accessor remedy', function () use ($
  * group-preceders.php therefore carries one chain per admitted token, and this
  * asserts every one of them is reported. It is the coverage half of the pair:
  * the file exists so that no member of the set can be removed — or fail to be
- * added — without a line here going quiet. The sniff lists 35 tokens; the 33
- * that every supported PHP tokenizes have a line here, one apiece, as does each
+ * added — without a line here going quiet. The sniff lists 35 tokens across
+ * its two constants; the 33 that every supported PHP tokenizes have a line here, one apiece, as does each
  * of the five PHP_CodeSniffer unions it defers to. Each was checked the same
  * way: deleting it silences its own line and no other, so no line is carried by
  * a neighbour and no member is dead weight. `=>` was the one that was:
@@ -387,22 +368,6 @@ it('reports a chain behind every admitted grouping-parenthesis preceder', functi
         ->toBe(array_fill_keys(CHAINED_PRECEDER_LINES, [CHAINED_ERROR]));
 });
 
-/**
- * The same sweep for the two preceders PHP 8.5 adds, in a fixture of its own
- * because `(void)` and `|>` are parse errors before 8.5 — putting them in
- * group-preceders.php would change how that file tokenises on every older
- * version, and this package supports PHP 8.1 upward.
- *
- * Which is also why this skips rather than adapts below 8.5: the tokens cannot
- * occur there, so there is no weaker assertion to fall back to. The catalogue
- * test below is what covers those versions — it runs everywhere and fails if
- * either token is left unclassified — and CI pins PHP 8.4, so the run that
- * proves these two lines is a local one, recorded in the pull request.
- *
- * Non-vacuous by mutation rather than by reading: deleting T_VOID_CAST from
- * GROUP_PRECEDERS silences line 14 and nothing else, deleting T_PIPE silences
- * line 18 and nothing else, and deleting both empties the report.
- */
 it('reports a chain behind the grouping-parenthesis preceders PHP 8.5 adds', function () use ($stagedRun): void {
     $file = $stagedRun('group-preceders-php85.php');
 
@@ -420,20 +385,20 @@ it('reports a chain behind the grouping-parenthesis preceders PHP 8.5 adds', fun
  *
  * So the enumeration is closed against PHP_CodeSniffer's own catalogue rather
  * than against judgement: every T_* token it defines, whether from PHP's
- * tokenizer or its own, is either admitted (the list in the sniff, plus the
- * five unions it defers to) or refused with its reason recorded in
+ * tokenizer or its own, is either admitted (the two lists in the sniff, plus
+ * the five unions it defers to) or refused with its reason recorded in
  * CHAINED_REFUSED_PRECEDERS. A token in neither is unclassified, and that is
  * what fails here — including a token a future PHP_CodeSniffer adds, which is
  * precisely the case no fixture can anticipate.
  *
  * The admitted half is read out of the sniff's own source rather than restated,
- * so the two cannot drift apart: a member deleted from the constant leaves its
+ * so the two cannot drift apart: a member deleted from either constant leaves its
  * token in neither list and reddens this test as an unclassified one. Read by
  * tokenizing the file with PHP_CodeSniffer, because this package forbids
  * Reflection in its own tests (CleanCode.Testing.NoReflectionAccess) and a test
  * that broke the standard it ships would be an odd thing to ship.
  */
-it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
+it('classifies every token in PHP_CodeSniffer\'s catalogue', function () use ($namedPreceders): void {
     $catalogue = [];
 
     foreach (['tokenizer', 'user'] as $group) {
@@ -454,11 +419,7 @@ it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
         + \PHP_CodeSniffer\Util\Tokens::$castTokens;
 
     $admitted = array_merge(
-        tokenNamesInConstant(
-            cleanCodeRoot() . '/CleanCode/Sniffs/Models/DisallowChainedPropertyFetchSniff.php',
-            'GROUP_PRECEDERS',
-            [CHAINED]
-        ),
+        $namedPreceders(),
         array_keys(array_filter($catalogue, static fn ($code): bool => isset($unions[$code]) === true))
     );
 
@@ -486,30 +447,15 @@ it('classifies every token in PHP_CodeSniffer\'s catalogue', function (): void {
         ->and($classified)->toBe($expected);
 });
 
-/**
- * The gate the catalogue test reads is held to the interpreter it claims to
- * describe, so it cannot quietly widen into an excuse.
- *
- * Each entry says two things: PHP defines the name from the stated version, and
- * PHP does not define it before. Both are asserted here against the running
- * interpreter, whichever one that is, so the pair of runs CI and a developer's
- * 8.5 checkout make between them puts each entry to the test from both sides. A
- * name that no PHP ever defines — a typo, or one PHP_CodeSniffer back-ports
- * after all — reddens this on the version that was supposed to have it, rather
- * than being filtered out of the catalogue test in silence on every version.
- *
- * Membership in the refused list is asserted for the same reason: the gate
- * subtracts from what the catalogue test classifies, and subtracting a name
- * that was never classified would be filtering nothing while looking like
- * coverage.
- */
-it('gates a token name only for the PHP versions that predate it', function (): void {
+it('gates a token name only for the PHP versions that predate it', function () use ($namedPreceders): void {
     expect(CHAINED_TOKENS_ADDED_IN)->not->toBe([]);
+
+    $classified = array_merge($namedPreceders(), CHAINED_REFUSED_PRECEDERS);
 
     foreach (CHAINED_TOKENS_ADDED_IN as $name => $addedIn) {
         expect(defined($name))
             ->toBe(PHP_VERSION_ID >= $addedIn, $name . ' is defined from PHP ' . $addedIn . ' onward')
-            ->and(CHAINED_REFUSED_PRECEDERS)->toContain($name);
+            ->and($classified)->toContain($name);
     }
 });
 

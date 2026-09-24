@@ -1239,13 +1239,12 @@ function stageThrowawayPhpcsInstall(): string
     }
 
     // PHPCS looks two directories above its own for a Composer autoloader, and
-    // needs to find one: the CleanCode sniffs are PSR-4 classes, and
-    // CleanCode/Support/BackportedTokens.php is a Composer `files` entry that
-    // no other loader reads. A shim returning the real ClassLoader satisfies
-    // the `instanceof ClassLoader` check in the package's own autoload.php
-    // without a symlink into the real install. Teardown is no longer a reason
-    // to avoid one: removeStagedDirectory() unlinks a symlink rather than
-    // descending through it since #380.
+    // needs to find one: the CleanCode sniffs and their helpers are PSR-4
+    // classes that no other loader reads. A shim returning the real
+    // ClassLoader satisfies the `instanceof ClassLoader` check in the
+    // package's own autoload.php without a symlink into the real install.
+    // Teardown is no longer a reason to avoid one: removeStagedDirectory()
+    // unlinks a symlink rather than descending through it since #380.
     file_put_contents(
         $vendor . '/autoload.php',
         '<?php' . "\n\n" . 'return require ' . var_export(cleanCodeRoot() . '/vendor/autoload.php', true) . ';' . "\n"
@@ -1798,8 +1797,11 @@ function squizNonOperandTokens(): array
  * tokenizes the file and the names are read off the tokens.
  *
  * Every T_* name between the constant's own name and the semicolon ending its
- * declaration. A constant that cannot be found yields an empty list, so a
- * caller asserting completeness reddens rather than passing on nothing.
+ * declaration, whether written as a constant or as a quoted string — a sniff
+ * lists a token PHP only defines on newer versions by its type name, because
+ * the constant does not exist below them. A constant that cannot be found
+ * yields an empty list, so a caller asserting completeness reddens rather than
+ * passing on nothing.
  *
  * @param array<int, string> $sniffCodes
  *
@@ -1828,6 +1830,12 @@ function tokenNamesInConstant(string $path, string $constant, array $sniffCodes)
 
         if ($token['code'] === T_STRING && str_starts_with($token['content'], 'T_') === true) {
             $names[] = $token['content'];
+        }
+
+        $quoted = trim($token['content'], '\'"');
+
+        if ($token['code'] === T_CONSTANT_ENCAPSED_STRING && str_starts_with($quoted, 'T_') === true) {
+            $names[] = $quoted;
         }
     }
 
@@ -1889,47 +1897,6 @@ function analyzeFileset(array $sniffCodes, string $directory): array
     ksort($files);
 
     return $files;
-}
-
-/**
- * Loads the shim twice in a fresh interpreter and reports what it saw.
- *
- * Diagnostics are collected rather than displayed: PHP writes a warning to
- * stdout under the CLI's default display_errors, where it would land in the
- * middle of the JSON this reads back.
- *
- * @return array{diagnostics: array<int, string>, first: array<string, mixed>, second: array<string, mixed>}
- */
-function backportedTokensDoubleLoad(): array
-{
-    $shim = var_export(cleanCodeRoot() . '/CleanCode/Support/BackportedTokens.php', true);
-    $script = <<<PHP
-    \$diagnostics = [];
-    set_error_handler(static function (int \$number, string \$message) use (&\$diagnostics): bool {
-        \$diagnostics[] = \$message;
-
-        return true;
-    });
-    require {$shim};
-    \$first = ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE];
-    require {$shim};
-    echo json_encode([
-        'diagnostics' => \$diagnostics,
-        'first' => \$first,
-        'second' => ['T_VOID_CAST' => T_VOID_CAST, 'T_PIPE' => T_PIPE],
-    ]);
-    PHP;
-
-    [$stdout, $stderr] = runOutsidePackage(
-        implode(' ', array_map('escapeshellarg', [PHP_BINARY, '-d', 'error_reporting=-1', '-r', $script]))
-    );
-    $decoded = json_decode($stdout, true);
-
-    if (is_array($decoded) === false) {
-        throw new RuntimeException("the shim subprocess produced no JSON; stdout: {$stdout} stderr: {$stderr}");
-    }
-
-    return $decoded;
 }
 
 /**

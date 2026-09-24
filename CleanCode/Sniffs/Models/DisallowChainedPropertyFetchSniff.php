@@ -60,12 +60,21 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
         // Concatenation, the one binary operator absent from those unions.
         T_STRING_CONCAT,
+    ];
 
-        // PHP 8.5's two new tokens. PHP_CodeSniffer 3.13.6 predates both, so
-        // neither reaches the unions above however well it fits one of them —
+    private const GROUP_PRECEDER_TYPES = [
+        // PHP 8.5's two new tokens, matched by type name rather than by code.
+        // Below 8.5 PHP defines neither constant, so naming one in
+        // GROUP_PRECEDERS would fail at class load, and this package defines
+        // no token constant of its own: Composer loads a package's `files`
+        // into every consumer process, where a string-valued T_PIPE breaks
+        // nikic/php-parser. Nothing is lost below 8.5, because PHP_CodeSniffer
+        // 3.13.6 never emits either type there.
+        //
+        // PHP_CodeSniffer 3.13.6 predates both, so neither reaches the unions
+        // GROUP_PRECEDERS defers to however well it fits one of them —
         // Tokens::$castTokens has no T_VOID_CAST and Tokens::$operators no
-        // T_PIPE. CleanCode/Support/BackportedTokens.php records how the pair
-        // was measured; each is admitted on its own evidence:
+        // T_PIPE. Each is admitted on its own evidence:
         //
         // - `(void)` is a cast, and a cast takes an expression, so a
         //   parenthesis after one opens a group.
@@ -78,8 +87,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         //   passes `php -l` on PHP 8.5 and tokenises T_PIPE,
         //   T_OPEN_PARENTHESIS, T_VARIABLE, so the parenthesis groups exactly
         //   as it does after `.` above.
-        T_VOID_CAST,
-        T_PIPE,
+        'T_VOID_CAST',
+        'T_PIPE',
     ];
 
     private ?string $rootsKey = null;
@@ -430,6 +439,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         $code = $tokens[$beforeOpenerPtr]['code'];
 
         return in_array($code, self::GROUP_PRECEDERS, true)
+            || in_array($tokens[$beforeOpenerPtr]['type'], self::GROUP_PRECEDER_TYPES, true)
             || isset(Tokens::$assignmentTokens[$code]) === true
             || isset(Tokens::$operators[$code]) === true
             || isset(Tokens::$comparisonTokens[$code]) === true
