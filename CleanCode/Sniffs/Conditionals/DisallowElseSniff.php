@@ -28,9 +28,6 @@ class DisallowElseSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        // The `!== false` honours findNext()'s int|false contract. It is not a
-        // behavioural branch and carries no fixture: reaching it would need a
-        // file whose very last token is `else`, which is not parseable PHP.
         $isElseIf = $tokens[$stackPtr]['code'] === T_ELSEIF
             || ($next !== false && $tokens[$next]['code'] === T_IF);
 
@@ -232,8 +229,6 @@ class DisallowElseSniff implements Sniff
                 return false;
             }
 
-            // A chain head, unless this `if` is the second word of an
-            // `else if` — in which case the walk carries on from the `else`.
             $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($condition - 1), null, true);
 
             if (
@@ -288,13 +283,6 @@ class DisallowElseSniff implements Sniff
             ->addContent($previousCloser, "\n{$indent}");
 
         if ($tokens[$stackPtr]['code'] === T_ELSEIF) {
-            // The keyword is the six letters of `elseif` — PHP allows no
-            // whitespace inside it, that shape is the two-word form below — so
-            // its last two characters are the `if` the rewrite keeps. Taking
-            // them from the source rather than writing the literal `if` is
-            // what keeps `ELSEIF` from coming back as lowercase. The two-word
-            // form needs no equivalent: it deletes only the `else`, leaving
-            // the original `if` token untouched.
             $phpcsFile->fixer
                 ->replaceToken($stackPtr, substr($tokens[$stackPtr]['content'], -2));
         }
@@ -344,12 +332,6 @@ class DisallowElseSniff implements Sniff
 
             $indent = $tokens[$ptr]['content'];
 
-            // A failed read cast to a string is '', which would delete the
-            // line's whole indentation instead of one level of it and leave
-            // the fixed file misindented. `/^    /` is four literal spaces
-            // anchored at the start — no quantifier to backtrack over, no
-            // recursion, no `/u` — so nothing is known to reach this fallback;
-            // it keeps the line as written if anything ever does.
             $phpcsFile->fixer
                 ->replaceToken($ptr, preg_replace('/^    /', '', $indent) ?? $indent);
         }

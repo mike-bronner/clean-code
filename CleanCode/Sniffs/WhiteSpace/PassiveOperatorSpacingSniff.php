@@ -30,25 +30,15 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         if ($code === T_ASPERAND) {
-            // No guard: `@` fuses with nothing. A sign operand (`@ -$a` →
-            // `@-$a`) used to oscillate against the ruleset's binary-operator
-            // spacing sniff, which re-spaced the `-`; that sniff is now
-            // CleanCode.Operators.BinaryOperatorSpacing, which cedes a sign
-            // directly after `@`, so the fix is stable.
             $this->reportSpaceAfter($phpcsFile, $stackPtr, 'ErrorControl', '@', []);
 
             return;
         }
 
-        // T_PLUS / T_MINUS are only passive operators when used as a unary sign.
         if ($this->isUnarySign($phpcsFile, $stackPtr) === false) {
             return;
         }
 
-        // The guard suppresses a fix only when closing the gap would fuse the
-        // sign into a same-direction increment/decrement (`- -$a` → `--$a`,
-        // `+ +$a` → `++$a`) and change meaning. A cross-direction pair
-        // (`- ++$a` → `-++$a`, `+ --$a` → `+--$a`) does not fuse and is fixed.
         [$errorCode, $symbol, $guardTokens] = $code === T_PLUS
             ? ['Identity', '+', [T_PLUS, T_INC]]
             : ['Negation', '-', [T_MINUS, T_DEC]];
@@ -120,7 +110,6 @@ class PassiveOperatorSpacingSniff implements Sniff
             return;
         }
 
-        // Whitespace spanning a line break is a wrapping concern, out of scope.
         if (strpos($tokens[$next]['content'], "\n") !== false) {
             return;
         }
@@ -180,8 +169,6 @@ class PassiveOperatorSpacingSniff implements Sniff
             return;
         }
 
-        // A single content token is bounded by both backticks, so both edges
-        // must be trimmed in one replacement to avoid conflicting fixes.
         if ($first === $last) {
             $this->trimBacktickContent($phpcsFile, $openPtr, $first, '/^[ \t]+|[ \t]+$/');
 
@@ -202,14 +189,6 @@ class PassiveOperatorSpacingSniff implements Sniff
 
         $content = $tokens[$contentPtr]['content'];
 
-        // A failed read is null, and `null === $content` is false, so the
-        // failure would fall past the guard below and hand null to the fixer as
-        // the replacement text. The content itself is the honest fallback: it
-        // reads as "nothing to trim", which leaves the file as written and the
-        // violation unreported rather than emptying the backticks. The three
-        // patterns this is called with — `/^[ \t]+|[ \t]+$/`, `/^[ \t]+/` and
-        // `/[ \t]+$/` — each quantify one character class against an anchor,
-        // and none carries a `/u` modifier.
         $trimmed = preg_replace($pattern, '', $content) ?? $content;
 
         if ($trimmed === $content) {

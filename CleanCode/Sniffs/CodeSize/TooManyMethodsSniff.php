@@ -37,8 +37,6 @@ class TooManyMethodsSniff implements Sniff
         $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // A class PHPCS tokenised mid-edit carries no body to count and no
-        // name to report, so there is nothing to say about it yet.
         if (
             $opener === null
             || $closer === null

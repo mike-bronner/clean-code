@@ -114,12 +114,6 @@ class CombinableConditionsSniff implements Sniff
         $complete = true;
         $pointer = $stackPtr;
         $end = $stackPtr;
-        // What the current pointer is allowed to be. Only `elseif` and `else`
-        // continue a chain: a bare `if` after a closing brace is the *next
-        // statement*, and reading it as a fourth branch would both merge two
-        // separate statements into one chain and report the same pair twice.
-        // The one `if` that does continue a chain is the trailing half of a
-        // spaced `else if`, and it is only ever reached through the hop below.
         $accepted = [T_IF];
 
         while (true) {
@@ -159,8 +153,6 @@ class CombinableConditionsSniff implements Sniff
                 break;
             }
 
-            // A spaced `else if`: the T_ELSE carries neither condition nor
-            // scope, so the clause belongs to the trailing `if`.
             if ($tokens[$next]['code'] === T_ELSE) {
                 $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($next + 1), null, true);
 
@@ -211,8 +203,6 @@ class CombinableConditionsSniff implements Sniff
         $afterCondition = isset($tokens[$clausePtr]['parenthesis_closer']) === true
             ? ($tokens[$clausePtr]['parenthesis_closer'] + 1)
             : ($clausePtr + 1);
-        // findEndOfStatement() reads the token it is handed, so it has to start
-        // on the statement's first real token, never the whitespace before it.
         $bodyStart = $phpcsFile->findNext(Tokens::$emptyTokens, $afterCondition, null, true);
 
         if ($bodyStart === false) {
@@ -225,10 +215,6 @@ class CombinableConditionsSniff implements Sniff
             return null;
         }
 
-        // A colon here is an alternative-syntax clause whose `endif` never
-        // arrived: the tokenizer leaves such a clause with no scope at all, and
-        // reading its body as a brace-less statement would report a chain in a
-        // file PHP itself refuses to parse. No brace-less body can open on one.
         if ($tokens[$bodyStart]['code'] === T_COLON) {
             return null;
         }

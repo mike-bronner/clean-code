@@ -37,16 +37,10 @@ class RedundantNamespaceSuffixSniff implements Sniff
     {
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // A keyword with no name after it is what PHP_CodeSniffer hands a sniff
-        // for a file caught mid-edit. There is no name to read a suffix off, so
-        // the declaration passes over rather than being reported while the
-        // developer is still typing it.
         if ($name === null) {
             return;
         }
 
-        // Deepest segment first: the folder nearest the declaration is the one
-        // whose name a developer echoes, so it is the one the message names.
         foreach (array_reverse($this->segmentsBelowApplicationRoot($phpcsFile, $stackPtr)) as $segment) {
             $suffix = $this->redundantSuffix($name, $segment);
 
@@ -93,8 +87,6 @@ class RedundantNamespaceSuffixSniff implements Sniff
                 continue;
             }
 
-            // The whole name, or a PascalCase word of it. A match starting
-            // mid-word is a letter collision rather than a repeated folder.
             if (
                 $offset === 0
                 || ctype_upper($name[$offset]) === true

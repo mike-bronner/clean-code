@@ -28,10 +28,10 @@ Adding a second directory with a `ruleset.xml` in it would install a second
 standard. `tests/Contract/InstalledStandardTest.php` fails if one appears.
 
 **On "the master ruleset",** which this document, the sniff docs and the
-test docblocks all use. It means `CleanCode/ruleset.xml`: the one ruleset that
+test names all use. It means `CleanCode/ruleset.xml`: the one ruleset that
 wires every rule the package ships, as opposed to an individual sniff or a
 consumer's own ruleset. There is no second file for it to be master *of* any
-more, and the phrase is kept because it is what ~300 comments already say.
+more, and the phrase is kept because the docs and test names already use it.
 
 Tests are written with **[Pest](https://pestphp.com/)** and live under `tests/`.
 New tests never use PHP_CodeSniffer's own `AbstractSniffUnitTest` harness: it
@@ -153,7 +153,7 @@ add a second file just because a `<properties>` block exists.
 `minimum` through `$configure` so the fixtures need not be three thousand-line
 classes, which leaves it unable to also stand as the record of the shipped
 threshold of 1000. `tests/Ruleset/ExcessiveClassLengthTest.php` carries that
-half, and each docblock names what it owns. **Split a sniff only when its
+half. **Split a sniff only when its
 behaviour test must override the shipped configuration to do its own job.**
 
 Four files sit outside the table and stay where they are.
@@ -365,41 +365,23 @@ in and what applies the `<properties>` configured there.
    `FunctionCalls::isGlobalFunctionCall()` — see "The shared helpers" above —
    instead of writing that check again.
 
-   **Give every token-kind classification array a named family.** A
+   **Account for every token-kind classification array in code.** A
    `private const` enumerating PHPCS token constants — the `EXPRESSION_SCOPES`,
-   `CHAIN_OPERATORS`, `NON_FUNCTION_CALL_PRECEDERS` shape — must carry a doc
-   comment naming the **canonical, independent source** of the family it
-   classifies, and accounting for every member of that source: included, or
-   excluded with a one-line reason, inline in that same comment. A canonical
-   source is a `PHP_CodeSniffer\Util\Tokens::$…` grouping array, or a closed
-   list stated with its provenance ("every `T_*_ARROW` constant `token_name()`
-   reports"). A family read off the array's own current contents does not
-   count — it is complete by construction and asks nothing of the author.
-   Where the source and the family differ, say so and prove it, rather than
-   quietly widening either: `T_FN` is in `EXPRESSION_SCOPES`'s family but not
-   in `Tokens::$scopeOpeners`, and the test below asserts both halves of that
-   against a tokenized arrow function.
+   `CHAIN_OPERATORS`, `NON_FUNCTION_CALL_PRECEDERS` shape — classifies a
+   **canonical, independent family**: a `PHP_CodeSniffer\Util\Tokens::$…`
+   grouping array, or a closed list with a stated provenance. Put the members
+   the array leaves out in a sibling constant, and add a test that reads both
+   constants and compares their union with the family. A family read off the
+   array's own current contents does not count, because it is complete by
+   construction.
 
-   `MultiLineStatementIndentSniff::EXPRESSION_SCOPES` is the worked example,
-   and `accounts for every scope opener PHPCS defines` in
+   `MultiLineStatementIndentSniff`'s `EXPRESSION_SCOPES` /
+   `NON_EXPRESSION_SCOPES` pair is the worked example, and
+   `accounts for every scope opener PHPCS defines` in
    `tests/Standards/MultiLineStatementIndentTest.php` is the test shape that
-   holds it: the family read out of PHPCS at run time, the accounting parsed
-   out of the docblock, neither restated in the test. A PHPCS release that
+   holds it: the family read out of PHPCS at run time, the accounting read out
+   of the two constants, neither restated in the test. A PHPCS release that
    adds a scope opener reddens the suite instead of slipping past it.
-
-   This is a checklist step rather than a check that runs over every such array
-   in the tree, because **nothing declares which family a given array answers
-   to.** Finding the declarations is easy — tokenize the tree, take every
-   `private const` of `T_*` constants — but the family each one is measured
-   against is a judgement (`CHAIN_OPERATORS` against dereference operators,
-   `RAW_CONTENT` against raw-content tokens), and no registry maps an array to
-   its family, so an automated checker has nothing to compare against. The
-   lighter, purely structural alternative — assert every such constant has an
-   adjacent family doc comment — was considered and **rejected**: it says
-   nothing about whether the named family is canonical or the accounting
-   complete, which is the whole loophole this convention closes, and switching
-   it on would fail against every already-shipped classification array (some
-   ninety of them, across forty-odd sniffs), a retrofit issue #316 scopes out.
 
    When a sniff does ship a classification array missing a member of its
    family, open the issue **against this checklist step**, not against the
@@ -427,8 +409,8 @@ in and what applies the `<properties>` configured there.
    a sniff scoped by `CleanCode/ruleset.xml` with an `<include-pattern>`/`<exclude-pattern>`
    and one that scopes itself from its own property — the sweep configures
    nothing, so a property-scoped sniff cannot even be pointed at its own
-   fixtures there. Leave it out of the datasets, record why in a comment beside
-   the enumeration in `tests/Sniffs.php`, and reach its fixtures from its own
+   fixtures there. Leave it out of the datasets, record why in the sniff's `docs/`
+   page, and reach its fixtures from its own
    test file instead: `stageFixtureOutsideTests()` when the path only
    has to *match* a rule, or a small committed project under the fixture
    directory when the rule's answer depends on other files really being there.
@@ -510,8 +492,8 @@ dataset (`->with([...])`) rather than copy-pasting the test.
 shells out to the `phpcs`/`phpcbf` binaries and predates the Pest migration.
 Do not copy its shape.
 
-Say *why* in a docblock above the test whenever the assertion encodes a
-judgement call: which of two overlapping sniffs owns a diagnostic, a deliberate
+Say *why* in the test's name, or in the standard's `docs/` page, whenever the
+assertion encodes a judgement call: which of two overlapping sniffs owns a diagnostic, a deliberate
 false positive left in place, a tokenizer defect being pinned rather than worked
 around. Several tests here exist purely to stop someone "fixing" behaviour that
 is intentional, and they are only useful if they explain themselves.
@@ -578,7 +560,7 @@ scope with nothing suppressed. The test tree still gets PSR-12 via
 `composer lint`.
 
 Only errors are counted, because only errors gate `phpcs`. Warnings stand at
-3386, and `CleanCode.Conditionals.AvoidConditionals` alone accounts for most of
+3032, and `CleanCode.Conditionals.AvoidConditionals` alone accounts for most of
 them — admitting warnings would be a far larger decision than this gate.
 
 ### `process()` and the untyped `$stackPtr`
@@ -601,25 +583,24 @@ code-specific suppression stops matching the moment the docblock goes.
 
 ### Comments
 
-A comment explains **unexpected behavior** or an **unexpected requirement**.
-Nothing else. There are no PHPDoc blocks in this package.
+**No code carries a comment.** No PHP file under `CleanCode/` or `tests/` has a
+comment or a docblock, and `CleanCode/ruleset.xml`, `phpcs.self.xml` and
+`phpunit.xml.dist` carry only one-line group labels such as
+`<!-- Conditionals -->`. The reasoning lives in `docs/standards/`,
+`docs/phpmd/`, the Boost guidelines in `resources/boost/guidelines/`, and the
+issues and commits that made each decision. A comment beside the code repeats
+that reasoning, and nothing tests it, so it drifts in silence:
+`CleanCode/ruleset.xml` shipped three false claims that way.
 
-Keep a comment when a reader would otherwise be surprised:
+Two exceptions stand:
 
-- "PHPCS applies an `<exclude-pattern>` even to a path named on the command
-  line."
-- "Left unset, this property follows whichever interpreter runs `phpcs`, so a
-  consumer on a newer PHP gets findings their CI did not."
+- **`phpcs:ignore`, `phpcs:disable` and `phpcs:enable` directives.** They are
+  functional, not prose. A directive may carry its reason after `--`.
+- **`tests/fixtures/`.** A fixture is sniff input, and several sniffs read
+  comments.
 
-Cut anything that restates what the code or config line already says, narrates
-how a decision was reached, or repeats a `docs/standards/*.md` the line already
-points at. An XML comment and a docblock cannot be tested, so they drift in
-silence — `CleanCode/ruleset.xml` has shipped three false claims that way.
-
-Never make a comment a test's expected value. An enumeration a test needs is
-data, so it belongs in code: see `MultiLineStatementIndentSniff`'s
-`EXPRESSION_SCOPES` / `NON_EXPRESSION_SCOPES` pair, whose union the suite
-checks against PHPCS's own register.
+`tests/Contract/NoCommentsTest.php` enforces both halves. Delete a comment
+rather than moving it into a doc: git history and the linked issue keep it.
 
 An XML comment cannot contain `--`, so a CLI flag written inside one makes the
 ruleset unparseable. PHPCS then reports `Comment must not contain '--'` and

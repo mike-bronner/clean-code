@@ -1,27 +1,7 @@
 <?php
 
-/**
- * The enumerations of sniff codes that more than one suite reads, and the
- * derivations over them.
- *
- * These lived in tests/Contract/SniffContractTest.php while that file was their
- * only reader. tests/Contract/ShippedPackageSmokeTest.php derives its own
- * coverage from SWEPT_SNIFFS and SWEPT_WARNING_SNIFFS, and its expected phpcs
- * exit statuses from AUTOFIXABLE_SNIFFS, so they now have two — and a constant
- * declared in one test file is not reliably defined when another test file's
- * datasets are resolved, because PHPUnit builds every data provider before it
- * has loaded every file. Declaring them here, from the bootstrap, removes the
- * question: they exist before any suite is collected.
- *
- * Loaded by tests/bootstrap.php rather than tests/Pest.php, so that the
- * ordering holds for a plain PHPUnit run too.
- */
-
 declare(strict_types=1);
 
-/**
- * Every sniff wired into CleanCode/ruleset.xml that reports errors.
- */
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Arrays.DuplicatedArrayKey',
@@ -100,47 +80,6 @@ const SWEPT_SNIFFS = [
     'VariableAnalysis.CodeAnalysis.VariableAnalysis',
 ];
 
-/**
- * Every sniff wired into CleanCode/ruleset.xml that reports warnings.
- *
- * Deliberately absent, alongside CleanCode.Models.DisallowExternalPersistenceCalls
- * and CleanCode.Models.DisallowChainedPropertyFetch:
- * CleanCode.Routes.DisallowNonResourceRoutes, whose default routeFilePatterns
- * gate cannot match the fixture directory the contract fixes for it
- * (tests/fixtures/DisallowNonResourceRoutesSniff/ holds no `routes` segment), so
- * the sweep would drive its failing fixture against a path the sniff ignores.
- * tests/Standards/DisallowNonResourceRoutesTest.php carries the whole floor
- * instead, fixtures staged under a real `routes` directory, plus the
- * shipped-binary run in both directions that the sweep gives up on its behalf.
- *
- * CleanCode.Testing.UnitTestExternalConcerns is absent for the same reason and
- * is the second sniff of that shape: its default unitTestPath is `tests/Unit/`,
- * and tests/fixtures/UnitTestExternalConcernsSniff/ carries no `Unit` segment,
- * so the sweep would drive failing.php against a path the sniff never opens.
- * The sweep configures nothing, so it cannot point a property-scoped sniff at
- * its own fixtures either. tests/Standards/UnitTestExternalConcernsTest.php
- * carries the whole floor instead: the two flat fixtures driven under a scope
- * pointed at their own directory, the shipped scope exercised by a nested
- * tests/Unit/ tree beside them, and the shipped-binary run in both directions
- * that the sweep gives up on its behalf.
- *
- * CleanCode.Testing.NoInternetTraversal is the third of that shape: its default
- * featureTestPatterns gate wants a `tests/Feature` pair that
- * tests/fixtures/NoInternetTraversalSniff/ does not have, so its failing fixture
- * would report nothing under the sweep. tests/Standards/NoInternetTraversalTest.php
- * carries the whole floor, fixtures staged under a real feature-suite directory,
- * plus the same shipped-binary run in both directions.
- *
- * CleanCode.Routes.NonInvokableSpecialAction is the fourth of that shape: it
- * scopes itself by path from its own routeFilePatterns property, the sweep
- * processes each fixture where it lives under tests/, and the sweep configures
- * nothing — so its failing fixture would report nothing here and the floor
- * would pass vacuously. tests/Standards/NonInvokableSpecialActionTest.php
- * applies the same floor instead, against copies staged into a routes/
- * directory outside the repository, and pins the gate itself from four
- * different paths. It also carries the shipped-install smoke test the sweep's
- * absence would otherwise cost, the way the other path-scoped sniffs do.
- */
 const SWEPT_WARNING_SNIFFS = [
     'CleanCode.Arrays.ConvertToCollection',
     'CleanCode.Classes.DisallowConstructorInstantiation',
@@ -172,11 +111,6 @@ const SWEPT_WARNING_SNIFFS = [
     'Generic.Commenting.Todo',
 ];
 
-/**
- * The swept sniffs whose failing fixture carries a violation the fixer can
- * resolve. Read for two different things: which sniffs owe an autofixed
- * fixture, and which exit phpcs at 2 rather than 1 on their failing fixture.
- */
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.ClearCode.OneThoughtPerLine',
@@ -205,38 +139,10 @@ const AUTOFIXABLE_SNIFFS = [
     'SlevomatCodingStandard.Namespaces.UnusedUses',
 ];
 
-/**
- * Sniffs held out of tests/Contract/ShippedPackageSmokeTest.php's sweep, each
- * because it already carries that exact end-to-end coverage of its own.
- *
- * An entry here removes a sniff from the sweep, so the bar for adding one is
- * that the sniff is smoke-tested somewhere else in full — both directions
- * through the shipped binary, which is what the sweep gives up on its behalf.
- * That is enforced, not left to this comment: the sweep's own tests re-read this
- * list, fail when an entry stops being swept or stops reaching the shipped
- * binary in either direction, and fail again on any entry the list did not
- * already carry.
- */
 const SHIPPED_SMOKE_EXCLUSIONS = [
-    // tests/Standards/CyclomaticComplexityTest.php's 'reports the violation end
-    // to end through the installed package', which landed with #88 and
-    // additionally runs the standard by name, paired with its 'stays silent on
-    // its compliant fixture through the installed package'.
     'CleanCode.Metrics.CyclomaticComplexity',
 ];
 
-/**
- * This package's own sniffs among a swept dataset's entries, minus the ones
- * covered elsewhere.
- *
- * Third-party entries are dropped: CleanCode/ruleset.xml configures Generic.*,
- * SlevomatCodingStandard.*, Squiz.* and VariableAnalysis.* sniffs this package
- * did not author, and whose own suites cover their own shipping.
- *
- * @param array<int, string> $swept
- *
- * @return array<int, string>
- */
 function shippedSmokeSniffs(array $swept): array
 {
     $custom = array_filter($swept, static fn (string $code): bool => str_starts_with($code, 'CleanCode.'));
@@ -244,15 +150,6 @@ function shippedSmokeSniffs(array $swept): array
     return array_values(array_diff($custom, SHIPPED_SMOKE_EXCLUSIONS));
 }
 
-/**
- * The status phpcs exits with when a sniff reports on its own failing fixture.
- *
- * PHP_CodeSniffer 3.13.6's Runner::runPHPCS() decides this on *fixability*, not
- * on severity: 2 when something reported is fixable, 1 when something reported
- * and none of it is, 0 when nothing did. So the answer is read off the
- * autofixable enumeration above rather than off which of the two swept lists
- * the sniff belongs to.
- */
 function expectedFailingStatus(string $sniffCode): int
 {
     return in_array($sniffCode, AUTOFIXABLE_SNIFFS, true) === true ? 2 : 1;

@@ -30,9 +30,6 @@ class DisallowStaticMembersSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // A member modifier lives directly in a class-like body; anything whose
-        // innermost scope is a function (local `static`, `new static`,
-        // `static::`, static closures) is not a member declaration.
         $conditions = $tokens[$stackPtr]['conditions'];
 
         if ($conditions === []) {
@@ -43,8 +40,6 @@ class DisallowStaticMembersSniff implements Sniff
             return;
         }
 
-        // Walk past whitespace, comments, and sibling modifiers to the token
-        // the `static` actually modifies.
         $skip = array_merge(array_values(Tokens::$emptyTokens), self::MEMBER_MODIFIERS);
         $declaratorPtr = $phpcsFile->findNext($skip, ($stackPtr + 1), null, true);
 

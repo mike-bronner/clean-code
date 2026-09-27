@@ -1,32 +1,5 @@
 <?php
 
-/**
- * Tests the custom CleanCode.Routes.NonInvokableSpecialAction sniff (Routes:
- * Conventions (Do / Do Not), #65, focused slice #249). Fixtures live in
- * tests/fixtures/NonInvokableSpecialActionSniff/: every compliant and
- * near-miss action shape in passing.php, every flagged action shape in
- * failing.php. The rule is detection-only, so there is no autofixed fixture.
- *
- * The sniff gates itself on the file's path through its own
- * $routeFilePatterns property, and PHPCS decides that from the path alone — so
- * these fixtures report nothing where they live, under tests/. Every assertion
- * about the sniff's own behaviour therefore runs against a copy staged into a
- * `routes/` directory outside the repository ($routeRun below), and the gate
- * itself is pinned separately by the file-gate tests, which drive the same
- * bytes from four different paths so the silence has to come from the path
- * rather than from the sniff having nothing to say.
- *
- * That same gate is why the sniff is held out of tests/Contract/'s sweep — see
- * the note beside SWEPT_WARNING_SNIFFS in tests/Sniffs.php. The floor the
- * sweep would have applied (registered in the master ruleset, silent on
- * passing.php, warning on failing.php, and never an error) is applied here
- * instead, against staged copies the gate can actually see.
- *
- * The sniff is isolated from the rest of the master ruleset (loaded, then
- * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in CleanCode/ruleset.xml.
- */
-
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
@@ -35,18 +8,11 @@ const SPECIAL_ACTION = 'CleanCode.Routes.NonInvokableSpecialAction';
 
 const SPECIAL_ACTION_FOUND = SPECIAL_ACTION . '.Found';
 
-// Fixtures are copied into a routes/ directory outside the repository before
-// processing, because the sniff restricts itself to route paths. The staged
-// copies are removed by the afterEach() hook in tests/Pest.php.
 $routeRun = static fn (string $fixture, string $subdirectory = 'routes') => analyzeWithSniffs(
     [SPECIAL_ACTION],
     stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', $fixture), $subdirectory)
 );
 
-// One registration at a time, written into a real routes/web.php outside the
-// repository. This is what lets a near-miss be asserted *individually*: a
-// shape that stopped being skipped reports on its own file rather than being
-// masked by the rest of passing.php.
 $routeSource = static fn (string $source) => analyzeWithSniffs(
     [SPECIAL_ACTION],
     stageProjectOutsideTests(['routes/web.php' => "<?php\n\n" . $source . "\n"])
@@ -58,13 +24,6 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(SPECIAL_ACTION);
 });
 
-/**
- * The compliant shapes and every near-miss stay silent together. The
- * per-shape dataset below is what pins each one individually; this assertion
- * additionally covers them interacting in one file — a fixture where an
- * earlier registration's tokens could bleed into a later one's argument
- * positions.
- */
 it('produces no violations on the compliant fixture', function () use ($routeRun): void {
     $file = $routeRun('passing.php');
 
@@ -72,49 +31,6 @@ it('produces no violations on the compliant fixture', function () use ($routeRun
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * Every flagged shape, at its exact line and column, all at the one violation
- * source. Columns are the first token of the *action argument*, not of the
- * registration, which is what makes a misread argument position visible here
- * rather than only in the count.
- *
- * Lines 7-13 sweep all seven verbs that carry their action second, so a verb
- * dropped from the enumeration falls out of this list. Lines 21-22 are the
- * Route::match pair, whose action sits third: reading position 2 for them
- * would inspect the URI and report nothing at all. Lines 49-52 name the action
- * instead of placing it, and their columns are what show the name was stripped
- * off the front of the argument rather than reported as its first token. Line
- * 56 puts a comment where the action starts, and line 59 spells the ::class
- * keyword in upper case: both report, so neither the comment skip nor the
- * keyword's casing can be dropped without this list changing. Line 65 is the
- * legacy string action written with double quotes and nothing to interpolate —
- * the other spelling the acceptance criteria name for that shape — so a change
- * that recognised only the single-quoted one falls out here. Line 70 is that
- * same spelling in the array action's method element, which the criteria name
- * both ways as well.
- *
- * Lines 77-78 put an arrow function in an argument before the action. PHPCS
- * ends an arrow function's scope on the token that terminates the expression
- * around it, which here is the comma separating it from the next argument, so
- * a walk that followed that closer would fuse both arguments into one and read
- * no action at all. Lines 84-86 are one PHP string spelled three ways — a
- * double-quoted namespace separator, a single-quoted escaped one, and the
- * plain single-quoted form — and all three report the same method, which is
- * what makes the escape evaluation visible rather than assumed. Lines 90-91
- * are the hex and octal escapes, each spelling an ordinary letter inside the
- * method name: without evaluation the raw text is no identifier and both fall
- * silent.
- *
- * Lines 97-98 are the two ways a hex escape is misread by a shortcut, and each
- * falls out under its own defect rather than the other's. Line 97 writes the
- * marker in upper case, which PHP reads exactly as the lower cased form: read
- * only `\x` and the method name never assembles, so the line goes silent. Line
- * 98 writes a marker no hex digit follows, which is no escape to PHP at all —
- * it stays the literal text it is written with, and the namespace separator
- * ahead of it leaves a class name that still reads. Decode that marker as a
- * hex escape with nothing to decode and it becomes a NUL byte inside the class
- * name, which matches no name pattern and takes that line silent instead.
- */
 it('flags every non-invokable action shape at its own line and column', function () use ($routeRun): void {
     expect(warningTuples($routeRun('failing.php')))->toBe([
         ['line' => 7, 'column' => 30, 'source' => SPECIAL_ACTION_FOUND],
@@ -154,35 +70,11 @@ it('flags every non-invokable action shape at its own line and column', function
     ]);
 });
 
-/**
- * The standard's "very rare" carve-out is a judgement, so a flagged
- * registration must never fail a consumer's build. Asserted separately from
- * the tuples above, which would read identically if the sniff were raised to
- * error severity.
- */
 it('reports warnings and never errors', function () use ($routeRun): void {
     expect($routeRun('failing.php')->getErrors())->toBe([])
         ->and($routeRun('failing.php')->getWarningCount())->toBe(34);
 });
 
-/**
- * Each near-miss on its own file. A shape that stopped being skipped reports
- * here even when the rest of passing.php would still be silent, which is the
- * difference between this and the whole-fixture assertion above.
- *
- * Three entries pin a *documented limit* rather than a dynamic action, and are
- * here so the limit cannot drift into an unnoticed regression: the nowdoc and
- * heredoc actions carry fully literal content the sniff still declines to
- * reassemble out of several tokens, and the codepoint escape is the one member
- * of PHP's double-quoted escape table left as written. Each is recorded in the
- * class docblock and in the standard's doc as a known false negative. The two
- * concatenation entries are the opposite case — a genuinely dynamic action the
- * sniff must never flag — and each drives one of the two paths a concatenation
- * can arrive on: the string action itself, and the array action's method
- * element. Both are what the count guards in targetMethod() and
- * methodFromArrayAction() exist for; delete either guard and the matching
- * entry here reports.
- */
 it('stays silent on each near-miss shape', function (string $source) use ($routeSource): void {
     $file = $routeSource($source);
 
@@ -235,19 +127,6 @@ it('stays silent on each near-miss shape', function (string $source) use ($route
     'codepoint escape in the method name' => ['Route::get(\'/a\', "PostController@arch\u{0069}ve");'],
 ]);
 
-/**
- * Each flagged shape on its own file, asserting the method the message names.
- * The tuples above pin *where* the sniff reports; this pins *what* it read out
- * of the action, so an argument misread that still lands on a reportable token
- * — the methods array in a Route::match call, say — cannot pass both.
- *
- * The last six entries are the two defects this pins by construction. The
- * arrow-function pair reads an action written *after* an argument PHPCS closes
- * on the following comma; the four escape entries read a method out of a
- * literal whose raw token text is not its value — a namespace separator
- * escaped in either quoting style, and the hex and octal escapes. Every one of
- * them is silent unless the sniff evaluates what PHP evaluates.
- */
 it('names the targeted method in the warning', function (string $source, string $method) use ($routeSource): void {
     $warnings = $routeSource($source)->getWarnings();
     $first = reset($warnings);
@@ -313,13 +192,6 @@ it('names the targeted method in the warning', function (string $source, string 
     ],
 ]);
 
-/**
- * The gate is decided from the path alone, so the same bytes have to fall
- * silent outside a routes/ directory. Driven from four paths rather than one,
- * because a single "outside" path cannot distinguish a working gate from a
- * sniff that had nothing to say about the file at all — the routes/ run below
- * is the other half of that pair.
- */
 it('inspects a file only under a routes directory', function (string $directory, int $expected) use ($routeRun): void {
     expect($routeRun('failing.php', $directory)->getWarningCount())->toBe($expected);
 })->with([
@@ -330,11 +202,6 @@ it('inspects a file only under a routes directory', function (string $directory,
     'tests' => ['tests', 0],
 ]);
 
-/**
- * The gate is a public property, so a consuming ruleset can retune it in XML.
- * Pinned through behaviour: the same file that is silent under app/ above
- * reports once the property names that path.
- */
 it('honours a ruleset-configured routeFilePatterns', function (): void {
     $staged = stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'failing.php'), 'app');
     $configured = analyzeWithSniffs(
@@ -348,11 +215,6 @@ it('honours a ruleset-configured routeFilePatterns', function (): void {
     expect($configured->getWarningCount())->toBe(34);
 });
 
-/**
- * Piped input has no path for the gate to read, so the sniff has nothing to
- * say about it. Reachable only through a DummyFile: every fixture on disk has
- * a path.
- */
 it('stays silent on input with no path', function (): void {
     $file = analyzeStdinSource(
         [SPECIAL_ACTION],
@@ -363,31 +225,6 @@ it('stays silent on input with no path', function (): void {
         ->and($file->getErrors())->toBe([]);
 });
 
-/**
- * The same verdict through the shipped, installed package.
- *
- * Every test above drives PHPCS in process through ConfigDouble, which supplies
- * the registration Composer would have supplied — so a package that never
- * registered itself passes all of them. This one executes the real
- * vendor/bin/phpcs as a separate process from outside the package, against
- * CleanCode/ruleset.xml, the file a consumer points --standard at. The shared sweep in
- * tests/Contract/ShippedPackageSmokeTest.php cannot reach this sniff: it drives
- * each fixture where it lives, under tests/, and this sniff's own
- * routeFilePatterns gate makes that path report nothing whatever the sniff does.
- *
- * Staged exactly as $routeRun stages it, and asserted in the same paired shape
- * as the file-gate test above rather than only on the positive half:
- *
- * - the staged copy reports all 34, every message under this sniff's own code,
- *   at warning severity, at status 1 — violations, none of them fixable, which
- *   is what this detection-only rule owes. Status 2 would mean phpcbf had been
- *   offered a fix, and 3 is what a broken install exits with.
- * - the in-repo copy of the same bytes reports nothing and exits 0, so the
- *   reporting half cannot be coming from a run that ignores the path gate.
- * - passing.php staged the same way reports nothing and exits 0 — the negative
- *   control, without which a shell-out that always reported would satisfy the
- *   first.
- */
 it('reports the violation end to end through the installed package', function (): void {
     $failing = fixturePath('NonInvokableSpecialActionSniff', 'failing.php');
 
@@ -408,32 +245,6 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['status'])->toBe(0);
 });
 
-/**
- * literalValue() evaluates a string literal's escapes so the method name after
- * the `@` can be read, and it is declared to return a string. A failed read is
- * null: unguarded, the two branches return it straight out of a `: string`
- * method and take the run down on the route file. The guard falls back to the
- * body as the source spells it.
- *
- * The two quoting styles take separate branches and each gets its own arming,
- * because a test that only drives one leaves the other guard shipped untested.
- * What the fallback buys differs between them, and both are asserted as they
- * are rather than as the guard's comment would like them to be:
- *
- * - The single-quoted branch keeps its report. A name with nothing to unescape
- *   survives the fallback unchanged, so the route is still classified.
- * - The double-quoted branch loses its report when the name it carries only
- *   spells a method after its escapes are evaluated. `PostController@reh\x6fme`
- *   read raw names no method PHP would call, so the route goes unpoliced. That
- *   is a report lost, not a wrong report gained, and it is the direction a read
- *   that failed can honestly take.
- * - The double-quoted branch with nothing to unescape keeps its report, and
- *   that row is what holds this fallback to account. Both other rows answer the
- *   same way whether the failure falls back to the body or is cast to '' — the
- *   defect this guard replaced — so neither can tell the guard from its
- *   absence. Here the two answers part: the body still names the action, '' does
- *   not.
- */
 it('survives an escaped action whose literal cannot be evaluated', function (
     string $source,
     string $pattern,

@@ -138,15 +138,6 @@ class ComponentMarkupSniff implements Sniff
             $comment = substr($markup, $start, ($end - $start));
             $blank = preg_replace('/[^\r\n]/', ' ', $comment);
 
-            // A failed read leaves the comment as it stands rather than
-            // dropping it: null cast to a string is '', and an empty
-            // substitution shortens $blanked by the whole comment, so every
-            // offset and reported line number after it in the file shifts. The
-            // comment's own text is the only same-length replacement that also
-            // keeps its line breaks, which str_repeat(' ', ...) would not. The
-            // cost is that the comment is read as markup, which can only add a
-            // report, never silence one. Same shape as the ?? $content fallback
-            // in NoLogicSniff::unescapedContent().
             $blanked .= substr($markup, $copied, ($start - $copied)) . ($blank ?? $comment);
             $copied = $end;
             $offset = $end;
@@ -160,8 +151,6 @@ class ComponentMarkupSniff implements Sniff
         $nearest = null;
 
         foreach (self::COMMENT_DELIMITERS as [$open, $close]) {
-            // -1 for "not looked for yet"; null means looked for and absent
-            // from the rest of the file, which no later offset can undo.
             $known = (array_key_exists($open, $openers) === true ? $openers[$open] : -1);
 
             if (
@@ -232,10 +221,6 @@ class ComponentMarkupSniff implements Sniff
         $gap = substr($markup, $elementStart, ($componentStart - $elementStart));
         $stripped = preg_replace(self::TEMPLATE_WRAPPER, '', $gap);
 
-        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
-        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
-        // gave out, so nothing is known about what the gap holds. Not the same
-        // answer as the finished read below, which returns from a gap it saw.
         if ($stripped === null) {
             return false;
         }
@@ -247,10 +232,6 @@ class ComponentMarkupSniff implements Sniff
     {
         $matched = preg_match_all(self::ELEMENT_TAG, $markup, $matches, PREG_SET_ORDER);
 
-        // preg_last_error() === PREG_BACKTRACK_LIMIT_ERROR: the tag read gave
-        // out partway, so $matches is a fragment of the view rather than the
-        // view. Not the same silence as the return below, which is the answer
-        // to a read that finished.
         if ($matched === false) {
             return false;
         }
@@ -347,10 +328,6 @@ class ComponentMarkupSniff implements Sniff
         $gap = substr($markup, $start, ($current['offset'] - $start));
         $stripped = preg_replace(self::TEMPLATE_WRAPPER, '', $gap);
 
-        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
-        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
-        // gave out, so nothing is known about what the gap holds. Not the same
-        // answer as the finished read below, which returns from a gap it saw.
         if ($stripped === null) {
             return false;
         }
@@ -404,15 +381,6 @@ class ComponentMarkupSniff implements Sniff
             $pattern = "/@({$directive}|end{$directive})\\b/i";
             $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE);
 
-            // The read reports failure two ways, and neither leaves anything
-            // worth pairing: a runtime failure sets $matches to empty groups,
-            // and a compile failure never writes to it at all, leaving the null
-            // the caller declared. Reading the second unguarded takes an offset
-            // off null on the way to the same empty answer. Dropping this
-            // directive's regions unread states that answer outright — a loop
-            // the sniff could not read is a loop it does not police, so
-            // MissingWireKeyInLoop goes unreported for it rather than
-            // misreported.
             if ($matched === false) {
                 continue;
             }
@@ -448,10 +416,6 @@ class ComponentMarkupSniff implements Sniff
             PREG_OFFSET_CAPTURE | PREG_SET_ORDER
         );
 
-        // preg_last_error() === PREG_BACKTRACK_LIMIT_ERROR: the tag read gave
-        // out partway, so $matches holds a fraction of the view rather than
-        // the view. Not the same emptiness as a finished read that found no
-        // component tag, which the loop below returns [] from.
         if ($matched === false) {
             return [];
         }
@@ -465,9 +429,6 @@ class ComponentMarkupSniff implements Sniff
             $offset = $match[0][1];
             $end = ($offset + strlen($match[0][0]));
 
-            // Counted from the previous tag rather than from offset 0. The
-            // segments are disjoint, so the whole walk costs one pass over the
-            // file; asking lineAt() per tag instead made it quadratic.
             $this->scanCounts['componentTags.lineBytes'] += ($offset - $cursor);
             $line += substr_count($markup, "\n", $cursor, ($offset - $cursor));
             $cursor = $offset;
@@ -522,11 +483,6 @@ class ComponentMarkupSniff implements Sniff
             PREG_OFFSET_CAPTURE | PREG_SET_ORDER
         );
 
-        // preg_last_error() === PREG_RECURSION_LIMIT_ERROR, or
-        // PREG_JIT_STACKLIMIT_ERROR where the PCRE JIT is on: the wrapper read
-        // gave out partway, so $matches holds a fraction of the view rather
-        // than the view. Not the same emptiness as a finished read that found
-        // no wrapper, which the loop below returns [] from.
         if ($matched === false) {
             return [];
         }
@@ -554,25 +510,9 @@ class ComponentMarkupSniff implements Sniff
 
     private function attributeNames(string $attributes): array
     {
-        // Guarded before the read below, and not merged into it. Casting a
-        // failed value-strip to a string gives '', preg_match_all() against ''
-        // returns 0 rather than false — a finished read that found nothing —
-        // and this method would then hand back [] with the read below reporting
-        // success. Falling back to the raw attribute list keeps the names
-        // readable; the values come with them, so an interpolated one can be
-        // read as a name of its own, which costs a report that should not have
-        // been made rather than a report that should have been.
         $names = preg_replace("/=\\s*(?:\"[^\"]*\"|'[^']*')/", '=', $attributes) ?? $attributes;
         $matched = preg_match_all("/(?:^|\\s)([^\\s=<>\"'\\/]+)/", $names, $matches);
 
-        // The name read failed, so $matches[1] is either empty or, when the
-        // pattern never compiled, not there at all — and an empty list is what
-        // checkRootElement() reads as "this root carries no framework
-        // attribute", the RootElementAttributes bypass #366 closed by a
-        // different path. Splitting the list on whitespace without PCRE keeps
-        // every name in play: each piece still carries its own name as its
-        // prefix, which is all frameworkAttribute() and OWN_WIRE_DIRECTIVE ask
-        // of it.
         if ($matched === false) {
             return $this->whitespaceSeparated($names);
         }

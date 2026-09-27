@@ -29,9 +29,6 @@ class OperatorLineBreakSniff implements Sniff
 
         $tokens = $phpcsFile->getTokens();
 
-        // Skip comments too when locating the next code token: a comment
-        // explaining why an expression wraps (`$a . // note` then the operand
-        // on the next line) must not mask the dangling operator.
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $stackPtr + 1, null, true);
 
         if ($next === false) {
@@ -56,10 +53,6 @@ class OperatorLineBreakSniff implements Sniff
         $this->moveToContinuationLine($phpcsFile, $stackPtr, $next);
     }
 
-    // Position only: the token sequence is unchanged, and just the line break
-    // moves from after the operator to before it. The operator is inserted
-    // before the next *code* token, which puts it after that line's indent
-    // rather than in front of it.
     private function moveToContinuationLine(File $phpcsFile, int $stackPtr, int $next): void
     {
         $tokens = $phpcsFile->getTokens();
@@ -69,8 +62,6 @@ class OperatorLineBreakSniff implements Sniff
         $phpcsFile->fixer
             ->replaceToken($stackPtr, '');
 
-        // The space that sat in front of the operator would otherwise be left
-        // hanging off the end of the line.
         if ($tokens[$stackPtr - 1]['code'] === T_WHITESPACE) {
             $phpcsFile->fixer
                 ->replaceToken($stackPtr - 1, '');

@@ -18,9 +18,6 @@ class OneConditionPerLineSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
-        // The span this sniff checks is defined once, in the support class, so
-        // the sniffs that stand down inside it defer over the same bounds this
-        // one walks. A for-loop's init and increment clauses lie outside it.
         $region = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $stackPtr);
 
         if ($region === null) {
@@ -60,16 +57,6 @@ class OneConditionPerLineSniff implements Sniff
         $this->processMultiCondition($phpcsFile, $stackPtr, $regionStart, $regionEnd, $operators);
     }
 
-    // The block matched here is this signature against processMultiCondition's
-    // below: `private function <name>(`, `File $phpcsFile,`, `int $stackPtr,`
-    // and two more `int $<name>,` parameters. Both are parameter declarations,
-    // not statements — there is no logic in either window, so there is nothing
-    // to extract. The two methods take a similar list because they answer the
-    // same caller about the same condition region, but what each does with it
-    // is disjoint: one joins a split condition onto its keyword's line, the
-    // other splits a joined one across lines and moves the boolean operators.
-    // Merging them to silence this would put two opposite fixers behind one
-    // branch, which is the design the split already rejected.
     // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processSingleCondition(
         File $phpcsFile,
@@ -130,14 +117,6 @@ class OneConditionPerLineSniff implements Sniff
             ->endChangeset();
     }
 
-    // The other end of the processSingleCondition match, reported here because
-    // the sniff names every participating block rather than only the later
-    // one. This window covers $regionStart/$regionEnd, which this method reads
-    // as the span to distribute across lines; the same-shaped parameters above
-    // are $boundaryStart/$boundaryEnd, a different span (a for-header's
-    // semicolons, not its condition). Identical parameter types carrying
-    // different token offsets are not duplicated knowledge, and the sniff
-    // cannot see the difference because it drops token content by design.
     // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processMultiCondition(
         File $phpcsFile,

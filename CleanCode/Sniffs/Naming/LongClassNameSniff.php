@@ -24,8 +24,6 @@ class LongClassNameSniff implements Sniff
     {
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // A truncated declaration — a `class` keyword with no name after it —
-        // has no length to measure, so say nothing rather than guess.
         if ($name === null) {
             return;
         }

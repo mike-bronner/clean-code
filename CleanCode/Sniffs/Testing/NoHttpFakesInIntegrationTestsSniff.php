@@ -173,9 +173,6 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
 
     private function mockedHttpClient(File $phpcsFile, int $openPtr): ?string
     {
-        // An empty argument list needs no guard of its own: the token found
-        // here is then the closing parenthesis, which is neither a string
-        // literal nor the start of a name, so classReference() rejects it.
         $argumentPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), null, true);
 
         if ($argumentPtr === false) {
@@ -196,19 +193,11 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         if ($tokens[$argumentPtr]['code'] === T_CONSTANT_ENCAPSED_STRING) {
-            // PHP never resolves a class name given as a string through the
-            // file's imports, so the literal is already fully qualified
-            // whatever it is written as. The leading separator is what says so
-            // to isHttpClient().
             $written = '\\' . ltrim($this->literalValue($tokens[$argumentPtr]['content']), '\\');
 
             return $this->endsTheArgument($phpcsFile, ($argumentPtr + 1)) === true ? $written : null;
         }
 
-        // An argument carrying no name at all needs no guard of its own: the
-        // run is then empty and leaves the pointer where it started, and the
-        // token there — a variable, an ellipsis, `self`, the closing
-        // parenthesis — is not `::`, so classConstantEnd() rejects it.
         [$written, $pointer] = $this->nameRun($tokens, $argumentPtr);
         $pointer = $this->classConstantEnd($phpcsFile, $pointer);
 

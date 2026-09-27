@@ -59,17 +59,6 @@ class SuperglobalsSniff implements Sniff
             return;
         }
 
-        // A variable whose innermost enclosing scope is a class-like body is a
-        // property declaration, not a read: `public $_GET = [];` names a member.
-        // A read inside a method has the method as its innermost condition.
-        //
-        // A parameter list opens no scope of its own — PHPCS starts the
-        // method's scope at its `{` — so a parameter arrives here carrying the
-        // class as its innermost condition, indistinguishable by position from
-        // a member declared in the class body. Position alone is therefore not
-        // enough: only a *promoted* parameter declares a property, and a plain
-        // one is an ordinary local binding that must be reported exactly as the
-        // same parameter in a global function is.
         $conditions = $tokens[$stackPtr]['conditions'];
 
         if (
@@ -80,10 +69,6 @@ class SuperglobalsSniff implements Sniff
             return;
         }
 
-        // `self::$_POST` and `Holder::$_POST` resolve to a static property of
-        // that class; the name never reaches the superglobal. `$request->$_GET`
-        // is not exempt for the same reason — there the variable *is* read, to
-        // supply the property name.
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if (
@@ -100,17 +85,6 @@ class SuperglobalsSniff implements Sniff
     {
         $matched = preg_match_all($this->interpolationPattern(), $content, $matches);
 
-        // Its own exit, kept apart from the "nothing interpolated" one below.
-        // This read can genuinely fail — interpolationPattern()'s leading
-        // `(?:\\\\)*` is a quantified group, so a long enough run of
-        // backslashes in the string exhausts PCRE's recursion limit, measured
-        // at a million of them — and it reports that with false, not 0. The
-        // `=== 0` test this replaces let false through under a strict
-        // comparison, so the failure fell into the loop written to be skipped
-        // and read a `name` key that is empty, or absent when the pattern never
-        // compiled. Nothing can be reported off a string
-        // that was not read, so a superglobal interpolated into it goes
-        // unreported rather than crashing the run.
         if ($matched === false) {
             return;
         }

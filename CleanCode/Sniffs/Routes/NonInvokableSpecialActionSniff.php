@@ -393,13 +393,6 @@ class NonInvokableSpecialActionSniff implements Sniff
     {
         $body = substr($content, 1, -1);
 
-        // Both reads fall back to the body as the source spells it. A failed
-        // read cast to a string is '', and an empty action name matches
-        // nothing, so the route would be skipped with the sniff silent — the
-        // failure has to leave a name behind, and the unevaluated one is the
-        // closest true thing available. Neither pattern is known to be
-        // drivable there: the first has no quantifier at all, the second only
-        // the counted `{1,2}` and `{1,3}`, and neither carries a `/u` modifier.
         if ($content[0] === "'") {
             return preg_replace_callback(
                 '/\\\\(.)/s',

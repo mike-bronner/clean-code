@@ -45,12 +45,6 @@ class TestSuiteNamespaceSniff implements Sniff
             $this->namespaceSegments($phpcsFile, $stackPtr)
         );
 
-        // A namespace carrying no test root places the class outside the test
-        // tree, and that is the stronger statement: the path can pick up a
-        // `tests` segment from the checkout location, the namespace cannot.
-        // A class that declares no namespace at all arrives here as the empty
-        // segment list and takes the same exit — it has said nothing that could
-        // contradict its location, so there is no contradiction to report.
         if ($namespaceTail === null) {
             return;
         }

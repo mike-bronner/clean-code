@@ -153,11 +153,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        // Only a *bare* name falls back to the global function, so only a bare
-        // name can be shadowed by a declaration. A qualifier the helper already
-        // resolved to the global namespace — `\get_class()`, or
-        // `namespace\get_class()` written outside any namespace — names that
-        // function explicitly and outranks whatever this file declares.
         if (
             $prev !== false
             && $tokens[$prev]['code'] === T_NS_SEPARATOR
@@ -448,12 +443,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $limit = $scope === null ? $phpcsFile->numTokens : $scope['end'];
         $this->index($phpcsFile);
 
-        // The same guard the `??=` this replaces expressed, written out so the
-        // build and the read that answers from it can be counted apart. The
-        // scale test in tests/Standards/DisallowTypeIntrospectionTest.php reads
-        // that pair: one backward pass per file against one per check is the
-        // difference between linear and quadratic here, and it has no observable
-        // other than these counts or the elapsed time they replace (#354).
         $this->ensureTernaryDecisions($phpcsFile);
 
         $decision = $this->ternaryDecisions[$stackPtr + 1] ?? $phpcsFile->numTokens;
@@ -462,10 +451,6 @@ class DisallowTypeIntrospectionSniff implements Sniff
             && $tokens[$decision]['code'] === T_INLINE_THEN;
     }
 
-    // Builds the map once per file and counts the build apart from every read
-    // that answers from it. The scale test reads that pair: one backward pass
-    // per file against one per check is the difference between linear and
-    // quadratic here (#354).
     private function ensureTernaryDecisions(File $phpcsFile): void
     {
         if ($this->ternaryDecisions !== null) {

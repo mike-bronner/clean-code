@@ -18,10 +18,6 @@ class DisallowExitExpressionSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // Named functions and methods both open a T_FUNCTION scope, and a
-        // closure or arrow function nested inside one still carries it among
-        // its conditions. A closure at file scope carries only T_CLOSURE, so
-        // it is left alone — as PHPMD leaves it alone.
         if (in_array(T_FUNCTION, $tokens[$stackPtr]['conditions'], true) === false) {
             return;
         }

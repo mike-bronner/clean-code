@@ -112,8 +112,6 @@ class DisallowNestedTernarySniff implements Sniff
                 }
             }
 
-            // $direction is +1 or -1, never 0, so the two walks are disjoint and
-            // read as one choice written apart.
             if ($direction > 0) {
                 if (
                     $code === T_OPEN_PARENTHESIS
@@ -172,9 +170,6 @@ class DisallowNestedTernarySniff implements Sniff
         $arrowPtr = $stackPtr - 1;
 
         while (($arrowPtr = $phpcsFile->findPrevious(T_FN_ARROW, $arrowPtr, $limit)) !== false) {
-            // An arrow function always carries its scope; an unmapped one is
-            // treated as enclosing, so an unreadable body bounds the segment
-            // rather than opening the way to a report that cannot be trusted.
             if (($tokens[$arrowPtr]['scope_closer'] ?? $stackPtr) >= $stackPtr) {
                 return true;
             }

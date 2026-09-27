@@ -23,9 +23,6 @@ class TooManyInterfaceMethodsSniff implements Sniff
         $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // An interface PHPCS tokenised mid-edit carries no body to count, and
-        // one whose name has not been typed yet carries nothing to report it
-        // under, so there is nothing to say about either yet.
         if (
             $opener === null
             || $closer === null

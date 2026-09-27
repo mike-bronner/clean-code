@@ -48,12 +48,6 @@ class DuplicatedArrayKeySniff implements Sniff
             if (isset(self::NESTED_OPENERS[$code]) === true) {
                 $nestedCloserPtr = $tokens[$ptr][self::NESTED_OPENERS[$code]] ?? null;
 
-                // An unterminated construct in a file being edited has no
-                // closer to jump to, and the walk cannot tell where the
-                // element it opened ends. Abandoning the array is the safe
-                // direction: reading on would take the commas inside the
-                // unterminated construct for element separators and report
-                // its contents as duplicates of the elements around it.
                 if ($nestedCloserPtr === null) {
                     return;
                 }
@@ -63,13 +57,6 @@ class DuplicatedArrayKeySniff implements Sniff
                 continue;
             }
 
-            // The `=>` of an element separates its key from its value. An
-            // arrow function's arrow is T_FN_ARROW, not T_DOUBLE_ARROW, and
-            // every other construct that uses `=>` — a nested array, a match
-            // expression — is jumped over above, so valid source cannot put a
-            // second one here. The first-wins tie-break is what malformed
-            // source falls back on, and it keeps the key the span before the
-            // earliest `=>` rather than an ever-widening one.
             if (
                 $code === T_DOUBLE_ARROW
                 && $arrowPtr === null
@@ -86,7 +73,6 @@ class DuplicatedArrayKeySniff implements Sniff
             $ptr++;
         }
 
-        // The last element, which a trailing comma may or may not follow.
         $this->recordKey($phpcsFile, $seen, $elementStartPtr, $arrowPtr);
     }
 
@@ -103,7 +89,6 @@ class DuplicatedArrayKeySniff implements Sniff
 
     private function recordKey(File $phpcsFile, array &$seen, int $elementStartPtr, ?int $arrowPtr): void
     {
-        // No `=>` in the element: an implicit key, which no literal names.
         if ($arrowPtr === null) {
             return;
         }
@@ -147,18 +132,11 @@ class DuplicatedArrayKeySniff implements Sniff
             $isNegated === true
             && $token['code'] === T_DNUMBER
         ) {
-            // A negated float carries its sign into the resolution instead of
-            // being negated after it. The wrap can land on PHP_INT_MIN, whose
-            // negation is not an integer at all, and coercing that back to a
-            // key performs the very out-of-range cast floatValue() exists to
-            // avoid — which aborts the whole file on 8.4 and 8.5 alike.
             return $this->toArrayKey($this->floatValue("-{$token['content']}"));
         }
 
         $value = $this->literalValue($token);
 
-        // Only a number can be negated into a key, so a minus in front of
-        // anything else means the key is not a literal after all.
         if ($isNegated === true) {
             $value = is_int($value) === true ? -$value : null;
         }
@@ -166,9 +144,6 @@ class DuplicatedArrayKeySniff implements Sniff
         return $this->toArrayKey($value);
     }
 
-    // PHP's own key coercion, borrowed: writing the value into an array and
-    // reading the key back applies the same int/string normalisation a real
-    // array subscript would.
     private function toArrayKey(int|string|null $value): int|string|null
     {
         return $value === null ? null : array_key_first([$value => null]);
@@ -255,14 +230,6 @@ class DuplicatedArrayKeySniff implements Sniff
     {
         $inner = substr($literal, 1, -1);
 
-        // Audited, unguarded on purpose: a failed read returns null, and null
-        // is already this method's "the token stream does not settle it"
-        // sentinel, which the caller reads as "skip this key". Safe by
-        // circumstance rather than by construction, so it is written down here:
-        // change that sentinel and this call needs a guard of its own. The
-        // pattern is a literal backslash followed by a two-member character
-        // class, with no quantifier, no recursion and no `/u` modifier, so
-        // nothing is known to drive it there in the first place.
         if ($literal[0] === "'") {
             return preg_replace('/\\\\([\\\\\'])/', '$1', $inner);
         }

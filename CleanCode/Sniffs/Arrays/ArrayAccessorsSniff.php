@@ -10,10 +10,7 @@ use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 use ReflectionFunction;
 
-// A sniff is one rule, and its class name is the sniff code consumers write
-// in their rulesets — so the unit is fixed from outside and splitting the
-// class into collaborators would distribute the work without reducing it.
-// phpcs:ignore CleanCode.Classes.ExcessiveClassLength -- see above
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength
 class ArrayAccessorsSniff implements Sniff
 {
     private const MESSAGES = [
@@ -99,8 +96,6 @@ class ArrayAccessorsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // PHP variable names are case-sensitive, so only the exact `$this`
-        // names the current instance.
         if ($tokens[$stackPtr]['content'] === '$this') {
             return;
         }
@@ -111,8 +106,6 @@ class ArrayAccessorsSniff implements Sniff
             return;
         }
 
-        // The accessor follows the variable, not the chain root: the `$` sigils
-        // of a variable-variable precede the name they dereference.
         $accessorPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
         if ($accessorPtr === false) {
@@ -136,9 +129,6 @@ class ArrayAccessorsSniff implements Sniff
         $variable = $this->chainRootName($phpcsFile, $rootPtr, $stackPtr);
         $path = $this->readPath($phpcsFile, $accessorPtr);
 
-        // Reported but not offered as fixable: a path this sniff cannot render
-        // back as source, and an argument PHP would refuse to bind by
-        // reference. Both are reads the developer should still be told about.
         if (
             $path === null
             || $this->isByReferenceArgument($phpcsFile, $rootPtr) === true
@@ -196,9 +186,6 @@ class ArrayAccessorsSniff implements Sniff
                 $previousPtr === false
                 || in_array($tokens[$previousPtr]['code'], $qualifier, true) === false
             ) {
-                // A `::` with no name in front of it is a file mid-edit. The
-                // root alone is returned rather than a span opening on the
-                // operator, which would emit `data_get(::$registry, ...)`.
                 return $startPtr ?? $rootPtr;
             }
 
@@ -284,8 +271,6 @@ class ArrayAccessorsSniff implements Sniff
                 break;
             }
 
-            // A dynamic member name spans a brace pair (`$object->{$name}`);
-            // its contents are the segment.
             if ($tokens[$memberPtr]['code'] === T_OPEN_CURLY_BRACKET) {
                 if (isset($tokens[$memberPtr]['bracket_closer']) === false) {
                     return null;
@@ -307,8 +292,6 @@ class ArrayAccessorsSniff implements Sniff
 
             $afterMemberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($memberPtr + 1), null, true);
 
-            // A method call ends the run: it is invoked on the result of the
-            // rewritten read, so it stays in the source unchanged.
             if (
                 $afterMemberPtr !== false
                 && $tokens[$afterMemberPtr]['code'] === T_OPEN_PARENTHESIS
@@ -318,9 +301,6 @@ class ArrayAccessorsSniff implements Sniff
 
             $content = $tokens[$memberPtr]['content'];
 
-            // A variable property name (`$order->$field`) is the segment's
-            // value, not its spelling: quoting it would look up a key literally
-            // named `$field`. Only a bare name is a literal.
             $segments[] = $tokens[$memberPtr]['code'] === T_VARIABLE
                 ? ['source' => $content, 'name' => null]
                 : [
@@ -475,9 +455,6 @@ class ArrayAccessorsSniff implements Sniff
         while ($ptr < $rootPtr) {
             $closerPtr = $this->pairCloser($tokens, $ptr);
 
-            // A nested pair is stepped over whole, so the commas inside it are
-            // that pair's argument or element separators rather than this
-            // list's. Walking token by token would count them all.
             if ($closerPtr !== null) {
                 $ptr = ($closerPtr + 1);
 
@@ -569,8 +546,6 @@ class ArrayAccessorsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$accessorPtr]['code'];
 
-        // `$array[] = $value` needs no index case of its own: PHP only permits
-        // the empty index as an assignment target, which isWriteTarget() skips.
         if ($code === T_OPEN_SQUARE_BRACKET) {
             return 'DirectArrayAccess';
         }
@@ -581,21 +556,12 @@ class ArrayAccessorsSniff implements Sniff
 
         $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($accessorPtr + 1), null, true);
 
-        // A file being edited can end on the operator itself, leaving no member
-        // to tell a property from a method call. Nothing distinguishes the two,
-        // so the access is reported on the same principle as the unresolvable
-        // brace pair below: a linter reports on ambiguity rather than assuming
-        // the ambiguous case harmless.
         if ($memberPtr === false) {
             return 'DirectPropertyAccess';
         }
 
         $memberEndPtr = $memberPtr;
 
-        // A dynamic member name spans a brace pair (`$object->{$name}`), and
-        // whether it is a property or a method call is only visible after the
-        // closing brace. An unresolvable pair in a file being edited is
-        // reported rather than assumed harmless.
         if ($tokens[$memberPtr]['code'] === T_OPEN_CURLY_BRACKET) {
             if (isset($tokens[$memberPtr]['bracket_closer']) === false) {
                 return 'DirectPropertyAccess';
@@ -606,8 +572,6 @@ class ArrayAccessorsSniff implements Sniff
 
         $afterMemberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($memberEndPtr + 1), null, true);
 
-        // `$object->method()` invokes the object's own API; data_get() reads
-        // properties, so it is not a substitute.
         if (
             $afterMemberPtr !== false
             && $tokens[$afterMemberPtr]['code'] === T_OPEN_PARENTHESIS
@@ -624,16 +588,10 @@ class ArrayAccessorsSniff implements Sniff
         $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($rootPtr - 1), null, true);
 
         if ($previousPtr !== false) {
-            // Pre-increment/decrement: `++$array['key']`.
             if (in_array($tokens[$previousPtr]['code'], [T_INC, T_DEC], true) === true) {
                 return true;
             }
 
-            // A reference bind (`$ref = &$array['key']`) writes through the
-            // chain, and `data_get()` returns a value — rewriting it would
-            // silently drop the reference, leaving no compliant form of the
-            // statement. isReference() tells the bind apart from a bitwise
-            // and (`$mask & $array['flag']`), which is an ordinary read.
             if (
                 $tokens[$previousPtr]['code'] === T_BITWISE_AND
                 && $phpcsFile->isReference($previousPtr) === true
@@ -652,13 +610,6 @@ class ArrayAccessorsSniff implements Sniff
                 return true;
             }
 
-            // T_DOUBLE_ARROW is a member of Tokens::$assignmentTokens, but a
-            // chain *followed* by `=>` is a read: the key of an array literal
-            // (`[$row['id'] => $row['name']]`) or a match arm's condition. The
-            // one construct where `=>` does mark a write — a `foreach` key
-            // target (`foreach ($rows as $out['key'] => $value)`) — carries no
-            // assignment operator of its own, so excluding `=>` here leaves it
-            // to enclosureVerdict() rather than dropping it.
             if (
                 $code !== T_DOUBLE_ARROW
                 && isset(Tokens::$assignmentTokens[$code]) === true
@@ -681,10 +632,6 @@ class ArrayAccessorsSniff implements Sniff
         while ($closerPtr !== null) {
             $this->cacheCounts['enclosureVerdict.steps']++;
 
-            // An unterminated construct standing between the walk and this
-            // closer cannot be stepped over, and the walk cannot tell what
-            // encloses the chain past it. It ends here and the read is
-            // reported — the safe direction for a linter.
             if (($this->lastUnterminatedOpener[$closerPtr] ?? -1) > $searchPtr) {
                 return null;
             }
@@ -711,9 +658,6 @@ class ArrayAccessorsSniff implements Sniff
                 return $step;
             }
 
-            // The one step that cannot be answered for every root at once. The
-            // walk resumes from the construct it reaches, classified against
-            // this chain's own root exactly as the loop above does.
             $searchPtr = $steppedPtr;
             $closerPtr = $this->parentCloser[$steppedPtr];
         }
@@ -794,9 +738,6 @@ class ArrayAccessorsSniff implements Sniff
                 return self::VERDICT_TARGET;
             }
 
-            // A `foreach` clause that is not a target decides nothing else:
-            // its parentheses are owned by `foreach` and never by `list()`, so
-            // isAssignedPattern() cannot answer for them either.
             return $asPtr > $closerPtr ? self::STEP_TRANSPARENT : self::STEP_ROOT_DEPENDENT;
         }
 
@@ -810,17 +751,10 @@ class ArrayAccessorsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$closerPtr]['code'];
 
-        // An index closes with T_CLOSE_SQUARE_BRACKET; a short array or
-        // destructuring pattern closes with T_CLOSE_SHORT_ARRAY, so the two
-        // never blur. Being inside an index means being read to say *where*
-        // the enclosing accessor points — a read even when that accessor is
-        // itself written to.
         if ($code === T_CLOSE_SQUARE_BRACKET) {
             return self::VERDICT_OFFSET;
         }
 
-        // A dynamic member name (`$order->{$key['name']}`) is the same offset
-        // in a brace. Any other curly brace decides nothing.
         if ($code === T_CLOSE_CURLY_BRACKET) {
             return $this->isDynamicMemberBrace($phpcsFile, $tokens[$closerPtr]['bracket_opener']) === true
                 ? self::VERDICT_OFFSET
@@ -890,10 +824,6 @@ class ArrayAccessorsSniff implements Sniff
 
         $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($closerPtr + 1), null, true);
 
-        // Destructuring assigns with `=`; PHP has no compound form of it. A
-        // pattern closed at the very end of a file being edited has no
-        // following token to test, so it decides nothing, the walk continues
-        // outward, and the read is reported — the safe direction for a linter.
         return $nextPtr !== false && $tokens[$nextPtr]['code'] === T_EQUAL;
     }
 
@@ -943,17 +873,10 @@ class ArrayAccessorsSniff implements Sniff
         $this->foreachClauseAsPtrs = [];
         $this->existenceCheckOpeners = [];
 
-        // The null standing at the bottom of the stack is "nothing encloses
-        // this", so the innermost construct is always the last entry and the
-        // stack never has to be tested for emptiness.
         $openCloserPtrs = [null];
         $innermostPtr = null;
 
         foreach ($tokens as $ptr => $token) {
-            // A closer ends the construct it belongs to, so from the closer
-            // onwards the enclosing one is whatever held that construct. A
-            // stray closer never matches an opener the pass recorded, so it is
-            // stepped over rather than taken for an enclosure.
             if ($innermostPtr === $ptr) {
                 array_pop($openCloserPtrs);
                 $innermostPtr = $openCloserPtrs[array_key_last($openCloserPtrs)];
@@ -1003,8 +926,6 @@ class ArrayAccessorsSniff implements Sniff
 
             $code = $tokens[$nextPtr]['code'];
 
-            // An index (`['key']`) or a call's argument list (`(...)`) is
-            // consumed whole; the chain may continue after the closer.
             if (
                 $code === T_OPEN_SQUARE_BRACKET
                 || $code === T_OPEN_PARENTHESIS
@@ -1030,7 +951,6 @@ class ArrayAccessorsSniff implements Sniff
                 return $endPtr;
             }
 
-            // A variable property name (`$object->{$name}`) spans a brace pair.
             if ($tokens[$memberPtr]['code'] === T_OPEN_CURLY_BRACKET) {
                 if (isset($tokens[$memberPtr]['bracket_closer']) === false) {
                     return $memberPtr;

@@ -22,8 +22,6 @@ class ShortClassNameSniff implements Sniff
     {
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // A keyword with no name after it is what PHPCS hands a sniff for a
-        // file caught mid-edit. There is no name to measure, so it passes over.
         if (
             $name === null
             || strlen($name) >= $this->minimum

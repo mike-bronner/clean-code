@@ -8,10 +8,7 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-// A sniff is one rule, and its class name is the sniff code consumers write
-// in their rulesets — so the unit is fixed from outside and splitting the
-// class into collaborators would distribute the work without reducing it.
-// phpcs:ignore CleanCode.CodeSize.TooManyMethods -- see above
+// phpcs:ignore CleanCode.CodeSize.TooManyMethods
 class NPathComplexitySniff implements Sniff
 {
     public $minimum = 200;
@@ -107,9 +104,6 @@ class NPathComplexitySniff implements Sniff
             return;
         }
 
-        // A measurement that hit the ceiling is a lower bound, not the exact
-        // count, and says so rather than reporting the ceiling as if it were
-        // the real value.
         $measured = $npath === self::CEILING ? ('at least ' . self::CEILING) : (string) $npath;
 
         $phpcsFile->addError(
@@ -164,16 +158,8 @@ class NPathComplexitySniff implements Sniff
             return 1;
         }
 
-        // The same PHPCS 3.13.6 defect switchBody() covers also truncates the
-        // scope of the callable *around* an alternative-syntax `switch` whose
-        // subject holds a `match`: `scope_closer` lands on the `endswitch`
-        // rather than on the body's own brace, hiding every statement after it.
-        // The brace carries the true end in `bracket_closer` whether or not a
-        // scope was attached, so it is preferred where it is available.
         $closer = $tokens[$opener]['bracket_closer'] ?? $closer;
 
-        // Token offsets are per file, so the memo from the previous callable
-        // must not be read against this one.
         $this->branchEnds = [];
         $ptr = ($opener + 1);
 
@@ -198,10 +184,6 @@ class NPathComplexitySniff implements Sniff
     {
         $code = $tokens[$ptr]['code'];
 
-        // A named function declared inside another callable is its own PHPMD
-        // artifact, reported separately by this sniff's own registration on it.
-        // An anonymous class body belongs to the anonymous class. A closure or
-        // arrow function is neither: it is walked as part of this callable.
         if (
             $code === T_FUNCTION
             || $this->opensAnonymousClassBody($tokens, $ptr) === true
@@ -276,11 +258,6 @@ class NPathComplexitySniff implements Sniff
             return $this->add($npath, $this->ifComplexity($phpcsFile, $tokens, $ptr, $end));
         }
 
-        // `else if` written with a space is one construct to PDepend, scored
-        // exactly as `elseif`. PHPCS builds no scope for the `else` in that
-        // shape, so measuring it as an ordinary `else` body would leave the
-        // `if` to be counted again as a statement of its own and multiply the
-        // two instead of adding them (ElseIfWithSpace in failing.php).
         $inner = $phpcsFile->findNext(Tokens::$emptyTokens, ($chain + 1), $end, true);
 
         if (
@@ -444,8 +421,6 @@ class NPathComplexitySniff implements Sniff
         return $closer === null ? null : [$opener, $closer];
     }
 
-    // A switch body closes with `}` in brace form and with `endswitch` in the
-    // alternative form. Anything else is neither, and answers null.
     private function switchCloser(File $phpcsFile, array $tokens, int $opener, int $end): ?int
     {
         $code = $tokens[$opener]['code'];
@@ -483,8 +458,6 @@ class NPathComplexitySniff implements Sniff
                 return $ptr;
             }
 
-            // Two independent jumps, never both: $code is read once above, so a
-            // token is either the brace or the switch, never the other's case.
             if (
                 $code === T_OPEN_CURLY_BRACKET
                 && isset($tokens[$ptr]['bracket_closer']) === true
@@ -758,8 +731,6 @@ class NPathComplexitySniff implements Sniff
         if (isset($this->branchEnds[$elsePtr]) === true) {
             $this->scanCounts['expressionEnd.hits']++;
 
-            // A terminator at or past the caller's limit is out of its reach,
-            // and the scan below would have run out at $end instead.
             return min($this->branchEnds[$elsePtr], $end);
         }
 
@@ -798,9 +769,6 @@ class NPathComplexitySniff implements Sniff
             $stepped[] = $ptr;
         }
 
-        // Nothing is recorded when the scan runs out at $end: that answer is the
-        // caller's limit rather than a terminator, and says nothing about where
-        // a scan with a later limit would stop.
         return $end;
     }
 

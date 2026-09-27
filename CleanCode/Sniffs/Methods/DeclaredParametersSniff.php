@@ -79,9 +79,6 @@ class DeclaredParametersSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $functionPtr = null;
 
-        // The innermost declared scope owns the parameter list the call reads.
-        // A closure declares its own, so it never inherits the exemption of a
-        // magic method it happens to sit in.
         foreach (array_reverse($tokens[$stackPtr]['conditions'], true) as $scopePtr => $code) {
             if ($code === T_CLOSURE) {
                 return false;

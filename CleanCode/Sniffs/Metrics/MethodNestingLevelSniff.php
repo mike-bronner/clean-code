@@ -49,26 +49,14 @@ class MethodNestingLevelSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $conditions = $tokens[$stackPtr]['conditions'];
 
-        // Braceless/abstract/interface bodies and the trailing while of a
-        // do-while have no scope to measure.
         if (isset($tokens[$stackPtr]['scope_opener']) === false) {
             return;
         }
 
-        // The standard governs method bodies; skip top-level script code and
-        // closures not enclosed by a function.
         if (in_array(T_FUNCTION, $conditions, true) === false) {
             return;
         }
 
-        // Two-word `else if` tokenizes as a bare `T_ELSE` followed by a fresh
-        // `T_IF` that sits at the same nesting level as the chain's leading
-        // `if` (its conditions don't include the preceding branch). Reporting
-        // that `T_IF` would emit a duplicate error for a level the leading `if`
-        // already reports, so treat it as a continuation and skip it — mirroring
-        // the one-word `elseif`, which is a single `T_ELSEIF` token that is not
-        // registered. The `else`/`elseif` continuation still counts as a level
-        // for statements nested inside the branch via NESTING_TOKENS.
         if ($tokens[$stackPtr]['code'] === T_IF) {
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $stackPtr - 1, null, true);
 

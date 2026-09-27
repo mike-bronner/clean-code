@@ -18,12 +18,6 @@ final class ParameterDeclaration
 
         $parameter = $this->parameterAt($phpcsFile, $ownerPtr, $variablePtr);
 
-        // A variable inside a function's own parameter list that
-        // getMethodParameters() does not report back is treated as plain: it
-        // declares no property either way, which is the answer both exempting
-        // callers need. Defensive only — a parameter default must be a constant
-        // expression, so a parameter's own name token is the only variable that
-        // can stand in a parameter list.
         return $parameter === null || isset($parameter['property_visibility']) === false;
     }
 

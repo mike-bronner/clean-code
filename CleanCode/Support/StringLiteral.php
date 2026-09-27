@@ -35,12 +35,6 @@ final class StringLiteral
         return substr($this->body($content), 1, -1);
     }
 
-    // The text a run of concatenated string literals builds, starting at
-    // $start, with each fragment's escapes resolved the way its own delimiter
-    // resolves them. A `\n` is a line break inside double quotes and two
-    // characters inside single quotes, and a caller reading the text for its
-    // shape has to see the difference — a config block written with "\n" is one
-    // block, and a Windows path written with '\n' is not.
     public function concatenated(array $tokens, int $start): string
     {
         $value = '';
@@ -68,17 +62,6 @@ final class StringLiteral
         return $value;
     }
 
-    // A single-quoted literal's inner text, rewritten to sit inside double
-    // quotes with its value unchanged.
-    //
-    // Two conversions, in this order. A single-quoted body resolves only `\\`
-    // and `\'`, so those come back to the characters they stand for first;
-    // every other backslash in it was already literal. Then the whole thing is
-    // escaped for a double-quoted body, where a backslash, a quote and a `$`
-    // each mean something.
-    //
-    // Escaping `$` covers the brace triggers too: `{$` becomes `{\$` and `${`
-    // becomes `\${`, neither of which interpolates, so a lone `{` needs nothing.
     public function singleQuotedInnerAsDoubleQuoted(string $inner): string
     {
         $resolved = str_replace(['\\\\', "\\'"], ['\\', "'"], $inner);
@@ -86,21 +69,11 @@ final class StringLiteral
         return str_replace(['\\', "\"", '$'], ['\\\\', "\\\"", '\\$'], $resolved);
     }
 
-    // Literal text rewritten to sit in a HEREDOC body with its value unchanged.
-    //
-    // A HEREDOC resolves the same escapes a double-quoted string does and
-    // interpolates the same expressions, so a backslash and a `$` each have to
-    // be escaped. Escaping `$` covers `{$` and `${` too, which is why a lone
-    // brace needs nothing. A `"` needs nothing either — that is the readability
-    // gain a HEREDOC has over both quoted forms.
     public function asHeredocBody(string $text): string
     {
         return str_replace(['\\', '$'], ['\\\\', '\\$'], $text);
     }
 
-    // Only the whitespace escapes, and only where the delimiter resolves them.
-    // Nothing else matters to a caller reading the text for its shape, and
-    // resolving more would mean reimplementing PHP's own unescaping.
     private function resolveEscapes(string $content): string
     {
         $inner = $this->inner($content);

@@ -42,11 +42,6 @@ class MultiLineStatementIndentSniff implements Sniff
         T_MATCH,
     ];
 
-    // Every scope opener PHPCS defines that is deliberately not an expression
-    // scope. Together with EXPRESSION_SCOPES this must cover the whole set, so
-    // a scope opener a later PHPCS adds fails the suite instead of being
-    // silently ignored. T_OBJECT and T_PROPERTY are emitted only by the
-    // JavaScript tokenizer, which this standard never runs.
     public const NON_EXPRESSION_SCOPES = [
         T_FN,
         T_FUNCTION,
@@ -256,12 +251,6 @@ class MultiLineStatementIndentSniff implements Sniff
             $isLineFirst = $token['line'] > $line;
             $lastLine = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
 
-            // A comment is not the statement's own content, so it must not
-            // take the first-token slot from code that shares its line — that
-            // code's indent would then never be checked. Its last line stays
-            // open unless the comment ran onto that line from above, where
-            // what precedes the code is the comment's own body. Whether it did
-            // is what the open state, read before this token updates it, says.
             $holdsLastLine = $isComment === false || $commentOpen === true;
             $commentOpen = $this->commentStaysOpen($commentOpen, $code, $token['content']);
             $line = max($line, $holdsLastLine === true ? $lastLine : $lastLine - 1);
@@ -282,7 +271,6 @@ class MultiLineStatementIndentSniff implements Sniff
                 $this->checkLine($phpcsFile, $i, $stack, $exprStart, $baseIndent, $continuation);
             }
 
-            // Any code token can begin the expression current in its scope.
             $this->beginExpression($stack, $exprStart, $i);
 
             if (in_array($code, self::BRACKET_OPENERS, true) === true) {
@@ -358,11 +346,6 @@ class MultiLineStatementIndentSniff implements Sniff
         );
     }
 
-    // The line this one hangs off. A chain, concatenation, or other
-    // binary/ternary operator continues the expression above it, so it hangs one
-    // level below the line where that expression started. Every other line — an
-    // operand, an argument, or a boolean-operator-led sibling condition — sits
-    // one level in from the line its enclosing construct opens on.
     private function continuationAnchor(
         File $phpcsFile,
         int $ptr,
@@ -416,8 +399,6 @@ class MultiLineStatementIndentSniff implements Sniff
             ->replaceToken($lineStart - 1, $padding);
     }
 
-    // The expression start lives on the innermost bracket frame when there is
-    // one, and in the statement-level variable when there is not.
     private function beginExpression(array &$stack, ?int &$exprStart, int $pointer): void
     {
         if ($stack === []) {
@@ -497,8 +478,6 @@ class MultiLineStatementIndentSniff implements Sniff
             $open === false
             && str_starts_with($content, '/*') === true
         ) {
-            // A fragment that opens and closes on one line needs four
-            // characters to do it; `/*/` only looks like both ends at once.
             return strlen($content) < 4 || str_ends_with($content, '*/') === false;
         }
 
@@ -557,10 +536,6 @@ class MultiLineStatementIndentSniff implements Sniff
 
     private function lineStart(File $phpcsFile, int $ptr): int
     {
-        // Two tokens examined, both through step(): the one asked about, to get
-        // its line, and the line's recorded first, to see whether it is indent.
-        // Neither is searched for, and this method binds no token array of its
-        // own to search one in.
         $first = $this->lineStarts[$this->step($phpcsFile, $ptr)['line']];
 
         if ($this->step($phpcsFile, $first)['code'] === T_WHITESPACE) {

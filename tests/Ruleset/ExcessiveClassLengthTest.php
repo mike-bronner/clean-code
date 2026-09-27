@@ -1,30 +1,9 @@
 <?php
 
-/**
- * The custom CleanCode.Classes.ExcessiveClassLength sniff *as wired into the
- * master CleanCode/ruleset.xml* (PHPMD CodeSize: ExcessiveClassLength, #93). The sniff's
- * own behaviour lives in tests/Standards/ExcessiveClassLengthTest.php; what is
- * asserted here is the shipped configuration, which is what decides whether a
- * consumer running `phpcs --standard=CleanCode/ruleset.xml` still has to run `phpmd`
- * separately for this rule.
- *
- * CleanCode/ruleset.xml writes PHPMD's own defaults out explicitly rather than leaning on
- * the sniff's property defaults, so the two can drift apart without anyone
- * noticing. These tests read the configured instance and then run a real
- * 1000-line class through the whole ruleset, so both halves are pinned.
- */
-
 declare(strict_types=1);
 
 const EXCESSIVE_CLASS_LENGTH_RULE = 'CleanCode.Classes.ExcessiveClassLength';
 
-/**
- * PHPMD's stock codesize.xml gives ExcessiveClassLength a `minimum` of 1000 and
- * an `ignore-whitespace` of false. CleanCode/ruleset.xml has to carry the same pair, or the
- * package quietly enforces a different rule from the one it documents. The
- * instance read below is the one the master ruleset built, so CleanCode/ruleset.xml's
- * <properties> block is already applied to it.
- */
 it('ships PHPMD\'s own thresholds', function (): void {
     [, $ruleset] = buildRuleset();
 
@@ -34,13 +13,6 @@ it('ships PHPMD\'s own thresholds', function (): void {
         ->and($sniff->ignoreWhitespace)->toBeFalse();
 });
 
-/**
- * End to end through the master ruleset, every sniff active: a class of exactly
- * 1000 lines is reported once, at its declaration line, with PHPMD's own
- * message. The assertions are scoped to this rule's source so unrelated
- * additions to CleanCode/ruleset.xml — and the other violations this deliberately
- * repetitive fixture attracts — cannot break them.
- */
 it('flags a 1000-line class through the whole ruleset', function (): void {
     $file = analyzeWithMasterRuleset(
         fixturePath('ExcessiveClassLengthSniff', 'failing.php')

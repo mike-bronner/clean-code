@@ -1,35 +1,5 @@
 <?php
 
-/**
- * Integration test for the naming casing-convention rules (issue #22) that
- * the master CleanCode/ruleset.xml enforces:
- *
- * - Squiz.NamingConventions.ValidVariableName — camelCase variables and
- *   properties (PrivateNoUnderscore excluded: no underscore prefix demanded).
- *   The one sniff of the three CleanCode/ruleset.xml references explicitly.
- * - PSR1.Methods.CamelCapsMethodName — camelCase methods (magic exempt).
- * - Squiz.Classes.ValidClassName — PascalCase classes, interfaces, traits,
- *   and enums (abstract classes are covered via their class token).
- *
- * The last two carry no explicit ref in CleanCode/ruleset.xml (#217): they reach the
- * ruleset through its PSR12 ref, which includes PSR1 wholesale. The line map
- * below therefore also pins that transitive path — drop the PSR12 ref, or
- * exclude either sniff from it, and the expected violations disappear.
- *
- * All three sniffs are non-strict about consecutive capitals, so acronym
- * runs pass: $userID, getUserID(), and HTTPClient are all accepted alongside
- * $userId, getUserId(), and HttpClient. Leading underscores on private
- * members and on locals inside class scope are stripped by the Squiz sniff
- * before the camelCaps check, so private $_legacy and $_inClass slip
- * through — a documented limitation, asserted below so a behavior change
- * surfaces here.
- *
- * Because the standard is carried by three sniffs rather than one, its fixture
- * lives in tests/fixtures/_rulesets/CasingConventions/failing.php. Violations
- * from rules other than the three above are ignored, so unrelated additions to
- * the master ruleset cannot break this test.
- */
-
 declare(strict_types=1);
 
 const VALID_VARIABLE_NAME = 'Squiz.NamingConventions.ValidVariableName';

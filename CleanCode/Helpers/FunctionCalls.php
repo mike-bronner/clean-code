@@ -34,9 +34,6 @@ final class FunctionCalls
             return false;
         }
 
-        // Inside an attribute, the name is the attribute's class. Attribute
-        // arguments are constant expressions and so can hold no call at all,
-        // which makes the whole attribute region safe to rule out at once.
         if (isset($tokens[$stackPtr]['attribute_opener']) === true) {
             return false;
         }
@@ -142,11 +139,6 @@ final class FunctionCalls
         return isset($analysis['imports'][$block][$name]);
     }
 
-    // The TokenStreams instance is held, never built per call. Its identities
-    // are handed out by a WeakMap and a counter it owns, so a fresh instance
-    // restarts at 1 and would give two different files the same key whenever
-    // their token counts match — turning this memo into wrong answers rather
-    // than a slow one.
     public function __construct(
         private TokenStreams $tokenStreams = new TokenStreams()
     ) {
@@ -213,9 +205,6 @@ final class FunctionCalls
                 break;
             }
 
-            // An unbraced block runs until the next declaration, so it always
-            // claims a later pointer; a braced one claims it only up to its
-            // closing brace, after which the file is back outside a namespace.
             $block = ($closer === null || $stackPtr < $closer) ? $declaration : 0;
         }
 
@@ -271,10 +260,6 @@ final class FunctionCalls
         $groupOpener = $phpcsFile->findNext(T_OPEN_USE_GROUP, ($usePtr + 1), $endPtr);
         $isFunctionUse = $this->isFunctionKeyword($phpcsFile, ($usePtr + 1), $endPtr);
 
-        // The `function` keyword leads the whole statement in the no-group
-        // form, so one that does not carry it binds nothing however many names
-        // it lists — a class or constant import, or a closure's captured
-        // variables, whose own commas must never be read as import entries.
         if (
             $groupOpener === false
             && $isFunctionUse === false
@@ -286,8 +271,6 @@ final class FunctionCalls
             ? $this->commaEntries($phpcsFile, ($usePtr + 1), $endPtr)
             : $this->groupEntries($phpcsFile, $groupOpener, $endPtr);
 
-        // A group's prefix carries the namespace for every entry inside the
-        // braces, so no entry of a group can source from the global namespace.
         $prefixQualified = $groupOpener !== false;
         $names = [];
 

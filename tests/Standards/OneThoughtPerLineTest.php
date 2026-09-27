@@ -1,19 +1,5 @@
 <?php
 
-/**
- * Tests the custom CleanCode.ClearCode.OneThoughtPerLine sniff.
- *
- * Migrated from the PHP_CodeSniffer AbstractSniffUnitTest harness; the line =>
- * error-count map below is preserved verbatim from that test's getErrorList().
- * Fixtures moved from CleanCode/Tests/ClearCode/OneThoughtPerLineUnitTest.inc
- * (+ .inc.fixed) to tests/fixtures/OneThoughtPerLineSniff/failing.php
- * (+ autofixed.php).
- *
- * Line 25 carries two errors — a chain broken across lines more than once in a
- * single statement — which is why it appears twice below, once per reported
- * column, rather than once per line.
- */
-
 declare(strict_types=1);
 
 const ONE_THOUGHT_PER_LINE = 'CleanCode.ClearCode.OneThoughtPerLine';
@@ -55,23 +41,6 @@ it('auto-fixes the failing fixture into the autofixed fixture', function (): voi
         ->toBe(file_get_contents(fixturePath('OneThoughtPerLineSniff', 'autofixed.php')));
 });
 
-/**
- * The grouping exemption. An access operator held by an unclosed `(`, `[`, or
- * short-array opener is one term of a list the line already exists to hold, not
- * the line's own thought — so an argument list, an array rendered one item per
- * row, and a statement condition all stay compliant however many operators they
- * carry.
- *
- * The three negatives are what keep the exemption from swallowing the rule. A
- * closure body is inside the closure, not inside the argument list the closure
- * was passed to, so the search stops at the brace rather than reaching the
- * enclosing parentheses. And a group that closes *before* the operator —
- * `wrap($cart)->order->total` — never enclosed it at all.
- *
- * Non-vacuous by mutation: making isGrouped() return true always empties this
- * list; returning false always adds lines 4, 8, 9, 13 and 18, the five grouped
- * positions the fixture exists to keep unflagged.
- */
 it('ignores access operators held inside parentheses or brackets', function (): void {
     $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'grouped.php');
 

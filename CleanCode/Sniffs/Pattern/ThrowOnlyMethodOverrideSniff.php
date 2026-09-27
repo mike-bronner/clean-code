@@ -20,16 +20,10 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $method = $phpcsFile->getDeclarationName($stackPtr);
 
-        // Defensive only, and no fixture can pin it: PHPCS gives a closure its
-        // own T_CLOSURE token, which this sniff never registers for, so the
-        // one nameless T_FUNCTION is a truncated declaration — and a
-        // truncation deep enough to strip the name also strips the body the
-        // checks below need.
         if ($method === null) {
             return;
         }
 
-        // An abstract declaration or an interface signature has no body.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }

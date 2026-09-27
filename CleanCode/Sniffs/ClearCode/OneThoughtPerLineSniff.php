@@ -36,9 +36,6 @@ class OneThoughtPerLineSniff implements Sniff
         T_CLOSE_SHORT_ARRAY,
     ];
 
-    // A brace ends the search rather than being stepped over. An operator in a
-    // closure body is inside that body, not inside whatever argument list the
-    // closure was passed to, so the exemption must not reach across it.
     private const GROUP_BOUNDARIES = [
         T_SEMICOLON,
         T_OPEN_CURLY_BRACKET,
@@ -52,11 +49,6 @@ class OneThoughtPerLineSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
-        // An operator inside an argument list, an array literal, or a
-        // statement's condition is not the line's thought — it is one term of a
-        // list the line already exists to hold. Keeping those unflagged is what
-        // lets an array render one item per row, and lets parameters and
-        // conditions stay on one line.
         if ($this->isGrouped($phpcsFile, $stackPtr) === true) {
             return;
         }
@@ -96,9 +88,6 @@ class OneThoughtPerLineSniff implements Sniff
             ->endChangeset();
     }
 
-    // Whitespace already sitting before the operator is replaced; without any,
-    // the break is inserted instead. Replacing nothing would leave the original
-    // spacing behind and glue the operator to the line above it.
     private function breakBefore(File $phpcsFile, int $stackPtr, string $break): void
     {
         if ($phpcsFile->getTokens()[$stackPtr - 1]['code'] === T_WHITESPACE) {
@@ -112,9 +101,6 @@ class OneThoughtPerLineSniff implements Sniff
             ->addContentBefore($stackPtr, $break);
     }
 
-    // Whether an unclosed `(`, `[`, or short-array opener still holds the
-    // operator. The walk steps over any group that closes before it, so only an
-    // opener whose closer sits past the operator counts as enclosing it.
     private function isGrouped(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
@@ -177,9 +163,6 @@ class OneThoughtPerLineSniff implements Sniff
             }
 
             if (in_array($code, self::ACCESS_OPERATORS, true) === true) {
-                // Reached only after jumping a dynamic `{…}` segment
-                // (`->{$prop}` / `::{$prop}`), whose braces sit directly on
-                // the operator: that operator is the chain's predecessor.
                 return $ptr;
             }
 
@@ -202,10 +185,6 @@ class OneThoughtPerLineSniff implements Sniff
         return null;
     }
 
-    // The opener of a bracket the walk is standing on the closer of, so the
-    // whole parenthesised or bracketed segment is stepped over in one jump. A
-    // closer whose opener PHPCS did not record answers null and ends the walk,
-    // the same as any other token that cannot continue a chain.
     private function closedBracketOpener(array $tokens, int $ptr, int|string $code): ?int
     {
         if ($code === T_CLOSE_PARENTHESIS) {

@@ -22,8 +22,6 @@ class ExcessiveParameterListSniff implements Sniff
     {
         $threshold = $this->threshold();
 
-        // A declaration cut short mid-edit has no parenthesis pair, and
-        // getMethodParameters() answers with an empty list rather than raising.
         $count = count($phpcsFile->getMethodParameters($stackPtr));
 
         if ($count < $threshold) {

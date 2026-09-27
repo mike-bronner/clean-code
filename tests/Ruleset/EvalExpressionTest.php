@@ -1,22 +1,5 @@
 <?php
 
-/**
- * Integration test for the Squiz.PHP.Eval rule as configured in the master
- * CleanCode/ruleset.xml, which replaces PHPMD's Design/EvalExpression rule (issue #107).
- * Fixtures live in tests/fixtures/EvalSniff/.
- *
- * There is no autofixed.php because the rule is not auto-fixable —
- * Squiz\Sniffs\PHP\EvalSniff reports through addWarning() and registers no
- * fixer, so phpcbf cannot act on it, and PHPMD offers no auto-fix for an eval
- * expression either. The fixable-count test below pins that, so the absent
- * autofix fixture stays an asserted fact rather than an assumption.
- *
- * The severity override is pinned here too: the sniff reports a *warning* out
- * of the box and CleanCode/ruleset.xml raises it to an error, so eval() fails a phpcs run
- * the way it fails a phpmd run. That is why the tests assert the reports land
- * in getErrors() and that getWarnings() stays empty.
- */
-
 declare(strict_types=1);
 
 const EVAL_SNIFF = 'Squiz.PHP.Eval';
@@ -60,19 +43,11 @@ it('reports eval expressions as errors rather than warnings', function (): void 
 it('reports eval expressions without offering an auto-fix', function (): void {
     $file = analyzeFixture(EVAL_SNIFF, 'failing.php');
 
-    // Guard against a vacuous pass: an empty report also has zero fixable
-    // violations, so pin that the violations are actually there first.
     expect($file->getErrorCount())->toBe(count(EVAL_VIOLATION_LINES))
         ->and($file->getFixableCount())->toBe(0)
         ->and(violationFixableFlags($file))->toBe([false, false, false]);
 });
 
-/**
- * `eval` is a reserved word, but PHP 7.0 onwards allows it as a method name.
- * $object->eval(...), $object?->eval(...) and Class::eval(...) are ordinary
- * method calls, not the language construct, and the tokenizer does not emit
- * T_EVAL for them — so the sniff must stay silent.
- */
 it('does not flag methods named eval', function (): void {
     $file = analyzeFixture(EVAL_SNIFF, 'boundaries.php');
 

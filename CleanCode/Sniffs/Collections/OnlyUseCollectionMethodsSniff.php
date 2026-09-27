@@ -9,10 +9,7 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-// A sniff is one rule, and its class name is the sniff code consumers write
-// in their rulesets — so the unit is fixed from outside and splitting the
-// class into collaborators would distribute the work without reducing it.
-// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods -- see above
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods
 class OnlyUseCollectionMethodsSniff implements Sniff
 {
     private const GENERIC_FUNCTIONS = [
@@ -163,9 +160,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- interface-mandated, see CONTRIBUTING.md
     public function process(File $phpcsFile, $stackPtr): int
     {
-        // Order matters: the alias map decides what counts as a Collection type
-        // hint, which the arrow-function table records, which the variable map
-        // consults.
         $this->importAliases = $this->mapImports($phpcsFile);
         $this->arrowFunctions = $this->mapArrowFunctions($phpcsFile);
         $this->escapedVariables = $this->mapEscapedVariables($phpcsFile);
@@ -185,8 +179,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            // An unterminated arrow function is not analysed rather than
-            // guessed at.
             if (isset($tokens[$ptr]['scope_opener'], $tokens[$ptr]['scope_closer']) === false) {
                 continue;
             }
@@ -240,8 +232,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // A trait `use` lives inside a class body. A braced namespace is the
-        // only enclosing construct an import can legitimately sit in.
         foreach ($tokens[$usePtr]['conditions'] ?? [] as $code) {
             if ($code !== T_NAMESPACE) {
                 return null;
@@ -257,8 +247,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return null;
         }
 
-        // Matched on content: `function`/`const` after `use` tokenise
-        // differently across PHPCS versions, but never read otherwise.
         return match (strtolower($tokens[$next]['content'])) {
             'const' => null,
             'function' => 'function',
@@ -314,7 +302,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return;
         }
 
-        // Class names are case-insensitive in PHP, so the lookup key is too.
         $aliases[strtolower($alias === '' ? $imported : $alias)] = $imported;
     }
 
@@ -325,9 +312,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $retired = [];
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
-            // Arrow-function parameters are deliberately absent here: they bind
-            // in the arrow function, not in the scope around it, so they live
-            // in $this->arrowFunctions instead (see mapArrowFunctions()).
             if (in_array($tokens[$ptr]['code'], [T_CLOSURE, T_FUNCTION], true) === true) {
                 $this->addTypeHintedParameters($phpcsFile, $ptr, $variables);
                 $this->retireReferenceCaptures($phpcsFile, $ptr, $variables, $retired);
@@ -360,8 +344,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $target = $phpcsFile->findStartOfStatement($ptr);
 
-        // Destructuring binds several names at once out of an expression whose
-        // shape the sniff does not model, so every target it names is retired.
         if (in_array($tokens[$target]['code'], [T_LIST, T_OPEN_SHORT_ARRAY], true) === true) {
             $closer = $tokens[$target]['bracket_closer'] ?? $tokens[$target]['parenthesis_closer'] ?? null;
 
@@ -372,10 +354,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return;
         }
 
-        // Anything other than a lone local variable on the left — a property
-        // write, an index write, a static property — is a target the sniff
-        // cannot fully parse. The name the target *starts* with is the one
-        // being written through, so that is the one retired.
         if (
             $this->isLocalVariableTarget($phpcsFile, $target) === false
             || $phpcsFile->findNext(Tokens::$emptyTokens, ($target + 1), $ptr, true) !== false
@@ -388,15 +366,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $scope = $this->scopeOf($phpcsFile, $target);
         $name = $tokens[$target]['content'];
 
-        // A compound assignment (`.=`, `+=`, `??=`) combines the name's own
-        // prior value with something else; only a plain `=` states outright
-        // what the name now holds.
-        //
-        // A conditional assignment says nothing about what the variable holds
-        // at the call site either: the branch may not have run, and the branch
-        // next door may assign something else entirely. Rather than let the
-        // textually last write win — which would flag, and offer to "fix", code
-        // that is correct at runtime — the name is retired.
         if (
             $tokens[$ptr]['code'] !== T_EQUAL
             || $this->isUnconditionalAssignment($phpcsFile, $target, $scope) === false
@@ -408,8 +377,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $end = $this->statementEnd($phpcsFile, ($ptr + 1));
 
-        // An unterminated statement is an expression the sniff cannot read, so
-        // it retires rather than leaves the previous binding standing.
         if (
             $end === null
             || $this->isCollectionExpression($phpcsFile, ($ptr + 1), ($end - 1), $variables) === false
@@ -419,13 +386,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return;
         }
 
-        // The name inherits the *strength* of the expression that assigned it,
-        // not merely the fact that one did. isCollectionExpression() above
-        // fails open, so it admits `$rows = $c->someMacro();` — right for
-        // reporting, and no proof at all for the fixer. Recording only the
-        // fail-open answer here is what let a variable launder it: the same
-        // `count($c->someMacro())` the fixer declines inline was rewritten once
-        // it went through a variable.
         $variables[$scope][$name] = $this->isProvableCollection($phpcsFile, ($ptr + 1), ($end - 1), $variables);
     }
 
@@ -516,9 +476,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return;
         }
 
-        // The capture list sits outside the closure body, so scopeOf() on a
-        // name in it already resolves to the enclosing scope — the one the
-        // rebinding will be seen from.
         for ($current = $captureOpener; $current <= $captureCloser; $current++) {
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($current - 1), $captureOpener, true);
 
@@ -616,18 +573,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         if (in_array($tokens[$callee]['code'], [T_STRING, T_VARIABLE], true) === false) {
-            // Neither a name nor a variable in front of the parenthesis. Either
-            // it opens no call at all — a grouping, a condition, a declaration's
-            // parameter list, a language construct — or it calls a callable this
-            // sniff cannot name. Only the first is provably by value, so the
-            // answer is the admission set, never the fallthrough: a callee whose
-            // parameters cannot be read is exactly the one that may declare
-            // `&$items`.
             return $this->isCallableExpressionEnd($phpcsFile, $callee) === false;
         }
 
-        // A declaration's parameter list, not a call: its variables are the
-        // callee's own, and addTypeHintedParameters() has already judged them.
         $before = $this->pastReferenceMarker(
             $phpcsFile,
             $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true)
@@ -640,10 +588,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return true;
         }
 
-        // Only the *global* function of that name is one of the seventeen. A
-        // `use function …\countDistinctTags as count;` import, or a `->count()`
-        // method of the same name, is userland code free to declare `&$items`
-        // and rebind the caller's variable — so it escapes like any other call.
         return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
             && $functionCalls->isGlobalFunctionCall($phpcsFile, $callee) === true;
     }
@@ -690,10 +634,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     {
         $notACollection = ['reportable' => false, 'provable' => false];
 
-        // Both keys are set for every parameter getMethodParameters() returns,
-        // so they are read outright. A `?? false` here would be a safety guard
-        // with a fail-open default: were the key ever to go missing, a variadic
-        // parameter would silently become a rewritable Collection again.
         if ($parameter['variable_length'] === true) {
             return $notACollection;
         }
@@ -754,7 +694,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 str_contains($member, '\\') === false
             );
 
-            // A union needs every member; an intersection needs only one.
             if (
                 $isIntersection === true
                 && $isCollection === true
@@ -879,8 +818,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 return true;
             }
 
-            // A nullsafe link can yield null, so the chain is no longer
-            // provably a Collection whatever the method after it returns.
             if ($tokens[$operator]['code'] !== T_OBJECT_OPERATOR) {
                 return false;
             }
@@ -952,8 +889,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         ));
         $closer = $tokens[$opener]['parenthesis_closer'];
 
-        // A fully-qualified call (\count(…)) carries a leading separator that
-        // has to go with the function name, or the fix leaves a stray "\".
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
         $start = $prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR ? $prev : $stackPtr;
 
@@ -1000,8 +935,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             }
 
             if (in_array($tokens[$operator]['code'], [T_NULLSAFE_OBJECT_OPERATOR, T_OBJECT_OPERATOR], true) === false) {
-                // Anything else trailing the expression (an operator, an array
-                // access, …) means the value is no longer just the Collection.
                 return false;
             }
 
@@ -1020,7 +953,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 $parenthesis === false
                 || $tokens[$parenthesis]['code'] !== T_OPEN_PARENTHESIS
             ) {
-                // Property access, not a method call — its type is unknown.
                 return false;
             }
 
@@ -1063,14 +995,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         if ($tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
-            // The global collect() helper — a namespaced collect() is a
-            // different function entirely, and so is one the file imported
-            // under that name. FunctionCalls::isGlobalFunctionCall() settles
-            // both, and settles them the same way for every other bare name
-            // this sniff reads, which is the point of routing through it: a
-            // `use function …\makeArray as collect;` import makes a bare
-            // collect() return whatever that function returns, which is not a
-            // Collection this sniff may report on, let alone rewrite.
             $isHelper = $name['short'] === 'collect'
                 && $name['qualified'] === false
                 && $functionCalls->isGlobalFunctionCall($phpcsFile, $name['end']) === true;
@@ -1241,9 +1165,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return $binding;
         }
 
-        // Presence says the name is a Collection as far as reporting is
-        // concerned; the value says whether it is one for certain. A name
-        // tracked only on the fail-open reading is reported and never fixed.
         $tracked = $variables[$this->scopeOf($phpcsFile, $ptr)][$name] ?? null;
 
         return $tracked !== null && ($provable === false || $tracked === true);
@@ -1255,8 +1176,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $binding = null;
         $polarity = $provable === true ? 'provable' : 'reportable';
 
-        // Built in T_FN order, so a later match is nested inside an earlier one
-        // and the last one to declare the name is the innermost.
         foreach ($this->arrowFunctions as $arrowFunction) {
             if (
                 $ptr < $arrowFunction['start']
@@ -1318,10 +1237,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An arrow function's body is a deferred expression with locals of its
-        // own, so an assignment inside one proves nothing about the scope
-        // around it. PHPCS records no T_FN in `conditions`, so the loop below
-        // cannot see it — the range check has to stand in.
         if ($this->isInsideArrowFunction($target) === true) {
             return false;
         }

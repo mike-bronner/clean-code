@@ -24,11 +24,6 @@ class PrimaryConstructorDelegationSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $method = $phpcsFile->getDeclarationName($stackPtr);
 
-        // Defensive only, and no fixture can pin it: PHPCS gives a closure its
-        // own T_CLOSURE token, which this sniff never registers for, so the
-        // one nameless T_FUNCTION is a truncated declaration — and a
-        // truncation deep enough to strip the name also strips the class
-        // scope the owner check below needs.
         if ($method === null) {
             return;
         }
@@ -45,14 +40,12 @@ class PrimaryConstructorDelegationSniff implements Sniff
             return;
         }
 
-        // An anonymous class has no name, so only self/static can name it.
         $className = $phpcsFile->getDeclarationName($ownerPtr);
 
         if ($this->returnsDeclaringClass($phpcsFile, $properties['return_type'], $className) === false) {
             return;
         }
 
-        // An abstract method or interface signature has no body to scan.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }
@@ -89,13 +82,6 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
     private function returnsDeclaringClass(File $phpcsFile, string $returnType, ?string $className): bool
     {
-        // A failed split is false and the foreach then throws a TypeError. The
-        // unsplit type is the honest fallback: a single-member union is what a
-        // type carrying no separator already reduces to, so a plain `self`
-        // still answers correctly and only a union goes unread. `/[|&]/` is a
-        // literal character class with no quantifier and no `/u` modifier, so
-        // preg_split() cannot fail; the ?: states that outright rather than
-        // leaning on it, as MemberOrderingSniff::isRelationReturnType() does.
         foreach (preg_split('/[|&]/', $returnType) ?: [$returnType] as $part) {
             $spelling = ltrim(trim($part), '?');
             $type = strtolower(ltrim($spelling, '\\'));
@@ -142,10 +128,6 @@ class PrimaryConstructorDelegationSniff implements Sniff
         $closer = $tokens[$stackPtr]['scope_closer'];
 
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
-            // Inside an anonymous class, `self` and `static` name *it*, not the
-            // method's own class, so nothing in its body delegates here. A
-            // closure or arrow function keeps the enclosing class binding and
-            // is therefore walked into.
             if ($tokens[$pointer]['code'] === T_ANON_CLASS) {
                 $pointer = $tokens[$pointer]['scope_closer'] ?? $closer;
 

@@ -1,41 +1,5 @@
 <?php
 
-/**
- * Methods: Type Hints (#70) — the Slevomat ParameterTypeHint and ReturnTypeHint
- * rules as configured in the master ruleset (CleanCode/ruleset.xml). Every function-like
- * declaration must carry native parameter and return type hints, so the sniffs
- * cover class methods, closures, and free functions alike.
- *
- * Fixtures live in tests/fixtures/_rulesets/MethodTypeHints/ — the standard is
- * carried by two sniffs rather than one, so it gets a _rulesets bucket rather
- * than a per-sniff directory. passing.php must produce no violation from either
- * sniff, failing.php must be flagged at the exact lines below, and autofixed.php
- * is the fixer's own output on failing.php: every violation whose hint the sniff
- * can infer from an annotation is resolved, the rest remain flagged.
- *
- * Reporting runs the whole master ruleset, so the message-level exclusions and
- * the pinned enable* properties stay live — narrowing by Config::$sniffs would
- * drop the exclusions and test a configuration that never ships. The fixtures
- * pack several classes into one namespace-less file, so PSR1/PSR12 and other
- * rules fire on them too; assertions are therefore scoped to the two sniffs #70
- * owns.
- *
- * That scope is an explicit allowlist, not a SlevomatCodingStandard.TypeHints.
- * prefix: #45's PropertyTypeHint shares the namespace and is live in the same
- * shipped ruleset. property-hint-not-counted.php pins that boundary — a prefix
- * match would pull its property error into #70's map.
- *
- * The docblock-only fixture cases (union, intersection, mixed, object, static,
- * never, standalone true/false/null, nullable) are what hold the enable* pins
- * in CleanCode/ruleset.xml: each annotation is promoted to a native hint only while its flag
- * is on, so flipping a pin changes either the line map below or autofixed.php.
- *
- * excluded-codes.php holds the other half of the configuration — the five
- * message codes CleanCode/ruleset.xml excludes. Both halves are pinned, per CONTRIBUTING.md:
- * the codes stay silent through CleanCode/ruleset.xml, and the same fixture proves they
- * would fire without the excludes, so dropping an <exclude> fails this suite.
- */
-
 declare(strict_types=1);
 
 const METHOD_TYPE_HINTS_SNIFFS = [
@@ -63,11 +27,6 @@ const RETURN_USELESS = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.UselessA
 
 const RETURN_LESS_SPECIFIC = 'SlevomatCodingStandard.TypeHints.ReturnTypeHint.LessSpecificNativeTypeHint';
 
-/**
- * The five codes CleanCode/ruleset.xml excludes from the two sniffs #70 owns. Each acts on
- * what a docblock says rather than on a missing native hint, so the standard
- * drops it.
- */
 const METHOD_TYPE_HINTS_EXCLUDED_CODES = [
     PARAMETER_TRAVERSABLE,
     PARAMETER_USELESS,
@@ -76,9 +35,6 @@ const METHOD_TYPE_HINTS_EXCLUDED_CODES = [
     RETURN_LESS_SPECIFIC,
 ];
 
-/**
- * True when a violation source belongs to one of the two sniffs #70 owns.
- */
 $ownedSniff = static function (string $source): bool {
     foreach (METHOD_TYPE_HINTS_SNIFFS as $sniff) {
         if (str_starts_with($source, $sniff . '.') === true) {
@@ -89,10 +45,6 @@ $ownedSniff = static function (string $source): bool {
     return false;
 };
 
-/**
- * The fixture's #70 errors as a line => sorted sources map, gathered from a
- * whole-ruleset run.
- */
 $ownedReport = static function (string $fixture) use ($ownedSniff): array {
     $file = analyzeWithMasterRuleset(fixturePath('_rulesets/MethodTypeHints', $fixture));
     $sources = [];
@@ -117,11 +69,6 @@ $ownedReport = static function (string $fixture) use ($ownedSniff): array {
     return $sources;
 };
 
-/**
- * The fixture's #70 warnings. Both sniffs only ever addError today, so this is
- * the forward guard: a Slevomat release or severity change that starts emitting
- * a warning would slip past the error map above.
- */
 $ownedWarningCount = static function (string $fixture) use ($ownedSniff): int {
     $file = analyzeWithMasterRuleset(fixturePath('_rulesets/MethodTypeHints', $fixture));
     $count = 0;
@@ -187,8 +134,6 @@ it('flags violations at the exact line', function () use ($ownedReport, $ownedWa
 });
 
 it('leaves #45 property type-hint violations out of #70 coverage', function () use ($ownedReport): void {
-    // Both sniffs fire on the unhinted method at line 13; the unhinted property
-    // at line 11 is PropertyTypeHint, which #45 owns and this map must not see.
     expect($ownedReport('property-hint-not-counted.php'))->toBe([
         13 => [PARAMETER_ANY, RETURN_ANY],
     ]);
@@ -240,16 +185,6 @@ it('keeps the excluded codes silent through the master ruleset', function () use
     expect($ownedWarningCount('excluded-codes.php'))->toBe(0);
 });
 
-/**
- * Guards the test above from passing vacuously: the same fixture, run through
- * the same ruleset with only the excludes lifted, must raise every excluded
- * code — and nowhere else. Without this, a fixture that trips nothing at all
- * looks exactly like a working exclude list.
- *
- * The whole map is asserted rather than membership alone, so a code that moved
- * to another declaration, or a sixth code appearing beside the five, reddens
- * here rather than hiding behind a satisfied toContain().
- */
 it('raises every excluded code without the master rulesets excludes', function (): void {
     $file = analyzeWithoutExcludes(
         METHOD_TYPE_HINTS_SNIFFS,

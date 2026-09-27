@@ -72,9 +72,6 @@ class RequireLazyLoadingPreventionSniff implements Sniff
                 continue;
             }
 
-            // A T_STRING inside a class body always has a preceding non-empty
-            // token — the class keyword at the very least — so findPrevious()
-            // cannot fail here and needs no guard.
             $operatorPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 
             if ($tokens[$operatorPtr]['code'] !== T_DOUBLE_COLON) {

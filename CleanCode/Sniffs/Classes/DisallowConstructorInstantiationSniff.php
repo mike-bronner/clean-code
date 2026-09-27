@@ -35,16 +35,12 @@ class DisallowConstructorInstantiationSniff implements Sniff
             return;
         }
 
-        // A function is only a constructor when a class-like scope holds it
-        // directly. A plain `function __construct()` at file scope, or nested
-        // inside another function, injects into nothing.
         $enclosing = $tokens[$stackPtr]['conditions'];
 
         if (! in_array(end($enclosing), self::CLASS_LIKE_SCOPES, true)) {
             return;
         }
 
-        // An abstract or interface constructor has no body to scan.
         if (! isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer'])) {
             return;
         }
@@ -52,9 +48,6 @@ class DisallowConstructorInstantiationSniff implements Sniff
         $closer = $tokens[$stackPtr]['scope_closer'];
 
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
-            // Everything a `throw` raises is exception construction, however it
-            // is spelled — jump the whole operand rather than inspecting the
-            // single token that follows the keyword.
             if ($tokens[$pointer]['code'] === T_THROW) {
                 $pointer = $this->endOfThrownExpression($phpcsFile, $pointer, $closer);
 
@@ -67,10 +60,6 @@ class DisallowConstructorInstantiationSniff implements Sniff
                 continue;
             }
 
-            // Nested scopes (closures, arrow functions, anonymous classes and
-            // their methods) run on their own terms — jump the whole scope.
-            // Conditionals and loops carry a scope too, but their bodies are
-            // constructor code, so only declarations are skipped.
             if (
                 $this->isNestedDeclaration($tokens[$pointer]['code'])
                 && isset($tokens[$pointer]['scope_closer'])

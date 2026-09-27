@@ -195,15 +195,6 @@ class UnusedFormalParameterSniff implements Sniff
     {
         $matched = preg_match_all(self::INTERPOLATION_PATTERN, $text, $matches);
 
-        // This read can genuinely fail: INTERPOLATION_PATTERN's leading
-        // `(?:\\\\)*` is a quantified group, so a long enough run of
-        // backslashes in the string exhausts a PCRE limit. A runtime failure
-        // leaves $matches with an empty `name` key; a compile failure leaves it
-        // unwritten, and array_fill_keys() is then handed an offset read off
-        // null against a parameter it declared as an array. The empty list is
-        // the exit for it: names this read did not collect are names the
-        // parameter is not proven to use, so the failure reports a parameter
-        // that may be used rather than crashing the sniff on the file.
         if ($matched === false) {
             return [];
         }
@@ -565,9 +556,6 @@ class UnusedFormalParameterSniff implements Sniff
         }
     }
 
-    // Records one declaration against the namespace in force, and answers the
-    // namespace the next declaration sits in — unchanged, except where this
-    // pointer was itself a namespace statement.
     private function indexDeclaration(File $phpcsFile, int $pointer, string $namespace): string
     {
         if ($phpcsFile->getTokens()[$pointer]['code'] === T_NAMESPACE) {

@@ -1,30 +1,5 @@
 <?php
 
-/**
- * The CleanCode.Metrics.NumberOfChildren.OrdinalIndex backstop *as the shipped
- * rulesets declare it* (#378). The sniff's own behaviour lives in
- * tests/Standards/NumberOfChildrenTest.php; what is asserted here is the
- * shipped severity, which is what decides whether a consumer running
- * `phpcs --standard=CleanCode/ruleset.xml` can be shown a diagnostic they never asked for.
- *
- * OrdinalIndex is instrumentation. It exists so the performance test in the
- * Standards file can read the sniff's own counters back out of a real phpcs
- * subprocess, which is the only channel that run has. The sniff gates it on the
- * cleancode_ordinal_index_diagnostic config value, and that gate is not enough
- * on its own: PHPCS merges the runtime-set flag, a ruleset `config` element and
- * the persisting config-set command into one store, and the sniff cannot tell
- * them apart. A stale config-set on a shared install — a CI runner, a monorepo,
- * a cached Docker layer — therefore leaks warnings into every later ordinary
- * run against that install, on every file holding a class declaration, until
- * someone runs config-delete. It was reproduced live under PR #377.
- *
- * The severity-0 declaration in CleanCode/ruleset.xml closes that off. These
- * tests hold both halves of it: that the declaration survives into the ruleset
- * PHPCS actually merges, including when a consumer re-references the sniff to
- * tune it, and that a real install carrying a real persisted config value stays
- * quiet anyway.
- */
-
 declare(strict_types=1);
 
 const ORDINAL_INDEX_SNIFF = 'CleanCode.Metrics.NumberOfChildren';
@@ -33,16 +8,6 @@ const ORDINAL_INDEX_DIAGNOSTIC = ORDINAL_INDEX_SNIFF . '.OrdinalIndex';
 
 const ORDINAL_INDEX_FOUND = ORDINAL_INDEX_SNIFF . '.Found';
 
-/**
- * A project whose Base class is over the shipped threshold of 15 children, so
- * an ordinary run has something to report either way. Without a real violation
- * a silent report proves nothing: a run that failed to load the standard at all
- * looks exactly like a run whose backstop worked.
- *
- * @return string the directory to hand PHPCS
- *
- * @var callable(): string
- */
 $stageOrdinalIndexProject = static function (): string {
     $children = implode("\n\n", array_map(
         static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
@@ -54,15 +19,6 @@ $stageOrdinalIndexProject = static function (): string {
     ]));
 };
 
-/**
- * Runs a staged throwaway phpcs install and returns [stdout, exit status].
- *
- * @param array<int, string> $arguments
- *
- * @return array{0: string, 1: int}
- *
- * @var callable(string, array<int, string>): array{0: string, 1: int}
- */
 $runThrowawayPhpcs = static function (string $binary, array $arguments): array {
     [$stdout, , $status] = runOutsidePackage(implode(' ', array_map(
         'escapeshellarg',
@@ -72,13 +28,6 @@ $runThrowawayPhpcs = static function (string $binary, array $arguments): array {
     return [$stdout, $status];
 };
 
-/**
- * Every message source a JSON report carries, in report order.
- *
- * @return array<int, string>
- *
- * @var callable(string): array<int, string>
- */
 $reportedSources = static function (string $json): array {
     $sources = [];
 
@@ -91,34 +40,12 @@ $reportedSources = static function (string $json): array {
     return $sources;
 };
 
-/**
- * The declaration has to survive into the ruleset PHPCS *merges*, which is not
- * the same claim as the string being present in a file. Reading it back off
- * Ruleset::$ruleset is what tells the two apart: an `<exclude>` elsewhere, a
- * consumer-style re-reference, or a rule ordering that reopened the code would
- * all leave the declaration's text in place while the merged severity came out
- * nonzero.
- *
- * One entry point, because there is one: CleanCode/ruleset.xml is the only
- * ruleset the package ships.
- */
 it('merges the ordinal diagnostic to severity 0', function (): void {
     $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/CleanCode/ruleset.xml');
 
     expect($ruleset->ruleset[ORDINAL_INDEX_DIAGNOSTIC]['severity'] ?? null)->toBe(0);
 });
 
-/**
- * The backstop must silence the one message code and nothing else. Severity is
- * declared per code, so zeroing the sniff instead of the message would take
- * NumberOfChildren.Found down with it — the rule this sniff exists for, and the
- * PHPMD rule docs/phpmd/design-numberofchildren.md promises to cover.
- *
- * `Found` carries no severity of its own, so it reports at PHPCS's default of
- * 5. Asserting the absence of a severity key is the honest form of that: any
- * value written here, 5 included, would be a second place for the shipped
- * behaviour to drift from PHPCS's default.
- */
 it('leaves the sniff itself reporting', function (): void {
     $ruleset = buildRulesetForStandard(cleanCodeRoot() . '/CleanCode/ruleset.xml');
 
@@ -127,14 +54,6 @@ it('leaves the sniff itself reporting', function (): void {
         ->and($ruleset->ruleset[ORDINAL_INDEX_FOUND]['severity'] ?? null)->toBeNull();
 });
 
-/**
- * docs/phpmd/design-numberofchildren.md tells a consumer to tune this rule by
- * referencing the sniff and setting `minimum`. That reference names the sniff,
- * not the message code, and PHPCS only reopens an excluded code when the code
- * itself is referenced — so the documented example must not hand the diagnostic
- * back by accident. Pinned here because the doc is the thing that would be
- * wrong, and nothing else would catch it.
- */
 it('keeps the diagnostic silent when a consumer tunes the sniff', function (): void {
     $standard = stagingDirectory() . '/tuned.xml';
 
@@ -157,38 +76,6 @@ it('keeps the diagnostic silent when a consumer tunes the sniff', function (): v
     expect($ruleset->ruleset[ORDINAL_INDEX_DIAGNOSTIC]['severity'] ?? null)->toBe(0);
 });
 
-/**
- * The hazard itself, from a consumer's vantage point and end to end.
- *
- * Everything above reads a merged ruleset in this process. None of it exercises
- * the route the issue is actually about: `phpcs --config-set`, which persists
- * the gate value into the install's own CodeSniffer.conf and so arms every
- * later run against that install — including runs that pass no flags at all.
- *
- * That route cannot be driven against vendor/ without writing the shared config
- * file this suite's ConfigDouble convention exists to keep it off, and leaving
- * behind precisely the stale value under test. PHPCS resolves that path from
- * its own __DIR__ with no environment override, so the install is copied
- * instead and the copy is what gets written. Cleanup is the afterEach purge in
- * tests/Pest.php, which runs whether or not the assertions below hold.
- *
- * Three assertions carry the weight, and the first and last are what stop the
- * middle one passing vacuously:
- *
- * - config-show proves the value really is persisted in that install and
- *   readable by it. A config-set that silently failed would produce the same
- *   empty ordinal report as a working backstop.
- * - The ordinary run reports Found and no OrdinalIndex. This is the claim.
- * - The same install, same persisted value, no flags added, loading a consumer
- *   ruleset that restores the severity, does report OrdinalIndex. That proves
- *   the persisted value reaches the sniff and that the ruleset declaration is
- *   the only thing suppressing it — so deleting the backstop reddens the middle
- *   assertion rather than quietly changing nothing.
- *
- * The real CodeSniffer.conf is hashed either side of all of it, because a test
- * about not leaking persisted config is the last place to leak persisted
- * config.
- */
 it('stays silent on an ordinary run against an install carrying a persisted config value', function () use (
     $stageOrdinalIndexProject,
     $runThrowawayPhpcs,
@@ -199,9 +86,6 @@ it('stays silent on an ordinary run against an install carrying a persisted conf
     $shared = cleanCodeRoot() . '/vendor/squizlabs/php_codesniffer/CodeSniffer.conf';
     $before = is_file($shared) === true ? hash_file('sha256', $shared) : null;
 
-    // Absolute, and set rather than inherited: the copy's own CodeSniffer.conf
-    // is deliberately not carried over, and Composer's entries in the real one
-    // are relative to the install they were written for.
     $runThrowawayPhpcs($binary, [
         '--config-set',
         'installed_paths',

@@ -29,9 +29,6 @@ class JunkDrawerNamespaceSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        // T_NAMESPACE is also the `namespace\` relative-name operator
-        // (`namespace\format()`), which carries no declaration to read. A
-        // following T_NS_SEPARATOR is what tells the two apart.
         if (
             $namePtr === false
             || $tokens[$namePtr]['code'] === T_NS_SEPARATOR

@@ -29,9 +29,6 @@ class TooManyFieldsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An unterminated class body is live coding, not a design smell: its
-        // remaining fields have not been typed yet, so any count taken here
-        // would be of a half-written class.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }

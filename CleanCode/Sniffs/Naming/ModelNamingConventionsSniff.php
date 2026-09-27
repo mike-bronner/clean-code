@@ -133,11 +133,6 @@ class ModelNamingConventionsSniff implements Sniff
                 $this->processMethod($phpcsFile, $ptr, $namespace, $imports);
                 $this->processPromotedProperties($phpcsFile, $ptr);
 
-                // Jump the parameter list and the body in one step, so locals,
-                // closures, and nested anonymous classes are never mistaken for
-                // members of this model. Promoted properties live in the part
-                // being jumped, which is why they are collected above rather
-                // than by the T_VARIABLE branch below.
                 $ptr = $this->endOfMethod($phpcsFile, $ptr);
 
                 continue;
@@ -156,11 +151,6 @@ class ModelNamingConventionsSniff implements Sniff
         try {
             $property = $phpcsFile->getMemberProperties($stackPtr);
         } catch (RuntimeException) {
-            // PHPCS throws for any T_VARIABLE that is not a member variable.
-            // The walk in process() already keeps those out — method bodies
-            // and abstract-method parameter lists are both skipped — so this
-            // is the safety net for a shape it has not met: skip the token
-            // rather than let an exception abort the whole PHPCS run.
             return;
         }
 
@@ -209,11 +199,6 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        // Matched case-insensitively because Eloquent finds an accessor with
-        // method_exists($this, 'get' . Str::studly($key) . 'Attribute'), and
-        // method_exists() folds case — so `getFooattribute()` is a live legacy
-        // accessor for `foo`, and nothing else in the ruleset would catch it
-        // (it is valid PSR-1 camelCase).
         if (preg_match('/^(?:get|set)[A-Za-z0-9_]+Attribute$/i', $name) === 1) {
             $phpcsFile->addError(self::MESSAGE_LEGACY_ATTRIBUTE, $stackPtr, 'LegacyAttributeAccessor', [$name]);
 
@@ -238,11 +223,6 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        // Every check below reads the name the return type *resolves* to, never
-        // the name as written. A declared name means nothing until it has been
-        // through the import map — `CollectionAlias` may be a collection and
-        // `Client` may be `User` — and interpreting the alias itself both misses
-        // violations and invents them.
         $resolved = $this->resolveType($type, $namespace, $imports);
 
         if (in_array(strtolower($this->shortName($resolved)), self::COLLECTION_TYPES, true)) {
@@ -263,8 +243,6 @@ class ModelNamingConventionsSniff implements Sniff
             return;
         }
 
-        // `self`/`static`/`parent` name no model, so there is nothing to
-        // require in the rest of the method name.
         $model = in_array(strtolower($type), self::SELF_TYPES, true) ? '' : $this->shortName($resolved);
 
         if (
@@ -315,18 +293,11 @@ class ModelNamingConventionsSniff implements Sniff
     private function resolveType(string $type, string $namespace, array $imports): string
     {
         if (str_starts_with($type, '\\')) {
-            // The trim is normalisation, so every branch returns the same
-            // shape; only the early return itself carries behaviour.
             return ltrim($type, '\\');
         }
 
         [$head, $rest] = array_pad(explode('\\', $type, 2), 2, null);
 
-        // Lower-cased, because the map is keyed that way: PHP matches a
-        // reference to its `use` statement case-insensitively, so
-        // `use App\Models\APIToken;` is reached by `ApiToken` as well. Missing
-        // the map would silently fall through to namespace-qualification, which
-        // both hides violations and invents them.
         $head = strtolower($head);
 
         if (isset($imports[$head])) {
@@ -445,13 +416,6 @@ class ModelNamingConventionsSniff implements Sniff
                 continue;
             }
 
-            // A closure declared at file level carries no enclosing condition,
-            // so its `use (…)` clause reaches here. This keeps that clause out
-            // of the map rather than fixing a violation: the check above
-            // catches every closure inside a class, and the keys a file-level
-            // one would contribute always hold a parenthesis or a space, which
-            // no declared type can match. A guard, not a behaviour — no fixture
-            // can tell its removal apart.
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, $ptr + 1, null, true);
 
             if (
@@ -518,10 +482,6 @@ class ModelNamingConventionsSniff implements Sniff
 
             $resolved = ltrim($name, '\\');
 
-            // The key is lower-cased so a reference cased differently from its
-            // `use` still finds it, the way PHP does. The *value* keeps its
-            // source casing: shortName() feeds it into message text, where the
-            // model's real spelling is the whole point of the advice.
             $map[strtolower($alias)] = ($prefix === '') ? $resolved : "{$prefix}\\{$resolved}";
         }
 

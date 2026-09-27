@@ -10,18 +10,6 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-// Another language embedded in PHP belongs in a HEREDOC, at any length.
-//
-// Not only markup: HTML, XML, SQL, JSON, YAML, INI and other config blocks, and
-// markdown all read as the language they are only when the delimiter names one.
-// An editor highlights a HEREDOC body by its marker and a quoted string as one
-// flat run of characters, so length has nothing to do with it — a one-line
-// query earns the same treatment as a twenty-line template.
-//
-// Length is the sibling concern and belongs to
-// CleanCode.Strings.MultilineStrings, which counts source lines and never looks
-// at content. Between them the two sniffs own disjoint slices, so no string is
-// reported twice.
 class RequireHeredocForStructuredTextSniff implements Sniff
 {
     private const MESSAGE
@@ -39,9 +27,6 @@ class RequireHeredocForStructuredTextSniff implements Sniff
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
     public function process(File $phpcsFile, $stackPtr): void
     {
-        // A chain reports once, at its first fragment. Every later fragment
-        // reads the same joined text, so without this the same block is
-        // reported once per piece.
         if ($this->opensChain($phpcsFile, $stackPtr) === false) {
             return;
         }
@@ -56,8 +41,6 @@ class RequireHeredocForStructuredTextSniff implements Sniff
         $phpcsFile->addError(self::MESSAGE, $stackPtr, 'StructuredTextInString', [$language]);
     }
 
-    // Names the language for the message, and answers null for prose. The order
-    // is the order the checks are cheapest and most specific in.
     private function languageOf(string $text): ?string
     {
         $structured = new StructuredText();

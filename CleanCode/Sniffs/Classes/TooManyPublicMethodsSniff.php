@@ -26,7 +26,6 @@ class TooManyPublicMethodsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // A class cut short mid-edit has no brace pair to scan between.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }

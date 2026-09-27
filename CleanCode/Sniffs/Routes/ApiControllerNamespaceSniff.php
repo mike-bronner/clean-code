@@ -30,10 +30,6 @@ class ApiControllerNamespaceSniff implements Sniff
         $namespaceSegments = $this->namespaceSegments($phpcsFile, $stackPtr);
         $namespaceTail = $this->segmentsBelowControllerRoot($namespaceSegments);
 
-        // A declared namespace carrying no controller root places the class
-        // outside one, and that is the stronger statement: the path can pick up
-        // a `Controllers` segment from the checkout location, the declared
-        // namespace cannot.
         if (
             $namespaceTail === null
             && $namespaceSegments !== []
@@ -43,8 +39,6 @@ class ApiControllerNamespaceSniff implements Sniff
 
         $pathTail = $this->segmentsBelowControllerRoot($this->pathSegments($phpcsFile));
 
-        // Neither the namespace nor the location says "controller", so this
-        // class is none of the standard's business.
         if (
             $namespaceTail === null
             && $pathTail === null

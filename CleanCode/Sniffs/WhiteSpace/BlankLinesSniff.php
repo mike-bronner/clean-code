@@ -106,13 +106,6 @@ class BlankLinesSniff implements Sniff
                 continue;
             }
 
-            // The two brace edges differ only in where the run starts, which
-            // way it grows, and what it is called — the walk, the
-            // already-handled guard and the report are one piece of knowledge,
-            // so they are written once and driven from this table. The closing
-            // edge is read after the opening edge has folded its own run into
-            // $handledLines, so a run that reaches both braces is reported
-            // once, against the opening one.
             $edges = [
                 [$first, +1, $last, self::MESSAGE_OPENER, 'AfterOpeningBrace'],
                 [$last, -1, $first, self::MESSAGE_CLOSER, 'BeforeClosingBrace'],
@@ -139,16 +132,6 @@ class BlankLinesSniff implements Sniff
             }
         }
 
-        // The block matched here is not a statement run: it is this method's
-        // `return`, then — comment lines being dropped before comparison —
-        // checkConsecutiveBlankLines's parameter list below. Its twin is
-        // collectRun's `return` followed by addBlankLinesError's parameter
-        // list. The window spans a method boundary in both places, so it pairs
-        // the tail of one responsibility with the declaration of an unrelated
-        // next one. What the four methods do shares nothing: two report, one
-        // walks a run of lines, one maps them. There is no common body here to
-        // lift out, only the coincidence that a `return` precedes a wrapped
-        // signature twice in a file whose methods are ordered by call depth.
         // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
         return $handledLines;
     }
@@ -220,13 +203,6 @@ class BlankLinesSniff implements Sniff
             $run[$line] = true;
         }
 
-        // The other end of the checkBraces match above; the sniff reports each
-        // participating block at its own first line. This `return` hands back
-        // the run of blank lines just walked, a value the caller folds into
-        // $handledLines; the matching `return` above hands back that
-        // accumulator itself. Same token shape, opposite direction of data
-        // flow — and the parameter list that follows belongs to the reporting
-        // method, which this one never calls. Nothing is shared to extract.
         // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
         return $run;
     }

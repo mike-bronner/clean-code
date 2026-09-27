@@ -53,9 +53,6 @@ class ShortMethodNameSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // Absent on a declaration PHP could not parse a parameter list for.
-        // Refusing to guess is the closed behaviour: without the boundary
-        // there is nothing to prove the token found is the name at all.
         if (isset($tokens[$stackPtr]['parenthesis_opener']) === false) {
             return null;
         }
