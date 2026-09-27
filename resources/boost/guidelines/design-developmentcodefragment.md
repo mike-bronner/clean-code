@@ -1,7 +1,7 @@
 # PHPMD Design: DevelopmentCodeFragment
 
-- Do not commit a call to a debug function: `var_dump()`, `print_r()`,
-  `debug_zval_dump()`, `debug_print_backtrace()`, `dump()` or `ray()`.
+- Do not commit a call to a debug function: `dd()`, `dump()`, `ray()`,
+  `var_dump()`, `print_r()`, `debug_zval_dump()` or `debug_print_backtrace()`.
 - A debug call that reaches the repository leaks internals into output. Log
   through the application logger instead.
 

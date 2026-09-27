@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use MikeBronner\CleanCode\Sniffs\Debug\DisallowDebugFunctionsSniff;
+use PHP_CodeSniffer\Standards\Generic\Sniffs\CodeAnalysis\AssignmentInConditionSniff;
+
 const BOOST_GUIDELINE_DIRECTORY = 'resources/boost/guidelines';
 
 const BOOST_REVIEW_ONLY = 'Enforced by code review only. No sniff checks this standard.';
@@ -110,6 +113,35 @@ it('names only loaded sniffs, with their real fixability', function () use (
     expect($claims)->not->toBeEmpty()
         ->and($actual)->toBe($claims);
 });
+
+it('lists every name its sniff checks', function (string $slug, Closure $names): void {
+    $path = cleanCodeRoot() . '/' . BOOST_GUIDELINE_DIRECTORY . '/' . $slug . '.md';
+    [$rule] = explode("\n## Compliant\n", (string) file_get_contents($path));
+    $rule = (string) preg_replace('/\s+/', ' ', $rule);
+
+    $unlisted = array_values(array_filter(
+        $names(),
+        static fn (string $name): bool => str_contains($rule, "`{$name}`") === false
+    ));
+
+    expect($names())->not->toBeEmpty()
+        ->and($unlisted)->toBe([]);
+})->with([
+    'debug functions' => [
+        'design-developmentcodefragment',
+        static fn (): array => array_map(
+            static fn (string $function): string => "{$function}()",
+            (new ReflectionClassConstant(DisallowDebugFunctionsSniff::class, 'DEBUG_FUNCTIONS'))->getValue()
+        ),
+    ],
+    'assignment conditions' => [
+        'cleancode-ifstatementassignment',
+        static fn (): array => array_map(
+            static fn (int|string $token): string => strtolower(substr(token_name((int) $token), 2)),
+            (new AssignmentInConditionSniff())->register()
+        ),
+    ],
+]);
 
 it('reads a sniff table row and ignores prose that names a sniff', function () use ($guidelineEnforcement): void {
     $slug = 'conditionals-no-else-or-elseif';

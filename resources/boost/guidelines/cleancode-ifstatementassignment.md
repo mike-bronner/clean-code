@@ -1,7 +1,7 @@
 # PHPMD CleanCode: IfStatementAssignment
 
 - Do not assign inside a condition. That covers `if`, `elseif`, `while`,
-  `do`/`while`, `switch`, `case` and `match`.
+  `do`/`while`, `switch`, `case`, `match` and the middle expression of a `for`.
 - The condition tests the assigned value, not a relationship, so a typo for
   `===` passes silently. Assign first, then test.
 - An assignment in a `while` or `do`/`while` condition is reported as a warning,
