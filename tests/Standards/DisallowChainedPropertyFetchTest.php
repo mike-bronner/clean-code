@@ -342,7 +342,7 @@ it('keeps its root record from answering another STDIN analysis', function (): v
                 'Chained property fetch author->name; expose the value as an accessor '
                     . 'attribute on the first model instead (e.g. getAuthorNameAttribute() so '
                     . 'callers read $book->authorName rather than $book->author->name) '
-                    . '(see docs/standards/models-relationship-properties.md)',
+                    . '(see resources/boost/guidelines/models-relationship-properties.md)',
             ],
         ])
         ->and(tuplesFromMessages($third->getErrors()))->toBe([]);

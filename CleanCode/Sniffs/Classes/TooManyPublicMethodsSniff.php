@@ -42,7 +42,7 @@ class TooManyPublicMethodsSniff implements Sniff
         $phpcsFile->addError(
             'The class %s has %s public methods. Consider refactoring %s to keep the number of '
                 . 'public methods under %s '
-                . '(see docs/phpmd/codesize-toomanypublicmethods.md)',
+                . '(see resources/boost/guidelines/pattern-solid.md)',
             $stackPtr,
             'Found',
             [$name, $count, $name, $threshold]

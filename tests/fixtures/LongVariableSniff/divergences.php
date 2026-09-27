@@ -7,7 +7,7 @@ declare(strict_types=1);
  * the other fixtures here, this file is not a parity claim — it exists so both
  * divergences are pinned by a test and cannot drift unnoticed.
  *
- * Both are set out in docs/phpmd/naming-longvariable.md.
+ * Git history keeps the write-up of both.
  */
 
 /**

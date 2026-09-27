@@ -53,7 +53,7 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
             $phpcsFile->addWarning(
                 'Model property $with eager loads relationships on every query, which '
                     . 'bloats the result set; load them explicitly at the query site with '
-                    . 'with() instead (see docs/standards/models-eager-loading.md)',
+                    . 'with() instead (see resources/boost/guidelines/models-eager-loading.md)',
                 $ptr,
                 'Found'
             );

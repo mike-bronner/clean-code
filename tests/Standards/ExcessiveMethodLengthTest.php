@@ -46,16 +46,16 @@ it('reports the measured line count and threshold', function (): void {
     expect(array_values($messages))->toBe([
         'The method exactlyAtTheThreshold() has 100 lines of code, and the threshold is 100; '
             . 'a declaration this long is doing several jobs, so extract each one into its own '
-            . 'method (see docs/phpmd/codesize-excessivemethodlength.md)',
+            . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
         'The method modifiersOnTheirOwnLines() has 100 lines of code, and the threshold is 100; '
             . 'a declaration this long is doing several jobs, so extract each one into its own '
-            . 'method (see docs/phpmd/codesize-excessivemethodlength.md)',
+            . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
         'The method padOutWithBlanksAndComments() has 100 lines of code, and the threshold is 100; '
             . 'a declaration this long is doing several jobs, so extract each one into its own '
-            . 'method (see docs/phpmd/codesize-excessivemethodlength.md)',
+            . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
         'The function standaloneFunctionThatRunsLong() has 100 lines of code, and the threshold '
             . 'is 100; a declaration this long is doing several jobs, so extract each one into '
-            . 'its own method (see docs/phpmd/codesize-excessivemethodlength.md)',
+            . 'its own method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
     ]);
 });
 

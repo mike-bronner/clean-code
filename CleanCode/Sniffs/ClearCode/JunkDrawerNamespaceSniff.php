@@ -48,7 +48,8 @@ class JunkDrawerNamespaceSniff implements Sniff
                 "Namespace %s groups classes by technical role: the \"%s\" segment names a generic"
                     . ' bucket, not a real-world domain. Group related classes into a domain'
                     . ' namespace instead (see'
-                    . ' docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md)',
+                    . ' resources/boost/guidelines/'
+                    . 'clear-code-encapsulate-related-classes-in-a-domain.md)',
                 $namePtr,
                 'Found',
                 [implode('\\', $segments), $segment]

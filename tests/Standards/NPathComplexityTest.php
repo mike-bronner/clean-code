@@ -282,11 +282,11 @@ it('names the callable kind the way PHPMD does', function (): void {
     expect(violationMessages($functions))->toContain(
         'The function multipliesSequentialBranches() has an NPath complexity of 256, at or '
             . 'above the configured minimum of 200; break it into smaller pieces (see '
-            . 'docs/phpmd/codesize-npathcomplexity.md)'
+            . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
     )->and(violationMessages($methods))->toContain(
         'The method abstractMethod() has an NPath complexity of 1, at or above the configured '
             . 'minimum of 1; break it into smaller pieces (see '
-            . 'docs/phpmd/codesize-npathcomplexity.md)'
+            . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
     );
 });
 
@@ -298,7 +298,7 @@ it('saturates instead of overflowing on an astronomically branching callable', f
     expect(violationMessages($file))->toBe([
         'The function manyBranches() has an NPath complexity of at least ' . PHP_INT_MAX
             . ', at or above the configured minimum of 200; break it into smaller pieces '
-            . '(see docs/phpmd/codesize-npathcomplexity.md)',
+            . '(see resources/boost/guidelines/codesize-npathcomplexity.md)',
     ]);
 });
 

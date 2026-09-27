@@ -48,7 +48,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
                     'This block of code, through line %d, is near-identical to %s, ignoring'
                         . ' variable, literal, and identifier names. Extract the shared logic'
                         . ' once the duplication has earned an abstraction (see'
-                        . ' docs/standards/pattern-dont-repeat-yourself-dry.md).',
+                        . ' resources/boost/guidelines/pattern-dont-repeat-yourself-dry.md).',
                     $anchors[$start],
                     'Found',
                     [

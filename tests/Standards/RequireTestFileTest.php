@@ -210,7 +210,7 @@ it('names the file, the expected path, the standard, and the boundary', function
 
     expect($message)->toContain('Untested.php has none')
         ->and($message)->toContain($expectedPath)
-        ->and($message)->toContain('docs/standards/testing-development-process-tdd.md')
+        ->and($message)->toContain('resources/boost/guidelines/testing-development-process-tdd.md')
         ->and($message)->toContain('#57')
         ->and($message)->toContain('Existence only');
 });

@@ -333,7 +333,7 @@ it('keeps its class-like index from answering another STDIN analysis', function 
                 'The method run() never reads its parameter $alpha; remove it from the '
                     . 'signature, or mark the method as an override with #[\\Override] or '
                     . '@inheritdoc if the signature is imposed from outside '
-                    . '(see docs/phpmd/unusedcode-unusedformalparameter.md)',
+                    . '(see resources/boost/guidelines/no-dead-code.md)',
             ],
         ])
         ->and(tuplesFromMessages($third->getErrors()))->toBe([]);

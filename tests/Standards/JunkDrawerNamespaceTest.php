@@ -61,7 +61,7 @@ it('names the namespace and the offending segment in the message', function (): 
         ->toContain('Namespace App\\Helpers')
         ->toContain('the "Helpers" segment')
         ->toContain('Group related classes into a domain namespace')
-        ->toContain('docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md')
+        ->toContain('resources/boost/guidelines/clear-code-encapsulate-related-classes-in-a-domain.md')
         ->and($warnings[23][11][0]['message'])->toContain('the "helpers" segment')
         ->and($warnings[26][11][0]['message'])->toContain('the "UTILS" segment')
         ->and($warnings[32][11][0]['message'])->toContain('the "Helpers" segment')

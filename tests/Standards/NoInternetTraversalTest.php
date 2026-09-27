@@ -92,7 +92,7 @@ it('names the offending primitive in the warning message', function () use ($fea
         ->and($warnings[14][9][0]['message'])->toStartWith('file_get_contents() traverses')
         ->and($warnings[20][16][0]['message'])->toStartWith('new GuzzleHttp\Client traverses')
         ->and($warnings[8][11][0]['message'])->toContain('Http facade')
-        ->and($warnings[8][11][0]['message'])->toContain('docs/standards/testing-test-suites.md');
+        ->and($warnings[8][11][0]['message'])->toContain('resources/boost/guidelines/testing-test-suites.md');
 });
 
 it('inspects nothing outside a feature test', function () use ($featureRun): void {

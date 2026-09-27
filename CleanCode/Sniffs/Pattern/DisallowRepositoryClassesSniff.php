@@ -30,8 +30,8 @@ class DisallowRepositoryClassesSniff implements Sniff
 
     private const REMEDY = 'the model is the repository, so move the persistence behaviour onto the'
         . ' model instead of declaring a dedicated repository type (see'
-        . ' docs/standards/pattern-repository.md and'
-        . ' docs/standards/models-persistence-methods-repository-pattern.md)';
+        . ' resources/boost/guidelines/pattern-repository.md and'
+        . ' resources/boost/guidelines/models-persistence-methods-repository-pattern.md)';
 
     public function register(): array
     {

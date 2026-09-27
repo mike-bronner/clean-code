@@ -57,7 +57,7 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
                 'The %s has a boolean flag argument %s, which is a certain sign of a '
                     . 'Single Responsibility Principle violation; extract each branch the '
                     . 'flag selects into its own method '
-                    . '(see docs/phpmd/cleancode-booleanargumentflag.md)',
+                    . '(see resources/boost/guidelines/cleancode-booleanargumentflag.md)',
                 $parameter['token'],
                 'Found',
                 [$subject, $parameter['name']]

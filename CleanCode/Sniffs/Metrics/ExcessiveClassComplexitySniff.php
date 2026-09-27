@@ -32,7 +32,7 @@ class ExcessiveClassComplexitySniff implements Sniff
         $phpcsFile->addError(
             'Class %s has a weighted method count of %s, at or above the '
                 . 'configured maximum of %s; split it into smaller classes (see '
-                . 'docs/phpmd/codesize-excessiveclasscomplexity.md)',
+                . 'resources/boost/guidelines/pattern-solid.md)',
             $stackPtr,
             'MaximumExceeded',
             [(string) $phpcsFile->getDeclarationName($stackPtr), $count, $maximum]

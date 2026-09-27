@@ -141,7 +141,7 @@ class UnusedFormalParameterSniff implements Sniff
         $phpcsFile->addError(
             'The %s never reads its parameter %s; remove it from the signature, or mark the '
                 . 'method as an override with #[\\Override] or @inheritdoc if the signature is '
-                . 'imposed from outside (see docs/phpmd/unusedcode-unusedformalparameter.md)',
+                . 'imposed from outside (see resources/boost/guidelines/no-dead-code.md)',
             $parameter['token'],
             'Found',
             [$this->describe($phpcsFile, $stackPtr), $parameter['name']]

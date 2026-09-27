@@ -51,7 +51,8 @@ class RequireTestFileSniff implements Sniff
         $phpcsFile->addWarning(
             'Every class gets a unit test, and %s has none; expected a test file matching %s'
                 . ' (Testing: Development Process (TDD), #57 —'
-                . ' docs/standards/testing-development-process-tdd.md). Existence only: this says'
+                . ' resources/boost/guidelines/'
+                . 'testing-development-process-tdd.md). Existence only: this says'
                 . ' nothing about whether the test was written first, nor about what it asserts',
             $stackPtr,
             'Missing',

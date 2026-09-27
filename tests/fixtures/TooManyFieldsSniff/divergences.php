@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Fixtures;
 
 // The two shapes where this sniff and PHPMD 2.15.0 disagree. Both divergences
-// are deliberate and are described in docs/phpmd/codesize-toomanyfields.md;
+// are deliberate, and git history keeps the PHPMD write-up;
 // this fixture exists so neither can quietly drift back into an unearned parity
 // claim. tests/Standards/TooManyFieldsTest.php pins exactly which lines are
 // reported here.

@@ -136,7 +136,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             'Chained property fetch %s; expose the value as an accessor attribute on the '
                 . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
                 . '$book->authorName rather than $book->author->name) '
-                . '(see docs/standards/models-relationship-properties.md)',
+                . '(see resources/boost/guidelines/models-relationship-properties.md)',
             $memberPtr,
             'Found',
             [

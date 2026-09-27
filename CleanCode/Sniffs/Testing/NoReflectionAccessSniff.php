@@ -154,7 +154,7 @@ class NoReflectionAccessSniff implements Sniff
     {
         $phpcsFile->addWarning(
             'Reflection (%s) reaches a non-public member; test through the public API instead'
-                . ' (see docs/standards/testing-guidelines.md)',
+                . ' (see resources/boost/guidelines/testing-guidelines.md)',
             $stackPtr,
             'Found',
             [$name]

@@ -69,13 +69,13 @@ it('names the method and its destination trait', function (): void {
         ->toBe(
             'Model method getTitleAttribute() is declared in the class body; extract it to '
                 . "the model's Attributes trait (e.g. App\Concerns\Attributes\Book) so the model "
-                . 'stays lean (see docs/standards/models-structure-attributes-queries-traits.md)'
+                . 'stays lean (see resources/boost/guidelines/models-structure-attributes-queries-traits.md)'
         )
         ->and($warnings[51][12][0]['message'])
         ->toBe(
             'Model method scopePublished() is declared in the class body; extract it to '
                 . "the model's Queries trait (e.g. App\Concerns\Queries\Book) so the model "
-                . 'stays lean (see docs/standards/models-structure-attributes-queries-traits.md)'
+                . 'stays lean (see resources/boost/guidelines/models-structure-attributes-queries-traits.md)'
         );
 });
 

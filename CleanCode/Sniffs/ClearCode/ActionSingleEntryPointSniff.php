@@ -35,7 +35,9 @@ class ActionSingleEntryPointSniff implements Sniff
             $phpcsFile->addWarning(
                 'Public method %s() is an additional entry point; an Action class exposes a'
                     . ' single public entry point, so move %s() into an Action class of its own'
-                    . ' (see docs/standards/clear-code-encapsulate-related-methods-in-a-class.md)',
+                    . ' (see'
+                    . ' resources/boost/guidelines/'
+                    . 'clear-code-encapsulate-related-methods-in-a-class.md)',
                 $methodPtr,
                 'Found',
                 [$name, $name]

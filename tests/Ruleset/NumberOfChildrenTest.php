@@ -60,7 +60,7 @@ it('keeps the diagnostic silent when a consumer tunes the sniff', function (): v
     file_put_contents($standard, implode("\n", [
         '<?xml version="1.0"?>',
         '<ruleset name="Tuned">',
-        '    <description>The consumer example from docs/phpmd/design-numberofchildren.md.</description>',
+        '    <description>A consumer ruleset that lowers the minimum.</description>',
         '    <rule ref="' . cleanCodeRoot() . '/CleanCode/ruleset.xml"/>',
         '    <rule ref="' . ORDINAL_INDEX_SNIFF . '">',
         '        <properties>',

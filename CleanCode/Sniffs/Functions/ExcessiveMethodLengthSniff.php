@@ -46,7 +46,7 @@ class ExcessiveMethodLengthSniff implements Sniff
         $phpcsFile->addError(
             'The %s %s() has %s lines of code, and the threshold is %s; a declaration '
                 . 'this long is doing several jobs, so extract each one into its own '
-                . 'method (see docs/phpmd/codesize-excessivemethodlength.md)',
+                . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
             $start,
             'Found',
             [

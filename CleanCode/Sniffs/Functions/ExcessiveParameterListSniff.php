@@ -31,7 +31,7 @@ class ExcessiveParameterListSniff implements Sniff
         $phpcsFile->addError(
             'The %s declares %s parameters, reaching the maximum of %s; group the related '
                 . 'parameters into an object instead '
-                . '(see docs/phpmd/codesize-excessiveparameterlist.md)',
+                . '(see resources/boost/guidelines/codesize-excessiveparameterlist.md)',
             $stackPtr,
             'Found',
             [$this->describe($phpcsFile, $stackPtr), $count, $threshold]

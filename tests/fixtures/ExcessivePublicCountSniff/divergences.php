@@ -3,8 +3,8 @@
 /**
  * The three shapes where this sniff deliberately reports and PHPMD 2.15.0 does
  * not. Each is a PDepend modelling gap rather than a decision PHPMD's rule
- * documents; docs/phpmd/codesize-excessivepubliccount.md records the measured
- * PHPMD output for this exact file.
+ * documents. Git history keeps the measured PHPMD output for this exact
+ * file.
  */
 
 declare(strict_types=1);

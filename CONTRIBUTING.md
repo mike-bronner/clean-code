@@ -27,11 +27,11 @@ edit it:
 Adding a second directory with a `ruleset.xml` in it would install a second
 standard. `tests/Contract/InstalledStandardTest.php` fails if one appears.
 
-**On "the master ruleset",** which this document, the sniff docs and the
-test names all use. It means `CleanCode/ruleset.xml`: the one ruleset that
+**On "the master ruleset",** which this document and the test names both
+use. It means `CleanCode/ruleset.xml`: the one ruleset that
 wires every rule the package ships, as opposed to an individual sniff or a
 consumer's own ruleset. There is no second file for it to be master *of* any
-more, and the phrase is kept because the docs and test names already use it.
+more, and the phrase is kept because the test names already use it.
 
 Tests are written with **[Pest](https://pestphp.com/)** and live under `tests/`.
 New tests never use PHP_CodeSniffer's own `AbstractSniffUnitTest` harness: it
@@ -64,8 +64,7 @@ CleanCode/
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
-docs/standards/                            # one doc per clean-code standard
-docs/phpmd/                                # one doc per replicated PHPMD rule
+resources/boost/guidelines/                # one Boost guideline per standard, and per PHPMD rule no standard states
 tests/
 ├── bootstrap.php                          # PHPCS test constants + ConfigDouble autoloading; loads Sniffs.php
 ├── Sniffs.php                             # the sniff enumerations more than one suite reads
@@ -409,8 +408,8 @@ in and what applies the `<properties>` configured there.
    a sniff scoped by `CleanCode/ruleset.xml` with an `<include-pattern>`/`<exclude-pattern>`
    and one that scopes itself from its own property — the sweep configures
    nothing, so a property-scoped sniff cannot even be pointed at its own
-   fixtures there. Leave it out of the datasets, record why in the sniff's `docs/`
-   page, and reach its fixtures from its own
+   fixtures there. Leave it out of the datasets, record why in the issue that adds
+   the sniff, and reach its fixtures from its own
    test file instead: `stageFixtureOutsideTests()` when the path only
    has to *match* a rule, or a small committed project under the fixture
    directory when the rule's answer depends on other files really being there.
@@ -476,12 +475,17 @@ in and what applies the `<properties>` configured there.
    through `CleanCode/ruleset.xml`, and that they still fire without the excludes.
    Otherwise a fixture that trips nothing looks exactly like a working exclude
    list. `tests/Ruleset/UndefinedVariableTest.php` is the template.
-6. **Document the standard** under `docs/standards/` and link it from the
-   README, following the existing docs there. A rule that replicates a **PHPMD**
-   rule rather than a mikebronner.dev clean-code standard is documented under
-   `docs/phpmd/<ruleset>-<rulename>.md` instead, and linked from the README's
-   "PHPMD rule coverage" list — the mapping (PHPMD rule → PHPCS sniff) is what
-   the doc has to state, so `phpmd` no longer needs to run for that rule.
+6. **Write the guideline** under `resources/boost/guidelines/<slug>.md` and
+   link it from the README's standards list. A guideline opens with a `# `
+   title and the rule, then carries `## Compliant` and `## Non-compliant`
+   examples and a `## Enforcement` table. That table names every sniff code
+   that enforces the rule and says whether `phpcbf` can fix it. A standard no
+   sniff checks says it is enforced by code review only. A rule that replicates
+   a **PHPMD** rule goes in the guideline that already states it. When no
+   guideline does, it gets its own, named `<ruleset>-<rulename>.md`, linked
+   from the README's "PHPMD rule coverage" list.
+   `tests/Contract/BoostGuidelinesTest.php` fails when a loaded sniff appears
+   in no guideline's table, or when a table claims the wrong fixability.
 
 ## Writing the tests
 
@@ -492,7 +496,7 @@ dataset (`->with([...])`) rather than copy-pasting the test.
 shells out to the `phpcs`/`phpcbf` binaries and predates the Pest migration.
 Do not copy its shape.
 
-Say *why* in the test's name, or in the standard's `docs/` page, whenever the
+Say *why* in the test's name, or in the issue that records the decision, whenever the
 assertion encodes a judgement call: which of two overlapping sniffs owns a diagnostic, a deliberate
 false positive left in place, a tokenizer defect being pinned rather than worked
 around. Several tests here exist purely to stop someone "fixing" behaviour that
@@ -586,9 +590,8 @@ code-specific suppression stops matching the moment the docblock goes.
 **No code carries a comment.** No PHP file under `CleanCode/` or `tests/` has a
 comment or a docblock, and `CleanCode/ruleset.xml`, `phpcs.self.xml` and
 `phpunit.xml.dist` carry only one-line group labels such as
-`<!-- Conditionals -->`. The reasoning lives in `docs/standards/`,
-`docs/phpmd/`, the Boost guidelines in `resources/boost/guidelines/`, and the
-issues and commits that made each decision. A comment beside the code repeats
+`<!-- Conditionals -->`. The reasoning lives in the Boost guidelines
+in `resources/boost/guidelines/`, and in the issues and commits that made each decision. A comment beside the code repeats
 that reasoning, and nothing tests it, so it drifts in silence:
 `CleanCode/ruleset.xml` shipped three false claims that way.
 

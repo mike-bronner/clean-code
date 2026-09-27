@@ -43,7 +43,7 @@ it('names the query-site alternative in the warning message', function (): void 
 
     expect($warnings[5][15][0]['message'])
         ->toContain('with()')
-        ->toContain('docs/standards/models-eager-loading.md');
+        ->toContain('resources/boost/guidelines/models-eager-loading.md');
 });
 
 it('produces no violations on the compliant fixture', function (): void {

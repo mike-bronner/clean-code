@@ -59,7 +59,7 @@ it('names the construct and the standard in the warning message', function (): v
     expect($warnings[3][15][0]['message'])
         ->toContain('ReflectionMethod')
         ->toContain('test through the public API')
-        ->toContain('docs/standards/testing-guidelines.md')
+        ->toContain('resources/boost/guidelines/testing-guidelines.md')
         ->and($warnings[5][18][0]['message'])->toContain('\\ReflectionMethod')
         ->and($warnings[6][14][0]['message'])->toContain('REFLECTIONPROPERTY')
         ->and($warnings[16][23][0]['message'])->toContain('GETMETHOD');

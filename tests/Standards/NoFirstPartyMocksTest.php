@@ -46,7 +46,7 @@ it('names the resolved class and the standard in the warning message', function 
     expect($warnings[13][27][0]['message'])
         ->toContain('App\Models\User')
         ->toContain('mock only interfaces you do not control')
-        ->toContain('docs/standards/testing-guidelines.md')
+        ->toContain('resources/boost/guidelines/testing-guidelines.md')
         ->and($warnings[17][21][0]['message'])->toContain('App\Services\Payments')
         ->and($warnings[19][32][0]['message'])->toContain('App\Tests\Unit\Support\Clock')
         ->and($warnings[22][36][0]['message'])->toContain('APP\Models\User')

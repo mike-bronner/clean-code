@@ -84,7 +84,7 @@ it('quotes the comment and names the standard in the warning message', function 
     expect($warnings[17][9][0]['message'])
         ->toContain('// Validate the payload.')
         ->toContain('extract the block it introduces into a method named after it')
-        ->toContain('docs/standards/clear-code-encapsulate-each-concept-in-a-method.md')
+        ->toContain('resources/boost/guidelines/clear-code-encapsulate-each-concept-in-a-method.md')
         ->and($warnings[47][9][0]['message'])->toContain('# Normalise the keys.')
         ->and($warnings[55][9][0]['message'])->toContain('/* Normalise the keys. */');
 });

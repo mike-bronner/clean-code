@@ -118,7 +118,7 @@ class NonInvokableSpecialActionSniff implements Sniff
         $phpcsFile->addWarning(
             'A special action route should point to an invokable controller; this one targets'
                 . ' %s() on a shared controller (see'
-                . ' docs/standards/routes-conventions-do-do-not.md)',
+                . ' resources/boost/guidelines/routes-conventions-do-do-not.md)',
             $start,
             'Found',
             [$method]

@@ -4,7 +4,7 @@
  * Small declarations for the property-configuration tests, which lower
  * `minimum` far below PHPMD's default so a handful of lines is enough to
  * cross it. Cross-checked against live PHPMD 2.15.0 runs at the same
- * thresholds; see docs/phpmd/codesize-excessivemethodlength.md.
+ * thresholds. Git history keeps the full write-up.
  */
 
 class ConfiguredThresholds

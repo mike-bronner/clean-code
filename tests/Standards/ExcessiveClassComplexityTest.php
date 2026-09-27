@@ -61,13 +61,13 @@ it('reports the measured weighted method count and the maximum', function (): vo
         ->toBe(
             'Class AtExactlyTheMaximum has a weighted method count of 50, at or above the '
                 . 'configured maximum of 50; split it into smaller classes (see '
-                . 'docs/phpmd/codesize-excessiveclasscomplexity.md)'
+                . 'resources/boost/guidelines/pattern-solid.md)'
         )
         ->and($errors[77][1][0]['message'])
         ->toBe(
             'Class WellAboveTheMaximum has a weighted method count of 63, at or above the '
                 . 'configured maximum of 50; split it into smaller classes (see '
-                . 'docs/phpmd/codesize-excessiveclasscomplexity.md)'
+                . 'resources/boost/guidelines/pattern-solid.md)'
         );
 });
 

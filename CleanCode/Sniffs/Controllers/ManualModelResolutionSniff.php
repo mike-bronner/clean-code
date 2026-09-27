@@ -39,7 +39,7 @@ class ManualModelResolutionSniff implements Sniff
     private const MESSAGE = <<<MESSAGE
         Model %s resolved by hand from %s, a parameter of %s(); type-hint the model on the
         action signature instead and let route-model binding resolve it
-        (see docs/standards/controllers-route-model-binding.md)
+        (see resources/boost/guidelines/controllers-route-model-binding.md)
         MESSAGE;
 
     public function register(): array

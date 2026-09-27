@@ -9,7 +9,7 @@ namespace MikeBronner\CleanCode\Tests\Fixtures\UnusedFormalParameter;
  * they agree by both being blind.
  *
  * Nothing here is a shape the sniff gets wrong. Each is a decision recorded in
- * docs/phpmd/unusedcode-unusedformalparameter.md and pinned here so that it
+ * the PHPMD write-up in git history, and pinned here so that it
  * cannot change without a test noticing. Every PHPMD verdict quoted below was
  * measured on a live 2.15.0 run over this exact file, not read off phpmd.org.
  */
