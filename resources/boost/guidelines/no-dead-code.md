@@ -34,6 +34,7 @@ private function legacyFee(): int
 | `SlevomatCodingStandard.Namespaces.UnusedUses` | yes |
 | `CleanCode.DeadCode.UnusedPrivateElements` | no |
 | `CleanCode.DeadCode.UnusedFormalParameter` | no |
+| `VariableAnalysis.CodeAnalysis.VariableAnalysis` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
 

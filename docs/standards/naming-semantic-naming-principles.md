@@ -36,7 +36,7 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 ## Enforceability — Tier 3 (semantic core not statically enforceable)
 
 This is an architectural / semantic standard. Its core is enforced by **code
-review and developer discipline**; one narrow slice carries a sniff.
+review and developer discipline**; a few narrow slices carry sniffs.
 
 Whether a name reveals intent, misleads, maps onto the reader's existing
 vocabulary, or stays consistent with the concept-word used elsewhere in the
@@ -96,16 +96,18 @@ a subset:
   (`T_LNUMBER` / `T_DNUMBER` outside declaration sites). Now enforced by
   `CleanCode.Naming.DisallowMagicNumbers` — see the section above
   ([#136](https://github.com/mike-bronner/clean-code/issues/136)).
-- **Searchable names — short identifiers** — *already tracked.* Too-short
-  method and function names are enforced by
-  `CleanCode.Naming.ShortMethodName` — see
-  [PHPMD Naming: ShortMethodName](../phpmd/naming-shortmethodname.md)
-  ([#111](https://github.com/mike-bronner/clean-code/issues/111)). The other
-  two short-identifier shapes are covered by the PHPMD rules still in the
-  backlog: [#106](https://github.com/mike-bronner/clean-code/issues/106)
-  (Naming: ShortVariable) and
-  [#103](https://github.com/mike-bronner/clean-code/issues/103)
-  (Naming: ShortClassName). No new issue opened — it would duplicate those.
+- **Searchable names — short identifiers** — *shipped as PHPMD ports.* All
+  three short-identifier shapes are enforced:
+  - too-short method and function names by `CleanCode.Naming.ShortMethodName`
+    — see [PHPMD Naming: ShortMethodName](../phpmd/naming-shortmethodname.md)
+    ([#111](https://github.com/mike-bronner/clean-code/issues/111));
+  - too-short variable names by `CleanCode.Naming.ShortVariable` — see
+    [PHPMD Naming: ShortVariable](../phpmd/naming-shortvariable.md)
+    ([#106](https://github.com/mike-bronner/clean-code/issues/106));
+  - too-short class, interface, trait, and enum names by
+    `CleanCode.Naming.ShortClassName` — see
+    [PHPMD Naming: ShortClassName](../phpmd/naming-shortclassname.md)
+    ([#103](https://github.com/mike-bronner/clean-code/issues/103)).
 - **Pronounceable names** — *no reliable heuristic.* Consonant-cluster or
   dictionary checks misfire constantly on legitimate domain terms, acronyms,
   and non-English identifiers; the noise would swamp the signal.

@@ -29,6 +29,12 @@ Most of this standard is covered by existing sniffs wired into the master
   sniff exempts an override it can resolve in the same file, plus one annotated
   `@inheritdoc` or `#[\Override]`, and is a strict superset otherwise — see
   [docs/phpmd/unusedcode-unusedformalparameter.md](../phpmd/unusedcode-unusedformalparameter.md).
+- **Unused local variables** — the `UnusedVariable` code of
+  `VariableAnalysis.CodeAnalysis.VariableAnalysis` (error): flags a local
+  variable that is assigned and never read, including an unused `foreach` key or
+  value. Added as the PHPMD `UnusedLocalVariable` port in
+  [#118](https://github.com/mike-bronner/clean-code/issues/118) — see
+  [docs/phpmd/unusedcode-unusedlocalvariable.md](../phpmd/unusedcode-unusedlocalvariable.md).
 - **Unused imports** — `SlevomatCodingStandard.Namespaces.UnusedUses`
   (error, **auto-fixable** via `phpcbf`): flags and removes `use` statements
   never referenced. Configured with `searchAnnotations` enabled so imports
@@ -73,8 +79,7 @@ Most of this standard is covered by existing sniffs wired into the master
 
 Unused *public/protected* elements (their callers live outside the file, so a
 single-file token scan cannot prove them dead), unused private constants,
-unused local variables, dynamic access via variable variables, and unreachable
-branches.
+dynamic access via variable variables, and unreachable branches.
 
 **Private members of a `trait`** are on this list by name, not just by the
 catch-all above: a trait's private method or property is flattened into every

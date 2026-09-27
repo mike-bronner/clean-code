@@ -53,6 +53,8 @@ if ($classes > 7) {
 |---|---|
 | `CleanCode.Naming.DisallowMagicNumbers` | no |
 | `CleanCode.Naming.ShortMethodName` | no |
+| `CleanCode.Naming.ShortVariable` | no |
+| `CleanCode.Naming.ShortClassName` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
 
