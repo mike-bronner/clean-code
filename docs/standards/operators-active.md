@@ -23,7 +23,7 @@ connectives needed a new sniff.
 
 | Operators | Sniff | Wired in for |
 |---|---|---|
-| every assignment operator — `=`, `+=`, `-=`, `/=`, `*=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `.=`, `??=` | `Squiz.WhiteSpace.OperatorSpacing` | #35 |
+| every assignment operator — `=`, `+=`, `-=`, `/=`, `*=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `.=`, `??=` | `CleanCode.Operators.BinaryOperatorSpacing` | #35 |
 | string concatenation `.` | `Squiz.Strings.ConcatenationSpacing` | #35 |
 | logical not `!` | `CleanCode.Operators.NotOperatorSpacing` | #35 |
 | `&&`, `||`, `and`, `or`, `xor` | `CleanCode.Operators.BooleanOperatorSpacing` | **#62** |
@@ -96,6 +96,6 @@ expression breaks, `Generic.PHP.LowerCaseKeyword` for the word forms' casing).
   skipped — declaration-spacing rules own that context.
 - Unary minus/plus (`-$x`), references (`=&`), and comparison/arithmetic
   operators are outside this standard's operator list. Comparison and
-  arithmetic spacing is still enforced by `Squiz.WhiteSpace.OperatorSpacing`,
+  arithmetic spacing is still enforced by `CleanCode.Operators.BinaryOperatorSpacing`,
   which registers those tokens for its own reasons — that is not this
   standard's doing.

@@ -21,12 +21,13 @@ This standard is split across two rules that together enforce it end to end:
 - **Parameter and return hints** are owned by the
   [Methods: Type Hints](methods-type-hints.md) standard
   ([#70](https://github.com/mike-bronner/clean-code/issues/70)), which wires
-  `SlevomatCodingStandard.TypeHints.ParameterTypeHint` and
+  `CleanCode.TypeHints.ParameterTypeHint` and
   `SlevomatCodingStandard.TypeHints.ReturnTypeHint` into `CleanCode/ruleset.xml` for every
   callable (class methods *and* free functions). See that doc for the
   parameter/return details, the pinned `enable*` options, and the edge cases.
 - **Property hints** are owned by this standard, enforced by
-  `SlevomatCodingStandard.TypeHints.PropertyTypeHint` in the master `CleanCode/ruleset.xml`
+  `CleanCode.TypeHints.PropertyTypeHint`, which extends
+  `SlevomatCodingStandard.TypeHints.PropertyTypeHint`, in the master `CleanCode/ruleset.xml`
   ([#45](https://github.com/mike-bronner/clean-code/issues/45)) — every
   property carries a native type hint.
 

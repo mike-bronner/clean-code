@@ -13,9 +13,10 @@ _Source: [mikebronner.dev/clean-code](https://mikebronner.dev/clean-code)_
 
 ## Enforceability — Tier 1 (Slevomat, configured)
 
-Enforced by two existing Slevomat sniffs wired into the master `CleanCode/ruleset.xml`:
+Enforced by two Slevomat-based sniffs wired into the master `CleanCode/ruleset.xml`:
 
-- `SlevomatCodingStandard.TypeHints.ParameterTypeHint` — every parameter must
+- `CleanCode.TypeHints.ParameterTypeHint`, which extends
+  `SlevomatCodingStandard.TypeHints.ParameterTypeHint` — every parameter must
   carry a native type hint. Reported as `MissingAnyTypeHint` when neither a
   hint nor a `@param` annotation exists, or as the auto-fixable
   `MissingNativeTypeHint` when a `@param` annotation can be promoted to a

@@ -27,9 +27,11 @@ The standard is enforced by a combination of two configured bundled sniffs and
 two custom CleanCode sniffs, wired into the master `CleanCode/ruleset.xml`
 ([#35](https://github.com/mike-bronner/clean-code/issues/35)).
 
-### Binary-operator spacing — `Squiz.WhiteSpace.OperatorSpacing`
+### Binary-operator spacing — `CleanCode.Operators.BinaryOperatorSpacing`
 
-Enforces **exactly** one space on each side of binary operators (assignment,
+`CleanCode.Operators.BinaryOperatorSpacing` extends the bundled
+`Squiz.WhiteSpace.OperatorSpacing` and replaces it in the ruleset. It
+enforces **exactly** one space on each side of binary operators (assignment,
 comparison, arithmetic, bitwise). PSR-12 (already in the ruleset) requires *at
 least* one space; this sniff tightens that to exactly one, so over-padding used
 for alignment (`$a  -  $b`) is also flagged. Configured with:
