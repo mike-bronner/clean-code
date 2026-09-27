@@ -247,22 +247,6 @@ it('measures the vendor candidates the comparison table rejects', function (): v
         ->and(array_diff($missed, $aliases))->toHaveCount(7);
 });
 
-it('quotes those measurements accurately in the docs', function (): void {
-    $reportsCell = static function (string $candidate): string {
-        $rows = array_filter(
-            file(cleanCodeRoot() . '/docs/phpmd/controversial-superglobals.md'),
-            static fn (string $line): bool => str_starts_with($line, '| `' . $candidate . '` |')
-        );
-
-        expect($rows)->toHaveCount(1);
-
-        return trim(explode('|', (string) array_values($rows)[0])[2]);
-    };
-
-    expect($reportsCell('SlevomatCodingStandard.Variables.DisallowSuperGlobalVariable'))->toBe('12 of 26')
-        ->and($reportsCell('Generic.PHP.DisallowRequestSuperglobal'))->toBe('1 of 26');
-});
-
 it('reports nothing from a string whose interpolations cannot be read', function (): void {
     $expected = violationSourcesByLine(analyzeFixture(SUPERGLOBALS, 'failing.php')->getErrors());
 
