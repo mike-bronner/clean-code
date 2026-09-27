@@ -30,14 +30,6 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
 
         $tokens = $phpcsFile->getTokens();
 
-        // $end bounds the walk; it is not what scopes it. The conditions check
-        // below is the scoping rule, and it independently rejects everything a
-        // file-wide walk would additionally reach — a later class's or trait's
-        // own property answers to that class or trait, and PHP has no nested
-        // classes. Setting $end to null therefore changes no result, only the
-        // work done, which is why no fixture pins it. This differs from the
-        // sibling RequireLazyLoadingPrevention sniff, whose equivalent bound is
-        // its only scoping and is pinned by a fixture.
         $end = $tokens[$stackPtr]['scope_closer'] ?? null;
         $ptr = $stackPtr;
 
@@ -46,19 +38,10 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
                 continue;
             }
 
-            // PHPCS records 'conditions' on every token, so the innermost
-            // enclosing scope is always readable. Anything but this class means
-            // a local variable in a method or a nested class's own property.
             if (array_key_last($tokens[$ptr]['conditions']) !== $stackPtr) {
                 continue;
             }
 
-            // Promotion is the exception a bare conditions check cannot see:
-            // `__construct(public array $with = ['author'])` declares the
-            // property and its default, so it eager loads exactly like the long
-            // form, while an ordinary `$with` parameter declares nothing. See
-            // ParameterDeclaration for why the two are indistinguishable by
-            // position.
             if ((new ParameterDeclaration())->isPlainParameter($phpcsFile, $ptr) === true) {
                 continue;
             }
@@ -70,7 +53,7 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
             $phpcsFile->addWarning(
                 'Model property $with eager loads relationships on every query, which '
                     . 'bloats the result set; load them explicitly at the query site with '
-                    . 'with() instead (see docs/standards/models-eager-loading.md)',
+                    . 'with() instead (see resources/boost/guidelines/models-eager-loading.md)',
                 $ptr,
                 'Found'
             );
@@ -85,7 +68,6 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
             return false;
         }
 
-        // explode() always yields at least one element, so end() is a string.
         $qualifiers = explode('\\', $parent);
         $shortName = strtolower(end($qualifiers));
 

@@ -323,13 +323,6 @@ class UnitTestExternalConcernsSniff implements Sniff
 
         $scope = $this->pathSegments($this->unitTestPath);
 
-        // An empty property names no directory, so it reaches no file. Stated
-        // rather than left to fall out: the scan below happens to reach the
-        // same answer, because a null root matches no segment, but that is an
-        // accident of array_keys() rather than the decision this rule makes.
-        // The alternative reading — an empty prefix matching every path —
-        // would turn one blank <property> element into a warning on every file
-        // in a consuming project.
         if ($scope === []) {
             return false;
         }

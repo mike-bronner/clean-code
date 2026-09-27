@@ -22,8 +22,6 @@ class ExcessiveParameterListSniff implements Sniff
     {
         $threshold = $this->threshold();
 
-        // A declaration cut short mid-edit has no parenthesis pair, and
-        // getMethodParameters() answers with an empty list rather than raising.
         $count = count($phpcsFile->getMethodParameters($stackPtr));
 
         if ($count < $threshold) {
@@ -33,7 +31,7 @@ class ExcessiveParameterListSniff implements Sniff
         $phpcsFile->addError(
             'The %s declares %s parameters, reaching the maximum of %s; group the related '
                 . 'parameters into an object instead '
-                . '(see docs/phpmd/codesize-excessiveparameterlist.md)',
+                . '(see resources/boost/guidelines/codesize-excessiveparameterlist.md)',
             $stackPtr,
             'Found',
             [$this->describe($phpcsFile, $stackPtr), $count, $threshold]

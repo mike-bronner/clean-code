@@ -1,16 +1,5 @@
 <?php
 
-/**
- * Tests the custom CleanCode.Indentation.LogicalGroupings sniff.
- *
- * The generic floor — passing.php is clean, failing.php is flagged, the fixer
- * round-trips into autofixed.php and is idempotent — comes from
- * tests/Contract/SniffContractTest.php via the enumerations in tests/Sniffs.php,
- * so it is not restated here. What this file adds is what the sweep cannot see:
- * which line carries which of the two error codes, what the diagnostic claims
- * the expected indent is, and which lines the fixer is forbidden to move.
- */
-
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
@@ -21,12 +10,6 @@ const LOGICAL_GROUPINGS_NOT_INDENTED = LOGICAL_GROUPINGS . '.GroupNotIndented';
 
 const LOGICAL_GROUPINGS_MISALIGNED = LOGICAL_GROUPINGS . '.MisalignedGroupedCondition';
 
-/**
- * The failing-fixture lines whose fix is a line break rather than a reindent —
- * a group's first condition written on the group's own opening line. They are
- * the only lines that make autofixed.php longer than failing.php, so the
- * blast-radius test below re-joins them to compare the two line for line.
- */
 const LOGICAL_GROUPINGS_GLUED_LINES = [402, 418, 436];
 
 it('is registered in the master ruleset', function (): void {
@@ -35,107 +18,54 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(LOGICAL_GROUPINGS);
 });
 
-/**
- * Every violation, pinned to its exact line, column, and code.
- *
- * The column is asserted alongside the line because the whole rule is about
- * columns: a violation reported on the right line at the wrong column would
- * mean the sniff measured a different token than the one it names.
- *
- * The two codes discriminate. A group's first condition is measured against
- * the line the group opens on and reports GroupNotIndented; every later
- * condition is measured against the group's own level and reports
- * MisalignedGroupedCondition. `misalignedCondition` is the fixture that
- * separates them — its first condition is already correct, so only its second
- * appears here, and a sniff that collapsed the two codes would fail this.
- *
- * The five control structures the standard names each contribute a pair, so
- * deleting a token type from register() removes its pair and reddens this too.
- */
 it('flags every violation at its exact line, column, and code', function (): void {
     $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
 
     expect(violationTuples($file))->toBe([
-        // unindentedGroup — `if`
         ['line' => 18, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 19, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // tooShallowGroup
         ['line' => 31, 'column' => 15, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 32, 'column' => 15, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // tooDeepGroup
         ['line' => 44, 'column' => 21, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 45, 'column' => 21, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // misalignedCondition — first condition correct, so only the second is flagged
         ['line' => 58, 'column' => 19, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // nestedInnerGroupUnindented
         ['line' => 72, 'column' => 17, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 73, 'column' => 17, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // elseifUnindentedGroup
         ['line' => 88, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 89, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // whileUnindentedGroup
         ['line' => 101, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 102, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // forUnindentedGroup
         ['line' => 115, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 116, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // doWhileUnindentedGroup — the trailing `while` of a do-while
         ['line' => 131, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 132, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // wordOperatorUnindentedGroup — `or` / `and`, a separate PHPCS token set
         ['line' => 142, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 143, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // heredocOperandUntouched — the two real conditions only; body lines 243-245 are string content
         ['line' => 242, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 246, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // multiLineStringOperandUntouched — line 260 is string content, not a condition
         ['line' => 259, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 261, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // mixedArrowOperandUntouched — the two real conditions only; line 281 is the fn's body
         ['line' => 279, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 280, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // concatenatedGroupIndented — a grouping after `.`
         ['line' => 295, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 296, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // assignedGroupIndented — a grouping after `=`
         ['line' => 308, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 309, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // arrayValueOperandUntouched — the enclosing group only; lines 329-331 are the array
         ['line' => 327, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 328, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // arrayElementOperandUntouched — line 346 ends inside the array, so 347 is not a condition
         ['line' => 345, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 346, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // arrayOffsetOperandUntouched — line 363 is inside the subscript
         ['line' => 361, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 362, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // closureBodyOperandUntouched — lines 381-385 are the closure's body
         ['line' => 379, 'column' => 13, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 380, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // gluedFirstConditionOnOpenerLine — the glued condition itself, at its
-        // own column mid-line; its second condition is already at the level
         ['line' => 402, 'column' => 23, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
-        // gluedFirstConditionWithMisalignedSecond — the condition after a glued
-        // first one is the group's second, so it is misaligned, not unindented
         ['line' => 418, 'column' => 23, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
         ['line' => 419, 'column' => 13, 'source' => LOGICAL_GROUPINGS_MISALIGNED],
-        // gluedFirstConditionWithoutSpacing — glued with no padding at all, so
-        // the column is the parenthesis's own plus one
         ['line' => 436, 'column' => 17, 'source' => LOGICAL_GROUPINGS_NOT_INDENTED],
     ])->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * A nested group's expected indent comes from the line its own parenthesis
- * opens on, not from a fixed depth or from the control structure.
- *
- * `nestedInnerGroupUnindented` puts the inner group inside a group that itself
- * sits at 16, so the inner conditions are owed 20. A sniff that measured every
- * group against the control structure would say 16 here — same line, same
- * code, different number — which the tuple assertion above cannot see. The
- * expected indent only appears in the rendered message, so that is what is
- * asserted.
- */
 it('derives the expected indent from the immediate parent group', function (): void {
     $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
 
@@ -145,31 +75,6 @@ it('derives the expected indent from the immediate parent group', function (): v
     ]);
 });
 
-/**
- * A first condition written on the group's own opening line is the group's
- * first condition, and is given a line of its own.
- *
- * The walk that collects a group's condition lines records the first token of
- * each new line, so a condition glued to the opening parenthesis is only
- * collected if the walk starts from "no line yet" rather than from the
- * opener's line. Starting from the opener's line dropped it and promoted the
- * next line into its place, which is why both halves are asserted here: the
- * message proves the glued condition is reported at all and names the level it
- * is owed, and the fixed line proves the fixer broke the line instead of
- * rewriting the indentation of the line it shared — which would have moved the
- * enclosing condition. Line 419 in the tuple assertion above is the other half
- * of the promotion bug: it is a second condition, so it carries the misaligned
- * code, not the first-condition one.
- *
- * What is compared is the fixer's own output, not autofixed.php. Reading the
- * fixture file would assert only that the fixture says what it says; the round
- * trip that ties the fixture to the fixer lives in the contract sweep, and an
- * assertion about the fixer belongs to the fixer.
- *
- * The line the group opens on is asserted along with the condition, because
- * this fixture is the padded one: the spacing it carries has to be consumed by
- * the break rather than left behind it, and only the opener's line shows that.
- */
 it('reports a first condition glued to the group opener, and gives it its own line', function (): void {
     $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
     $reported = violationMessagesByLine($file->getErrors());
@@ -182,29 +87,12 @@ it('reports a first condition glued to the group opener, and gives it its own li
         ->and($fixed[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe('                $this->isActive');
 });
 
-/**
- * The break is inserted whether or not there is spacing to overwrite.
- *
- * The fixer reaches the same output by two different routes: it overwrites the
- * whitespace token between the parenthesis and the condition when there is
- * one, and inserts the break ahead of the condition when there is not. The
- * first two glued fixtures are both padded, so the suite exercised only the
- * overwriting route; `gluedFirstConditionWithoutSpacing` writes `($this->` with
- * nothing between, which is the only shape that reaches the insertion route.
- * Both routes produce the same three lines, so the two cases cannot be told
- * apart by what the output says — only by where it is. That is why the fixer's
- * output is indexed to this fixture's own line rather than searched for a
- * snippet: a snippet assertion would be satisfied by the padded case above and
- * would pass with this route deleted.
- */
 it('inserts the break when no spacing separates the opener from the condition', function (): void {
     $file = analyzeFixture(LOGICAL_GROUPINGS, 'failing.php');
     $reported = violationMessagesByLine($file->getErrors());
     $fixed = explode(PHP_EOL, autofixedContents($file));
     $glued = LOGICAL_GROUPINGS_GLUED_LINES[2];
 
-    // Each glued line above this one splits in two, so the fixed file runs
-    // that many lines ahead of failing.php by the time it reaches this one.
     $opener = (($glued - 1) + count(array_filter(
         LOGICAL_GROUPINGS_GLUED_LINES,
         static fn (int $line): bool => $line < $glued
@@ -217,102 +105,14 @@ it('inserts the break when no spacing separates the opener from the condition', 
         ->and($fixed[($opener + 1)])->toBe('                $this->isActive');
 });
 
-/**
- * Nesting cost has to stay linear in the number of groups.
- *
- * Each nested group is checked in its own right, so a walk that measured a
- * group by stepping through every token between its parentheses would rescan
- * the whole condition once per level: n groups, n overlapping rescans,
- * quadratic. That is not a style problem here — this package is installed into
- * downstream lint pipelines that run over contributed code, so the cost of one
- * ordinary-looking file is CI CPU somebody else pays for.
- *
- * What is asserted is the walk itself, counted (#354, extending #321). This
- * test used to compare the two files' elapsed times against a x4 bound, and a
- * ratio was the best a clock could do here: a fixed budget in seconds cannot
- * do this job at all, because the CI runner takes ~11x this machine's time for
- * the *linear* walk, which is already more than this machine spends on the
- * quadratic one. The ratio in turn needed the control file to cancel what
- * PHP_CodeSniffer's own tokenizer charges for depth, since it is superlinear
- * in it and costs several times what this sniff does. #321 recorded that shape
- * of assertion failing twice and passing on a third run with no code change.
- *
- * A count of this sniff's own steps needs neither. It is not measured against
- * the tokenizer, so nothing has to be cancelled, and the control file is
- * therefore no longer a baseline — it stays because its own assertion still
- * earns its place: it has to report nothing, which is what proves a call is
- * skipped whole rather than walked into.
- *
- * Two counters carry the claim, and neither carries it alone. The jumps are
- * what make the walk linear — skipNested() says why — so a walk that stopped
- * jumping is the regression, and n-1 of them is one crossing per nested group,
- * by the walk of the group holding it. The steps are what that buys: the three
- * walks over a condition touch a fixed number of tokens per level rather than
- * every token below it. Measured at n=150, 300 and 600 the steps are 4,966,
- * 9,916 and 19,816 — exactly 33 more per level each time, which is the linear
- * form asserted here. Stepping through each nested region instead of jumping
- * it makes the same file quadratic.
- *
- * Where the old x4 bound went, stated plainly because it did not survive the
- * translation the AC asked for. `$grouped < $skipped * 4` compared the two
- * files' elapsed times, and it could only ever have been a comparison between
- * *those two files*: the control existed to cancel what PHP_CodeSniffer's own
- * tokenizer charges for depth, which both files pay identically and which
- * dwarfs what this sniff spends. A count of this sniff's own work does not
- * include the tokenizer, so there is nothing left for the control to cancel —
- * and, measured, the control walks 13 steps and takes 0 jumps against the
- * grouped file's 19,816 and 599, because a call is refused whole at its
- * opening parenthesis. `19,816 < 13 * 4` is unsatisfiable for any correct
- * implementation. This is the same arithmetic the AC already ruled out for a
- * counter reading 0 on the control, arriving at 13 instead of 0; the counter
- * is scoped to the grouping walk including its early-exit path, which is why
- * it reads 13 rather than nothing, and that still does not make it a baseline.
- *
- * So the ratio is kept and its denominator is changed: the bound now sits
- * between two sizes of the grouped file rather than between two files. Both
- * bounds answer the same question — is the cost linear or quadratic in n —
- * and the doubling form answers it without a control file at all. The control
- * stays, and its counts are now asserted rather than discarded, because they
- * are what proves a call is skipped whole rather than walked into.
- *
- * How the bound was derived from the x4. The old 4 sat between the two
- * behaviours it had to separate, log-symmetrically: 1.06x for the walk that
- * jumps each nested region against 15.5x for the walk that steps through it
- * (0.06s/0.05s against 0.93s/0.06s, measured in-process here), and 4 is within
- * 3% of sqrt(1.06 * 15.5) = 4.05. Per doubling of n the same two behaviours
- * are 1.997 and 1.998 for the jumping walk (4,966 -> 9,916 -> 19,816) against
- * 3.943 and 3.971 for the stepping one (150,539 -> 593,564 -> 2,357,114, all
- * six measured, the second three under the mutation below). The log-symmetric
- * points are sqrt(1.997 * 3.943) = 2.81 and sqrt(1.998 * 3.971) = 2.82, and
- * the bound is the tighter of the two rounded down: 2.8, the old number's own
- * construction on the new axis.
- *
- * Mutation-checked by walking each nested region token by token instead of
- * jumping to its closer, leaving every verdict identical. The ratio bound is
- * the assertion that reddens; the hunk and the failure output are in this
- * PR's description.
- *
- * The count is capped at 600 by PHP_CodeSniffer itself, not by taste: past
- * roughly a thousand levels of nesting its tokenizer exhausts PHP's default
- * 128M limit while building the file, and a regression test that only runs
- * under a raised memory_limit is one nobody runs.
- *
- * The violation assertions are what stop the counts passing vacuously: a walk
- * that gave up early, or a tokenizer that never got that far, would be both
- * cheap and silent.
- */
 it('stays linear as groupings nest', function (): void {
     $count = 600;
 
-    // The same file either way: $levels parentheses nested to the same depth,
-    // opened by `&& (` for the groupings and by `&& check(` for the control.
     $build = function (string $opener, int $levels): string {
         $lines = ['<?php', '', 'final class Scale', '{', '    public function nested(): void', '    {'];
         $lines[] = '        if (';
 
         for ($level = 0; $level < $levels; $level++) {
-            // Every group but the outermost opens its first condition two
-            // spaces shallow, so each level contributes exactly one violation.
             $indent = (12 + (4 * $level));
             $lines[] = str_repeat(' ', ($level === 0 ? $indent : ($indent - 2))) . '$this->a' . $level;
             $lines[] = str_repeat(' ', $indent) . $opener;
@@ -332,9 +132,6 @@ it('stays linear as groupings nest', function (): void {
 
     buildRuleset([LOGICAL_GROUPINGS]);
 
-    // buildRuleset() memoises the ruleset, and so the sniff instance, per
-    // sniff-code key: this is the same instance every other test in this file
-    // drives, so the counters are read as a delta rather than as a total.
     $sniff = sniffInstance(LOGICAL_GROUPINGS);
 
     $measure = function (string $name, string $source) use ($sniff): array {
@@ -345,8 +142,6 @@ it('stays linear as groupings nest', function (): void {
         return [cacheCountsDelta($before, $sniff->cacheCounts()), violationTuples($file)];
     };
 
-    // Three sizes, each a doubling of the one before it, so the growth between
-    // them is measured rather than inferred from a single total.
     $sizes = [150, 300, 600];
     $counts = [];
     $violations = [];
@@ -376,8 +171,6 @@ it('stays linear as groupings nest', function (): void {
         'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
     ];
 
-    // The verdicts first, so a walk that gave up early fails as a dropped
-    // violation rather than as a cheap count.
     expect($violations[$count])->toBe($expected)
         ->and($skippedViolations)->toBe([]);
 
@@ -388,7 +181,6 @@ it('stays linear as groupings nest', function (): void {
         );
     }
 
-    // The bound the old x4 became; the docblock derives the 2.8.
     foreach (array_slice($sizes, 1) as $levels) {
         $previous = intdiv($levels, 2);
         $grown = ($counts[$levels]['conditionWalk.steps'] / $counts[$previous]['conditionWalk.steps']);
@@ -412,11 +204,6 @@ it('stays linear as groupings nest', function (): void {
         );
     }
 
-    // Asserted, not discarded: the control is no longer a baseline for a ratio,
-    // so what it is still worth saying about it has to be said here. 13 steps
-    // and no jumps over 600 nested calls is a call refused at its opening
-    // parenthesis rather than walked into -- and 13, not 0, is what shows the
-    // counter covers the early-exit path the AC asks about.
     expect($skippedCounts['conditionWalk.steps'])->toBe(
         13,
         'the control is refused whole: its cost does not scale with its nesting'
@@ -426,28 +213,6 @@ it('stays linear as groupings nest', function (): void {
     );
 });
 
-/**
- * Builds the same-line-stacked shape both tests below drive, and returns the
- * source alongside the column of every condition the sniff is owed for it.
- *
- * One physical line carries the whole condition: $leading plain conditions,
- * then $stacked group openers written one after another. Every group but the
- * last has the next group's condition glued to its own opening parenthesis, so
- * each contributes exactly one violation, and every one of them is owed the
- * same twelve spaces — the openers all share the `if` line, whose indent is
- * eight. The columns are recorded while the line is assembled rather than
- * recomputed from a formula, because the width of a segment changes with the
- * number of digits in its level.
- *
- * $opener is what turns the same file into its own control: `&& (` opens a
- * grouping at every level, `&& check(` opens a call at every level, and a call
- * is skipped whole by the walk that collects groupings. The two files are
- * otherwise identical — same token count, same parenthesis depth — so the
- * tokenizer's own cost, which is superlinear in that depth, sits on both sides
- * of the ratio and cancels.
- *
- * @return array{0: string, 1: array<int, int>}
- */
 $stackedGroupings = function (string $opener, int $leading, int $stacked): array {
     $lines = ['<?php', '', 'final class Stacked', '{', '    public function run(): bool', '    {'];
     $line = '        if (';
@@ -459,8 +224,6 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
     $columns = [];
 
     for ($level = 1; $level <= $stacked; $level++) {
-        // Every level past the first is the glued first condition of the group
-        // the level before it opened, and is reported where it starts.
         if ($level > 1) {
             $columns[] = (strlen($line) + 1);
         }
@@ -483,78 +246,6 @@ $stackedGroupings = function (string $opener, int $leading, int $stacked): array
     return [implode("\n", $lines), $columns];
 };
 
-/**
- * Stacking cost has to stay linear in the number of groups sharing a line.
- *
- * The test above nests one opener per line, which is a different axis: it
- * measures the walks *through* a group's contents, and those were made linear
- * by jumping past each nested region. The two walks along a physical *line* —
- * the one reading a line's indent and the one rewriting it — were untouched by
- * that, because neither walks through a group at all. Each stepped back one
- * token at a time to the start of its line, so a line carrying n stacked
- * openers paid one walk per group over an ever-growing prefix of that single
- * line: quadratic, on an axis the test above cannot see.
- *
- * Counted rather than timed, for the reason the test above gives (#354,
- * extending #321). The counter is the one the build/hit pair cannot state: a
- * line-start reading answered from the index examines one token, and the
- * backward walk it replaced examines one per token already on the line. So the
- * assertion is that the steps equal the readings — a build and 599 hits, 600
- * readings, 600 tokens examined — and the 2,000 leading conditions are what
- * makes that assertion mean something, because a walk examines an ever-growing
- * prefix of them per reading: 8,465,100 steps for the same file, against 600.
- *
- * What makes that a claim about work and not about arithmetic is where the
- * sniff counts: the step is counted at the token read itself, in step(), which
- * is lineStart()'s only token accessor. A counter at the head of lineStart()
- * would count calls, and a walk back makes exactly as many calls as an indexed
- * read does, so it could return with the count unmoved.
- *
- * Where the old x2 bound went. `$grouped < $skipped * 2` compared two files'
- * elapsed times, and the control was there to cancel the tokenizer, exactly as
- * in the test above. A count of this sniff's own work carries no tokenizer to
- * cancel, and the control -- measured -- reads 0 line-start steps and 0
- * readings, because a call is refused before a line start is ever asked for.
- * `600 < 0 * 2` is unsatisfiable for any implementation, which is the case the
- * AC rules out by name. So the denominator changes and the ratio stays: the
- * bound sits between two sizes of the stacked file rather than between two
- * files, and the control's counts are asserted rather than discarded, because
- * a control that reads nothing is exactly what proves a call is skipped.
- *
- * How the bound was derived from the x2. The old 2 sat between 1.02x for the
- * indexed lookup and 5.34x for the per-call backward walk (0.0742s/0.0730s
- * against 0.4224s/0.0791s, measured in-process here on the same run of this
- * test against each implementation); sqrt(1.02 * 5.34) = 2.33, and 2 is below
- * it. Doubling the whole line -- 1,000 leading conditions and 300 openers
- * against 2,000 and 600 -- the same two behaviours are 2.0 for the indexed
- * lookup (300 steps against 600) and 3.998 for the backward walk (2,117,550
- * against 8,465,100, both measured under the mutation below). sqrt(2.0 *
- * 3.998) = 2.83, and the bound is 2.6: below that point by roughly the margin
- * the old 2 sat below its own 2.33.
- *
- * Mutation-checked by answering a line start with a backward walk again,
- * leaving every verdict identical. The ratio bound is the assertion that
- * reddens; the hunk and the failure output are in this PR's description.
- *
- * The 2,000 leading conditions are not decoration. The nesting depth is what
- * caps this shape — PHP_CodeSniffer records the full parenthesis nesting on
- * every token inside it, so a stack much past a thousand exhausts PHP's
- * default memory limit while the file is still being tokenized — and at a
- * depth of 600 the quadratic walk alone is only about 2.3x the control, too
- * narrow to separate from noise. Every one of the 600 walks crosses the whole
- * leading run, which puts the cost back on the axis being measured without
- * touching the depth. Cheap for the control, which tokenizes that run once.
- *
- * The violations and the diagnostic are asserted alongside the counts for two
- * different reasons. A walk that gave up early would be cheap and silent, so the
- * 599 tuples are what stop the ratio passing vacuously, and the control's empty
- * set is what proves it does no grouping work at all. The message is the half
- * that catches the other cheap way to be fast: an implementation that capped
- * how far back it scanned would still report every one of these lines, at the
- * right column, and would read the indent off whichever token it stopped on —
- * so only the expected-indent figure in the rendered message tells a correct
- * line start from a truncated one.
- */
 it('stays linear as group openers stack on one line', function () use ($stackedGroupings): void {
     [$groupedSource, $reported] = $stackedGroupings('&& (', 2000, 600);
     [$halfSource] = $stackedGroupings('&& (', 1000, 300);
@@ -589,8 +280,6 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
         $reported
     );
 
-    // The verdicts first, so a walk that gave up early fails as a dropped
-    // violation rather than as a cheap count.
     expect($groupedViolations)->toBe($expected)
         ->and($skippedViolations)->toBe([])
         ->and($halfViolations)->toHaveCount(299, 'the half-size file reaches every level too')
@@ -599,7 +288,6 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
             . ' indented one level deeper than its enclosing condition; expected 12 spaces',
         ]);
 
-    // The bound the old x2 became; the docblock derives the 2.6.
     expect($groupedCounts['lineStarts.steps'] / $halfCounts['lineStarts.steps'])->toBeLessThan(
         2.6,
         "doubling the line grows the tokens examined by {$groupedCounts['lineStarts.steps']}"
@@ -618,10 +306,6 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
         'and 300 readings examine 300, on a line half as long'
     );
 
-    // Asserted, not discarded: the control is no longer a baseline for a ratio,
-    // so what is still worth saying about it has to be said here. A call never
-    // reaches a line-start reading at all, which is why it cannot be a
-    // denominator and why its silence is worth pinning.
     expect($skippedCounts['lineStarts.hits'])->toBe(
         0,
         'a call is refused before any line start is asked for'
@@ -631,36 +315,6 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
     );
 });
 
-/**
- * The same shape, fixed, through PHP_CodeSniffer's real multi-pass fixer.
- *
- * The test above reads the sniff in one pass. This one drives the indexed line
- * start through the real fixer instead, because the index describes a token
- * stream and Fixer::fixFile() replaces that stream up to fifty times per file.
- * This shape needs one pass per level: breaking the stack apart puts each
- * group's opener on a line of its own, which is what gives the group inside it
- * a deeper level to be measured against on the pass after. Six levels, so six
- * fixing passes, and then a seventh that finds nothing and ends the loop —
- * seven tokenizations, seven streams, measured rather than assumed. Small
- * enough to converge well inside the fifty-pass ceiling and large enough for
- * the cascade to happen. It is the count the timing test cannot borrow: 600
- * levels would want 600 passes and the fixer would give up.
- *
- * Both halves of the round trip are asserted. The output is compared in full,
- * so a line start read off a scan cut short before it reaches the start of its
- * line writes a wrong level here; and the fixed source is analyzed again, so
- * the output has to be genuinely compliant rather than merely different from
- * the input.
- *
- * What it does not pin is which parts of the index's key are load-bearing.
- * Dropping the fixer's loop counter from the key leaves the whole suite green,
- * and no multi-pass fixture could redden it: Fixer::fixFile() rebuilds every
- * sniff before each pass, so the index this test drives through seven passes
- * is a fresh, empty one seven times over and no key from one loop is ever
- * compared against a key from the next. What keeps this round trip honest
- * across passes is that object lifecycle, not the key. See lineStart()'s
- * docblock.
- */
 it('reindents a stack of same-line openers through the multi-pass fixer', function () use ($stackedGroupings): void {
     [$source] = $stackedGroupings('&& (', 0, 6);
     $file = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('stacked-fixable.php', $source));
@@ -693,33 +347,6 @@ it('reindents a stack of same-line openers through the multi-pass fixer', functi
     PHP)->and(violationTuples($refixed))->toBe([]);
 });
 
-/**
- * A nested region whose closer PHP_CodeSniffer never recorded stops every walk
- * in the class, not just the two that already stopped.
- *
- * The source below is genuinely unparsable — an unterminated `[` inside a
- * validly-closed grouping parenthesis — so the tokenizer records a
- * `parenthesis_closer` for the `(` and no `bracket_closer` for the `[`. A walk
- * that treats "no recorded closer" as "not a nested region" then reads the
- * subscript's interior as the condition's own tokens: the `&&` in there makes
- * the parenthesis look like a logical grouping, and the subscript line — which
- * is not a condition at all — is reported and reindented by phpcbf.
- *
- * It cannot be a fixture file. The contract sweep runs every fixture through
- * phpcs expecting a clean parse, so unparsable source is staged for this test
- * alone and purged after it.
- *
- * Both halves are asserted because they fail independently: silencing the
- * report without stopping the walk would still let the fixer move the line.
- *
- * Two shapes, because the three walks stop at different moments and each owns a
- * different consequence. In the first the unresolved `[` sits before the only
- * boolean, so the walk testing for a top-level boolean reaches it first and the
- * parenthesis is never classified as a grouping at all. In the second a real
- * top-level boolean comes first, so the grouping *is* classified and the walk
- * measuring its condition lines is the one that has to stop — one line further
- * on, inside the subscript, at an indent it would otherwise rewrite.
- */
 it('classifies nothing inside a nested region whose closer was never recorded', function (string $source): void {
     $file = analyzeWithSniffs([LOGICAL_GROUPINGS], stageGeneratedFixture('unresolved-region.php', $source));
 
@@ -778,36 +405,10 @@ it('classifies nothing inside a nested region whose closer was never recorded', 
     ],
 ]);
 
-/**
- * The fixer's blast radius, as the complement of the round-trip the contract
- * sweep runs.
- *
- * The sweep proves failing.php fixes into autofixed.php byte for byte, which
- * pins what the fixer *did*. It cannot say that what changed was only the
- * condition lines. failing.php deliberately carries eleven constructs that look
- * like groupings but are not — a `new class(...)` argument list, a `match`
- * subject, a closure parameter list, an arrow-function body, a comment line, a
- * heredoc body, a wrapped double-quoted string, and the four bracketed regions
- * that sit below the condition rather than in it (an array value, an array
- * element, a subscript, and a statement in a closure body) — each at odd
- * indentation inside a file the fixer genuinely rewrites. Reindenting a heredoc
- * body would change a string's value rather than its layout; the rest would
- * move code the sniff has no business moving. Comparing the two fixtures line
- * by line is what proves none of that happened.
- *
- * One fix breaks a line instead of reindenting it — the one that gives a
- * group's glued first condition a line of its own — so the two files carry
- * different line counts. Each of those pairs is re-joined first, which puts
- * the files back on one numbering without hiding anything: a re-joined line
- * still differs from the original it is compared against, so it is still
- * counted as changed, and it is still required to be a reported line.
- */
 it('moves the reported condition lines and nothing else', function (): void {
     $before = file(fixturePath('LogicalGroupingsSniff', 'failing.php'));
     $after = file(fixturePath('LogicalGroupingsSniff', 'autofixed.php'));
 
-    // Each splice removes the shift the one before it introduced, so every
-    // line number below indexes the same line it names in failing.php.
     foreach (LOGICAL_GROUPINGS_GLUED_LINES as $line) {
         $index = ($line - 1);
         $joined = rtrim($after[$index], "\r\n") . $after[($index + 1)];
@@ -828,30 +429,6 @@ it('moves the reported condition lines and nothing else', function (): void {
     );
 });
 
-/**
- * The line-start index this sniff builds once per token stream must not answer
- * one analysis with another analysis's pointers (#343).
- *
- * The index used to be keyed by file name, token count and fixer-loop counter.
- * Two sources analysed as STDIN report the same name, so two of them that also
- * tokenise to the same count shared one key — and a single `Ruleset` reused
- * across several analyses, which is what buildRuleset()'s memoisation gives
- * every call below, hands them one sniff instance and one index.
- *
- * The two sources here tokenise to 36 tokens each: the two `!` tokens sit in
- * front of the measured group in A and behind it in B, which holds the counts
- * equal while moving every pointer from the group onwards two places. Under the
- * old key, B's `&& (` line was measured from A's pointer for that line — two
- * tokens further along, past the `&&` and onto the `(` — and the diagnostic
- * claimed `expected 11 spaces` for a group that is owed 8. All three expected
- * indents are distinct (12 for A, 8 for B, 11 for the stale answer), so no
- * assertion below can be satisfied by the wrong stream's value.
- *
- * The third call is what separates a working key from no cache at all: it
- * re-analyses A and requires its own answer back, which a sniff that had simply
- * stopped caching would also give — but a sniff whose index leaked between
- * streams would not, since B's stream would by then have overwritten it.
- */
 it('keeps its line-start index from answering another STDIN analysis', function (): void {
     $sourceA = <<<'PHP'
         <?php
@@ -914,35 +491,6 @@ it('keeps its line-start index from answering another STDIN analysis', function 
         ]);
 });
 
-/**
- * The line-start index is built once for a token stream and read from for the
- * rest of it, rather than rebuilt on every read (#343).
- *
- * The test above proves the key never answers one analysis with another's
- * pointers. It cannot prove the other half of what a key is for, and neither
- * can any other black-box test: a sniff that rebuilt the index on every single
- * read would report exactly the same violations, only slower — which is the
- * O(n²) cost lineStart() exists to remove. Every analysis there also constructs
- * its own DummyFile, so all three get their own identity from
- * TokenStreams::key() and miss by design.
- *
- * Reuse is observable only from inside the sniff, so the sniff counts it, the
- * way UnusedFormalParameterSniff already counts its own indexes. Both numbers
- * are pinned, and each rules out a different failure:
- *
- * - one build per stream, at any size, is the claim itself;
- * - n-1 hits keeps it from passing vacuously, since a sniff that stopped
- *   consulting the index at all would report one build and no hits. Each `if`
- *   below reaches the index once, from indentOfLine() — reindent()'s read is on
- *   the fixer path, which a phpcs run never takes — so n of them total n reads,
- *   of which one builds and n-1 hit. The build is one the guard never had to
- *   answer.
- *
- * Mutation-checked by forcing the `$this->lineStartsKey !== $key` guard true,
- * so every read rebuilds: `composer test` then fails here at the smallest size,
- * n=2, reading 2 builds / 0 hits against the 1 / 1 asserted; n=4 reads 4 / 0
- * against 1 / 3, and n=8 reads 8 / 0 against 1 / 7.
- */
 it('builds its line-start index once per stream, not once per read', function (): void {
     $sniff = sniffInstance(LOGICAL_GROUPINGS);
 
@@ -970,26 +518,6 @@ it('builds its line-start index once per stream, not once per read', function ()
     }
 });
 
-/**
- * NOT a discriminating test, and it is written down here rather than left for a
- * reviewer to discover. Deleting reindent()'s `?? rtrim(...)` fallback leaves
- * this green, because the guard's branch cannot be told from the failure it
- * guards against.
- *
- * The reason is in the tokenizer, not in the guard. reindent() only reaches the
- * read when the line starts with a T_WHITESPACE token, and PHPCS ends every
- * whitespace token at its newline — so that token holds spaces and tabs and
- * never an end-of-line character. `/[^\r\n]+$/` therefore strips all of it,
- * the fallback rtrim() strips all of it, and an unguarded null concatenates as
- * '': three spellings of the same empty prefix. The line breaks the method's
- * docblock says it preserves are already behind $first.
- *
- * What this does assert is the honest remainder: a failed read changes neither
- * what the sniff reports nor what its fixer writes. That is worth pinning — it
- * is what makes the guard safe to keep — but it is not evidence the guard fires,
- * and no test on this call site can be, short of a tokenizer that hands over a
- * whitespace token carrying its own newline.
- */
 it('fixes a group whose leading break cannot be read the same way', function (): void {
     $expected = autofixedContents(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php'));
 

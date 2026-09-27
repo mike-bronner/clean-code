@@ -9,10 +9,7 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\FileList;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
-// A sniff is one rule, and its class name is the sniff code consumers write
-// in their rulesets — so the unit is fixed from outside and splitting the
-// class into collaborators would distribute the work without reducing it.
-// phpcs:ignore CleanCode.CodeSize.TooManyMethods -- see above
+// phpcs:ignore CleanCode.CodeSize.TooManyMethods
 class NumberOfChildrenSniff implements Sniff
 {
     private const UNKNOWN_PATH = 'STDIN';
@@ -70,10 +67,6 @@ class NumberOfChildrenSniff implements Sniff
 
     public function register(): array
     {
-        // T_CLASS alone. PHP_CodeSniffer tokenises an anonymous class as
-        // T_ANON_CLASS and interfaces, traits, and enums as tokens of their
-        // own, so the four PHPMD never reports on are excluded by not being
-        // named here.
         return [T_CLASS];
     }
 
@@ -335,9 +328,6 @@ class NumberOfChildrenSniff implements Sniff
                 continue;
             }
 
-            // The opening brace of a string interpolation, which is the one
-            // opening brace the tokenizer does not hand over as a bare `{`. Its
-            // closer is bare, so it is counted here to keep the pair balanced.
             if (isset(self::INTERPOLATION_OPEN_TOKENS[$token[0]]) === true) {
                 $depth++;
 
@@ -364,25 +354,12 @@ class NumberOfChildrenSniff implements Sniff
                 continue;
             }
 
-            // All four keywords are spelled in places that declare nothing —
-            // `Type::class`, a method or constant named `trait`, a named
-            // argument written `class:`. Recording a body for one of those
-            // would swallow every import that followed, because a `use` inside
-            // a class-like body is a trait's and not an import.
             if ($this->declaresBody($tokens, $index) === false) {
                 continue;
             }
 
-            // The body is recorded when the brace that opens it is reached, not
-            // here: everything between this keyword and that brace — an
-            // anonymous class's constructor arguments above all — can hold
-            // braces of its own. Recording the body now would let one of those
-            // close it before it opened. See trackBrace().
             $awaiting[] = $parentheses;
 
-            // Interfaces, traits, enums, and anonymous classes have bodies that
-            // have to be tracked, but none of the four declares a name this
-            // rule counts children for.
             if (
                 $token[0] !== T_CLASS
                 || $this->isAnonymous($tokens, $index) === true
@@ -524,8 +501,6 @@ class NumberOfChildrenSniff implements Sniff
             return;
         }
 
-        // Onto the `extends` itself, so the name read next is the parent's and
-        // not the keyword the cursor is still sitting before.
         $this->significantIndexAfter($tokens, $cursor);
 
         $parent = $this->readName($tokens, $cursor);
@@ -554,9 +529,6 @@ class NumberOfChildrenSniff implements Sniff
             return [];
         }
 
-        // A closure's `use (…)` binds variables and imports nothing. Its
-        // statement is not skipped either, because the body that follows it can
-        // declare a class of its own.
         if (is_array($next) === false) {
             return [];
         }
@@ -606,12 +578,6 @@ class NumberOfChildrenSniff implements Sniff
         return $imports;
     }
 
-    // PHPCS lists a file it can see; between that listing and this read the file
-    // can vanish or lose its permissions, and either raises a warning that says
-    // nothing about the source under analysis. Suppressed with a handler rather
-    // than `@`, which Generic.PHP.NoSilencedErrors forbids because it hides every
-    // diagnostic in the expression instead of the one being answered for. The
-    // false return is still checked by the caller.
     private function readQuietly(string $path): string|false
     {
         set_error_handler(static fn (): bool => true);
@@ -713,8 +679,6 @@ class NumberOfChildrenSniff implements Sniff
         return $name;
     }
 
-    // array|string, not array: these are token_get_all() tokens, and a
-    // single-character token such as `{` arrives as a bare string.
     private function significantAfter(array $tokens, int $index): array|string|null
     {
         $next = $this->significantIndexAfter($tokens, $index, false);

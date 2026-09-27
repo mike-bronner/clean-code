@@ -68,7 +68,6 @@ jobs:
       - name: Sniff test suite (Pest)
         run: composer test
 
-      # Fails today, deliberately: the sweep to zero has not landed (#229).
       # Runs last because a failing step ends the job, and the lint and test
       # results above must report first.
       - name: Self-lint (full ruleset against CleanCode/)

@@ -26,7 +26,6 @@ class TooManyPublicMethodsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // A class cut short mid-edit has no brace pair to scan between.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }
@@ -43,7 +42,7 @@ class TooManyPublicMethodsSniff implements Sniff
         $phpcsFile->addError(
             'The class %s has %s public methods. Consider refactoring %s to keep the number of '
                 . 'public methods under %s '
-                . '(see docs/phpmd/codesize-toomanypublicmethods.md)',
+                . '(see resources/boost/guidelines/pattern-solid.md)',
             $stackPtr,
             'Found',
             [$name, $count, $name, $threshold]

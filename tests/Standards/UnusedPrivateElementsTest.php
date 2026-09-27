@@ -1,28 +1,5 @@
 <?php
 
-/**
- * Tests the custom CleanCode.DeadCode.UnusedPrivateElements sniff (No Dead
- * Code, #29), and the construct-coverage and method-versus-property precision
- * work that followed it (#206). Fixtures live in
- * tests/fixtures/UnusedPrivateElementsSniff/ and follow the fixture contract:
- * passing.php is clean, failing.php carries every violation shape. There is no
- * autofixed.php — the sniff is detection-only, because deleting a member is
- * not a rewrite a fixer can make safely.
- *
- * tests/Ruleset/NoDeadCodeRulesetTest.php remains the record of how CleanCode/ruleset.xml
- * wires this sniff alongside the three third-party sniffs the No Dead Code
- * standard also needs. This file owns the sniff's own behaviour.
- *
- * Every expectation below was cross-checked by mutation: reverting register()
- * to [T_CLASS] drops the enum and anonymous-class findings, and collapsing the
- * two usage maps back into one drops both shared-name findings. Dropping the
- * anonymous-class skip from collectUsedNames() drops the two host-collision
- * findings. The compliant fixture discriminates in the same way — adding
- * T_TRAIT to register(), forcing the call lookahead to a constant, or moving
- * that skip's start from the opening brace to the `new class` token (which
- * swallows the constructor arguments), each makes it report.
- */
-
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
@@ -42,11 +19,6 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * The whole violation set, pinned to exact lines and columns so that a
- * regression which flags one more member — a used one — fails here rather than
- * hiding behind a presence-only assertion.
- */
 it('flags every dead private member and nothing else', function (): void {
     $file = analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php');
 
@@ -63,11 +35,6 @@ it('flags every dead private member and nothing else', function (): void {
     ]);
 });
 
-/**
- * The construct-coverage half of #206, named one construct at a time so a
- * narrowing of register() says which surface it lost. Enums declare no
- * properties — PHP forbids enum state — so the enum row is a method.
- */
 it('reaches dead members in the class-like constructs it registers', function (int $line, string $code): void {
     $lines = array_column(violationTuples(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')), 'source', 'line');
 
@@ -81,12 +48,6 @@ it('reaches dead members in the class-like constructs it registers', function (i
     'anonymous class method' => [100, 'UnusedMethod'],
 ]);
 
-/**
- * A trait's private member is flattened into every consuming class and may be
- * used only there, so the trait body cannot prove it dead. UnscannedTrait in
- * passing.php references neither of its private members and must still be
- * silent — the exclusion is deliberate, not an oversight, and this pins it.
- */
 it('leaves a trait body alone even when nothing in it uses its private members', function (): void {
     $file = analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'passing.php');
 
@@ -95,14 +56,6 @@ it('leaves a trait body alone even when nothing in it uses its private members',
         ->toContain('private function secretHelper');
 });
 
-/**
- * An anonymous class is a separate class, and PHP denies it access to the
- * enclosing class's private members, so a mention inside its body says nothing
- * about a same-named member of the enclosing one. `HostsCollidingAnonymousClass`
- * uses `$tag` and `shared()` only inside the nested body; both enclosing
- * members are dead and must still be reported. Sharing one usage map across
- * the boundary hid both.
- */
 it('does not let a nested anonymous class excuse a same-named host member', function (int $line, string $code): void {
     $lines = array_column(violationTuples(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')), 'source', 'line');
 
@@ -113,13 +66,6 @@ it('does not let a nested anonymous class excuse a same-named host member', func
     'host method called only inside the nested body' => [136, 'UnusedMethod'],
 ]);
 
-/**
- * Only the anonymous class's *body* is skipped. Its constructor arguments are
- * evaluated in the enclosing scope, so `new class ($this->config)` in
- * `PassesPrivateStateToAnonymousClass` is the sole read that keeps that
- * property alive. Skipping from the `new class` token instead of the opening
- * brace would swallow the argument list and report it dead.
- */
 it('still counts a usage in the arguments of a nested anonymous class', function (): void {
     $file = analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'passing.php');
 
@@ -128,13 +74,6 @@ it('still counts a usage in the arguments of a nested anonymous class', function
         ->toContain('new class ($this->config)');
 });
 
-/**
- * PHP keeps property and method names in separate namespaces, so a mention
- * through one syntax says nothing about the other. `$this->foo` leaves the
- * same-named method dead; `$this->bar()` leaves the same-named property dead.
- * Before the two usage maps were split, one shared map let either mention mark
- * both used and neither was reported.
- */
 it('does not let a property read excuse a same-named method, or the reverse', function (): void {
     $lines = array_column(violationTuples(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')), 'source', 'line');
 
@@ -144,18 +83,6 @@ it('does not let a property read excuse a same-named method, or the reverse', fu
         ->and($lines[53])->toBe(UNUSED_PRIVATE_ELEMENTS . '.UnusedProperty');
 });
 
-/**
- * The words inside a string literal are collected so an element named by one of
- * them is not reported as unused. A failed read that is not guarded iterates
- * `$matches[0]` off an untouched $matches — null here — so the guard skips the
- * token instead.
- *
- * Skipping sends the failure the way this walk already leans: a word that was
- * not collected is a word no element is proven to use, so an element can be
- * reported as unused, which is a report to argue with rather than a silence to
- * miss. The fixture's verdict does not move either way, so the diagnostics are
- * what hold the guard to account.
- */
 it('skips a string literal whose words cannot be read', function (): void {
     $expected = allViolationSourcesByLine(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php'));
 

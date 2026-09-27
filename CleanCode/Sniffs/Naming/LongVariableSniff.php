@@ -66,9 +66,6 @@ class LongVariableSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An interface or a forward declaration with no body has no field to
-        // measure. `class Foo;` is not valid PHP, but a truncated file is what
-        // PHPCS hands a sniff while an editor is mid-keystroke.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return [];
         }

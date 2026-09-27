@@ -13,10 +13,6 @@ class ExcessivePublicCountSniff implements Sniff
 
     public function register(): array
     {
-        // Interfaces and enums are absent deliberately, matching PHPMD: its
-        // rule class is declared `implements ClassAware, TraitAware`, and
-        // PDepend's ClassLevelAnalyzer::visitInterface() is an empty method
-        // carrying the comment "we don't want interface metrics".
         return [T_CLASS, T_ANON_CLASS, T_TRAIT];
     }
 
@@ -24,8 +20,6 @@ class ExcessivePublicCountSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An unterminated declaration leaves PHPCS with no scope to walk. The
-        // file is already a parse error; say nothing rather than guess.
         if (isset($tokens[$stackPtr]['scope_opener']) === false) {
             return;
         }
@@ -62,18 +56,10 @@ class ExcessivePublicCountSniff implements Sniff
                 continue;
             }
 
-            // Everything nested deeper than this type's own body — a method's
-            // local variables, an anonymous class's members, a closure's
-            // parameters — belongs to the innermost scope holding it, not here.
             if (array_key_last($tokens[$ptr]['conditions']) !== $stackPtr) {
                 continue;
             }
 
-            // A parameter list is parenthesised, not scoped, so a promoted or
-            // plain parameter still reports this type as its innermost
-            // condition. Property defaults are constant expressions and can
-            // hold no variable, so any parenthesised variable here is a
-            // parameter; the promoted ones are counted with their method.
             if (
                 $code === T_VARIABLE
                 && isset($tokens[$ptr]['nested_parenthesis']) === true

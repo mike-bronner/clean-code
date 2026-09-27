@@ -11,7 +11,6 @@ class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnit
     protected function getErrorList(): array
     {
         return [
-            // Newline before the operator, one case per operator.
             31 => 1,
             33 => 1,
             35 => 1,
@@ -23,7 +22,6 @@ class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnit
             47 => 1,
             49 => 1,
             51 => 1,
-            // Newline after the operator, one case per operator.
             54 => 1,
             56 => 1,
             58 => 1,
@@ -35,7 +33,6 @@ class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnit
             70 => 1,
             72 => 1,
             74 => 1,
-            // Newlines on both sides of the operator, one case per operator.
             79 => 2,
             82 => 2,
             85 => 2,
@@ -47,14 +44,10 @@ class DisallowNewlineAroundEvaluativeOperatorsUnitTest extends AbstractSniffUnit
             103 => 2,
             106 => 2,
             109 => 2,
-            // instanceof with a fully qualified class name on the next line.
             113 => 1,
-            // Operators nested inside multiline array/argument lists.
             121 => 1,
             124 => 1,
-            // Operator split inside a ternary condition.
             130 => 1,
-            // Comment in the gap: reported but not auto-fixable.
             134 => 1,
         ];
     }

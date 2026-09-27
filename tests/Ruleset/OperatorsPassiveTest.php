@@ -1,24 +1,5 @@
 <?php
 
-/**
- * Operators: Passive (#64) as wired into CleanCode/ruleset.xml — the whole standard rather
- * than the one custom sniff that anchors it.
- *
- * Four sniffs carry it: CleanCode.WhiteSpace.PassiveOperatorSpacing for
- * identity, negation, error control and execution, plus three third-party
- * sniffs configured in CleanCode/ruleset.xml for increment/decrement, `->` and `[]`.
- * Fixtures live in tests/fixtures/_rulesets/OperatorsPassive/ because no single
- * sniff owns the standard.
- *
- * The last test here is the one that matters most. Every previous round of this
- * standard's review found the same defect: a fixer in the master ruleset that
- * re-inserted a space this standard's fixer had just removed, so
- * `phpcbf --standard=CleanCode/ruleset.xml` never settled and gave up on the whole file
- * (exit 2). It is a whole-ruleset failure by construction — the isolated
- * assertions above cannot see it — so it is asserted against the real phpcbf
- * binary over the real master ruleset.
- */
-
 declare(strict_types=1);
 
 const OPERATORS_PASSIVE_SNIFFS = [
@@ -43,11 +24,6 @@ it('reports nothing on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * Every operator in the standard, flagged, and by the sniff that owns it. The
- * assertion is per line and per source, so a rule silently dropped from
- * CleanCode/ruleset.xml shows up as a missing line rather than a smaller total.
- */
 it('flags every passive operator through the sniff that owns it', function (): void {
     $file = analyzeRulesetFixture(OPERATORS_PASSIVE_SNIFFS, 'OperatorsPassive', 'failing.php');
     $sources = violationSourcesByLine($file->getErrors());
@@ -80,20 +56,6 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     );
 });
 
-/**
- * The regression guard for the whole oscillation class.
- *
- * `convergence.php` carries one line per context in which a `+`/`-` sign sits
- * where the binary-operator sniff might read it as binary: after `@`, after a
- * semicolon, after `<?php`, after `<?=`, and — the control — a genuinely binary
- * sign after a postfix increment, which must keep its spaces. Under the real
- * master ruleset, phpcbf must reach a fixed point on all of them.
- *
- * Exit status 2 is phpcbf's "could not fix" and is exactly the symptom every
- * earlier round of this standard produced; 0 and 1 are both success (nothing to
- * fix / fixes written). The second pass asserts the result is stable rather
- * than merely reachable.
- */
 it('converges under the real phpcbf over the whole master ruleset', function (): void {
     $staged = stageFixtureOutsideTests(
         __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.php'
@@ -116,8 +78,6 @@ it('converges under the real phpcbf over the whole master ruleset', function ():
         __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.fixed.php'
     ));
 
-    // A second pass must change nothing: a pair of fixers that merely take
-    // turns would still reach a "fixed" file on pass one.
     [, , $secondStatus] = runOutsidePackage($command);
 
     expect($secondStatus)->toBe(0)

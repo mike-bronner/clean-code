@@ -1,26 +1,5 @@
 <?php
 
-/**
- * Tests the "Conditionals: No Inline If-Statements" standard (#9), enforced by
- * Generic.ControlStructures.InlineControlStructure.
- *
- * PSR12 (referenced in CleanCode/ruleset.xml) already bundles this sniff, so it is active
- * in the master ruleset regardless; CleanCode/ruleset.xml also references it explicitly as
- * belt-and-suspenders (CONTRIBUTING — third-party rules a standard depends on
- * are wired in by name). The registration test therefore proves the sniff is
- * reachable through CleanCode/ruleset.xml (via either route), not that the explicit ref
- * alone is load-bearing. The behaviour tests pin the sniff in isolation against
- * the fixture, so they stay stable as sibling standards land in the shared
- * ruleset.
- *
- * Fixtures live in tests/fixtures/InlineControlStructureSniff/: passing.php,
- * failing.php, and the expected auto-fixed output autofixed.php. passing.php
- * carries a braced form of every structure the sniff registers on — if/else,
- * elseif chains, for, foreach, while, do-while, switch, and nesting — so its
- * silence is a verdict about each of them rather than about an absence of
- * control structures.
- */
-
 declare(strict_types=1);
 
 const INLINE_CONTROL_STRUCTURE = 'Generic.ControlStructures.InlineControlStructure';
@@ -38,12 +17,6 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * Line 37 is an inline `if` whose body is a second inline `if`, so one line
- * carries two reports — the outer `if` at column 1 and the inner one at column
- * 22. Lines 41 and 46 are reported at column 5 rather than column 1 because
- * they are indented inside a braced `foreach` and `while` body.
- */
 it('flags inline conditionals at the expected lines', function (): void {
     $file = analyzeFixture(INLINE_CONTROL_STRUCTURE, 'failing.php');
 

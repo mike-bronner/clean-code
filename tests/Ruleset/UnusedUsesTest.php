@@ -1,11 +1,5 @@
 <?php
 
-/**
- * Integration test for the SlevomatCodingStandard.Namespaces.UnusedUses rule
- * as configured in the master CleanCode/ruleset.xml (Use Statements: No Unused Entries,
- * issue #68). Fixtures live in tests/fixtures/UnusedUsesSniff/.
- */
-
 declare(strict_types=1);
 
 const UNUSED_USES = 'SlevomatCodingStandard.Namespaces.UnusedUses';
@@ -37,11 +31,6 @@ it('flags each unused use individually at its own line', function (): void {
     }
 });
 
-/**
- * searchAnnotations="true" keeps imports referenced only in docblocks
- * (@param, @throws, …) from being treated as unused — those references are
- * live, not dead code.
- */
 it('does not treat a use referenced only in a docblock as unused', function (): void {
     $file = analyzeFixture(UNUSED_USES, 'docblock-only.php');
 

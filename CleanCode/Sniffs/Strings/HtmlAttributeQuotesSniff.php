@@ -26,9 +26,6 @@ class HtmlAttributeQuotesSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $content = $tokens[$stackPtr]['content'];
 
-        // The escaped-apostrophe sequence as it appears in this PHP string
-        // context: a literal `'` inside a double-quoted string, `\'` inside a
-        // single-quoted one.
         $apostrophe = $this->phpStringDelimiter($phpcsFile, $stackPtr) === "'" ? "\\'" : "'";
 
         if ($this->hasApostropheAttribute($content, $apostrophe) === false) {
@@ -75,24 +72,14 @@ class HtmlAttributeQuotesSniff implements Sniff
 
     private function rewriteAttributes(string $content, string $apostrophe): ?string
     {
-        // Double-quoted PHP context escapes the replacement quotes (`\"`);
-        // single-quoted context takes them literally (`"`).
         $quote = $apostrophe === "\\'" ? "\"" : "\\\"";
         $unsafe = false;
 
-        // Audited, unguarded on purpose: a failed span read returns null, and
-        // null is already this method's "unsafe, leave the file alone"
-        // sentinel — the same value the return below hands back. Safe by
-        // circumstance rather than by construction, so it is written down here:
-        // change that sentinel and this call needs a guard of its own.
         $rewritten = preg_replace_callback(
             (new Markup())->tagSpanPattern(),
             function (array $match) use ($apostrophe, $quote, &$unsafe): string {
                 $span = preg_replace_callback(
                     $this->attributePattern($apostrophe),
-                    // Not a static closure: isSafeToConvert() became an instance
-                    // method with the sniff's other members, and a static closure
-                    // carries no $this to call it on.
                     function (array $attr) use ($quote, &$unsafe): string {
                         if ($this->isSafeToConvert($attr[2]) === false) {
                             $unsafe = true;
@@ -105,12 +92,6 @@ class HtmlAttributeQuotesSniff implements Sniff
                     $match[0]
                 );
 
-                // The attribute read gave out inside this span. Casting the
-                // null to a string would replace the whole tag with '' and say
-                // nothing, so the span is kept as written and the rewrite is
-                // marked unsafe — the same answer an unconvertible value earns
-                // above, and the one the caller reads as "report the violation,
-                // fix nothing".
                 if ($span === null) {
                     $unsafe = true;
 

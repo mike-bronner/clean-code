@@ -21,12 +21,6 @@ class DisallowListAssignmentInConditionSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An unterminated list() carries a null closer, so there is no
-        // position to look past for an "=". Refuse rather than search from a
-        // made-up offset. Dropping this guard does not change what any
-        // fixture here reports — a search from the bogus offset lands on a
-        // token that is not "=", and the check below rejects it — so the
-        // guard is explicitness, not a behaviour the tests can pin.
         $closer = $tokens[$stackPtr]['parenthesis_closer'] ?? null;
 
         if ($closer === null) {

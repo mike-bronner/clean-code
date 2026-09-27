@@ -39,9 +39,6 @@ class CouplingBetweenObjectsSniff implements Sniff
 
     public function register(): array
     {
-        // Traits, interfaces, and enums are absent deliberately: PHPMD's rule
-        // is declared `implements ClassAware`, and a live 2.15.0 run reports
-        // none of the three however many types they name.
         return [T_CLASS, T_ANON_CLASS];
     }
 
@@ -49,8 +46,6 @@ class CouplingBetweenObjectsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // An unterminated declaration leaves PHPCS with no scope to walk. The
-        // file is already a parse error; say nothing rather than guess.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }
@@ -198,8 +193,6 @@ class CouplingBetweenObjectsSniff implements Sniff
             return $tokens[$ptr]['scope_closer'] ?? $ptr;
         }
 
-        // A trait `use` ends either at its semicolon or at the closing brace of
-        // an adaptation block, whichever comes first.
         $end = $phpcsFile->findNext([T_SEMICOLON, T_OPEN_CURLY_BRACKET], ($ptr + 1));
 
         if ($end === false) {
@@ -230,14 +223,6 @@ class CouplingBetweenObjectsSniff implements Sniff
 
         $stripped = str_replace(['?', '(', ')'], '', $type);
 
-        // A failed split is false and the foreach then throws a TypeError. The
-        // unsplit type is the honest fallback: a single-member union is what a
-        // type carrying no separator already reduces to, so a plain class name
-        // is still counted as a dependency and only a union goes unread — an
-        // undercount of coupling, never a miscount of an unrelated type.
-        // `/[|&]/` is a literal character class with no quantifier and no `/u`
-        // modifier, so preg_split() cannot fail; the ?: states that outright
-        // rather than leaning on it, as MemberOrderingSniff does.
         foreach (preg_split('/[|&]/', $stripped) ?: [$stripped] as $member) {
             $this->addResolved($dependencies, $member, $namespace, $aliases);
         }
@@ -365,8 +350,6 @@ class CouplingBetweenObjectsSniff implements Sniff
         while (($ptr = $phpcsFile->findPrevious(T_NAMESPACE, ($ptr - 1))) !== false) {
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
 
-            // `namespace\Foo` is a relative name, not a declaration; the
-            // declaration it is relative to is further back.
             if (
                 $next !== false
                 && $tokens[$next]['code'] === T_STRING
@@ -441,8 +424,6 @@ class CouplingBetweenObjectsSniff implements Sniff
 
         $imports = [];
 
-        // `use A\B, C\D;` — a comma continues the same statement with another
-        // name, each carrying its own optional alias.
         while (true) {
             [$one, $end] = $this->readImportAlias($phpcsFile, $end, $name, '');
             $imports += $one;

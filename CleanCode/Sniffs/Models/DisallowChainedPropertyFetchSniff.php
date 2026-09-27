@@ -12,18 +12,12 @@ use PHP_CodeSniffer\Util\Tokens;
 class DisallowChainedPropertyFetchSniff implements Sniff
 {
     private const GROUP_PRECEDERS = [
-        // Where an expression starts: the file's own opening tags, the end of
-        // the statement before, and the brace opening a block or a braced
-        // member name. The matching closers are absent — see the method.
         T_OPEN_TAG,
         T_OPEN_TAG_WITH_ECHO,
         T_SEMICOLON,
         T_OPEN_CURLY_BRACKET,
         T_GOTO_LABEL,
 
-        // Openers and separators inside an expression: an argument list, a
-        // subscript, an array literal, and the punctuation between their
-        // elements or a ternary's arms.
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
@@ -34,7 +28,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         T_FN_ARROW,
         T_MATCH_ARROW,
 
-        // Keywords that take an expression without parenthesising it.
         T_RETURN,
         T_ECHO,
         T_PRINT,
@@ -48,45 +41,18 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         T_REQUIRE,
         T_REQUIRE_ONCE,
 
-        // Keywords that take a bare statement, which an expression may be.
         T_ELSE,
         T_DO,
 
-        // Prefix operators PHP_CodeSniffer's own unions leave out.
         T_BOOLEAN_NOT,
         T_BITWISE_NOT,
         T_ASPERAND,
         T_ELLIPSIS,
 
-        // Concatenation, the one binary operator absent from those unions.
         T_STRING_CONCAT,
     ];
 
     private const GROUP_PRECEDER_TYPES = [
-        // PHP 8.5's two new tokens, matched by type name rather than by code.
-        // Below 8.5 PHP defines neither constant, so naming one in
-        // GROUP_PRECEDERS would fail at class load, and this package defines
-        // no token constant of its own: Composer loads a package's `files`
-        // into every consumer process, where a string-valued T_PIPE breaks
-        // nikic/php-parser. Nothing is lost below 8.5, because PHP_CodeSniffer
-        // 3.13.6 never emits either type there.
-        //
-        // PHP_CodeSniffer 3.13.6 predates both, so neither reaches the unions
-        // GROUP_PRECEDERS defers to however well it fits one of them —
-        // Tokens::$castTokens has no T_VOID_CAST and Tokens::$operators no
-        // T_PIPE. Each is admitted on its own evidence:
-        //
-        // - `(void)` is a cast, and a cast takes an expression, so a
-        //   parenthesis after one opens a group.
-        //   `<?php (void) ($book)->author->name;` passes `php -l` on PHP 8.5,
-        //   and PHP_CodeSniffer tokenises it T_VOID_CAST, T_OPEN_PARENTHESIS,
-        //   T_VARIABLE — the grouped-root shape this sniff reports. Refusing it
-        //   would lose that report on 8.5 and keep it on 8.4.
-        // - `|>` is a binary operator whose right operand is an expression
-        //   evaluating to a callable. `<?php $r = $y |> ($this->resolver)->handler;`
-        //   passes `php -l` on PHP 8.5 and tokenises T_PIPE,
-        //   T_OPEN_PARENTHESIS, T_VARIABLE, so the parenthesis groups exactly
-        //   as it does after `.` above.
         'T_VOID_CAST',
         'T_PIPE',
     ];
@@ -135,9 +101,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             return;
         }
 
-        // The receiver of this hop has to be the member of a preceding hop for
-        // the two to be consecutive. Anything else — a variable, a call's
-        // closing parenthesis, an array subscript — starts a fresh segment.
         $receiverPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
         if (
@@ -161,16 +124,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             return;
         }
 
-        // One diagnostic per chain: a third hop's receiver is preceded by an
-        // object operator too, which means the pair before it was already
-        // reported.
-        //
-        // Asked before the root walk, never after. This test reads a fixed two
-        // tokens where the walk reads the whole receiver expression, so putting
-        // it first keeps an already-reported hop from starting a walk at all.
-        // What actually bounds the cost of the walk is rootFrom()'s record —
-        // this ordering is a constant-factor gain on top of it, and the two are
-        // measured apart in the sniff's linear-time test.
         if ($this->isPrecededByAnotherHop($phpcsFile, $previousOperatorPtr) === true) {
             return;
         }
@@ -183,12 +136,9 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             'Chained property fetch %s; expose the value as an accessor attribute on the '
                 . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
                 . '$book->authorName rather than $book->author->name) '
-                . '(see docs/standards/models-relationship-properties.md)',
+                . '(see resources/boost/guidelines/models-relationship-properties.md)',
             $memberPtr,
             'Found',
-            // The operator is quoted from the matched token rather than written
-            // out, so a nullsafe hop reads back as the source wrote it
-            // (author?->name) instead of being reported as author->name.
             [
                 $tokens[$receiverPtr]['content']
                     . $tokens[$stackPtr]['content']
@@ -265,14 +215,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
                 $beforeOpenerPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($openerPtr - 1), null, true);
 
-                // Braces reached from here are a braced member name and
-                // nothing else — $a->{$b}->c, whose opener follows the hop's
-                // own operator. Every other brace pair that can sit in front
-                // of an operator closes a body, not a receiver: a match's arms
-                // (match ($book) { ... }->author->name), a closure's, an
-                // anonymous class's. None has a single root to walk to, so the
-                // walk stops rather than reading one out of the subject in
-                // front of the body.
                 if ($code === T_CLOSE_CURLY_BRACKET) {
                     if (
                         $beforeOpenerPtr === false
@@ -286,8 +228,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                     continue;
                 }
 
-                // A call's argument list and a subscript both belong to the
-                // token in front of their opener, so the walk continues there.
                 if (
                     $code === T_CLOSE_SQUARE_BRACKET
                     || $this->isInvokedOn($tokens, $beforeOpenerPtr) === true
@@ -297,10 +237,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                     continue;
                 }
 
-                // A grouping parenthesis belongs to nothing in front of it —
-                // ($a)->b->c — and holds its own root, so the walk continues
-                // inside the group. Anything else opening a parenthesis is a
-                // construct this sniff does not model, and is refused.
                 if ($this->isGroupingParenthesis($tokens, $beforeOpenerPtr) === false) {
                     return $this->recordRoots($walked, false);
                 }
@@ -308,8 +244,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                 return $this->recordRoots($walked, $this->rootInsideGroup($phpcsFile, $openerPtr, $ptr));
             }
 
-            // Landing straight on an operator means the group just stepped
-            // over was a braced member name ($a->{$b}); step over its hop too.
             if ($this->isObjectOperator($tokens, $ptr) === true) {
                 $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
 

@@ -79,30 +79,19 @@ class LogicalGroupingsSniff implements Sniff
                 $skipTo = $this->skipNested($tokens, $i);
 
                 if ($skipTo === null) {
-                    // A nested region with no usable end: from here the walk
-                    // cannot tell the condition's own parentheses from a nested
-                    // construct's, so it collects no more rather than classify
-                    // on a guess.
                     return $groups;
                 }
 
-                // A token that opens no region at all comes back unchanged, so
-                // this both jumps a region and advances past anything else.
                 $i = $skipTo;
 
                 continue;
             }
 
             if (isset($tokens[$i]['parenthesis_closer']) === false) {
-                // Same reasoning, for the parenthesis family itself.
                 return $groups;
             }
 
             if ($this->opensGrouping($phpcsFile, $i) === false) {
-                // Anything that is not a grouping is an opaque operand — a
-                // call or construct argument list, a `match` subject, a
-                // closure parameter list. Its contents count as a single
-                // condition, so skip it whole.
                 $i = $tokens[$i]['parenthesis_closer'];
 
                 continue;
@@ -125,12 +114,6 @@ class LogicalGroupingsSniff implements Sniff
             return false;
         }
 
-        // Whole PHP_CodeSniffer token sets, never a hand-picked subset of one:
-        // an operand may begin after any operator (arithmetic, comparison,
-        // boolean, assignment, concatenation, cast, negation), after any
-        // opening delimiter, after either separator, and after either ternary
-        // arm. Taking each class entire is what stops the set from being
-        // "complete except for the member nobody thought of".
         $expressionStarters = Tokens::$booleanOperators
             + Tokens::$comparisonTokens
             + Tokens::$operators
@@ -162,11 +145,6 @@ class LogicalGroupingsSniff implements Sniff
             $skipTo = $this->skipNested($tokens, $i);
 
             if ($skipTo === null) {
-                // A nested region with no usable end. Every boolean past this
-                // point may belong to that region rather than to these
-                // parentheses, so the honest answer is that no top-level
-                // boolean was found: the parenthesis is left unclassified, and
-                // nothing inside it is measured or reindented.
                 return false;
             }
 
@@ -194,12 +172,6 @@ class LogicalGroupingsSniff implements Sniff
 
         $closer = ($tokens[$i][$closerKey] ?? null);
 
-        // A closer PHP_CodeSniffer never recorded (unbalanced or unparsable
-        // source), or one recorded before its own opener: either way the region
-        // has no usable end. Callers advance to whatever this returns, so the
-        // second case would send a walk backwards and around again. PHP_CodeSniffer
-        // does not produce one, which is exactly why the walk must not depend on
-        // it never doing so.
         if (
             $closer === null
             || $closer <= $i
@@ -207,8 +179,6 @@ class LogicalGroupingsSniff implements Sniff
             return null;
         }
 
-        // One step, whatever the region holds. Walking it instead costs one per
-        // token in it, which is what makes n nested regions quadratic.
         $this->cacheCounts['conditionWalk.jumps']++;
 
         return $closer;
@@ -248,9 +218,6 @@ class LogicalGroupingsSniff implements Sniff
         }
     }
 
-    // The first condition of a group is measured against its enclosing
-    // condition; every later one is measured against that first condition, so
-    // the two carry different wording and different codes.
     private function groupIndentReport(int $index): array
     {
         if ($index === 0) {
@@ -283,9 +250,6 @@ class LogicalGroupingsSniff implements Sniff
         $break = $phpcsFile->eolChar . str_repeat(' ', $expected);
 
         if ($tokens[($pointer - 1)]['code'] === T_WHITESPACE) {
-            // Mid-line spacing, never a line's indentation: the condition is
-            // on the opening parenthesis's line, so anything directly before
-            // it came after that parenthesis.
             $phpcsFile->fixer
                 ->replaceToken(($pointer - 1), $break);
 
@@ -307,18 +271,9 @@ class LogicalGroupingsSniff implements Sniff
             $this->cacheCounts['conditionWalk.steps']++;
 
             if (isset(Tokens::$emptyTokens[$tokens[$i]['code']]) === true) {
-                // Whitespace and comment lines are not conditions: a comment
-                // sitting inside a grouping must never be measured or reindented
-                // as though it were a grouped condition.
                 continue;
             }
 
-            // PHP_CodeSniffer splits a multi-line string, heredoc, or nowdoc
-            // into one token per physical line, and each of those tokens
-            // begins a line. They are the interior of a single operand, not
-            // conditions — and their leading whitespace is string content, so
-            // reindenting one would rewrite the value. Tracking the last line
-            // any token spans through marks them as continuations.
             $line = $tokens[$i]['line'];
             $isContinuation = $line <= $spannedThroughLine;
             $spannedThroughLine = max(
@@ -337,17 +292,10 @@ class LogicalGroupingsSniff implements Sniff
             $skipTo = $this->skipNested($tokens, $i);
 
             if ($skipTo === null) {
-                // A nested region with no usable end leaves the walk unable to
-                // tell nested tokens from this group's own. Stop measuring
-                // rather than report or reindent a line that may be neither.
                 return $lines;
             }
 
             if ($skipTo !== $i) {
-                // The region's interior belongs to a nested construct, so it
-                // is measured — if at all — by that construct's own group, not
-                // this one. Landing on the closer also puts the next line-start
-                // test against the line the region ended on.
                 $previousLine = $tokens[$skipTo]['line'];
                 $i = $skipTo;
 
@@ -362,7 +310,6 @@ class LogicalGroupingsSniff implements Sniff
     {
         $this->indexLineStarts($phpcsFile);
 
-        // One token examined: the line's first is recorded, not walked back to.
         return ($this->lineStarts[$this->step($phpcsFile, $stackPtr)['line']] ?? $stackPtr);
     }
 
@@ -383,8 +330,6 @@ class LogicalGroupingsSniff implements Sniff
         $this->lineStarts = [];
 
         foreach ($phpcsFile->getTokens() as $pointer => $token) {
-            // Token lines never decrease, so the first pointer seen for a
-            // line is the same one the backward walk used to land on.
             $this->lineStarts[$token['line']] ??= $pointer;
         }
     }
@@ -430,20 +375,6 @@ class LogicalGroupingsSniff implements Sniff
 
         $existing = $tokens[$first]['content'];
 
-        // Guarded, and nothing here can tell the guard from its absence —
-        // measured, not assumed, and pinned by the test in
-        // tests/Standards/LogicalGroupingsTest.php that says so in its own
-        // docblock. PHPCS ends a whitespace token at its newline, so the
-        // first token of a line that carries code is that line's indentation
-        // and nothing else (a blank line's token is the newline alone, and
-        // this method is only ever pointed at a line holding a condition);
-        // stripping it, rtrim()ing it, and concatenating a failed read's null
-        // all leave the same empty prefix. The fallback is written
-        // for the shape the docblock above promises to preserve — a token that
-        // does carry a leading break — so a tokenizer that ever hands one over
-        // finds the failure already answered. `/[^\r\n]+$/` quantifies one
-        // character class against an anchor and carries no `/u` modifier, so
-        // nothing is known to reach it in the first place.
         $eol = preg_replace('/[^\r\n]+$/', '', $existing) ?? rtrim($existing, " \t\x0B\f");
         $phpcsFile->fixer
             ->replaceToken($first, $eol . $padding);

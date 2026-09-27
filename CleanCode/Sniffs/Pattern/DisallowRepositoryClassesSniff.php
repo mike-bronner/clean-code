@@ -17,10 +17,6 @@ class DisallowRepositoryClassesSniff implements Sniff
         T_TRAIT => 'Trait',
     ];
 
-    // The declaration tokens getDeclarationName() accepts but this standard
-    // does not report. Together with DECLARATION_KEYWORDS this must cover that
-    // whole family, so a token added to it fails the suite rather than passing
-    // unreported.
     public const NON_DECLARATION_KEYWORDS = [
         T_FUNCTION,
     ];
@@ -34,8 +30,8 @@ class DisallowRepositoryClassesSniff implements Sniff
 
     private const REMEDY = 'the model is the repository, so move the persistence behaviour onto the'
         . ' model instead of declaring a dedicated repository type (see'
-        . ' docs/standards/pattern-repository.md and'
-        . ' docs/standards/models-persistence-methods-repository-pattern.md)';
+        . ' resources/boost/guidelines/pattern-repository.md and'
+        . ' resources/boost/guidelines/models-persistence-methods-repository-pattern.md)';
 
     public function register(): array
     {
@@ -46,11 +42,6 @@ class DisallowRepositoryClassesSniff implements Sniff
     {
         $name = $phpcsFile->getDeclarationName($stackPtr);
 
-        // A keyword with no name after it is what PHP_CodeSniffer hands a sniff
-        // for a file caught mid-edit. Neither half of the convention can be
-        // read from it — the name is missing, and reporting the namespace half
-        // would leave the message with nothing to point at — so it passes over
-        // rather than flagging a declaration the developer is still typing.
         if ($name === null) {
             return;
         }

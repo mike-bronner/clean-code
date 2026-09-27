@@ -43,9 +43,6 @@ final class CyclomaticComplexity
             $code = $tokens[$ptr]['code'];
 
             if ($this->opensSkippedBody($tokens, $ptr) === true) {
-                // Resume after the skipped body. A declaration the tokenizer
-                // never closed leaves $ptr where it is, and the loop's own
-                // increment moves past it, so this cannot spin.
                 $ptr = $tokens[$ptr]['scope_closer'] ?? $ptr;
 
                 continue;
@@ -69,11 +66,6 @@ final class CyclomaticComplexity
             return false;
         }
 
-        // A bare block's brace owns nothing, and PHPCS records no scope closer
-        // for it either. The null check is there to keep the lookup below from
-        // raising an undefined-key warning on that shape, not to decide a
-        // measurement: a brace with no closer has nothing to skip to, so the
-        // walk carries on through the block whichever way this returns.
         $owner = $tokens[$ptr]['scope_condition'] ?? null;
 
         return $owner !== null && $tokens[$owner]['code'] === T_ANON_CLASS;

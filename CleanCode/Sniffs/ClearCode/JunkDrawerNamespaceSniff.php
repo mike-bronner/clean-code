@@ -29,9 +29,6 @@ class JunkDrawerNamespaceSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        // T_NAMESPACE is also the `namespace\` relative-name operator
-        // (`namespace\format()`), which carries no declaration to read. A
-        // following T_NS_SEPARATOR is what tells the two apart.
         if (
             $namePtr === false
             || $tokens[$namePtr]['code'] === T_NS_SEPARATOR
@@ -51,7 +48,8 @@ class JunkDrawerNamespaceSniff implements Sniff
                 "Namespace %s groups classes by technical role: the \"%s\" segment names a generic"
                     . ' bucket, not a real-world domain. Group related classes into a domain'
                     . ' namespace instead (see'
-                    . ' docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md)',
+                    . ' resources/boost/guidelines/'
+                    . 'clear-code-encapsulate-related-classes-in-a-domain.md)',
                 $namePtr,
                 'Found',
                 [implode('\\', $segments), $segment]

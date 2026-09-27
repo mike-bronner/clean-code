@@ -46,7 +46,7 @@ class ActionMethodReturnSniff implements Sniff
     private const MESSAGE = <<<MESSAGE
         The %s() method starts with the action verb "%s", so it commands rather than
         answers and should not return a value — return nothing, or rename it for what
-        it hands back (see docs/standards/methods-naming.md)
+        it hands back (see resources/boost/guidelines/methods-naming.md)
         MESSAGE;
 
     public function register(): array
@@ -296,9 +296,6 @@ class ActionMethodReturnSniff implements Sniff
 
     private function conditionPointer(File $phpcsFile, int $stackPtr, int|string $type): int
     {
-        // Hoisted out of the match subject rather than written inline: CleanCode/ruleset.xml
-        // reports an assignment in a condition (#79), and a match subject is one
-        // of the conditions it reads.
         $pointer = $phpcsFile->getCondition($stackPtr, $type, false);
 
         return match ($pointer) {

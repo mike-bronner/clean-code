@@ -8,18 +8,6 @@ use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
-// A multi-line string uses a HEREDOC, never a NOWDOC.
-//
-// The two differ only in the quotes around the opening identifier, and that one
-// character changes how every later reader has to think about the body: a
-// NOWDOC is inert, a HEREDOC is the form the rest of this standard's fixers
-// emit and the form a template, a query or a message is normally written in.
-// Carrying both means a reader checks the delimiter before trusting what the
-// body says, so the package keeps one.
-//
-// Nothing is lost in the conversion. A HEREDOC body carries any literal text a
-// NOWDOC can, with a backslash and a `$` escaped, and it needs no escape at all
-// for a `"` — which is why it reads better than either quoted form.
 class DisallowNowdocSniff implements Sniff
 {
     private const MESSAGE
@@ -51,8 +39,6 @@ class DisallowNowdocSniff implements Sniff
         $phpcsFile->fixer
             ->beginChangeset();
 
-        // `<<<'TEXT'` becomes `<<<TEXT`, keeping whatever whitespace the opener
-        // carried so the line ending is untouched.
         $phpcsFile->fixer
             ->replaceToken($stackPtr, str_replace("'", '', $tokens[$stackPtr]['content']));
 

@@ -10,10 +10,6 @@ use SlevomatCodingStandard\Sniffs\TypeHints\PropertyTypeHintSniff as SlevomatPro
 
 class PropertyTypeHintSniff extends SlevomatPropertyTypeHint
 {
-    // A PHP_CodeSniffer sniff's properties cannot carry native types. PHPCS
-    // assigns them from ruleset XML as strings, so `<property name="minimum"
-    // value="3"/>` puts "3" into the property and a native int throws
-    // TypeError in the consumer's run rather than in this repository's.
     public function process(File $phpcsFile, $pointer): void
     {
         if ((new InheritedMembers())->isCodeSnifferClass($phpcsFile, $pointer) === true) {

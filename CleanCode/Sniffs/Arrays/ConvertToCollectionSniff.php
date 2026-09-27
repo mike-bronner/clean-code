@@ -35,9 +35,6 @@ class ConvertToCollectionSniff implements Sniff
 
         $tokens = $phpcsFile->getTokens();
 
-        // The open-parenthesis test comes first because it is the cheapest way
-        // to discard the great majority of T_STRING tokens, which are not
-        // calls at all — the configured map is only assembled for call sites.
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
         if (

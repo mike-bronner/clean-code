@@ -100,7 +100,7 @@ class NoFirstPartyMocksSniff implements Sniff
 
         $phpcsFile->addWarning(
             'Mocking %s, a first-party class; mock only interfaces you do not control'
-                . ' (see docs/standards/testing-guidelines.md)',
+                . ' (see resources/boost/guidelines/testing-guidelines.md)',
             $argumentPtr,
             'Found',
             [$resolved]
@@ -145,9 +145,6 @@ class NoFirstPartyMocksSniff implements Sniff
             return null;
         }
 
-        // An empty argument list needs no guard of its own: the token found
-        // here is then the closing parenthesis, which is neither a string
-        // literal nor the start of a name, so classReference() rejects it.
         $argumentPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($openPtr + 1), null, true);
 
         return $argumentPtr === false ? null : $argumentPtr;
@@ -158,10 +155,6 @@ class NoFirstPartyMocksSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         if ($tokens[$argumentPtr]['code'] === T_CONSTANT_ENCAPSED_STRING) {
-            // PHP never resolves a class name given as a string through the
-            // file's imports or its namespace, so the literal is already
-            // fully qualified whatever it is written as. Handing it on with a
-            // leading separator is what says so to resolve().
             $written = '\\' . ltrim($this->literalValue($tokens[$argumentPtr]['content']), '\\');
 
             return $this->endsTheArgument($phpcsFile, ($argumentPtr + 1)) === true ? $written : null;
@@ -276,8 +269,6 @@ class NoFirstPartyMocksSniff implements Sniff
             return null;
         }
 
-        // Searching for the name itself rather than skipping the whitespace in
-        // front of it also settles an `extends` with no name after it at all.
         $namePtr = $phpcsFile->findNext(self::NAME_TOKENS, ($extendsPtr + 1), $openerPtr);
 
         if ($namePtr === false) {
@@ -458,12 +449,6 @@ class NoFirstPartyMocksSniff implements Sniff
 
     private function importedAlias(string $clause): array
     {
-        // A failed split is false, and $parts[0] then reads an offset off a
-        // boolean: null, quietly, rather than loudly. The whole clause is the
-        // honest fallback — an unsplit clause names no alias, which is what an
-        // import without one already means. `/\s+as\s+/i` puts `\s+` in front
-        // of a character it excludes, which PCRE auto-possessifies, so there is
-        // nothing to backtrack over and no `/u` modifier to fail on.
         $parts = preg_split('/\s+as\s+/i', $clause, 2) ?: [$clause];
         $qualified = trim((string) $parts[0], '\\');
         $segments = explode('\\', $qualified);
@@ -482,12 +467,6 @@ class NoFirstPartyMocksSniff implements Sniff
             $written .= ($isEmpty === true ? ' ' : $tokens[$current]['content']);
         }
 
-        // A failed collapse cast to a string is '', and an empty statement
-        // text matches no `use` clause at all — every import in the file would
-        // go unread. The uncollapsed text is the honest fallback: it is the
-        // same statement, just with its original spacing. `/\s+/` carries one
-        // quantifier over a character class at the end of the pattern, which
-        // PCRE auto-possessifies, and no `/u` modifier.
         return trim(preg_replace('/\s+/', ' ', $written) ?? $written);
     }
 

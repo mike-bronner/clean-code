@@ -86,7 +86,6 @@ class NoLogicSniff implements Sniff
     ];
 
     private const GROUPING_PARENTHESIS_PRECEDERS = [
-        // Arithmetic and bitwise.
         T_PLUS,
         T_MINUS,
         T_MULTIPLY,
@@ -100,7 +99,6 @@ class NoLogicSniff implements Sniff
         T_SL,
         T_SR,
         T_STRING_CONCAT,
-        // Comparison.
         T_IS_EQUAL,
         T_IS_NOT_EQUAL,
         T_IS_IDENTICAL,
@@ -110,21 +108,17 @@ class NoLogicSniff implements Sniff
         T_GREATER_THAN,
         T_LESS_THAN,
         T_SPACESHIP,
-        // Logical.
         T_BOOLEAN_AND,
         T_BOOLEAN_OR,
         T_BOOLEAN_NOT,
         T_LOGICAL_AND,
         T_LOGICAL_OR,
         T_LOGICAL_XOR,
-        // Conditional.
         T_INLINE_THEN,
         T_INLINE_ELSE,
         T_COALESCE,
-        // Type checks and error control.
         T_INSTANCEOF,
         T_ASPERAND,
-        // Casts, each a single token, so the parenthesis after one is grouping.
         T_INT_CAST,
         T_DOUBLE_CAST,
         T_STRING_CAST,
@@ -133,7 +127,6 @@ class NoLogicSniff implements Sniff
         T_BOOL_CAST,
         T_UNSET_CAST,
         T_BINARY_CAST,
-        // Openers and separators.
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
         T_OPEN_SHORT_ARRAY,
@@ -166,10 +159,6 @@ class NoLogicSniff implements Sniff
             return;
         }
 
-        // A constructor is a method of an object-oriented container. A free
-        // function named __construct is legal PHP but not a constructor, so its
-        // innermost enclosing scope must be a class/trait/enum/interface —
-        // mirrors the guard convention in the sibling DisallowStaticMembersSniff.
         $conditions = $tokens[$stackPtr]['conditions'];
 
         if (
@@ -179,7 +168,6 @@ class NoLogicSniff implements Sniff
             return;
         }
 
-        // Abstract and interface constructors declare no body.
         if (isset($tokens[$stackPtr]['scope_opener']) === false) {
             return;
         }
@@ -232,8 +220,6 @@ class NoLogicSniff implements Sniff
                 continue;
             }
 
-            // The `while (...);` tail of a `do … while` carries the loop
-            // condition only (no scope of its own).
             if (
                 $code === T_WHILE
                 && $tokens[$start]['code'] === T_DO
@@ -255,7 +241,6 @@ class NoLogicSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$start]['code'];
 
-        // A free `{ … }` block: PHPCS gives it a bracket pair, not a scope.
         if ($code === T_OPEN_CURLY_BRACKET) {
             return $this->groupCloser($tokens, $start, $limit);
         }
@@ -360,10 +345,6 @@ class NoLogicSniff implements Sniff
         for ($ptr = $start; $ptr <= $end; $ptr++) {
             $code = $tokens[$ptr]['code'];
 
-            // The statement's own assignment operator: the target ends here, and
-            // it is plain. Tested before the rejection below, which every other
-            // assignment operator — and this one nested inside a bracket — falls
-            // into.
             if (
                 $code === T_EQUAL
                 && $depth === 0
@@ -393,7 +374,6 @@ class NoLogicSniff implements Sniff
                 return false;
             }
 
-            // Disjoint token sets, so these read as one choice written apart.
             if (in_array($code, self::BRACKET_OPENERS, true)) {
                 $depth++;
             }
@@ -420,8 +400,6 @@ class NoLogicSniff implements Sniff
     {
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), $start, true);
 
-        // $start is the statement's own `$this`, so a parenthesis in the target
-        // always has a token before it. Read an unexpected miss as a call.
         if ($previous === false) {
             return false;
         }

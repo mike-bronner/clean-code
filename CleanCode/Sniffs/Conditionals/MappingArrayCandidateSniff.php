@@ -141,8 +141,6 @@ class MappingArrayCandidateSniff implements Sniff
             if ($code === T_ELSE) {
                 $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-                // A spaced `else if`: the trailing `if` carries the condition
-                // and the scope, so hand the clause to it.
                 if (
                     $next !== false
                     && $tokens[$next]['code'] === T_IF
@@ -274,8 +272,6 @@ class MappingArrayCandidateSniff implements Sniff
         $afterCondition = isset($tokens[$clausePtr]['parenthesis_closer']) === true
             ? $tokens[$clausePtr]['parenthesis_closer'] + 1
             : $clausePtr + 1;
-        // findEndOfStatement() reads the token it is handed, so it has to start
-        // on the statement's first real token, never the whitespace before it.
         $bodyStart = $phpcsFile->findNext(Tokens::$emptyTokens, $afterCondition, null, true);
 
         if ($bodyStart === false) {
@@ -309,8 +305,6 @@ class MappingArrayCandidateSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $last = $phpcsFile->findPrevious(Tokens::$emptyTokens, $bodyEnd, $bodyStart, true);
 
-        // A body that does not end at a semicolon is not one statement: an
-        // inner `if`, a loop, or a nested block all end on a brace instead.
         if (
             $last === false
             || $tokens[$last]['code'] !== T_SEMICOLON
@@ -413,8 +407,6 @@ class MappingArrayCandidateSniff implements Sniff
             return false;
         }
 
-        // Every `return` branch carries a null target, so one shared value here
-        // means "all returns" just as much as it means "one assignment target".
         return count(array_unique(array_column($clauses, 'target'))) === 1;
     }
 

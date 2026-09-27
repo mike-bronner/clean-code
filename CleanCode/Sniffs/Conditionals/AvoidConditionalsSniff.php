@@ -25,8 +25,6 @@ class AvoidConditionalsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // register() returns exactly the keys of CONSTRUCTS, so PHP_CodeSniffer
-        // never dispatches a code that is absent from it — no guard needed.
         [$construct, $violationCode] = self::CONSTRUCTS[$tokens[$stackPtr]['code']];
 
         $phpcsFile->addWarning(

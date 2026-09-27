@@ -39,7 +39,7 @@ class ManualModelResolutionSniff implements Sniff
     private const MESSAGE = <<<MESSAGE
         Model %s resolved by hand from %s, a parameter of %s(); type-hint the model on the
         action signature instead and let route-model binding resolve it
-        (see docs/standards/controllers-route-model-binding.md)
+        (see resources/boost/guidelines/controllers-route-model-binding.md)
         MESSAGE;
 
     public function register(): array
@@ -212,9 +212,6 @@ class ManualModelResolutionSniff implements Sniff
 
     private function conditionPointer(File $phpcsFile, int $stackPtr, int|string $type): ?int
     {
-        // The assignment is hoisted out of the match subject rather than
-        // written inline: CleanCode/ruleset.xml now reports an assignment in a condition
-        // (#79), and a match subject is one of the conditions it reads.
         $pointer = $phpcsFile->getCondition($stackPtr, $type, false);
 
         return match ($pointer) {

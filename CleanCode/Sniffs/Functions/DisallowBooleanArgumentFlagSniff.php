@@ -31,8 +31,6 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$stackPtr]['code'];
 
-        // getDeclarationName() throws on T_FN and answers null for T_CLOSURE,
-        // so only a named declaration is ever asked for its name.
         $name = $code === T_FUNCTION ? $phpcsFile->getDeclarationName($stackPtr) : null;
 
         if ($this->isIgnoredName($name) === true) {
@@ -50,8 +48,6 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
 
         $subject = $this->describe($code, $name, $className);
 
-        // A declaration cut short mid-edit has no parenthesis pair, and
-        // getMethodParameters() answers with an empty list rather than raising.
         foreach ($phpcsFile->getMethodParameters($stackPtr) as $parameter) {
             if ($this->isBooleanFlag($parameter) === false) {
                 continue;
@@ -61,7 +57,7 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
                 'The %s has a boolean flag argument %s, which is a certain sign of a '
                     . 'Single Responsibility Principle violation; extract each branch the '
                     . 'flag selects into its own method '
-                    . '(see docs/phpmd/cleancode-booleanargumentflag.md)',
+                    . '(see resources/boost/guidelines/cleancode-booleanargumentflag.md)',
                 $parameter['token'],
                 'Found',
                 [$subject, $parameter['name']]
@@ -121,13 +117,6 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
 
     private function isBooleanType(string $typeHint): bool
     {
-        // The written hint rather than '' on a failed read: '' resolves to no
-        // members at all, which reads exactly like a hint that is not boolean,
-        // so the failure would silently exempt the parameter from the check.
-        // The written hint still resolves correctly whenever it carries no
-        // internal whitespace, which is every hint PHPCS hands over from a
-        // native declaration. `/\s+/` is one auto-possessified quantifier, no
-        // `/u` modifier, so preg_replace() cannot fail.
         $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $typeHint) ?? $typeHint), '?');
         $types = array_values(array_diff(explode('|', $normalized), ['null', '']));
 

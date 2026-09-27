@@ -93,10 +93,6 @@ class TypeDiscriminatorDispatchSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // Both pointers below are withheld by the tokenizer on a file it cannot
-        // parse. PHPCS leaves parenthesis_closer present-but-null rather than
-        // absent, so the first check states the requirement rather than being
-        // what enforces it; the scope check is what the arm walk depends on.
         if (isset($tokens[$stackPtr]['parenthesis_opener'], $tokens[$stackPtr]['parenthesis_closer']) === false) {
             return;
         }
@@ -141,24 +137,6 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         for ($pointer = $tokens[$stackPtr]['scope_opener'] + 1; $pointer < $closer; $pointer++) {
             $code = $tokens[$pointer]['code'];
 
-            // A nested switch's body holds nothing this walk counts, so jump the
-            // whole scope rather than stepping through it — the repo idiom, as
-            // DisallowConstructorInstantiationSniff::reportBody() and
-            // UnusedPrivateElementsSniff both write it. No check that this is a
-            // *nested* switch is needed: the walk starts one token past this
-            // switch's own scope_opener, which the tokenizer never places before
-            // the keyword, so $stackPtr itself is behind the walk from its first
-            // step and out of reach.
-            //
-            // The isset() guard is load-bearing. A nested switch written with no
-            // body carries neither scope pointer, and assigning the absent closer
-            // hands the walk a null pointer that the loop's own increment turns
-            // into 1 — restarting it at the top of the file, outside this switch
-            // entirely, with every branch counted so far still on the tally and
-            // the tokens before this switch read as if they were its arms. Such a
-            // switch is stepped through instead, exactly as before the jump
-            // existed, and the ownership check still reads every arm around it
-            // correctly.
             if (
                 $code === T_SWITCH
                 && isset($tokens[$pointer]['scope_closer']) === true
@@ -179,15 +157,6 @@ class TypeDiscriminatorDispatchSniff implements Sniff
                 continue;
             }
 
-            // An arm whose scope the tokenizer could not resolve is an arm this
-            // switch cannot be read past, so the whole switch fails closed
-            // rather than being counted short. It holds for `default` as much as
-            // for `case`: `default` carries no label to read, but an arm PHP
-            // cannot parse is no evidence of a branch either, and counting it
-            // would report a file PHP rejects. The route there is an arm whose
-            // colon is missing from a switch that still closes — truncating the
-            // file instead costs the switch its own scope, and the check above
-            // turns it away before any arm is read.
             if (isset($tokens[$pointer]['scope_opener']) === false) {
                 return null;
             }
@@ -262,32 +231,21 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             if ($code === T_ELSE) {
                 $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-                // An `else` with nothing after it at all — a file truncated
-                // mid-clause is the reachable way there — has no body to be a
-                // branch of, so the whole chain fails closed rather than
-                // counting a branch that is not written yet.
                 if ($next === false) {
                     return null;
                 }
 
-                // A spaced `else if`: the trailing `if` carries the condition
-                // and the scope, so hand the clause to it.
                 if ($tokens[$next]['code'] === T_IF) {
                     $pointer = $next;
 
                     continue;
                 }
 
-                // A trailing `else` is the chain's default branch and its last:
-                // nothing can follow it, so no continuation is looked for.
                 $subjects[] = null;
 
                 break;
             }
 
-            // Every other pointer the walk holds is a clause of this chain by
-            // construction: the head is the T_IF process() was handed, and
-            // nextClause() only ever hands back a continuation keyword.
             $subject = $this->conditionDiscriminator($phpcsFile, $pointer);
 
             if ($subject === null) {
@@ -473,9 +431,6 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             && in_array($codes[1], self::PROPERTY_OPERATORS, true) === true
             && $codes[2] === T_STRING;
 
-        // Only a quoted key names a field. A positional index (`$row[0]`) says
-        // nothing about a type, and a constant or variable key cannot be
-        // compared across branches by its own text alone.
         $isIndexRead = count($codes) === 4
             && $codes[0] === T_VARIABLE
             && $codes[1] === T_OPEN_SQUARE_BRACKET

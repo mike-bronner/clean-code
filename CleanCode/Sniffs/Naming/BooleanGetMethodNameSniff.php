@@ -54,14 +54,10 @@ class BooleanGetMethodNameSniff implements Sniff
             return;
         }
 
-        // Reported at the name, since the name is what the rule asks to be
-        // changed. getDeclarationName() resolves the name by scanning forward
-        // for the first T_STRING, so the two always agree on the same token
-        // and the search above cannot answer with a name this one misses.
         $phpcsFile->addError(
             "The %s() method returns a boolean, so it should be named \"is...()\" or "
                 . "\"has...()\" — a getter hands back a value, a question answers yes or no "
-                . '(see docs/phpmd/naming-booleangetmethodname.md)',
+                . '(see resources/boost/guidelines/naming-booleangetmethodname.md)',
             $phpcsFile->findNext(T_STRING, $stackPtr),
             'Found',
             [$name]
@@ -144,12 +140,6 @@ class BooleanGetMethodNameSniff implements Sniff
 
             $annotation = trim($tokens[$next]['content']);
 
-            // A failed split is false, and `false[0]` reads an offset off a
-            // boolean: null, with a warning, rather than a type. The whole
-            // annotation is the honest fallback — it still starts with the
-            // written type, so `bool` is read as `bool` and only a trailing
-            // description rides along. `/\s+/` is one auto-possessified
-            // quantifier with no `/u` modifier, so preg_split() cannot fail.
             $types[] = (preg_split('/\s+/', $annotation) ?: [$annotation])[0];
         }
 
@@ -182,12 +172,6 @@ class BooleanGetMethodNameSniff implements Sniff
 
     private function isBooleanType(string $type): bool
     {
-        // The written type rather than '' on a failed read: '' resolves to no
-        // members at all, which reads exactly like a type that is not boolean,
-        // so the failure would silently exempt the method from the check. The
-        // written type still resolves correctly whenever it carries no internal
-        // whitespace, which is every type PHPCS hands over from a native
-        // declaration. `/\s+/` is one auto-possessified quantifier, no `/u`.
         $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $type) ?? $type), '?');
         $members = array_values(array_diff(explode('|', $normalized), ['null', '']));
 

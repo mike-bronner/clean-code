@@ -29,9 +29,6 @@ class ExcessiveClassLengthSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        // A class the tokenizer never found a closing brace for — an
-        // unterminated class body — carries no scope, so it has no end line to
-        // measure from and nothing this rule can honestly report.
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return;
         }
@@ -96,15 +93,10 @@ class ExcessiveClassLengthSniff implements Sniff
                 continue;
             }
 
-            // Methods of a nested anonymous class, and functions declared inside
-            // a method body, belong to that inner scope rather than to this
-            // class. Their lines still reach the total through the enclosing
-            // method, exactly as they do in PDepend.
             if (array_key_last($tokens[$i]['conditions']) !== $stackPtr) {
                 continue;
             }
 
-            // An abstract method has no scope to measure.
             if (isset($tokens[$i]['scope_opener'], $tokens[$i]['scope_closer']) === false) {
                 continue;
             }

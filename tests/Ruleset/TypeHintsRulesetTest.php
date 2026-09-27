@@ -1,34 +1,5 @@
 <?php
 
-/**
- * Integration test for the Slevomat TypeHints rules wired into the master
- * ruleset (CleanCode/ruleset.xml). It runs the shipped ruleset, so it covers the combined
- * TypeHints surface: PropertyTypeHint (owned by the "Type Hints and Return
- * Types" standard, #45) plus ParameterTypeHint / ReturnTypeHint (owned by the
- * "Methods: Type Hints" standard, #70). This test guards that the master
- * ruleset wires all three and flags them at the expected lines, regardless of
- * which standard each sniff belongs to.
- *
- * Fixtures live in tests/fixtures/_rulesets/TypeHints/ — the standard is
- * implemented by three sniffs rather than one, so it gets a _rulesets bucket
- * rather than a per-sniff directory. passing.php must produce zero TypeHints
- * violations, failing.php must be flagged at the exact lines below, and
- * autofixed.php is the expected phpcbf output: every violation the sniff can
- * infer a native hint for is resolved, the rest remain flagged.
- *
- * Only SlevomatCodingStandard.TypeHints.* sources are asserted on. The
- * fixtures deliberately pack interface/abstract/class cases into a single
- * namespace-less file, so PSR1's one-class-per-file / namespace rules (and
- * any other standard wired into the shared master ruleset) also fire on
- * them — those are out of scope here and are filtered out, so unrelated
- * additions to CleanCode/ruleset.xml cannot break this test.
- *
- * excluded-codes.php carries the two message codes CleanCode/ruleset.xml excludes from
- * PropertyTypeHint. Both halves are pinned, per CONTRIBUTING.md: the codes stay
- * silent through CleanCode/ruleset.xml, and the same fixture proves they would fire without
- * the excludes, so dropping an <exclude> fails this suite.
- */
-
 declare(strict_types=1);
 
 const PARAMETER_MISSING_ANY = 'CleanCode.TypeHints.ParameterTypeHint.MissingAnyTypeHint';
@@ -51,20 +22,11 @@ const TYPE_HINTS_SNIFFS = [
 
 const PROPERTY_TYPE_HINT_SNIFF = 'CleanCode.TypeHints.PropertyTypeHint';
 
-/**
- * The two codes CleanCode/ruleset.xml excludes from PropertyTypeHint. Both police docblock
- * hygiene rather than a missing native hint, so #45 drops them — the same
- * reasoning that drops five codes from #70's two sniffs, pinned the same way in
- * tests/Ruleset/MethodTypeHintsRulesetTest.php.
- */
 const PROPERTY_TYPE_HINT_EXCLUDED_CODES = [
     PROPERTY_TYPE_HINT_SNIFF . '.MissingTraversableTypeHintSpecification',
     PROPERTY_TYPE_HINT_SNIFF . '.UselessAnnotation',
 ];
 
-// Reporting runs through the whole master ruleset and is then scoped to the
-// TypeHints sources; only the fixer assertion narrows the ruleset, so no other
-// auto-fixing rule can alter the byte-compared output.
 $typeHintsReport = static function (string $fixture): array {
     $file = analyzeWithMasterRuleset(fixturePath('_rulesets/TypeHints', $fixture));
     $sources = [];
@@ -158,13 +120,6 @@ it('leaves only the uninferrable violations after fixing', function () use ($typ
     ]);
 });
 
-/**
- * The warning half is scoped to the TypeHints sources rather than asserting the
- * whole file silent: both sniffs only ever addError today, so a Slevomat release
- * or severity change that started emitting a warning would slip past the error
- * map above — while an unrelated warning from another standard says nothing
- * about these excludes.
- */
 it('keeps the excluded property codes silent through the master ruleset', function () use ($typeHintsReport): void {
     expect($typeHintsReport('excluded-codes.php'))->toBe([]);
 
@@ -178,16 +133,6 @@ it('keeps the excluded property codes silent through the master ruleset', functi
     expect($typeHintsWarnings)->toBe([]);
 });
 
-/**
- * Guards the test above from passing vacuously: the same fixture, run through
- * the same ruleset with only the excludes lifted, must raise both excluded
- * codes — and nowhere else. Without this, a fixture that trips nothing at all
- * looks exactly like a working exclude list.
- *
- * The whole map is asserted rather than membership alone, so a code that moved
- * to another property, or a third code appearing beside the two, reddens here
- * rather than hiding behind a satisfied toContain().
- */
 it('raises every excluded property code without the master rulesets excludes', function (): void {
     $file = analyzeWithoutExcludes(
         [PROPERTY_TYPE_HINT_SNIFF],

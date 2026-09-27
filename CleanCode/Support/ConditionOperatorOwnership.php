@@ -52,8 +52,6 @@ final class ConditionOperatorOwnership
             return true;
         }
 
-        // No top-level boolean in the checked region: OneConditionPerLine reads
-        // it as a single condition and collapses any wrap in it wholesale.
         return $this->findTopLevelTokens(
             $phpcsFile,
             ($regionStart + 1),

@@ -1,27 +1,5 @@
 <?php
 
-/**
- * Integration test for the Constructors: Property Promotion standard (#47),
- * enforced by Slevomat's RequireConstructorPropertyPromotion sniff wired into
- * the master ruleset (CleanCode/ruleset.xml).
- *
- * Fixtures live in tests/fixtures/RequireConstructorPropertyPromotionSniff/:
- * passing.php must produce zero property-promotion violations, failing.php must
- * be flagged at the exact property-declaration lines below, and autofixed.php is
- * the expected phpcbf output — every non-promoted property + constructor
- * assignment becomes a promoted constructor parameter, carrying its visibility,
- * readonly, and default onto the parameter.
- *
- * Only the RequireConstructorPropertyPromotion source is asserted on. The
- * fixtures pack several classes into one namespace-less file, so PSR1's
- * one-class-per-file rule (and any other standard wired into the shared master
- * ruleset) also fires on them — those are out of scope here and are filtered
- * out, so unrelated additions to CleanCode/ruleset.xml cannot break this test. The fixer
- * assertion likewise restricts the ruleset to this sniff (keeping its
- * master-ruleset configuration), so no other auto-fixing rule can alter the
- * fixed output.
- */
-
 declare(strict_types=1);
 
 const PROPERTY_PROMOTION = 'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion';

@@ -39,16 +39,10 @@ class DepthOfInheritanceSniff implements Sniff
     {
         $declaration = $this->declarationOf($phpcsFile, $stackPtr);
 
-        // A class the tokenizer could not give a name, or one this sniff's own
-        // reader did not find at the same line — malformed source either way.
-        // There is no honest chain to walk, so say nothing.
         if ($declaration === null) {
             return;
         }
 
-        // No `extends` clause is depth 0, and depth 0 can never reach a
-        // threshold of 1 or more. Returning here is what keeps a project
-        // without inheritance from ever building the fileset index.
         if ($declaration['parent'] === null) {
             return;
         }
@@ -94,9 +88,6 @@ class DepthOfInheritanceSniff implements Sniff
                 return $depth + $this->unseenParentWeight();
             }
 
-            // array_key_exists, not ??: an index entry holds a declaration's
-            // parent, and a class with no parent stores null. Coalescing would
-            // read that as absent and charge it the unseen-parent weight.
             $next = $inFile === true ? $file[$parent] : $fileset[$parent];
 
             if (isset($seen[$parent]) === true) {
@@ -192,10 +183,6 @@ class DepthOfInheritanceSniff implements Sniff
         foreach ($this->filesetPaths($config, $phpcsFile) as $path) {
             $source = $this->readQuietly($path);
 
-            // A file PHPCS listed but this sniff cannot read is left out of the
-            // index, which makes anything extending it *unseen* rather than
-            // silently depth-0. The conservative direction: a shorter chain is
-            // never reported, an over-long one is not invented.
             if ($source === false) {
                 continue;
             }
@@ -229,9 +216,6 @@ class DepthOfInheritanceSniff implements Sniff
         for ($list->rewind(); $list->valid() === true; $list->next()) {
             $path = $list->key();
 
-            // STDIN has no readable path, and nothing is lost by dropping it:
-            // the file under analysis is read by currentFile() into a map of
-            // its own, which depthOf() consults before this index.
             if (
                 $path === null
                 || $path === 'STDIN'
@@ -247,12 +231,6 @@ class DepthOfInheritanceSniff implements Sniff
         return $paths;
     }
 
-    // PHPCS lists a file it can see; between that listing and this read the file
-    // can vanish or lose its permissions, and either raises a warning that says
-    // nothing about the source under analysis. Suppressed with a handler rather
-    // than `@`, which Generic.PHP.NoSilencedErrors forbids because it hides every
-    // diagnostic in the expression instead of the one being answered for. The
-    // false return is still checked by the caller.
     private function readQuietly(string $path): string|false
     {
         set_error_handler(static fn (): bool => true);
@@ -264,9 +242,6 @@ class DepthOfInheritanceSniff implements Sniff
         }
     }
 
-    // Source PHPCS handed over can still be a file this sniff was pointed at by
-    // a glob and that PHP cannot tokenize cleanly. A tokenizer warning about it
-    // is noise in the report, and the malformed result is handled below.
     private function declarationsIn(string $source): array
     {
         set_error_handler(static fn (): bool => true);
@@ -346,10 +321,6 @@ class DepthOfInheritanceSniff implements Sniff
         for ($j = ($i + 1); $j < $count; $j++) {
             $token = $tokens[$j];
 
-            // One short of the brace, not past it: the caller's own depth
-            // counter has to see the `{` this namespace opens, or every
-            // declaration inside it reads one level too shallow and its
-            // imports are mistaken for trait `use` statements.
             if ($token === '{') {
                 return [$name, 1, ($j - 1)];
             }

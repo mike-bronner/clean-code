@@ -1,23 +1,5 @@
 <?php
 
-/**
- * Tests the custom CleanCode.Conditionals.DisallowElse sniff. Fixtures live in
- * tests/fixtures/DisallowElseSniff/.
- *
- * The sniff landed for #77 as a replica of PHPMD's CleanCode/ElseExpression,
- * which reports the `else` scope only. #14 ("Conditionals: No else or elseif")
- * widened it: `elseif` and the two-word `else if` are violations too, and the
- * mechanically safe subset is auto-fixable. The assertions that used to pin
- * PHPMD parity on those two points are gone with it — docs/phpmd/
- * cleancode-elseexpression.md now records the mapping as stricter than PHPMD
- * rather than equal to it. Every remaining parity claim below was checked
- * against a live PHPMD 2.15.0 run over these fixtures.
- *
- * The sniff is isolated from the rest of the master ruleset (loaded, then
- * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
- * sibling standards land in CleanCode/ruleset.xml.
- */
-
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
@@ -34,21 +16,6 @@ it('is registered in the master ruleset', function (): void {
     expect($ruleset->sniffCodes)->toHaveKey(DISALLOW_ELSE);
 });
 
-/**
- * passing.php is deliberately discriminating: alongside the compliant early
- * exit, guard clause, ternary, and pair of separate guards, it carries the
- * member shapes PHP lets the reserved words `else` and `elseif` name — a
- * method, class-constant, and enum-case declaration of each, plus a reference
- * to each through `->`, `self::`, and `Enum::`.
- *
- * Those need no guard in the sniff: PHPCS rewrites both keywords to T_STRING
- * in each of those positions before a sniff runs, so the sniff never registers
- * on one and removing the fixture lines changes no result today. They stay
- * because that rewrite is a tokenizer detail this sniff leans on, and pinning
- * it turns a change to it into a test failure here rather than a false
- * positive in consumers' code. The `elseif` half is new with #14, which is
- * what made T_ELSEIF a registered token in the first place.
- */
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'passing.php');
 
@@ -56,30 +23,6 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * One entry per `else` and per `elseif` keyword in failing.php, at the
- * keyword's own line and column. This list is the sniff's whole detection
- * contract — it is exact, so a missed keyword and an extra report both fail
- * here, and no separate silence test could add anything it does not pin.
- *
- * Lines 15 and 86 are the two shapes where this sniff is stricter than the
- * PHPMD rule it grew out of, and both are kept: PHPMD misses the file-scope
- * else because ElseExpression is MethodAware/FunctionAware and never visits
- * code outside a function, and misses the braceless else because it matches a
- * ScopeStatement, which PDepend only builds for a braced body. Both are the
- * same avoidable branch the rule targets. Dropping either line contradicts
- * docs/phpmd/cleancode-elseexpression.md and CleanCode/ruleset.xml.
- *
- * Lines 45, 58, 244, 275, 297, 345, and 357 are the `elseif`/`else if`
- * reports #14 added. PHPMD reports none of them: its rule fires on the else
- * scope only, so an if/elseif chain with no closing else produces nothing
- * there. That divergence is deliberate and documented; it is why this sniff
- * no longer claims parity.
- *
- * The PHPMD side of both claims was measured against a live PHPMD 2.15.0 run
- * over this fixture. It cannot be asserted here — phpmd is not a dependency of
- * this package, which is the entire point of replacing the rule.
- */
 it('flags every else and elseif at its own line and column', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'failing.php');
 
@@ -124,23 +67,6 @@ it('flags every else and elseif at its own line and column', function (): void {
     ]);
 });
 
-/**
- * The fixable/declined split, keyword by keyword, in the same order as the
- * tuple list above. This is the assertion each declined shape in failing.php
- * exists for: the fixer's gates are one method per guard, and failing.php
- * carries one fixture method per guard, so deleting any guard flips exactly
- * one `false` here to `true`.
- *
- * Reading the false entries from line 244 down — the chain whose first branch
- * does not terminate (244, 246), a comment before the keyword (257), between
- * `else` and its brace (266), and between `else` and `if` (275), the keyword
- * on its own line (287, 297), an inline body (308), a comment trailing the
- * body's closing brace (315), a nested construct as the branch's last
- * statement (326), an empty preceding branch (334), a braceless elseif (345),
- * an alternative-syntax elseif (357), and a body opening on the keyword's own
- * line (377). The last two entries are true again: the casing pair at 396 and
- * 407 is fixable, and what it pins is the output rather than a gate.
- */
 it('offers a fixer only for the shapes it can rewrite safely', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'failing.php');
 
@@ -152,30 +78,12 @@ it('offers a fixer only for the shapes it can rewrite safely', function (): void
     ]);
 });
 
-/**
- * The half of the severity contract the tuple assertion cannot see: it reads
- * getErrors() only, so it would hold just as well if the sniff *also* raised
- * a warning per keyword. A warning-level report would leave phpcs exiting 0
- * on an else, which is the outcome #77 wired this sniff in to avoid.
- */
 it('raises no warnings alongside the errors', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'failing.php');
 
     expect($file->getWarnings())->toBe([]);
 });
 
-/**
- * The AC bullet "phpcbf correctly rewrites simple else/elseif cases to an
- * early-exit equivalent without changing runtime behavior", asserted by
- * running both sides rather than by reading the diff.
- *
- * The fixer runs live over behaviour.php here, so this is not a comparison of
- * two committed files: weaken a gate in the sniff and the fixer rewrites a
- * shape it should have declined, and the two closures start disagreeing. The
- * `$priority` shape in the fixture is the one that makes that concrete — its
- * `elseif` terminates while its `if` does not, so unwrapping its `else` turns
- * `[true, false]` from 1 into 3.
- */
 it('preserves runtime behaviour through the fixer', function (bool $flag, bool $other, array $items): void {
     $original = require fixturePath(sniffFixtureDirectory(DISALLOW_ELSE), 'behaviour.php');
 
@@ -197,12 +105,6 @@ it('preserves runtime behaviour through the fixer', function (bool $flag, bool $
     [false, false, [null, false, null]],
 ]);
 
-/**
- * The committed copy of that same output, so the rewrite is reviewable in the
- * diff rather than only reproducible at run time. It is a `.fixed.php` sibling
- * rather than `autofixed.php` because `autofixed.php` is reserved for
- * failing.php's output by the fixture contract.
- */
 it('rewrites the behaviour fixture into its committed fixed sibling', function (): void {
     $file = analyzeFixture(DISALLOW_ELSE, 'behaviour.php');
 
@@ -210,19 +112,6 @@ it('rewrites the behaviour fixture into its committed fixed sibling', function (
         ->toBe(file_get_contents(fixturePath(sniffFixtureDirectory(DISALLOW_ELSE), 'behaviour.fixed.php')));
 });
 
-/**
- * fixElse() removes one level of indentation from every line it lifts out of
- * the else branch. A failed read cast to a string is '', which would delete the
- * line's whole indentation instead of one level of it, so the guard keeps the
- * line as written and the fix stays conservative rather than becoming wrong.
- *
- * `/^    /` is four literal spaces against an anchor and cannot be driven to
- * failure by any input, so the failure is armed at the call boundary — see
- * tests/PregOverrides.php. The lifted line keeps the indentation it was written
- * with, one level deeper than the fix would have left it, rather than losing
- * all of it: dropping the `?? $indent` fallback hands the fixer a null and the
- * same line comes back flush against the margin.
- */
 it('keeps a lifted line as written when its indentation cannot be read', function (): void {
     [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
         return PregFailure::during(

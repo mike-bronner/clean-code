@@ -58,11 +58,6 @@ class DisallowCountInLoopExpressionSniff implements Sniff
         $claimed = $this->nestedConditions($phpcsFile, $start, $end);
 
         for ($i = $start; $i < $end; $i++) {
-            // A nested loop's condition is that loop's own to report: it is
-            // registered too, and its pass covers exactly this range. Step over
-            // it, and only it — the nested header's initialiser and increment,
-            // and the nested body, are all still read here, because a call in
-            // any of them runs on every evaluation of this condition.
             if (isset($claimed[$i]) === true) {
                 $i = $claimed[$i];
 

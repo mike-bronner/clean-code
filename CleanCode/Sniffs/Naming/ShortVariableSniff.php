@@ -42,9 +42,6 @@ class ShortVariableSniff implements Sniff
         $code = $tokens[$stackPtr]['code'];
 
         if ($code === T_OPEN_TAG) {
-            // Only the first open tag owns the file scope. A file that closes
-            // and reopens its PHP block has several, and processing each one
-            // would report the same name once per tag.
             return $phpcsFile->findPrevious(T_OPEN_TAG, ($stackPtr - 1)) === false
                 ? $this->occurrencesIn($phpcsFile, 0, ($phpcsFile->numTokens - 1))
                 : [];
@@ -54,8 +51,6 @@ class ShortVariableSniff implements Sniff
             return $this->functionOccurrences($phpcsFile, $stackPtr);
         }
 
-        // A class-like owns only its property declarations: its methods are
-        // T_FUNCTION scopes of their own, reached separately.
         $isBounded = isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']);
 
         return $isBounded === true
@@ -118,9 +113,6 @@ class ShortVariableSniff implements Sniff
             }
 
             foreach ($this->interpolatedNames($tokens[$pointer]) as $name) {
-                // A string spells the receiver too, and it is dropped here for
-                // the same reason — see self::IMPLICIT_RECEIVER, which records
-                // that phpmd does report several of these spellings.
                 if ($name === self::IMPLICIT_RECEIVER) {
                     continue;
                 }
@@ -190,15 +182,6 @@ class ShortVariableSniff implements Sniff
             $matches
         );
 
-        // A failed read leaves $matches holding an empty [1] key, or — when
-        // the pattern never compiled — not writing to it at all, so returning
-        // it hands back an offset read off null against this method's declared
-        // array<int, string>. The empty list is the exit for it, and the only
-        // honest one: names that were not read cannot be checked, so a short
-        // name interpolated into this string goes unreported. The pattern's
-        // lookbehind is fixed-width and its one quantifier is a character class
-        // auto-possessified at the end of the pattern, with no `/u` modifier,
-        // so nothing is known to reach the branch.
         if ($matched === false) {
             return [];
         }

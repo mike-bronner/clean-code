@@ -12,17 +12,17 @@ use PHP_CodeSniffer\Util\Tokens;
 class ManipulationOperatorPlacementSniff implements Sniff
 {
     private const MANIPULATION_OPERATORS = [
-        T_PLUS,          // +
-        T_MINUS,         // -
-        T_MULTIPLY,      // *
-        T_DIVIDE,        // /
-        T_MODULUS,       // %
-        T_POW,           // **
-        T_BITWISE_AND,   // &
-        T_BITWISE_OR,    // |
-        T_BITWISE_XOR,   // ^
-        T_SL,            // <<
-        T_SR,            // >>
+        T_PLUS,
+        T_MINUS,
+        T_MULTIPLY,
+        T_DIVIDE,
+        T_MODULUS,
+        T_POW,
+        T_BITWISE_AND,
+        T_BITWISE_OR,
+        T_BITWISE_XOR,
+        T_SL,
+        T_SR,
     ];
 
     private const UNARY_CAPABLE = [
@@ -91,9 +91,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
-        // Inside an if/elseif/while/for condition, OneConditionPerLine reports
-        // (and fixes) the same wrap wholesale, so stand down there exactly
-        // where CleanCode.Operators.OperatorLineBreak does.
         if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;
         }
@@ -110,23 +107,14 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return;
         }
 
-        // The operator only "trails" when its left-hand operand ends on the
-        // operator's own line and the right-hand operand lives on a later one.
-        // A left operand on an earlier line means the operator already leads —
-        // including when it sits alone on its own line — which is compliant.
         if ($tokens[$previous]['line'] !== $tokens[$stackPtr]['line']) {
             return;
         }
 
-        // Both operands on the operator's line: inline usage, compliant.
         if ($tokens[$next]['line'] === $tokens[$stackPtr]['line']) {
             return;
         }
 
-        // A reference `&` (by-ref parameter, return, assignment, foreach, array
-        // element, or by-ref call argument) is not a bitwise-AND manipulation
-        // operator, whatever token precedes it. PHP_CodeSniffer resolves the
-        // reference-vs-bitwise question directly, so defer to it.
         if (
             $tokens[$stackPtr]['code'] === T_BITWISE_AND
             && $phpcsFile->isReference($stackPtr) === true
@@ -134,12 +122,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return;
         }
 
-        // A `|`/`&` separating types in a `catch (TypeA | TypeB $e)` clause is a
-        // type-union/intersection separator, not a bitwise manipulation operator.
-        // PHP_CodeSniffer retokenises union/intersection types to T_TYPE_UNION /
-        // T_TYPE_INTERSECTION in parameter, return, and property positions (which
-        // are never registered here), but leaves the catch-clause separator as
-        // T_BITWISE_OR/T_BITWISE_AND, so exempt it by its enclosing context.
         if (
             in_array($tokens[$stackPtr]['code'], [T_BITWISE_OR, T_BITWISE_AND], true) === true
             && $this->isCatchTypeSeparator($phpcsFile, $stackPtr) === true
@@ -147,8 +129,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return;
         }
 
-        // A unary sign (`-5`, `+5`) carries no left-hand operand, so `+`/`-` are
-        // manipulation operators only when a real operand ends the previous line.
         if (
             in_array($tokens[$stackPtr]['code'], self::UNARY_CAPABLE, true) === true
             && $this->endsLeftOperand($phpcsFile, $previous) === false
@@ -160,8 +140,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
         $code = 'OperatorNotLeading';
         $data = [$tokens[$stackPtr]['content']];
 
-        // Moving the operator across a comment that sits between the two
-        // operands would reorder the comment, so leave that case unfixed.
         $hasComment = $phpcsFile->findNext(Tokens::$commentTokens, ($previous + 1), $next) !== false;
 
         if ($hasComment === true) {
@@ -277,8 +255,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
                 break;
             }
 
-            // findStartOfStatement() never returns past the token handed to it,
-            // and $before is already before $start, so $start strictly decreases.
             $start = $phpcsFile->findStartOfStatement($before);
         }
 

@@ -9,10 +9,7 @@ use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
-// A sniff is one rule, and its class name is the sniff code consumers write
-// in their rulesets — so the unit is fixed from outside and splitting the
-// class into collaborators would distribute the work without reducing it.
-// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods -- see above
+// phpcs:ignore CleanCode.Classes.ExcessiveClassLength, CleanCode.CodeSize.TooManyMethods
 class DisallowCombinedConstructorSniff implements Sniff
 {
     private const CLASS_LIKE_SCOPES = [T_CLASS, T_ANON_CLASS, T_TRAIT];
@@ -115,11 +112,6 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private array $ternaryElse = [];
 
-    // Memoised because it folds six token tables together and the result never
-    // varies. An instance property rather than a function static: PHP_CodeSniffer
-    // builds one sniff instance per run and reuses it for every file, so the two
-    // have identical lifetime, and only one of them is visible to a reader of
-    // the class.
     private array $groupingPreceders = [];
 
     private array $cacheCounts = [
@@ -138,11 +130,6 @@ class DisallowCombinedConstructorSniff implements Sniff
     ) {
     }
 
-    // The import-scan counters this sniff's FunctionCalls holds, exposed the way
-    // MultiLineStatementIndentSniff exposes scanCounts(): the cache moved from a
-    // class-wide static to an instance when statics were removed, so a test can
-    // no longer read it off the helper class and reads it off the very sniff
-    // instance buildRuleset() memoised instead.
     public function analysisCounts(): array
     {
         $functionCalls = $this->functionCalls;
@@ -178,8 +165,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             return;
         }
 
-        // An abstract or interface constructor has no body to walk. A
-        // promotion-only constructor has one, and simply holds no statements.
         if (! isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer'])) {
             return;
         }
@@ -187,9 +172,6 @@ class DisallowCombinedConstructorSniff implements Sniff
         $parameters = $this->parameterTypes($phpcsFile, $stackPtr);
         $closer = $tokens[$stackPtr]['scope_closer'];
 
-        // Every map below describes this constructor's body alone, and the
-        // scan's answers depend on where that body ends, so none of them
-        // survives into the next constructor.
         $this->selectorCache = [];
         $this->branchVerdicts = [];
         $this->chainHeadCache = [];
@@ -212,10 +194,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             if ($rebinding !== null) {
                 $parameters = array_diff_key($parameters, $this->boundNames($phpcsFile, $pointer, $rebinding));
 
-                // A `static` local's initializer is an arbitrary expression, so
-                // it is the constructor's own code and is walked on into. The
-                // other three regions hold targets alone and are stepped past
-                // whole ({@see self::rebindingEnd()}).
                 if ($code !== T_STATIC) {
                     $pointer = $rebinding;
                 }
@@ -390,11 +368,6 @@ class DisallowCombinedConstructorSniff implements Sniff
 
             $written = (string) $parameter['type_hint'];
 
-            // The written hint rather than '' on a failed read: '' resolves to
-            // no members at all, which reads exactly like a hint that is not
-            // boolean, so the failure would silently drop the parameter's mode
-            // signal. `/\s+/` is one auto-possessified quantifier with no `/u`
-            // modifier, so preg_replace() cannot fail.
             $normalized = ltrim(strtolower(preg_replace('/\s+/', '', $written) ?? $written), '?');
             $types = array_values(array_diff(explode('|', $normalized), ['null', '']));
             $default = strtolower(trim((string) ($parameter['default'] ?? '')));
@@ -421,7 +394,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             'Reading the constructor\'s own argument list with %s() overloads __construct()'
                 . ' into several constructors; give each construction scenario its own named'
                 . ' constructor delegating to one primary constructor'
-                . ' (see docs/standards/constructors-primary-named-constructors.md)',
+                . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
             $pointer,
             'ArgumentCount',
             [$phpcsFile->getTokens()[$pointer]['content']]
@@ -455,7 +428,8 @@ class DisallowCombinedConstructorSniff implements Sniff
                 'Branching on the runtime type of %s combines several constructors into'
                     . ' __construct(); give each accepted type its own named constructor'
                     . ' delegating to one primary constructor'
-                    . ' (see docs/standards/constructors-primary-named-constructors.md)',
+                    . ' (see resources/boost/guidelines/'
+                    . 'constructors-primary-named-constructors.md)',
                 $pointer,
                 'TypeSwitch',
                 [$name]
@@ -468,7 +442,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             'Branching on the mode flag %s combines several constructors into __construct();'
                 . ' give each mode its own named constructor delegating to one primary'
                 . ' constructor'
-                . ' (see docs/standards/constructors-primary-named-constructors.md)',
+                . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
             $pointer,
             'ModeFlag',
             [$name]
@@ -596,8 +570,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             return false;
         }
 
-        // The helper has already established that this is the call's own
-        // opening parenthesis.
         $opener = (int) $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
         return ! $this->isFirstClassCallable($phpcsFile, $opener);
@@ -659,8 +631,6 @@ class DisallowCombinedConstructorSniff implements Sniff
                 return $this->remember($visited, $next);
             }
 
-            // `?:` supplies a default for one expression rather than selecting
-            // between two, so it is not a branch.
             if ($code === T_INLINE_THEN) {
                 $following = $phpcsFile->findNext(Tokens::$emptyTokens, $next + 1, null, true);
                 $elvis = $following !== false && $tokens[$following]['code'] === T_INLINE_ELSE;
@@ -689,8 +659,6 @@ class DisallowCombinedConstructorSniff implements Sniff
                 return $this->remember($visited, null);
             }
 
-            // A group opening here belongs to the expression — jump it whole so
-            // its contents cannot be mistaken for the expression's own tokens.
             $next = $this->groupEnd($phpcsFile, $next) ?? $next;
         }
 
@@ -699,10 +667,6 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private function remember(array $visited, ?int $selector): ?int
     {
-        // Every position this scan stepped on, whether it ran to a selector or
-        // stopped on one already recorded. Summed over a constructor, this is
-        // the whole of what $selectorCache buys: one step per position of the
-        // body rather than one full-length scan per parameter use.
         $this->cacheCounts['selectorCache.steps'] += count($visited);
 
         foreach ($visited as $position) {
@@ -774,8 +738,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             }
 
             if ($groups[$depth]['armBody'] === true) {
-                // The arm before this comma ends here; the arms after it are
-                // their own expressions.
                 $groups[$depth]['armBody'] = false;
 
                 continue;
@@ -889,8 +851,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             return [$this->enclosingConstruct($phpcsFile, $branch, T_MATCH), $branch];
         }
 
-        // A `switch`/`match` subject, or a ternary's condition: one condition
-        // stands in front of every branch, so none of them is its own.
         return [$branch, null];
     }
 
@@ -926,15 +886,10 @@ class DisallowCombinedConstructorSniff implements Sniff
                 return $this->rememberChainHead($visited, $this->chainHeadCache[$head]);
             }
 
-            // One link stepped over. Summed across a chain, this is the whole
-            // of what $chainHeadCache buys: one step per link rather than one
-            // walk of the chain per link in it.
             $this->cacheCounts['chainHead.steps']++;
             $visited[] = $head;
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $head - 1, null, true);
 
-            // A spaced `else if` is a T_ELSE and a T_IF: the `if` owns the
-            // condition, and the chain carries on in front of the `else`.
             $spacedElse = $previous !== false
                 && $tokens[$previous]['code'] === T_ELSE;
 
@@ -1056,7 +1011,6 @@ class DisallowCombinedConstructorSniff implements Sniff
             $opener = (int) $tokens[$pointer]['scope_opener'];
             $first = $phpcsFile->findNext(Tokens::$emptyTokens, $opener + 1, $end, true);
 
-            // An empty fall-through case has no body of its own to judge.
             if (
                 $first === false
                 || in_array($tokens[$first]['code'], [T_CASE, T_DEFAULT], true)

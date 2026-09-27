@@ -28,8 +28,6 @@ class BinaryOperatorSpacingSniff extends OperatorSpacingSniff
         ) {
             $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-            // Nothing at all precedes the sign, so nothing can be its left
-            // operand. The parent reads a false pointer as position 0 instead.
             if ($previous === false) {
                 return false;
             }

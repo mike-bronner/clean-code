@@ -1,19 +1,5 @@
 <?php
 
-/**
- * Tests the Generic.Files.LineLength configuration in the master CleanCode/ruleset.xml:
- * warning above 100 characters, error above 120, reporting-only.
- *
- * Unlike the per-sniff tests, these run the *whole* master ruleset over the
- * fixture and then scope the assertions to the line-length sources. The
- * fixtures are ordinary procedural files, so unrelated PSR rules they happen to
- * trip must not mask what is being asserted here.
- *
- * Line numbers refer to tests/fixtures/LineLengthSniff/failing.php, whose probe
- * lines are exactly 100 (line 3), 101 (line 5), 120 (line 7), and 121 (line 9)
- * characters long.
- */
-
 declare(strict_types=1);
 
 const LINE_LENGTH_WARNING = 'Generic.Files.LineLength.TooLong';

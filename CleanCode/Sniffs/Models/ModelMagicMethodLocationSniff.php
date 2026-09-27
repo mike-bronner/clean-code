@@ -37,7 +37,7 @@ class ModelMagicMethodLocationSniff implements Sniff
     private const MESSAGE = <<<MESSAGE
         Model method %s() is declared in the class body; extract it to the model's %s trait
         (e.g. App\\Concerns\\%s\\Book) so the model stays lean
-        (see docs/standards/models-structure-attributes-queries-traits.md)
+        (see resources/boost/guidelines/models-structure-attributes-queries-traits.md)
         MESSAGE;
 
     public function register(): array
@@ -49,11 +49,6 @@ class ModelMagicMethodLocationSniff implements Sniff
     {
         $imports = $this->readImports($phpcsFile);
 
-        // Walked to the end of the file rather than to the class's closing
-        // brace: PHP_CodeSniffer publishes a scope's bounds on the token array
-        // only, and isOwnMethod() already answers the question the bound would
-        // — a declaration belonging to anything other than this class is
-        // rejected whether it sits inside the body or after it.
         $bodyPtr = ($stackPtr + 1);
 
         foreach ($this->pointersOfType($phpcsFile, T_FUNCTION, $bodyPtr, null) as $functionPtr) {
@@ -66,8 +61,6 @@ class ModelMagicMethodLocationSniff implements Sniff
         $name = $this->declarationName($phpcsFile, $functionPtr);
         $destination = $this->destinationTrait($phpcsFile, $functionPtr, $name, $imports);
 
-        // One code per destination trait, so a ruleset can silence either half
-        // on its own.
         $code = match ($destination) {
             self::ATTRIBUTES => 'AttributeMethod',
             default => 'ScopeMethod',
@@ -121,8 +114,6 @@ class ModelMagicMethodLocationSniff implements Sniff
     {
         $afterPtr = $this->nextSignificant($phpcsFile, $functionPtr);
 
-        // Steps the `&` of a by-reference declaration, which sits between the
-        // `function` keyword and the name.
         $namePtr = match ($this->isToken($phpcsFile, $afterPtr, T_BITWISE_AND)) {
             true => $this->nextSignificant($phpcsFile, $afterPtr),
             default => $afterPtr,
@@ -159,9 +150,6 @@ class ModelMagicMethodLocationSniff implements Sniff
         $head = strtolower((string) array_shift($segments));
         $resolved = strtolower($name);
 
-        // No import binds the empty name readNamedImport() refuses to record,
-        // so a fully-qualified spelling — whose first segment is empty — passes
-        // through this fold untouched and is answered by the return below.
         foreach ($imports as $alias => $fullyQualified) {
             $resolved = match ($alias) {
                 $head => strtolower(implode('\\', array_merge([$fullyQualified], $segments))),
@@ -199,8 +187,6 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private function attributeCloserBefore(File $phpcsFile, ?int $stackPtr): ?int
     {
-        // The previous token that is neither empty nor one of the keywords a
-        // declaration may carry, which is where an attribute group's `]` sits.
         $skippable = array_merge(Tokens::$emptyTokens, Tokens::$methodPrefixes);
         $previousPtr = match ($stackPtr) {
             null => null,
@@ -226,11 +212,6 @@ class ModelMagicMethodLocationSniff implements Sniff
             );
             [$name] = $this->readName($phpcsFile, $ptr);
 
-            // Depth is counted rather than read from the token array's
-            // nested_parenthesis map, which File does not publish. An attribute
-            // group holds no construct that can put an unbalanced parenthesis
-            // in front of a name, so every argument list opened before the
-            // pointer and not yet closed leaves the two counts apart.
             $opened = $this->pointersOfType($phpcsFile, T_OPEN_PARENTHESIS, $openerPtr, $ptr);
             $closed = $this->pointersOfType($phpcsFile, T_CLOSE_PARENTHESIS, $openerPtr, $ptr);
 
@@ -301,10 +282,6 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private function readMember(File $phpcsFile, int $startPtr, string $prefix): array
     {
-        // Read before the keyword test rather than after it, so the whole
-        // member is one expression. readName() walks a `function b` member's
-        // two name tokens into one glued name, which is exactly why that
-        // member must not be recorded; the keyword arm below discards it.
         [$name, $endPtr] = $this->readName($phpcsFile, $startPtr);
         $fullyQualified = ltrim($prefix . $name, '\\');
         $alias = $this->aliasOf($phpcsFile, $endPtr, $fullyQualified);
@@ -399,9 +376,6 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private function conditionPointer(File $phpcsFile, int $stackPtr, int|string $type): ?int
     {
-        // The assignment is hoisted out of the match subject rather than
-        // written inline: CleanCode/ruleset.xml reports an assignment in a condition (#79),
-        // and a match subject is one of the conditions it reads.
         $pointer = $phpcsFile->getCondition($stackPtr, $type, false);
 
         return $this->orNull($pointer);

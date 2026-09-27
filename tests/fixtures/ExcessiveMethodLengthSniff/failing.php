@@ -4,8 +4,8 @@
  * Declarations PHPMD's CodeSize ExcessiveMethodLength rule reports at its own
  * default threshold of 100 lines, with ignore-whitespace left off.
  *
- * Cross-checked against a live PHPMD 2.15.0 run; see
- * docs/phpmd/codesize-excessivemethodlength.md.
+ * Cross-checked against a live PHPMD 2.15.0 run. Git history keeps the
+ * full write-up.
  */
 
 class ExcessivelyLongMethods

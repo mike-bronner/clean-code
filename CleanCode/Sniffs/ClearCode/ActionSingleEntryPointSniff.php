@@ -27,8 +27,6 @@ class ActionSingleEntryPointSniff implements Sniff
             return;
         }
 
-        // The first entry point is the one the Action is entitled to; every
-        // later one is a second concept sharing the class.
         $extras = array_slice($this->entryPoints($phpcsFile, $stackPtr), 1);
 
         foreach ($extras as $methodPtr) {
@@ -37,7 +35,9 @@ class ActionSingleEntryPointSniff implements Sniff
             $phpcsFile->addWarning(
                 'Public method %s() is an additional entry point; an Action class exposes a'
                     . ' single public entry point, so move %s() into an Action class of its own'
-                    . ' (see docs/standards/clear-code-encapsulate-related-methods-in-a-class.md)',
+                    . ' (see'
+                    . ' resources/boost/guidelines/'
+                    . 'clear-code-encapsulate-related-methods-in-a-class.md)',
                 $methodPtr,
                 'Found',
                 [$name, $name]
@@ -84,8 +84,6 @@ class ActionSingleEntryPointSniff implements Sniff
         while ($pointer < $closer) {
             $code = $tokens[$pointer]['code'];
 
-            // A brace at the class's own top level opens a property hook or a
-            // trait-adaptation block. Neither holds a method of this class.
             if ($code === T_OPEN_CURLY_BRACKET) {
                 $pointer = ($tokens[$pointer]['bracket_closer'] ?? $closer) + 1;
 

@@ -7,13 +7,6 @@ namespace MikeBronner\CleanCode\Support;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Util\Tokens;
 
-// The return type a declaration can be *proven* to have, or null when it cannot.
-//
-// Every rule here answers from something already declared or already literal.
-// Nothing guesses: a body whose returns hand back a variable of unknown type
-// answers null, and the caller reports rather than rewrites. A wrong answer is
-// not a lint error in the consumer's code, it is a TypeError thrown at runtime,
-// so silence is the only safe default.
 class ReturnTypeInference
 {
     private const LITERAL_TYPES = [
@@ -53,10 +46,6 @@ class ReturnTypeInference
             return null;
         }
 
-        // A declaration that returns nothing is the Slevomat sniff's own case:
-        // it already infers `void` without an annotation, reports it as the
-        // more specific MissingNativeTypeHint, and fixes it. Answering here
-        // would take that case over and report it under a worse code.
         if ($returns === []) {
             return null;
         }
@@ -66,11 +55,6 @@ class ReturnTypeInference
         return $type === 'void' ? null : $type;
     }
 
-    // Every `return` that belongs to this declaration, as a pointer to the first
-    // token of its expression. A bare `return;` contributes 'void'. Null means
-    // the walk found something it cannot account for.
-    //
-    // @return array<int, int|string>|null
     private function returnExpressions(File $phpcsFile, int $functionPtr): ?array
     {
         $tokens = $phpcsFile->getTokens();
@@ -83,8 +67,6 @@ class ReturnTypeInference
                 continue;
             }
 
-            // A return inside a nested closure, arrow function, or anonymous
-            // class belongs to that declaration, not this one.
             if ($this->nearestFunctionScope($tokens, $ptr) !== $functionPtr) {
                 continue;
             }
@@ -116,9 +98,6 @@ class ReturnTypeInference
         return null;
     }
 
-    /**
-     * @param array<int, int|string> $returns
-     */
     private function unionOf(File $phpcsFile, int $functionPtr, array $returns): ?string
     {
         $types = [];
@@ -140,9 +119,6 @@ class ReturnTypeInference
             $types[$type] = true;
         }
 
-        // Only bare returns: the declaration hands back nothing at all. Mixed
-        // with a value return, each bare one yields null, so null joins the
-        // union rather than replacing it.
         if ($types === []) {
             return 'void';
         }
@@ -154,9 +130,6 @@ class ReturnTypeInference
         return $this->normalise(array_keys($types));
     }
 
-    // The type of one return expression, or null when it is not provable. The
-    // expression must be a single token followed by the semicolon: anything
-    // longer is an operation whose result this cannot read off the source.
     private function expressionType(File $phpcsFile, int $functionPtr, int $ptr): ?string
     {
         $tokens = $phpcsFile->getTokens();
@@ -186,9 +159,6 @@ class ReturnTypeInference
         return null;
     }
 
-    // Only two variables are provable from the declaration alone: $this, and a
-    // parameter that carries a declared type. A local assigned from a call
-    // needs the callee's type, which this does not resolve.
     private function variableType(File $phpcsFile, int $functionPtr, string $variable): ?string
     {
         if ($variable === '$this') {
@@ -208,9 +178,6 @@ class ReturnTypeInference
         return null;
     }
 
-    /**
-     * @param array<int, string> $types
-     */
     private function normalise(array $types): ?string
     {
         sort($types);
@@ -223,8 +190,6 @@ class ReturnTypeInference
             return $types[0];
         }
 
-        // A union of a single type with null is written with the shorthand PHP
-        // and this ruleset both prefer everywhere else.
         if (
             count($types) === 2
             && in_array('null', $types, true) === true

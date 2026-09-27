@@ -9,8 +9,8 @@
  * measured span, a class far longer than any of its methods, and the two
  * closure forms PDepend does not model as declarations at all.
  *
- * Cross-checked against a live PHPMD 2.15.0 run; see
- * docs/phpmd/codesize-excessivemethodlength.md.
+ * Cross-checked against a live PHPMD 2.15.0 run. Git history keeps the
+ * full write-up.
  */
 
 #[Attribute]

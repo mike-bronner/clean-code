@@ -47,7 +47,7 @@ if ($swap) {
 }
 
 // Compound assignments are not detected by RequireTernaryOperator — a
-// documented limitation, see docs/standards/conditionals-ternary-conditionals.md.
+// known limitation of the sniff.
 if ($hasPrefix) {
     $path .= '/prefix';
 } else {
@@ -55,7 +55,7 @@ if ($hasPrefix) {
 }
 
 // Braceless if/else is not supported by RequireTernaryOperator — a
-// documented limitation, see docs/standards/conditionals-ternary-conditionals.md.
+// known limitation of the sniff.
 if ($useCache)
     $driver = 'redis';
 else

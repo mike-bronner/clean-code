@@ -6,18 +6,9 @@
          colors="true"
          failOnWarning="true">
     <testsuites>
-        <!--
-            A <directory> defaults to suffix="Test.php", which is what keeps
-            the deliberately malformed fixtures under these directories from
-            being collected as tests.
-        -->
         <testsuite name="Contract">
             <directory>tests/Contract</directory>
         </testsuite>
-        <!--
-            tests/Helpers/ covers CleanCode/Helpers/. It is not tests/Helpers.php,
-            which holds the Pest helper functions every suite calls.
-        -->
         <testsuite name="Helpers">
             <directory>tests/Helpers</directory>
         </testsuite>

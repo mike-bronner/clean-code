@@ -1,22 +1,5 @@
 <?php
 
-/**
- * Integration test for the custom CleanCode.Strings.MultilineStrings sniff as
- * wired into the master CleanCode/ruleset.xml (Code Style: Multiline Strings (HEREDOC),
- * issue #53). Fixtures live in tests/fixtures/MultilineStringsSniff/.
- *
- * Two shapes are covered: a quoted string literal spanning multiple lines
- * (QuotedString, auto-fixed to a HEREDOC) and a multi-line concatenation of
- * quoted strings (Concatenation, detection-only). The fixer assertions prove
- * the conversion is byte-for-byte value-preserving.
- *
- * The fixer emits a HEREDOC whatever the source was quoted with. A NOWDOC is
- * the same construct with a quoted opening identifier, and carrying both means
- * a reader checks the delimiter before trusting the body — see
- * CleanCode.Strings.DisallowNowdoc, which holds the same line for hand-written
- * code.
- */
-
 declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
@@ -36,14 +19,6 @@ it('produces no violations on the compliant fixture', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
-/**
- * Double-quoted, interpolated, escaped-quote, single-quoted, escaped
- * single-quote, and binary-prefixed strings — each reported once, on its first
- * line. $escapes and $literal exercise the fixer's generic escape passthrough
- * (\t, \\, \$ in a double-quoted string carry into a HEREDOC body unchanged;
- * literal \n, \t in a single-quoted string are re-escaped for one), and the
- * last two the uppercase binary-string prefix on each delimiter.
- */
 it('flags multi-line string literals at their opening quote', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'failing.php');
 
@@ -60,28 +35,6 @@ it('flags multi-line string literals at their opening quote', function (): void 
     ]);
 });
 
-/**
- * Lines of *text*, never lines of source. This is the distinction the rule got
- * wrong for as long as it counted the source: a sentence wrapped over four
- * source lines is one line of text, and a HEREDOC cannot express it. The body
- * would have to sit on one line, which breaks the 120-character limit, or wrap,
- * which puts real newlines into the value. So the rule reported what no fix
- * could satisfy.
- *
- * $wrapped (line 12) is exactly that shape and must stay silent. $threeLines
- * (line 18) is within maximumLines. Both violations at lines 25 and 32 carry
- * four lines of text, and line 32 is the case source-counting missed outright —
- * four lines of text on a single source line.
- *
- * The two chains of the ternary (lines 38 and 42) carry the dedup case: keying
- * on findStartOfStatement(), which does not treat ?/: as boundaries, would
- * collapse them into one and drop the second.
- *
- * Structure is a separate concern. An embedded language belongs to
- * CleanCode.Strings.RequireHeredocForStructuredText, which owns it at any size,
- * so the fixture's SQL and markdown chains are absent from this list —
- * reporting them here too would double every finding.
- */
 it('flags multi-line concatenation once at its first string operand', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'concatenation.php');
 
@@ -93,13 +46,6 @@ it('flags multi-line concatenation once at its first string operand', function (
     ]);
 });
 
-/**
- * The regression the rewrite exists to prevent: a chain whose source spans more
- * than maximumLines but whose *value* is a single line. Reported for as long as
- * the rule counted source lines, and unfixable by construction — a HEREDOC of
- * one 230-character line breaks the 120-character limit, and breaking that line
- * changes the value.
- */
 it('stays silent on a sentence wrapped across more source lines than the limit', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'concatenation.php');
 
@@ -117,12 +63,6 @@ it('produces no violations on the autofixed fixture', function (): void {
     expect(violationTuples(analyzeFixture(MULTILINE_STRINGS, 'autofixed.php')))->toBe([]);
 });
 
-/**
- * The strongest behaviour-preservation guard: executing the before and after
- * fixtures must yield byte-identical variable values. A fixer that mangled
- * escaping, chose NOWDOC where interpolation was needed, or dropped a
- * character would make these diverge.
- */
 it('preserves string values exactly when fixing', function (): void {
     expect(evaluateFixtureVariables(fixturePath('MultilineStringsSniff', 'failing.php')))
         ->toBe(evaluateFixtureVariables(fixturePath('MultilineStringsSniff', 'autofixed.php')));
@@ -135,13 +75,6 @@ it('does not mark concatenation violations auto-fixable', function (): void {
         ->and($flags)->each->toBeFalse();
 });
 
-/**
- * When a body line would collide with the closing marker, the fix is withheld
- * (buildDocString returns null): the violation is still reported, but as a
- * plain — non-fixable — error, because emitting the HEREDOC would place the
- * marker inside the body and close the doc early. The fixer must leave such a
- * file byte-for-byte unchanged.
- */
 it('reports a marker collision as non-fixable and leaves the file untouched', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'marker-collision.php');
 
@@ -152,23 +85,6 @@ it('reports a marker collision as non-fixable and leaves the file untouched', fu
         ->toBe(file_get_contents(fixturePath('MultilineStringsSniff', 'marker-collision.php')));
 });
 
-/**
- * The uppercase binary-string prefix, which stays inside the literal's token
- * where a lowercase `b` becomes a token of its own. buildDocString() read the
- * delimiter off the token's first character, so `B` never matched `'`: a
- * single-quoted literal took the interpolating HEREDOC branch, lost its prefix,
- * and kept its own opening quote in the body.
- *
- * Asserted on the *values*, because the shape assertions above pass either way
- * — the fix produced a well-formed HEREDOC that simply meant something else.
- *
- * The comparison is against the fixer's own output rather than against
- * autofixed.php, and that distinction is the whole test. Every other value
- * assertion in this file evaluates the two committed fixtures, so it measures
- * whether the fixture *pair* agrees and would hold just as well with the fixer
- * broken. Running the fixer here is what makes reverting buildDocString() to
- * `$raw[0]` turn this red.
- */
 it('preserves a binary-prefixed multi-line literal exactly', function (string $variable): void {
     $fixed = stageSourceOutsideTests(
         autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
@@ -179,17 +95,6 @@ it('preserves a binary-prefixed multi-line literal exactly', function (string $v
         ->toBe(evaluateFixtureVariables(fixturePath('MultilineStringsSniff', 'failing.php'))[$variable]);
 })->with(['binarySingle', 'binaryDouble']);
 
-/**
- * The same defect class one step further out: PHP_CodeSniffer cannot tokenize
- * an *interpolated* binary-prefixed string at all. It types the `B"` opener
- * T_NONE and mis-types the remainder of the statement, so the sniff was handed
- * a "literal" made of the string's closing quote plus the source that followed
- * it, and rewrote that live source into a HEREDOC.
- *
- * The byte-for-byte comparison is what discriminates here: the mangled output
- * still passed `php -l`, so a parse check would have called it clean. Reverting
- * opensLiteral()'s T_ENCAPSED_AND_WHITESPACE guard turns exactly this red.
- */
 it('never rewrites a string the tokenizer could not resolve', function (): void {
     $file = analyzeFixture(MULTILINE_STRINGS, 'unresolved-binary-string.php');
 
@@ -198,20 +103,6 @@ it('never rewrites a string the tokenizer could not resolve', function (): void 
         ->toBe(file_get_contents(fixturePath('MultilineStringsSniff', 'unresolved-binary-string.php')));
 });
 
-/**
- * The heredoc fixer reads the string's body line by line, and the
- * marker-collision check over those lines is the only thing standing between it
- * and a heredoc whose own body closes it. A failed split is false, and
- * iterating a boolean takes the run down.
- *
- * So a body whose lines could not be read is a body this fixer must not
- * rewrite: null is the same "leave the file alone" answer a real collision
- * already earns, and leaving the file alone is what is asserted.
- *
- * This sniff's tests live here rather than under tests/Standards/, which is
- * where its existing suite is — one file per sniff, not one directory per
- * criterion.
- */
 it('rewrites nothing when a string body cannot be split into lines', function (): void {
     $path = fixturePath('MultilineStringsSniff', 'failing.php');
 
