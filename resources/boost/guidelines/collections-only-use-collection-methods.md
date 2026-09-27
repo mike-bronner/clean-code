@@ -23,5 +23,3 @@ $hasAdmin = in_array('admin', $users->pluck('role')->all());
 | `CleanCode.Collections.OnlyUseCollectionMethods` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/collections-only-use-collection-methods.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/collections-only-use-collection-methods.md)

@@ -32,5 +32,3 @@ if ($order->isRefunded()) {
 | `CleanCode.Conditionals.CombinableConditions` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/conditionals-combine-where-possible.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/conditionals-combine-where-possible.md)

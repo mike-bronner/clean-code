@@ -45,5 +45,3 @@ function invoiceTotal(array $invoice): int
 | `CleanCode.Testing.RequireTestFile` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/testing-development-process-tdd.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/testing-development-process-tdd.md)

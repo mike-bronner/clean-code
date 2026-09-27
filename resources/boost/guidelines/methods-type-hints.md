@@ -27,5 +27,3 @@ public function total($order)
 | `CleanCode.TypeHints.ParameterTypeHint` | yes |
 | `SlevomatCodingStandard.TypeHints.ReturnTypeHint` | yes |
 | `CleanCode.TypeHints.InferredReturnType` | yes |
-
-Standard: [docs/standards/methods-type-hints.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/methods-type-hints.md)

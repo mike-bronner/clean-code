@@ -40,5 +40,3 @@ public static function fromDollars(float $dollars): self
 | `CleanCode.Constructors.DisallowCombinedConstructor` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/constructors-primary-named-constructors.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/constructors-primary-named-constructors.md)

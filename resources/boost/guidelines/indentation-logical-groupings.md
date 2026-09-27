@@ -37,5 +37,3 @@ if (
 | `CleanCode.Indentation.LogicalGroupings` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/indentation-logical-groupings.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/indentation-logical-groupings.md)

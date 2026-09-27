@@ -31,5 +31,3 @@ $link = "<a href='{$url}'>Open</a>";
 | `CleanCode.Strings.DisallowNowdoc` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/strings-interpolation-quoting-heredocs.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/strings-interpolation-quoting-heredocs.md)

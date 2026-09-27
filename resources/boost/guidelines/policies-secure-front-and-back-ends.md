@@ -43,5 +43,3 @@ public function destroy(Post $post): RedirectResponse
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/policies-secure-front-and-back-ends.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/policies-secure-front-and-back-ends.md)

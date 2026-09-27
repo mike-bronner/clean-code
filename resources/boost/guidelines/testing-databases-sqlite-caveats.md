@@ -26,5 +26,3 @@ $table->json('settings');
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/testing-databases-sqlite-caveats.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/testing-databases-sqlite-caveats.md)

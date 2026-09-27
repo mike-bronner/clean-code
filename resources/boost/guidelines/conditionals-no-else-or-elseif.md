@@ -27,5 +27,3 @@ if ($user === null) {
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `CleanCode.Conditionals.DisallowElse` | yes |
-
-Standard: [docs/standards/conditionals-no-else-or-elseif.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/conditionals-no-else-or-elseif.md)

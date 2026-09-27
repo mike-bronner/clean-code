@@ -26,5 +26,3 @@ $invoice = new Invoice(
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `CleanCode.WhiteSpace.MultiLineStatementIndent` | yes |
-
-Standard: [docs/standards/indentation-multi-line-statements.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/indentation-multi-line-statements.md)

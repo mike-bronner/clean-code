@@ -24,5 +24,3 @@ $invoice = $this->invoices->createFor(customer: $customer, items: $items, dueAt:
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `Generic.Files.LineLength` | no |
-
-Standard: [docs/standards/line-length.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/line-length.md)

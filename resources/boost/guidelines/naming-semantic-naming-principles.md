@@ -26,6 +26,9 @@ From Robert Martin's *Clean Code* — a cluster of semantic naming rules:
   same operation forces readers to wonder whether the differences mean
   something.
 
+The sniffs report a variable, property, parameter, method or class name shorter
+than 3 characters.
+
 Takeaways: code should be self-documenting, clarify rather than obscure, have
 intention, and be consistent with expectations.
 
@@ -57,5 +60,3 @@ if ($classes > 7) {
 | `CleanCode.Naming.ShortClassName` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/naming-semantic-naming-principles.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/naming-semantic-naming-principles.md)

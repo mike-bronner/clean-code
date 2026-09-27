@@ -29,5 +29,3 @@ foreach ($orders as $order) {
 | `CleanCode.Metrics.MethodNestingLevel` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/indentation-methods-max-nesting-levels.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/indentation-methods-max-nesting-levels.md)

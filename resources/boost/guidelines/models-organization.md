@@ -51,5 +51,3 @@ class Book extends Model
 | `CleanCode.Models.MemberOrdering` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/models-organization.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-organization.md)

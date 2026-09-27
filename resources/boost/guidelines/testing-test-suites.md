@@ -41,5 +41,3 @@ it('charges the card', function (): void {
 | `CleanCode.Testing.NoHttpFakesInIntegrationTests` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/testing-test-suites.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/testing-test-suites.md)

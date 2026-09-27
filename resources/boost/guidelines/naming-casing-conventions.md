@@ -36,5 +36,3 @@ class invoice_mailer
 | `Squiz.NamingConventions.ValidVariableName` | no |
 | `PSR1.Methods.CamelCapsMethodName` | no |
 | `Squiz.Classes.ValidClassName` | no |
-
-Standard: [docs/standards/naming-casing-conventions.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/naming-casing-conventions.md)

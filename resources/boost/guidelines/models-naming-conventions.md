@@ -44,5 +44,3 @@ public function userWithEmail(string $email): ?User
 | `CleanCode.Naming.ModelNamingConventions` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/models-naming-conventions.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-naming-conventions.md)

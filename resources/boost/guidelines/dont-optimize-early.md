@@ -30,5 +30,3 @@ for ($index = 0, $count = count($users); $index < $count; $index++) {
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/dont-optimize-early.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/dont-optimize-early.md)

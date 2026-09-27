@@ -35,5 +35,3 @@ public function total(): int
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `CleanCode.WhiteSpace.BlankLines` | yes |
-
-Standard: [docs/standards/blank-lines.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/blank-lines.md)

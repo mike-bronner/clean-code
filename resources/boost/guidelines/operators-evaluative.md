@@ -36,5 +36,3 @@ if (
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `CleanCode.Operators.DisallowNewlineAroundEvaluativeOperators` | yes |
-
-Standard: [docs/standards/operators-evaluative.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/operators-evaluative.md)

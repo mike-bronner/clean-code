@@ -41,5 +41,3 @@ $first = $items [0];
 | `Generic.WhiteSpace.IncrementDecrementSpacing` | yes |
 | `Squiz.WhiteSpace.ObjectOperatorSpacing` | yes |
 | `Squiz.Arrays.ArrayBracketSpacing` | yes |
-
-Standard: [docs/standards/operators-passive.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/operators-passive.md)

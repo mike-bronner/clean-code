@@ -35,5 +35,3 @@ class PriceFormatter
 | `CleanCode.Classes.DisallowStaticMembers` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/classes-no-statics.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/classes-no-statics.md)

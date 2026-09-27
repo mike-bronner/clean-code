@@ -37,5 +37,3 @@ class Book extends BaseModel
 | `CleanCode.Models.ModelMagicMethodLocation` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/models-structure-attributes-queries-traits.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-structure-attributes-queries-traits.md)

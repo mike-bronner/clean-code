@@ -39,5 +39,3 @@ $name = $book->author->name;
 | `CleanCode.Models.DisallowChainedPropertyFetch` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/models-relationship-properties.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-relationship-properties.md)

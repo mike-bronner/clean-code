@@ -33,5 +33,3 @@ $isOpen = !$isClosed;
 | `Squiz.Strings.ConcatenationSpacing` | yes |
 | `CleanCode.Operators.NotOperatorSpacing` | yes |
 | `CleanCode.Operators.BooleanOperatorSpacing` | yes |
-
-Standard: [docs/standards/operators-active.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/operators-active.md)

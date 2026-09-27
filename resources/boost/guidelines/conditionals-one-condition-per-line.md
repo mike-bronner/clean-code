@@ -41,5 +41,3 @@ if ($isPaid && $isShipped) {
 | `CleanCode.Conditionals.OneConditionPerLine` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/conditionals-one-condition-per-line.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/conditionals-one-condition-per-line.md)

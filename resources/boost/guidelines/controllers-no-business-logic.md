@@ -41,5 +41,3 @@ class InvoiceController
 | `CleanCode.Controllers.NoCustomActions` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/controllers-no-business-logic.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/controllers-no-business-logic.md)

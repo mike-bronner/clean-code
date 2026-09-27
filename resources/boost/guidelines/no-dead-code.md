@@ -1,6 +1,10 @@
 # No Dead Code
 
 - There should be no unused or commented code.
+- A parameter the body never reads is unused code.
+- A method that overrides an inherited signature may keep an unused parameter.
+  Mark the override with `#[\Override]`, because the sniff cannot see a parent
+  declared in another file.
 
 ## Compliant
 
@@ -37,5 +41,3 @@ private function legacyFee(): int
 | `VariableAnalysis.CodeAnalysis.VariableAnalysis` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/no-dead-code.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/no-dead-code.md)

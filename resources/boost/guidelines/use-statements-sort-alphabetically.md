@@ -23,5 +23,3 @@ use App\Models\{Invoice, Payment};
 | `SlevomatCodingStandard.Namespaces.AlphabeticallySortedUses` | yes |
 | `SlevomatCodingStandard.Namespaces.DisallowGroupUse` | no |
 | `SlevomatCodingStandard.Namespaces.MultipleUsesPerLine` | no |
-
-Standard: [docs/standards/use-statements-sort-alphabetically.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/use-statements-sort-alphabetically.md)

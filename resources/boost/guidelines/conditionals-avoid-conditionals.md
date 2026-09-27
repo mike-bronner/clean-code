@@ -32,5 +32,3 @@ public function isAdult(): bool
 | `SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/conditionals-avoid-conditionals.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/conditionals-avoid-conditionals.md)

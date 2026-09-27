@@ -34,5 +34,3 @@ public function add($amount)
 | `CleanCode.TypeHints.PropertyTypeHint` | yes |
 | `CleanCode.TypeHints.ParameterTypeHint` | yes |
 | `SlevomatCodingStandard.TypeHints.ReturnTypeHint` | yes |
-
-Standard: [docs/standards/type-hints-and-return-types.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/type-hints-and-return-types.md)

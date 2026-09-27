@@ -38,5 +38,3 @@ $agent->save();
 | `CleanCode.Models.DisallowExternalPersistenceCalls` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/models-persistence-methods-repository-pattern.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-persistence-methods-repository-pattern.md)

@@ -44,5 +44,3 @@ it('totals an invoice', function (): void {
 | `CleanCode.Testing.NoFirstPartyMocks` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/testing-guidelines.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/testing-guidelines.md)

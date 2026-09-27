@@ -24,5 +24,3 @@ $ed = $sa->diffInDays($fa);
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/debt-mental-debt.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/debt-mental-debt.md)

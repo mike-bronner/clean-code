@@ -33,5 +33,3 @@ public function show(int $id): View
 | `CleanCode.Controllers.ManualModelResolution` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/controllers-route-model-binding.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/controllers-route-model-binding.md)

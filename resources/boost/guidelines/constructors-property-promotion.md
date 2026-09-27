@@ -28,5 +28,3 @@ public function __construct(Mailer $mailer)
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion` | yes |
-
-Standard: [docs/standards/constructors-property-promotion.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/constructors-property-promotion.md)

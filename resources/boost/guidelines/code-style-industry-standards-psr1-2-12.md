@@ -102,5 +102,3 @@ class invoice {
 | `Squiz.WhiteSpace.ScopeClosingBrace` | yes |
 | `Squiz.WhiteSpace.ScopeKeywordSpacing` | yes |
 | `Squiz.WhiteSpace.SuperfluousWhitespace` | yes |
-
-Standard: [docs/standards/code-style-industry-standards-psr1-2-12.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/code-style-industry-standards-psr1-2-12.md)

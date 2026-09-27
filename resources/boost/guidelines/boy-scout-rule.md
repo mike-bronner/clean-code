@@ -30,5 +30,3 @@ public function chk(): bool
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/boy-scout-rule.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/boy-scout-rule.md)

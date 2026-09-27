@@ -45,5 +45,3 @@ if (!$isPaid) {
 | `Squiz.Strings.ConcatenationSpacing` | yes |
 | `CleanCode.Operators.NotOperatorSpacing` | yes |
 | `CleanCode.Operators.OperatorLineBreak` | yes |
-
-Standard: [docs/standards/arrays-operator-spacing-and-line-breaks.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/arrays-operator-spacing-and-line-breaks.md)

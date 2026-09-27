@@ -28,5 +28,3 @@ public function sum(): int
 | `CleanCode.Methods.DeclaredParameters` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/methods-declared-parameters.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/methods-declared-parameters.md)

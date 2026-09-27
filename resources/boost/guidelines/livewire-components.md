@@ -35,5 +35,3 @@
 | `CleanCode.Livewire.ComponentMarkup` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/livewire-components.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/livewire-components.md)

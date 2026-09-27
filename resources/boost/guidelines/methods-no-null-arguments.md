@@ -22,5 +22,3 @@ $this->notify($user, null, 'mail');
 | `CleanCode.Methods.NoNullArguments` | yes |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/methods-no-null-arguments.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/methods-no-null-arguments.md)

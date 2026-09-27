@@ -29,5 +29,3 @@ public function __construct(
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/classes-contracts-interfaces.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/classes-contracts-interfaces.md)

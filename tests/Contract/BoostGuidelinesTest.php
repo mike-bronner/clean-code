@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 const BOOST_GUIDELINE_DIRECTORY = 'resources/boost/guidelines';
 
-const BOOST_STANDARD_URL = 'https://github.com/mike-bronner/clean-code/blob/main/docs/standards/';
-
 const BOOST_REVIEW_ONLY = 'Enforced by code review only. No sniff checks this standard.';
 
 $standardSlugs = static function (string $directory): array {
@@ -44,24 +42,53 @@ $sniffCarriesFixer = static function (object $sniff): bool {
     return false;
 };
 
-it('ships one guideline per documented standard', function () use ($standardSlugs): void {
-    expect($standardSlugs(BOOST_GUIDELINE_DIRECTORY))->toBe($standardSlugs('docs/standards'))
-        ->and($standardSlugs('docs/standards'))->toHaveCount(73);
+it('ships a guideline naming every loaded sniff', function () use ($standardSlugs, $guidelineEnforcement): void {
+    [, $ruleset] = buildRuleset();
+    $named = [];
+
+    foreach ($standardSlugs(BOOST_GUIDELINE_DIRECTORY) as $slug) {
+        $named += $guidelineEnforcement($slug);
+    }
+
+    $unnamed = array_values(array_diff(array_keys($ruleset->sniffCodes), array_keys($named)));
+
+    expect($ruleset->sniffCodes)->not->toBeEmpty()
+        ->and($unnamed)->toBe([]);
 });
 
 it('shapes every guideline as rule, examples, sniffs', function (string $slug) use ($guidelineEnforcement): void {
     $path = cleanCodeRoot() . '/' . BOOST_GUIDELINE_DIRECTORY . '/' . $slug . '.md';
     $guideline = (string) file_get_contents($path);
-    $title = strtok((string) file_get_contents(cleanCodeRoot() . '/docs/standards/' . $slug . '.md'), "\n");
     $enforcement = $guidelineEnforcement($slug);
 
-    expect(strtok($guideline, "\n"))->toBe($title)
+    expect($guideline)->toMatch('/\A# \S[^\n]*\n\n\S/')
         ->and($guideline)->toContain("\n## Compliant\n\n```")
         ->and($guideline)->toContain("\n## Non-compliant\n\n```")
         ->and($guideline)->toContain("\n## Enforcement\n")
-        ->and($guideline)->toContain('(' . BOOST_STANDARD_URL . $slug . '.md)')
         ->and($enforcement === [])->toBe(str_contains($guideline, BOOST_REVIEW_ONLY));
-})->with($standardSlugs('docs/standards'));
+})->with($standardSlugs(BOOST_GUIDELINE_DIRECTORY));
+
+it('points every sniff message at a guideline that exists', function (): void {
+    $sources = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator(cleanCodeRoot() . '/CleanCode', FilesystemIterator::SKIP_DOTS)
+    );
+    $targets = [];
+
+    foreach ($sources as $source) {
+        $text = (string) file_get_contents($source->getPathname());
+        $contents = (string) preg_replace("/'\\s*\\.\\s*'/", '', $text);
+        preg_match_all('#' . BOOST_GUIDELINE_DIRECTORY . '/[\w-]+\.md#', $contents, $paths);
+        $targets = [...$targets, ...$paths[0]];
+    }
+
+    $missing = array_values(array_filter(
+        array_unique($targets),
+        static fn (string $target): bool => is_file(cleanCodeRoot() . '/' . $target) === false
+    ));
+
+    expect($targets)->not->toBeEmpty()
+        ->and($missing)->toBe([]);
+});
 
 it('names only loaded sniffs, with their real fixability', function () use (
     $standardSlugs,

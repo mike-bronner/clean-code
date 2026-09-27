@@ -25,5 +25,3 @@ $this->mailer->send($receipt);
 ## Enforcement
 
 Enforced by code review only. No sniff checks this standard.
-
-Standard: [docs/standards/clear-code-group-code-by-concepts.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/clear-code-group-code-by-concepts.md)

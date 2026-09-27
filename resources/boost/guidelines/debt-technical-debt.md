@@ -30,5 +30,3 @@ $total = $order->subtotal * 1.2;
 | `CleanCode.Commenting.DebtMarkers` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/debt-technical-debt.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/debt-technical-debt.md)

@@ -22,5 +22,3 @@ $label = $isPaid ? 'Paid' : ($isVoid ? 'Void' : 'Due');
 |---|---|
 | `SlevomatCodingStandard.ControlStructures.RequireTernaryOperator` | yes |
 | `CleanCode.Conditionals.DisallowNestedTernary` | no |
-
-Standard: [docs/standards/conditionals-ternary-conditionals.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/conditionals-ternary-conditionals.md)

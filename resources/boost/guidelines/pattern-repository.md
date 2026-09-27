@@ -5,7 +5,7 @@ behaviour — persistence methods, attribute/query traits — is realised throug
 the Models standards rather than dedicated repository classes.
 
 The model-side conventions are defined by
-[Models: Persistence Methods (Repository Pattern)](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/models-persistence-methods-repository-pattern.md)
+the `models-persistence-methods-repository-pattern` guideline
 ([#37](https://github.com/mike-bronner/clean-code/issues/37)), which asks for
 descriptive persistence methods on the model itself, organised into single-use
 traits; this entry cross-references that standard rather than restating it.
@@ -39,5 +39,3 @@ class UserRepository
 | `CleanCode.Pattern.DisallowRepositoryClasses` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/pattern-repository.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/pattern-repository.md)

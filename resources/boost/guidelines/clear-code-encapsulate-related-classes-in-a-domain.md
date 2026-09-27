@@ -33,5 +33,3 @@ class InvoiceHelper
 | `CleanCode.ClearCode.JunkDrawerNamespace` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/clear-code-encapsulate-related-classes-in-a-domain.md)

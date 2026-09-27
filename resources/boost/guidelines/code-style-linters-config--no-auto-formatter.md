@@ -29,5 +29,3 @@ $total   = $subtotal + $shipping;
 | `CleanCode.CodeStyle.NoFormatterDirectives` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/code-style-linters-config--no-auto-formatter.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/code-style-linters-config--no-auto-formatter.md)

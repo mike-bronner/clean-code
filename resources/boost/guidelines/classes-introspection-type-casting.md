@@ -34,5 +34,3 @@ public function notify(object $recipient): void
 | `CleanCode.Classes.DisallowTypeIntrospection` | no |
 
 Code review checks the parts of this standard that the sniffs cannot see.
-
-Standard: [docs/standards/classes-introspection-type-casting.md](https://github.com/mike-bronner/clean-code/blob/main/docs/standards/classes-introspection-type-casting.md)
