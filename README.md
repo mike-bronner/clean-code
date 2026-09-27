@@ -53,6 +53,32 @@ The name works from anywhere in your project and survives a custom Composer
 code the custom sniffs report, so `CleanCode.Naming.ShortVariable` in a report
 and `CleanCode` in your config are the same word.
 
+## Laravel Boost guidelines
+
+The package ships one [Laravel Boost](https://github.com/laravel/boost)
+guideline per standard in `resources/boost/guidelines/`. Each guideline states
+the rule, shows compliant and non-compliant code, and names the sniffs that
+enforce it. An agent that reads them writes compliant code before `phpcs` runs.
+
+Boost loads the guidelines only when three conditions are true:
+
+- **`boost.json` lists the package.** Add `mike-bronner/clean-code` to the
+  `packages` array in the project's `boost.json`, then run
+  `php artisan boost:install`.
+- **The project requires the package directly.** Boost skips guidelines from a
+  package that arrives only as a dependency of another package. A
+  `composer require --dev mike-bronner/clean-code` is a direct requirement.
+- **Boost is v2.9.1 or later.** Earlier versions keep only the last guideline
+  file from each package, so 72 of the 73 guidelines are lost.
+
+```json
+{
+    "packages": [
+        "mike-bronner/clean-code"
+    ]
+}
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the package layout, how a new
@@ -85,7 +111,7 @@ what stays with code review.
 - [Don't Optimize Early](docs/standards/dont-optimize-early.md) — Tier 3, not statically enforceable
 - [Arrays: Array Accessors (`data_get`)](docs/standards/arrays-array-accessors.md) — Tier 2, custom sniff `CleanCode.Arrays.ArrayAccessors`: flags direct element (`$array['key']`) and property (`$object->property`) reads once per accessor chain, leaving write-side access, existence checks, array literals, `$this`-rooted access, and method calls alone, detection-only ([#33](https://github.com/mike-bronner/clean-code/issues/33))
 - [Arrays: Convert To Collection](docs/standards/arrays-convert-to-collection.md) — Tier 2, custom sniff `CleanCode.Arrays.ConvertToCollection`: warns on calls to a configurable list of native array functions (`array_map`, `array_filter`, `array_reduce` by default), naming the Collection equivalent, and leaving method calls, static calls, declarations, and namespaced same-named functions alone, detection-only; whether a given manipulation reads better as a pipeline, and `foreach` accumulation, stay with code review ([#30](https://github.com/mike-bronner/clean-code/issues/30) + [#165](https://github.com/mike-bronner/clean-code/issues/165))
-- [Arrays: Operator Spacing & Line Breaks](docs/standards/arrays-operator-spacing-and-line-breaks.md) — Tier 1, configured `Squiz.WhiteSpace.OperatorSpacing` + `Squiz.Strings.ConcatenationSpacing` (exactly one space each side, auto-fixable) plus custom sniffs `CleanCode.Operators.NotOperatorSpacing` (auto-fixable) and `CleanCode.Operators.OperatorLineBreak` (reporting only) ([#35](https://github.com/mike-bronner/clean-code/issues/35))
+- [Arrays: Operator Spacing & Line Breaks](docs/standards/arrays-operator-spacing-and-line-breaks.md) — Tier 1, configured `CleanCode.Operators.BinaryOperatorSpacing` + `Squiz.Strings.ConcatenationSpacing` (exactly one space each side, auto-fixable) plus custom sniffs `CleanCode.Operators.NotOperatorSpacing` (auto-fixable) and `CleanCode.Operators.OperatorLineBreak` (auto-fixable) ([#35](https://github.com/mike-bronner/clean-code/issues/35))
 - [Blank Lines](docs/standards/blank-lines.md) — Tier 1, custom sniff: `CleanCode.WhiteSpace.BlankLines`, auto-fixable ([#43](https://github.com/mike-bronner/clean-code/issues/43))
 - [Classes: Class Naming](docs/standards/classes-class-naming.md) — Tier 2, custom sniff `CleanCode.Naming.RedundantNamespaceSuffix`, error severity, detection-only: flags a class, interface, trait, or enum under an `App\` namespace whose name ends in a suffix one of its own namespace segments already says (`App\Services\BillingService`, `App\Http\Controllers\UserController`), matching every ancestor segment and its singular forms at a PascalCase word boundary, case-insensitively; no per-folder exemption, so Laravel's generated `Controller`/`Request`/`Form` names are flagged too and the fuller name belongs in a `use … as` alias at the call site. Renaming a type rewrites every reference to it, so there is no fixer ([#27](https://github.com/mike-bronner/clean-code/issues/27))
 - [Classes: Contracts (Interfaces)](docs/standards/classes-contracts-interfaces.md) — Tier 3, no rule: whether a class needs a contract depends on how it is instantiated and consumed across the codebase, which a single-file token stream cannot see, so the whole standard stays with code review ([#10](https://github.com/mike-bronner/clean-code/issues/10))
@@ -125,7 +151,7 @@ what stays with code review.
 - [Models: Relationship Properties](docs/standards/models-relationship-properties.md) — Tier 2, custom sniff `CleanCode.Models.DisallowChainedPropertyFetch`: errors on chained property-fetch access, not auto-fixable ([#42](https://github.com/mike-bronner/clean-code/issues/42))
 - [Naming: Casing Conventions](docs/standards/naming-casing-conventions.md) — Tier 1, existing sniffs: camelCase variables/properties/methods, PascalCase classes ([#22](https://github.com/mike-bronner/clean-code/issues/22))
 - [No Dead Code](docs/standards/no-dead-code.md) — Tier 2, Squiz + Slevomat rules for commented-out code, unused parameters, and unused imports, plus a custom unused-private-elements sniff ([#29](https://github.com/mike-bronner/clean-code/issues/29))
-- [Operators: Active](docs/standards/operators-active.md) — Tier 1, four cooperating sniffs, each owning a disjoint slice of the operator list so no violation is reported twice: `Squiz.WhiteSpace.OperatorSpacing` for the assignment operators, `Squiz.Strings.ConcatenationSpacing` for `.`, and `CleanCode.Operators.NotOperatorSpacing` for `!` (all three wired in for [#35](https://github.com/mike-bronner/clean-code/issues/35)), plus the custom `CleanCode.Operators.BooleanOperatorSpacing` for the logical connectives `&&`, `||`, `and`, `or`, `xor` — the only operators in the list nothing else already covered; all auto-fixable ([#62](https://github.com/mike-bronner/clean-code/issues/62))
+- [Operators: Active](docs/standards/operators-active.md) — Tier 1, four cooperating sniffs, each owning a disjoint slice of the operator list so no violation is reported twice: `CleanCode.Operators.BinaryOperatorSpacing` for the assignment operators, `Squiz.Strings.ConcatenationSpacing` for `.`, and `CleanCode.Operators.NotOperatorSpacing` for `!` (all three wired in for [#35](https://github.com/mike-bronner/clean-code/issues/35)), plus the custom `CleanCode.Operators.BooleanOperatorSpacing` for the logical connectives `&&`, `||`, `and`, `or`, `xor` — the only operators in the list nothing else already covered; all auto-fixable ([#62](https://github.com/mike-bronner/clean-code/issues/62))
 - [Operators: Evaluative](docs/standards/operators-evaluative.md) — Tier 1, custom sniff: newline-around-evaluative-operator detection, auto-fixable ([#56](https://github.com/mike-bronner/clean-code/issues/56))
 - [Operators: Manipulative](docs/standards/operators-manipulative.md) — Tier 2, three cooperating sniffs, each owning a disjoint slice of the operator list so no wrap is reported twice: `CleanCode.Operators.OperatorLineBreak` for `.`, `&&` and `||` and `CleanCode.Conditionals.OneConditionPerLine` inside a control-structure condition (both already wired in, for [#35](https://github.com/mike-bronner/clean-code/issues/35) and [#17](https://github.com/mike-bronner/clean-code/issues/17)), plus the custom `CleanCode.Operators.ManipulationOperatorPlacement` for the math (`+ - * / % **`) and bitwise (`& | ^ << >>`) groups — the only operators in the list nothing else already covered. A manipulation operator must lead a wrapped line, not trail it; inline usage, unary/reference forms and catch-clause type unions are untouched, and the new sniff auto-fixes its own half ([#59](https://github.com/mike-bronner/clean-code/issues/59))
 - [Operators: Passive](docs/standards/operators-passive.md) — Tier 1, custom sniff `CleanCode.WhiteSpace.PassiveOperatorSpacing` (identity, negation, error control, execution) plus existing sniffs for increment/decrement, `->`, and `[]`, all auto-fixable ([#64](https://github.com/mike-bronner/clean-code/issues/64))
