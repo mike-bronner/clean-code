@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -37,6 +38,11 @@ class NoReflectionAccessSniff implements Sniff
         'setAccessible',
     ];
 
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -49,7 +55,9 @@ class NoReflectionAccessSniff implements Sniff
 
     public function process(File $phpcsFile, $stackPtr): void
     {
-        if ($this->isTestFile($phpcsFile->getFilename()) === false) {
+        $path = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($path, $this->testFilePatterns) === false) {
             return;
         }
 
@@ -62,19 +70,6 @@ class NoReflectionAccessSniff implements Sniff
         }
 
         $this->processMemberAccess($phpcsFile, $stackPtr);
-    }
-
-    private function isTestFile(string $path): bool
-    {
-        $normalized = str_replace('\\', '/', $path);
-
-        foreach ($this->testFilePatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $normalized) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function processInstantiation(File $phpcsFile, int $stackPtr): void

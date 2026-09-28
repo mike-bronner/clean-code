@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -61,6 +62,11 @@ class NoFirstPartyMocksSniff implements Sniff
         'spy',
     ];
 
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns()
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -76,7 +82,9 @@ class NoFirstPartyMocksSniff implements Sniff
             return;
         }
 
-        if ($this->isTestFile($phpcsFile->getFilename()) === false) {
+        $path = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($path, $this->testFilePatterns) === false) {
             return;
         }
 
@@ -105,19 +113,6 @@ class NoFirstPartyMocksSniff implements Sniff
             'Found',
             [$resolved]
         );
-    }
-
-    private function isTestFile(string $path): bool
-    {
-        $normalized = str_replace('\\', '/', $path);
-
-        foreach ($this->testFilePatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $normalized) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function mockArgumentPointer(File $phpcsFile, int $stackPtr): ?int

@@ -3,6 +3,11 @@
 Refactor each concept into its own method. Through careful naming, this
 results in readable, clean code.
 
+In a test file, the three test phase markers `// 🧪 Arrange`, `// 🧪 Act` and
+`// 🧪 Assert` are structure, not section labels. Write each one exactly, with
+nothing after it on the line. Any other form, such as `// 🧪 Act & Assert` or
+`// Arrange`, is a section label.
+
 ## Compliant
 
 ```php

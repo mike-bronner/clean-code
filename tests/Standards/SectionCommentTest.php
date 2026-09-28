@@ -141,6 +141,59 @@ it('matches debt markers as words rather than as substrings', function (): void 
         ]);
 });
 
+const REPORTED_IN_A_TEST_FILE = [
+    26, 29, 34, 37, 40, 43, 48, 51, 54, 57, 60, 63, 66, 71, 74, 77, 82, 86, 94, 97, 100,
+];
+
+const REPORTED_OUTSIDE_A_TEST_FILE = [
+    15, 18, 21, 26, 29, 34, 37, 40, 43, 48, 51, 54, 57, 60, 63, 66, 71, 74, 77, 82, 85, 89,
+    94, 97, 100,
+];
+
+it('stays silent on the test phase markers in a test file', function (): void {
+    $file = analyzeFixture(SECTION_COMMENT, 'test-phase-markers.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(array_keys($file->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE);
+});
+
+it('still reports the test phase markers outside a test file', function (): void {
+    $path = fixturePath(sniffFixtureDirectory(SECTION_COMMENT), 'test-phase-markers.php');
+    $file = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path));
+
+    expect($file->getErrors())->toBe([])
+        ->and(array_keys($file->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
+});
+
+it('recognises a test file by each shipped pattern', function (): void {
+    $path = fixturePath(sniffFixtureDirectory(SECTION_COMMENT), 'test-phase-markers.php');
+    $source = (string) file_get_contents($path);
+
+    $lowerCase = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'tests'));
+    $capitalised = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'Tests'));
+    $suffixedPath = stageGeneratedFixture('PhaseMarkersTest.php', $source);
+    $suffixed = analyzeWithSniffs([SECTION_COMMENT], $suffixedPath);
+    $upperCase = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'TESTS'));
+
+    expect(array_keys($lowerCase->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($capitalised->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($suffixed->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($upperCase->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
+});
+
+it('takes the test-file patterns from the sniff property', function (): void {
+    $assigned = analyzeFixture(SECTION_COMMENT, 'test-phase-markers.php', static function (object $sniff): void {
+        $sniff->testFilePatterns = ['*/production/*'];
+    });
+
+    $configured = analyzeFixtureWithRulesetProperties(SECTION_COMMENT, 'test-phase-markers.php', [
+        'testFilePatterns' => ['*/production/*'],
+    ]);
+
+    expect(array_keys($assigned->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE)
+        ->and(array_keys($configured->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
+});
+
 it('stays silent inside a property hook while still reporting beside it', function (): void {
     $file = analyzeFixture(SECTION_COMMENT, 'property-hooks.php');
 
