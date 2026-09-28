@@ -214,6 +214,12 @@ each one carried its own copy: the copies drifted, and each new sniff inherited
 whichever gaps its nearest neighbour had. One implementation means a shape fixed
 once is fixed everywhere.
 
+One helper answers a question about the file's path instead:
+`PathPatterns::matchesAny()`, "does this path match any of these `fnmatch`
+patterns?". A sniff scoped to test files by a `testFilePatterns` property asks
+it, and keeps the property and its defaults for itself. It reads strings, so it
+has no fixtures, and `tests/Helpers/PathPatternsTest.php` tests it directly.
+
 `tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
 the only thing they share: the directory is a suite covering the shared classes
 under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite

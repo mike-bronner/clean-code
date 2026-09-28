@@ -5,8 +5,9 @@
  * Encapsulate Each Concept in a Method, #13, partial enforcement per #159).
  * Fixtures live in tests/fixtures/SectionCommentSniff/: every near-miss shape
  * in passing.php, every reported shape in failing.php, the two exclusion lists
- * in configured.php, and the PHP 8.4 hook limit in property-hooks.php. The
- * rule is detection-only, so there is no autofixed fixture.
+ * in configured.php, the test phase markers in test-phase-markers.php, and the
+ * PHP 8.4 hook limit in property-hooks.php. The rule is detection-only, so
+ * there is no autofixed fixture.
  *
  * The sniff is isolated from the rest of the master ruleset (loaded, then
  * $ruleset->sniffs is narrowed to it) so these assertions stay stable as
@@ -322,6 +323,109 @@ it('matches debt markers as words rather than as substrings', function (): void 
         ->and(violationSourcesByLine($file->getWarnings()))->toBe([
             20 => [SECTION_COMMENT_WARNING],
         ]);
+});
+
+/**
+ * What test-phase-markers.php reports in a test file: every comment except the
+ * three exact markers.
+ *
+ * - lines 26 and 29, two phases combined with `&`.
+ * - lines 34, 37, 40 and 43, a marker with a note after a dash, a colon, a
+ *   hyphen and a plain space.
+ * - lines 48, 51, 54, 57, 60, 63 and 66, a marker spelled any other way: no
+ *   emoji, another emoji, a lower-case phase, no space after `//`, two spaces
+ *   after the emoji, the `#` spelling and the one-line `/* … *` `/` spelling.
+ * - lines 71, 74 and 77, labels that only start with a phase word.
+ * - line 82, a phase that is not one of the three.
+ * - line 86, a label written directly under the marker on line 85. The marker
+ *   is not a label, so it does not take line 86 into its run.
+ * - lines 94 and 97, a marker followed by a trailing space and by a trailing
+ *   tab. Only the line ending is stripped before the match, so trailing
+ *   whitespace is something after the marker.
+ * - line 100, `# // 🧪 Act`: the marker text behind another comment opener.
+ *   The match is anchored at the start of the comment, so this reports.
+ */
+const REPORTED_IN_A_TEST_FILE = [
+    26, 29, 34, 37, 40, 43, 48, 51, 54, 57, 60, 63, 66, 71, 74, 77, 82, 86, 94, 97, 100,
+];
+
+/**
+ * What the same file reports outside a test file: all of the above, plus the
+ * five exact markers on lines 15, 18, 21, 85 and 89. Line 85 then heads the run
+ * that line 86 belongs to, so line 86 drops out.
+ */
+const REPORTED_OUTSIDE_A_TEST_FILE = [
+    15, 18, 21, 26, 29, 34, 37, 40, 43, 48, 51, 54, 57, 60, 63, 66, 71, 74, 77, 82, 85, 89,
+    94, 97, 100,
+];
+
+/**
+ * A test file marks its Arrange, Act and Assert phases with `// 🧪 Arrange`,
+ * `// 🧪 Act` and `// 🧪 Assert`, and those three comments are structure
+ * rather than a block that wants its own method. The fixture lives under
+ * tests/, so it is a test file by the shipped patterns: the three markers are
+ * silent, and every other form reports.
+ */
+it('stays silent on the test phase markers in a test file', function (): void {
+    $file = analyzeFixture(SECTION_COMMENT, 'test-phase-markers.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(array_keys($file->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE);
+});
+
+/**
+ * The exemption is for tests only. Staged outside the repository, under a path
+ * that no shipped pattern matches, the same file reports every marker as the
+ * section label it would be in production code.
+ */
+it('still reports the test phase markers outside a test file', function (): void {
+    $path = fixturePath(sniffFixtureDirectory(SECTION_COMMENT), 'test-phase-markers.php');
+    $file = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path));
+
+    expect($file->getErrors())->toBe([])
+        ->and(array_keys($file->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
+});
+
+/**
+ * Each shipped test-file pattern, pinned on its own: a `tests` directory, a
+ * `Tests` directory and a file named `…Test.php`, each staged outside the
+ * repository so no other pattern can answer for it. The match is
+ * case-sensitive, as it is for CleanCode.Testing.NoReflectionAccess, so a
+ * `TESTS` directory is not a test path and its markers report.
+ */
+it('recognises a test file by each shipped pattern', function (): void {
+    $path = fixturePath(sniffFixtureDirectory(SECTION_COMMENT), 'test-phase-markers.php');
+    $source = (string) file_get_contents($path);
+
+    $lowerCase = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'tests'));
+    $capitalised = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'Tests'));
+    $suffixedPath = stageGeneratedFixture('PhaseMarkersTest.php', $source);
+    $suffixed = analyzeWithSniffs([SECTION_COMMENT], $suffixedPath);
+    $upperCase = analyzeWithSniffs([SECTION_COMMENT], stageFixtureOutsideTests($path, 'TESTS'));
+
+    expect(array_keys($lowerCase->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($capitalised->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($suffixed->getWarnings()))->toBe(REPORTED_IN_A_TEST_FILE)
+        ->and(array_keys($upperCase->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
+});
+
+/**
+ * The test-file patterns are a public property, set both ways a consumer can
+ * set one: assigned directly, and through a ruleset `<property>` element. A
+ * pattern the fixture's path does not match turns the fixture into production
+ * code, so every marker reports.
+ */
+it('takes the test-file patterns from the sniff property', function (): void {
+    $assigned = analyzeFixture(SECTION_COMMENT, 'test-phase-markers.php', static function (object $sniff): void {
+        $sniff->testFilePatterns = ['*/production/*'];
+    });
+
+    $configured = analyzeFixtureWithRulesetProperties(SECTION_COMMENT, 'test-phase-markers.php', [
+        'testFilePatterns' => ['*/production/*'],
+    ]);
+
+    expect(array_keys($assigned->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE)
+        ->and(array_keys($configured->getWarnings()))->toBe(REPORTED_OUTSIDE_A_TEST_FILE);
 });
 
 /**

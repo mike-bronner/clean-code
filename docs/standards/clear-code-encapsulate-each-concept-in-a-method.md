@@ -56,11 +56,11 @@ A comment is reported when **all** of the following hold:
   head reports — reporting each line would multiply one extraction candidate
   into several. A blank line between two label lines does not start a second
   label, and neither does a comment the rule would not report in its own
-  right: a debt marker, a formatter directive, a docblock, a `phpcs:`
-  annotation or a fragment of a multi-line block comment written between two
-  labels leaves them one label for one block. A comment *trailing a statement*
-  is the exception — the statement it trails is a boundary, so a label written
-  under it heads a run of its own and reports.
+  right: a debt marker, a formatter directive, a test phase marker in a test
+  file, a docblock, a `phpcs:` annotation or a fragment of a multi-line block
+  comment written between two labels leaves them one label for one block. A
+  comment *trailing a statement* is the exception — the statement it trails is
+  a boundary, so a label written under it heads a run of its own and reports.
 - It stands at a **statement boundary** — the token before it is `;`, `}`, or
   the opener of the block it stands in (`{`, or the `:` of a `case`/`default`
   arm or an alternative-syntax block). This is what separates a label from a
@@ -98,6 +98,50 @@ Both lists are public properties, so a consuming ruleset can extend either:
     <properties>
         <property name="debtMarkers" type="array" value="TODO,FIXME,HACK,XXX,NOTE"/>
         <property name="formatterDirectives" type="array" value="@formatter:off,@formatter:on,prettier-ignore,@fmt:off"/>
+    </properties>
+</rule>
+```
+
+### Test phase markers
+
+A test marks its Arrange, Act and Assert phases with a comment, as the Laravel
+and Pest skills shipped by `mike-bronner/laravel-development-settings` ask.
+Such a marker names a phase of the test. It is structure, and it does not
+label a block that wants a method of its own. So in a **test file** the rule
+does not report it. Everywhere else the rule reports it like any other label.
+
+A marker is exactly one of these three comments, with nothing else on its
+line, trailing whitespace included:
+
+```php
+// 🧪 Arrange
+// 🧪 Act
+// 🧪 Assert
+```
+
+Every other form is a label and reports in a test file too. That includes a
+combination such as `// 🧪 Act & Assert`, a marker with anything after it such
+as `// 🧪 Assert: the keys are lower-cased.`, and any other spelling:
+`// Arrange` without the emoji, `// 🧪 assert`, `# 🧪 Act`, `# // 🧪 Act` or
+`/* 🧪 Assert */`. The list is fixed and is not a property, because any variant
+would let ordinary section labels back in.
+
+A marker is not a label, so it does not join a comment run: a label written
+directly under a marker heads its own run and reports.
+
+A test file is one whose path matches a pattern in `testFilePatterns`. The
+shipped defaults are the same as for `CleanCode.Testing.NoReflectionAccess`
+(see [Testing: Guidelines](testing-guidelines.md)): `fnmatch` globs matched
+case-sensitively against the path, with `\` normalised to `/`.
+
+```xml
+<rule ref="CleanCode.ClearCode.SectionComment">
+    <properties>
+        <property name="testFilePatterns" type="array">
+            <element value="*/tests/*"/>
+            <element value="*/Tests/*"/>
+            <element value="*Test.php"/>
+        </property>
     </properties>
 </rule>
 ```

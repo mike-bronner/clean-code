@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\ClearCode;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -52,6 +53,8 @@ class SectionCommentSniff implements Sniff
         T_FINALLY,
     ];
 
+    private const TEST_PHASE_MARKER = '/^\/\/ 🧪 (?:Arrange|Act|Assert)\z/u';
+
     public array $debtMarkers = [
         'TODO',
         'FIXME',
@@ -64,6 +67,17 @@ class SectionCommentSniff implements Sniff
         '@formatter:on',
         'prettier-ignore',
     ];
+
+    public array $testFilePatterns = [
+        '*/tests/*',
+        '*/Tests/*',
+        '*Test.php',
+    ];
+
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns()
+    ) {
+    }
 
     public function register(): array
     {
@@ -79,7 +93,7 @@ class SectionCommentSniff implements Sniff
             return;
         }
 
-        if ($this->isExcludedByASiblingStandard($comment['content']) === true) {
+        if ($this->isExempt($phpcsFile, $comment['content']) === true) {
             return;
         }
 
@@ -121,6 +135,21 @@ class SectionCommentSniff implements Sniff
         }
 
         return str_starts_with($written, '/*') === true && str_ends_with($written, '*/') === true;
+    }
+
+    private function isExempt(File $phpcsFile, string $content): bool
+    {
+        return $this->isExcludedByASiblingStandard($content) === true
+            || $this->isATestPhaseMarker($phpcsFile, $content) === true;
+    }
+
+    private function isATestPhaseMarker(File $phpcsFile, string $content): bool
+    {
+        $pathPatterns = $this->pathPatterns;
+        $path = $phpcsFile->getFilename();
+
+        return preg_match(self::TEST_PHASE_MARKER, rtrim($content, "\r\n")) === 1
+            && $pathPatterns->matchesAny($path, $this->testFilePatterns) === true;
     }
 
     private function isExcludedByASiblingStandard(string $content): bool
@@ -214,7 +243,7 @@ class SectionCommentSniff implements Sniff
             return false;
         }
 
-        if ($this->isExcludedByASiblingStandard($token['content']) === true) {
+        if ($this->isExempt($phpcsFile, $token['content']) === true) {
             return false;
         }
 
