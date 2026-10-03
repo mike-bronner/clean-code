@@ -50,7 +50,7 @@ class invoice {
 | `Generic.Formatting.DisallowMultipleStatements` | yes |
 | `Generic.Functions.FunctionCallArgumentSpacing` | yes |
 | `Generic.NamingConventions.UpperCaseConstantName` | no |
-| `Generic.PHP.DisallowAlternativePHPTags` | yes |
+| `Generic.PHP.DisallowAlternativePHPTags` | no |
 | `Generic.PHP.DisallowShortOpenTag` | yes |
 | `Generic.PHP.LowerCaseConstant` | yes |
 | `Generic.PHP.LowerCaseKeyword` | yes |

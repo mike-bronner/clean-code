@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Methods;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -44,15 +45,14 @@ class DeclaredParametersSniff implements Sniff
 
     public function register(): array
     {
-        return [T_STRING];
+        return FunctionCalls::CALLEE_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $functionCalls = $this->functionCalls;
 
-        $tokens = $phpcsFile->getTokens();
-        $name = $tokens[$stackPtr]['content'];
+        $name = $functionCalls->calleeName($phpcsFile, $stackPtr);
 
         if (in_array(strtolower($name), self::DYNAMIC_ARGUMENT_FUNCTIONS, true) === false) {
             return;
@@ -130,7 +130,7 @@ class DeclaredParametersSniff implements Sniff
             return false;
         }
 
-        $name = $phpcsFile->getDeclarationName($functionPtr);
+        $name = (new Declarations())->name($phpcsFile, $functionPtr);
 
         return $name !== null && in_array(strtolower($name), self::MAGIC_METHODS, true);
     }

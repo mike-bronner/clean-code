@@ -103,6 +103,14 @@ it('resolves the shapes that depend on the namespace in force', function (): voi
     ]);
 });
 
+it('reads a qualified namespace declaration as a named namespace', function (): void {
+    $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'qualified-namespace.php'), 'probe');
+
+    expect($verdicts)->toBe([
+        'probeRelativeInQualified' => [false],
+    ]);
+});
+
 it('scopes an import to its own braced namespace block', function (): void {
     $verdicts = globalFunctionCallVerdicts(parseFixture('FunctionCalls', 'braced-namespaces.php'), 'probe');
 

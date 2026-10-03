@@ -15,6 +15,12 @@ final class FunctionCalls
 
     private array $analysisCounts = ['builds' => 0, 'hits' => 0];
 
+    public const CALLEE_TOKENS = [
+        T_STRING,
+        T_NAME_FULLY_QUALIFIED,
+        T_NAME_RELATIVE,
+    ];
+
     private const NON_CALL_PRECEDERS = [
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
@@ -23,13 +29,18 @@ final class FunctionCalls
         T_NEW,
     ];
 
+    public function calleeName(File $phpcsFile, int $stackPtr): string
+    {
+        return (new NameTokens())->lastSegment($phpcsFile->getTokens()[$stackPtr]['content']);
+    }
+
     public function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
 
         if (
             isset($tokens[$stackPtr]) === false
-            || $tokens[$stackPtr]['code'] !== T_STRING
+            || in_array($tokens[$stackPtr]['code'], self::CALLEE_TOKENS, true) === false
         ) {
             return false;
         }
@@ -64,11 +75,23 @@ final class FunctionCalls
             return false;
         }
 
-        if ($tokens[$prev]['code'] === T_NS_SEPARATOR) {
-            return $this->isGlobalQualifier($phpcsFile, $prev, $stackPtr);
+        if ($tokens[$stackPtr]['code'] !== T_STRING) {
+            return $this->isGlobalQualifiedName($phpcsFile, $stackPtr);
         }
 
         return $this->isImportedFunctionName($phpcsFile, $stackPtr) === false;
+    }
+
+    private function isGlobalQualifiedName(File $phpcsFile, int $stackPtr): bool
+    {
+        $token = $phpcsFile->getTokens()[$stackPtr];
+
+        if (substr_count($token['content'], '\\') !== 1) {
+            return false;
+        }
+
+        return $token['code'] === T_NAME_FULLY_QUALIFIED
+            || $this->isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
     }
 
     private function isReturnByReferenceMarker(File $phpcsFile, int $ampersandPtr): bool
@@ -76,38 +99,6 @@ final class FunctionCalls
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ampersandPtr - 1), null, true);
 
         return $before !== false && $phpcsFile->getTokens()[$before]['code'] === T_FUNCTION;
-    }
-
-    private function isGlobalQualifier(File $phpcsFile, int $separatorPtr, int $stackPtr): bool
-    {
-        $tokens = $phpcsFile->getTokens();
-        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($separatorPtr - 1), null, true);
-
-        if ($before === false) {
-            return false;
-        }
-
-        if ($tokens[$before]['code'] === T_STRING) {
-            return false;
-        }
-
-        $isRelative = ($tokens[$before]['code'] === T_NAMESPACE);
-        $preceder = $isRelative === true
-            ? $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true)
-            : $before;
-
-        if (
-            $preceder !== false
-            && in_array($tokens[$preceder]['code'], self::NON_CALL_PRECEDERS, true) === true
-        ) {
-            return false;
-        }
-
-        if ($isRelative === true) {
-            return $this->isInsideNamedNamespace($phpcsFile, $stackPtr) === false;
-        }
-
-        return true;
     }
 
     private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
@@ -122,7 +113,11 @@ final class FunctionCalls
     {
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
 
-        return $after !== false && $phpcsFile->getTokens()[$after]['code'] === T_STRING;
+        if ($after === false) {
+            return false;
+        }
+
+        return in_array($phpcsFile->getTokens()[$after]['code'], [T_STRING, T_NAME_QUALIFIED], true);
     }
 
     private function isImportedFunctionName(File $phpcsFile, int $stackPtr): bool
@@ -183,10 +178,7 @@ final class FunctionCalls
 
             $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
 
-            if (
-                $next === false
-                || $tokens[$next]['code'] === T_NS_SEPARATOR
-            ) {
+            if ($next === false) {
                 continue;
             }
 
@@ -301,7 +293,7 @@ final class FunctionCalls
     ): bool {
         if (
             $prefixQualified === true
-            || $phpcsFile->findNext(T_NS_SEPARATOR, $start, $end) !== false
+            || $phpcsFile->findNext(NameTokens::QUALIFIED, $start, $end) !== false
         ) {
             return false;
         }
@@ -340,14 +332,15 @@ final class FunctionCalls
 
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($first + 1), $end, true);
 
-        return $after !== false && $tokens[$after]['code'] !== T_NS_SEPARATOR;
+        return $after !== false;
     }
 
     private function boundName(File $phpcsFile, int $start, int $end): string
     {
-        $namePtr = $phpcsFile->findPrevious(T_STRING, ($end - 1), $start);
+        $nameTokens = [T_STRING, ...NameTokens::QUALIFIED];
+        $namePtr = $phpcsFile->findPrevious($nameTokens, ($end - 1), $start);
 
-        return $namePtr === false ? '' : strtolower($phpcsFile->getTokens()[$namePtr]['content']);
+        return $namePtr === false ? '' : strtolower($this->calleeName($phpcsFile, $namePtr));
     }
 
     private function groupEntries(File $phpcsFile, int $groupOpener, int $endPtr): array

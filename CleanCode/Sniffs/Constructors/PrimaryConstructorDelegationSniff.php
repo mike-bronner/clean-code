@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Constructors;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -19,10 +21,10 @@ class PrimaryConstructorDelegationSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $method = $phpcsFile->getDeclarationName($stackPtr);
+        $method = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if ($method === null) {
             return;
@@ -40,7 +42,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
             return;
         }
 
-        $className = $phpcsFile->getDeclarationName($ownerPtr);
+        $className = (new Declarations())->name($phpcsFile, $ownerPtr);
 
         if ($this->returnsDeclaringClass($phpcsFile, $properties['return_type'], $className) === false) {
             return;
@@ -119,7 +121,8 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
         $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($keywordPtr + 1), null, true);
 
-        return $namePtr === false || $tokens[$namePtr]['code'] !== T_STRING;
+        return $namePtr === false
+            || in_array($tokens[$namePtr]['code'], [T_STRING, T_NAME_QUALIFIED], true) === false;
     }
 
     private function delegates(File $phpcsFile, int $stackPtr, ?string $className, string $method): bool
@@ -154,15 +157,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
     private function instantiatesDeclaringClass(File $phpcsFile, int $newPtr, ?string $className): bool
     {
-        $tokens = $phpcsFile->getTokens();
         $targetPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($newPtr + 1), null, true);
-
-        if (
-            $targetPtr !== false
-            && $tokens[$targetPtr]['code'] === T_NS_SEPARATOR
-        ) {
-            $targetPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($targetPtr + 1), null, true);
-        }
 
         if ($targetPtr === false) {
             return false;
@@ -218,43 +213,22 @@ class PrimaryConstructorDelegationSniff implements Sniff
         }
 
         if (
-            $code !== T_STRING
+            in_array($code, [T_STRING, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE], true) === false
             || $className === null
         ) {
             return false;
         }
 
-        if (strtolower($tokens[$pointer]['content']) !== strtolower($className)) {
+        $name = $tokens[$pointer]['content'];
+
+        if (strtolower((new NameTokens())->lastSegment($name)) !== strtolower($className)) {
             return false;
         }
 
-        $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($pointer + 1), null, true);
-
-        if (
-            $afterPtr !== false
-            && $tokens[$afterPtr]['code'] === T_NS_SEPARATOR
-        ) {
-            return false;
-        }
-
-        $beforePtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($pointer - 1), null, true);
-
-        if (
-            $beforePtr === false
-            || $tokens[$beforePtr]['code'] !== T_NS_SEPARATOR
-        ) {
+        if ($code === T_STRING) {
             return true;
         }
 
-        $segmentPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($beforePtr - 1), null, true);
-
-        if (
-            $segmentPtr !== false
-            && $tokens[$segmentPtr]['code'] === T_STRING
-        ) {
-            return false;
-        }
-
-        return $this->inGlobalNamespace($phpcsFile);
+        return substr_count($name, '\\') === 1 && $this->inGlobalNamespace($phpcsFile);
     }
 }

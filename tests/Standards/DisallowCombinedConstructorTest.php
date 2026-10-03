@@ -88,7 +88,7 @@ it('warns on every branching, declaration, and argument-reader shape', function 
         ['line' => 333, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 337, 'column' => 23, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
         ['line' => 352, 'column' => 34, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],
-        ['line' => 353, 'column' => 25, 'source' => COMBINED_CONSTRUCTOR . '.ArgumentCount'],
+        ['line' => 353, 'column' => 24, 'source' => COMBINED_CONSTRUCTOR . '.ArgumentCount'],
         ['line' => 365, 'column' => 17, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 379, 'column' => 13, 'source' => COMBINED_CONSTRUCTOR . '.ModeFlag'],
         ['line' => 381, 'column' => 19, 'source' => COMBINED_CONSTRUCTOR . '.TypeSwitch'],

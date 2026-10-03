@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Routes;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -22,6 +23,13 @@ class DisallowClosureRoutesSniff implements Sniff
         'put',
     ];
 
+    private const CLASS_NAME_TOKENS = [
+        T_STRING,
+        T_NAME_QUALIFIED,
+        T_NAME_FULLY_QUALIFIED,
+        T_NAME_RELATIVE,
+    ];
+
     private const NESTED_CLOSERS = [
         'scope_closer',
         'parenthesis_closer',
@@ -33,7 +41,7 @@ class DisallowClosureRoutesSniff implements Sniff
         return [T_STRING];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $method = strtolower($tokens[$stackPtr]['content']);
@@ -122,12 +130,14 @@ class DisallowClosureRoutesSniff implements Sniff
 
         if (
             $classPtr === false
-            || $tokens[$classPtr]['code'] !== T_STRING
+            || in_array($tokens[$classPtr]['code'], self::CLASS_NAME_TOKENS, true) === false
         ) {
             return false;
         }
 
-        return strtolower($tokens[$classPtr]['content']) === 'route';
+        $className = (new NameTokens())->lastSegment($tokens[$classPtr]['content']);
+
+        return strtolower($className) === 'route';
     }
 
     private function reportClosureArguments(

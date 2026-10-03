@@ -48,7 +48,7 @@ class LogicalGroupingsSniff implements Sniff
         return $this->cacheCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

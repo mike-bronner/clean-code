@@ -26,7 +26,7 @@ it('lets an imported function shadow the builtin but not a qualified call', func
     $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'imported-function.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 33, 'column' => 13, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 33, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 51, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 63, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
     ]);
@@ -44,6 +44,13 @@ it('lets an imported collect() shadow the helper but not a qualified call', func
     expect(violationTuples($file))
         ->toBe([['line' => 33, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found']])
         ->and(violationFixableLines($file->getErrors()))->toBe([33]);
+});
+
+it('resolves an import alias for a bare class name only', function (): void {
+    $file = analyzeFixture(ONLY_USE_COLLECTION_METHODS, 'qualified-alias.php');
+
+    expect(violationTuples($file))
+        ->toBe([['line' => 23, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found']]);
 });
 
 it('flags every violation at its own line and column with the expected code', function (): void {
@@ -64,7 +71,7 @@ it('flags every violation at its own line and column with the expected code', fu
         ['line' => 40, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 41, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 42, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
-        ['line' => 49, 'column' => 10, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
+        ['line' => 49, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 50, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 58, 'column' => 12, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],
         ['line' => 67, 'column' => 9, 'source' => ONLY_USE_COLLECTION_METHODS . '.Found'],

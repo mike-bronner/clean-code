@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Arrays;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -92,7 +93,7 @@ class ArrayAccessorsSniff implements Sniff
         return $this->cacheCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -177,7 +178,7 @@ class ArrayAccessorsSniff implements Sniff
 
         $startPtr = null;
         $cursorPtr = $operatorPtr;
-        $qualifier = [T_STRING, T_SELF, T_STATIC, T_PARENT, T_NS_SEPARATOR];
+        $qualifier = [T_STRING, T_SELF, T_STATIC, T_PARENT, ...NameTokens::QUALIFIED];
 
         while (true) {
             $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($cursorPtr - 1), null, true);

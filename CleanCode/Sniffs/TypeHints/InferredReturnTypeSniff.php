@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\TypeHints;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Support\ReturnTypeInference;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -21,7 +22,7 @@ class InferredReturnTypeSniff implements Sniff
     }
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isSkippable($phpcsFile, $stackPtr) === true) {
             return;
@@ -38,7 +39,7 @@ class InferredReturnTypeSniff implements Sniff
 
     private function report(File $phpcsFile, int $stackPtr, string $type): void
     {
-        $name = $phpcsFile->getDeclarationName($stackPtr) ?? 'Closure';
+        $name = (new Declarations())->name($phpcsFile, $stackPtr) ?? 'Closure';
         $fix = $phpcsFile->addFixableError(
             "%s has no return type hint; \"%s\" follows from its own declaration",
             $stackPtr,
@@ -75,7 +76,7 @@ class InferredReturnTypeSniff implements Sniff
 
     private function isMagicMethod(File $phpcsFile, int $stackPtr): bool
     {
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         return $name !== null
             && str_starts_with(strtolower($name), '__');

@@ -22,7 +22,7 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->hasModelShapedParent($phpcsFile, $stackPtr) === false) {
             return;

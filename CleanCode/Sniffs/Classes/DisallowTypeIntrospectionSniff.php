@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
@@ -85,7 +86,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     public function register(): array
     {
-        return [T_INSTANCEOF, T_STRING];
+        return [T_INSTANCEOF, ...FunctionCalls::CALLEE_TOKENS];
     }
 
     public function cacheCounts(): array
@@ -93,9 +94,9 @@ class DisallowTypeIntrospectionSniff implements Sniff
         return $this->cacheCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ($phpcsFile->getTokens()[$stackPtr]['code'] === T_STRING) {
+        if ($phpcsFile->getTokens()[$stackPtr]['code'] !== T_INSTANCEOF) {
             $this->processIntrospectionFunction($phpcsFile, $stackPtr);
 
             return;
@@ -115,9 +116,10 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
     private function processIntrospectionFunction(File $phpcsFile, int $stackPtr): void
     {
-        $tokens = $phpcsFile->getTokens();
+        $functionCalls = $this->functionCalls;
+        $name = $functionCalls->calleeName($phpcsFile, $stackPtr);
 
-        if (in_array(strtolower($tokens[$stackPtr]['content']), self::INTROSPECTION_FUNCTIONS, true) === false) {
+        if (in_array(strtolower($name), self::INTROSPECTION_FUNCTIONS, true) === false) {
             return;
         }
 
@@ -134,7 +136,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
                 . 'or move the behaviour onto the object',
             $stackPtr,
             'IntrospectionFunction',
-            ["{$tokens[$stackPtr]['content']}()"]
+            ["{$name}()"]
         );
     }
 
@@ -151,12 +153,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         $tokens = $phpcsFile->getTokens();
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
 
-        if (
-            $prev !== false
-            && $tokens[$prev]['code'] === T_NS_SEPARATOR
-        ) {
+        if ($tokens[$stackPtr]['code'] !== T_STRING) {
             return true;
         }
 
@@ -215,7 +213,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
             }
         }
 
-        $name = $phpcsFile->getDeclarationName($functionPtr);
+        $name = (new Declarations())->name($phpcsFile, $functionPtr);
 
         return $name === null ? null : strtolower($name);
     }

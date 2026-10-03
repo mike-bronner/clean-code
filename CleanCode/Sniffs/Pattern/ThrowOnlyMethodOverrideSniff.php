@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Pattern;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -15,10 +16,10 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $method = $phpcsFile->getDeclarationName($stackPtr);
+        $method = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if ($method === null) {
             return;

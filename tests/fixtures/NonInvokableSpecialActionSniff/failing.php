@@ -32,8 +32,8 @@ Route::get('/reports/queue', array(ReportController::class, 'queue'));
 // same method and registers the same route.
 Route::GET('/reports/replay', [ReportController::class, 'replay']);
 
-// The leading separator is backfilled to its own token, so the receiver
-// directly before the :: is still the literal `Route`.
+// A rooted receiver is one name token, and its last segment is still the
+// literal `Route`.
 \Route::get('/reports/purge', [ReportController::class, 'purge']);
 
 // A RESTful *looking* name that is not one of the seven, and one that differs

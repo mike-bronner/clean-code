@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PHP_CodeSniffer\Util\ExitCode;
+
 const OPERATORS_PASSIVE_SNIFFS = [
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',
     'Generic.WhiteSpace.IncrementDecrementSpacing',
@@ -70,7 +72,7 @@ it('converges under the real phpcbf over the whole master ruleset', function ():
 
     [, , $status] = runOutsidePackage($command);
 
-    expect($status)->not->toBe(2);
+    expect($status & ExitCode::FAILED_TO_FIX)->toBe(0);
 
     $fixed = file_get_contents($staged);
 
@@ -80,6 +82,6 @@ it('converges under the real phpcbf over the whole master ruleset', function ():
 
     [, , $secondStatus] = runOutsidePackage($command);
 
-    expect($secondStatus)->toBe(0)
+    expect($secondStatus & (ExitCode::FIXABLE | ExitCode::FAILED_TO_FIX))->toBe(0)
         ->and(file_get_contents($staged))->toBe($fixed);
 });

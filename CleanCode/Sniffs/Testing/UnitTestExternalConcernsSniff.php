@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -60,7 +61,7 @@ class UnitTestExternalConcernsSniff implements Sniff
         ];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isUnitTestFile($phpcsFile) === false) {
             return;
@@ -298,12 +299,7 @@ class UnitTestExternalConcernsSniff implements Sniff
         for ($i = ($stackPtr - 1); $i >= 0; $i--) {
             $code = $tokens[$i]['code'];
 
-            if (
-                $code === T_STRING
-                || $code === T_NS_SEPARATOR
-                || $code === T_NAME_QUALIFIED
-                || $code === T_NAME_FULLY_QUALIFIED
-            ) {
+            if (in_array($code, [T_STRING, ...NameTokens::QUALIFIED], true) === true) {
                 $name = $tokens[$i]['content'] . $name;
 
                 continue;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Exceptions\RuntimeException;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -110,7 +111,7 @@ class ModelNamingConventionsSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -190,7 +191,7 @@ class ModelNamingConventionsSniff implements Sniff
 
     private function processMethod(File $phpcsFile, int $stackPtr, string $namespace, array $imports): void
     {
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $name === null
@@ -397,7 +398,7 @@ class ModelNamingConventionsSniff implements Sniff
         $namespace = '';
 
         for ($i = ($ptr + 1); $i < $end; $i++) {
-            if (in_array($tokens[$i]['code'], [T_STRING, T_NS_SEPARATOR, T_NAME_QUALIFIED], true)) {
+            if (in_array($tokens[$i]['code'], [T_STRING, T_NAME_QUALIFIED], true)) {
                 $namespace .= $tokens[$i]['content'];
             }
         }

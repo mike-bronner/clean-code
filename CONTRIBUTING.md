@@ -34,14 +34,16 @@ consumer's own ruleset. There is no second file for it to be master *of* any
 more, and the phrase is kept because the test names already use it.
 
 Tests are written with **[Pest](https://pestphp.com/)** and live under `tests/`.
-New tests never use PHP_CodeSniffer's own `AbstractSniffUnitTest` harness: it
+New tests never use PHP_CodeSniffer's own `AbstractSniffTestCase` harness (named
+`AbstractSniffUnitTest` before PHP_CodeSniffer 4): it
 derives the fixture path from the test class itself — `<testsDir>/<Category>/
 <Name>UnitTest.*`, one flat set of siblings — and forces the fixer expectation
 to `<input>.fixed`. Neither can express the fixture layout below, which gives a
 sniff its own directory and fixed names inside it. Tests here drive the real
 `phpcs`/`phpcbf` through the helpers in `tests/Helpers.php` instead.
 
-One file still extends that harness and is the only exception:
+One file still extends that harness, under its PHP_CodeSniffer 3 name, and is the
+only exception:
 `CleanCode/Tests/Operators/DisallowNewlineAroundEvaluativeOperatorsUnitTest.php`,
 with its `.inc` and `.inc.fixed` fixtures beside it. No `<testsuite>` in
 `phpunit.xml.dist` covers `CleanCode/Tests/`, so `composer test` never collects
@@ -218,6 +220,14 @@ One helper answers a question about the file's path instead:
 patterns?". A sniff scoped to test files by a `testFilePatterns` property asks
 it, and keeps the property and its defaults for itself. It reads strings, so it
 has no fixtures, and `tests/Helpers/PathPatternsTest.php` tests it directly.
+
+Two helpers answer what PHP_CodeSniffer 4 changed. `Declarations::name()` gives a
+declaration's name, and `null` for a closure, an anonymous class, or a
+declaration with no name yet. Call it instead of `File::getDeclarationName()`,
+which throws for the first two. `NameTokens` holds the three tokens a qualified
+name now arrives in, `T_NAME_QUALIFIED`, `T_NAME_FULLY_QUALIFIED` and
+`T_NAME_RELATIVE`, and reads the last segment of one. A sniff that reads a
+class or function name accepts those tokens beside `T_STRING`.
 
 `tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
 the only thing they share: the directory is a suite covering the shared classes

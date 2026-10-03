@@ -17,7 +17,7 @@ class DisallowListAssignmentInConditionSniff implements Sniff
         return [T_LIST];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

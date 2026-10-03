@@ -21,7 +21,7 @@ class HtmlAttributeQuotesSniff implements Sniff
         return self::STRING_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $content = $tokens[$stackPtr]['content'];

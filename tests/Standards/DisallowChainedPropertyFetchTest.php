@@ -20,7 +20,7 @@ const CHAINED_PRECEDER_LINES = [
 const CHAINED_REFUSED_PRECEDERS = [
     'T_CLOSE_PARENTHESIS', 'T_CLOSE_SQUARE_BRACKET', 'T_CLOSE_CURLY_BRACKET',
     'T_CLOSE_SHORT_ARRAY', 'T_CLOSE_USE_GROUP', 'T_ATTRIBUTE_END',
-    'T_CLOSE_TAG', 'T_CLOSE_OBJECT',
+    'T_CLOSE_TAG',
 
     'T_ARRAY', 'T_ISSET', 'T_EMPTY', 'T_EVAL', 'T_EXIT', 'T_LIST', 'T_UNSET',
     'T_MATCH', 'T_IF', 'T_ELSEIF', 'T_WHILE', 'T_FOR', 'T_FOREACH', 'T_SWITCH',
@@ -29,22 +29,22 @@ const CHAINED_REFUSED_PRECEDERS = [
     'T_HALT_COMPILER', 'T_TRY', 'T_FINALLY',
 
     'T_NEW', 'T_INSTANCEOF', 'T_BREAK', 'T_CONTINUE', 'T_STATIC',
-    'T_NAMESPACE', 'T_GOTO', 'T_GLOBAL', 'T_DEFAULT', 'T_MATCH_DEFAULT',
+    'T_NAMESPACE', 'T_GOTO', 'T_GOTO_LABEL', 'T_GLOBAL', 'T_DEFAULT',
+    'T_MATCH_DEFAULT',
     'T_ENUM_CASE', 'T_AS', 'T_INSTEADOF', 'T_EXTENDS', 'T_IMPLEMENTS',
     'T_CONST', 'T_ENDDECLARE', 'T_ENDFOR', 'T_ENDFOREACH', 'T_ENDIF',
     'T_ENDSWITCH', 'T_ENDWHILE',
 
     'T_ABSTRACT', 'T_FINAL', 'T_VAR', 'T_PUBLIC', 'T_PRIVATE', 'T_PROTECTED',
     'T_READONLY', 'T_PUBLIC_SET', 'T_PRIVATE_SET', 'T_PROTECTED_SET',
-    'T_CALLABLE', 'T_ARRAY_HINT', 'T_RETURN_TYPE', 'T_PARAM_NAME',
-    'T_PROPERTY', 'T_PROTOTYPE', 'T_NULLABLE', 'T_TYPE_UNION',
+    'T_CALLABLE', 'T_PARAM_NAME', 'T_NULLABLE', 'T_TYPE_UNION',
     'T_TYPE_INTERSECTION', 'T_TYPE_OPEN_PARENTHESIS',
     'T_TYPE_CLOSE_PARENTHESIS',
 
     'T_STRING', 'T_VARIABLE', 'T_NAME_QUALIFIED', 'T_NAME_FULLY_QUALIFIED',
     'T_NAME_RELATIVE', 'T_LNUMBER', 'T_DNUMBER', 'T_CONSTANT_ENCAPSED_STRING',
     'T_DOUBLE_QUOTED_STRING', 'T_HEREDOC', 'T_NOWDOC', 'T_TRUE', 'T_FALSE',
-    'T_NULL', 'T_SELF', 'T_PARENT', 'T_THIS', 'T_CLASS_C', 'T_DIR', 'T_FILE',
+    'T_NULL', 'T_SELF', 'T_PARENT', 'T_CLASS_C', 'T_DIR', 'T_FILE',
     'T_FUNC_C', 'T_LINE', 'T_METHOD_C', 'T_NS_C', 'T_TRAIT_C', 'T_PROPERTY_C',
     'T_BACKTICK',
 
@@ -63,14 +63,10 @@ const CHAINED_REFUSED_PRECEDERS = [
     'T_CURLY_OPEN', 'T_DOLLAR_OPEN_CURLY_BRACES', 'T_STRING_VARNAME',
     'T_NUM_STRING', 'T_ENCAPSED_AND_WHITESPACE', 'T_START_HEREDOC',
     'T_END_HEREDOC', 'T_START_NOWDOC', 'T_END_NOWDOC',
-
-    'T_COLOUR', 'T_URL', 'T_STYLE', 'T_HASH', 'T_TYPEOF', 'T_OBJECT',
-    'T_LABEL', 'T_ZSR', 'T_REGULAR_EXPRESSION', 'T_EMBEDDED_PHP',
 ];
 
 const CHAINED_TOKENS_ADDED_IN = [
     'T_PROPERTY_C' => 80400,
-    'T_VOID_CAST' => 80500,
     'T_PIPE' => 80500,
 ];
 
@@ -136,7 +132,7 @@ it('reports a chain behind the grouping-parenthesis preceders PHP 8.5 adds', fun
     expect($file->getWarnings())->toBe([])
         ->and(violationSourcesByLine($file->getErrors()))
         ->toBe([14 => [CHAINED_ERROR], 18 => [CHAINED_ERROR]]);
-})->skip(PHP_VERSION_ID < 80500, 'T_VOID_CAST and T_PIPE need PHP 8.5');
+})->skip(PHP_VERSION_ID < 80500, 'T_PIPE needs PHP 8.5');
 
 it('classifies every token in PHP_CodeSniffer\'s catalogue', function () use ($namedPreceders): void {
     $catalogue = [];
@@ -307,7 +303,7 @@ it('reports the violation end to end through the installed package', function ()
     expect(array_column($staged['messages'], 'line'))->toBe(CHAINED_FAILING_LINES)
         ->and(array_unique(array_column($staged['messages'], 'source')))->toBe([CHAINED_ERROR])
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['ERROR'])
-        ->and($staged['status'])->toBe(1)
+        ->and($staged['status'])->toBe(2)
         ->and($inRepo['messages'])->toBe([])
         ->and($inRepo['status'])->toBe(0)
         ->and($passing['messages'])->toBe([])

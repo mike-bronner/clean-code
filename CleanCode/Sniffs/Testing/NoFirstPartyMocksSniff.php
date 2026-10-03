@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -13,8 +14,6 @@ class NoFirstPartyMocksSniff implements Sniff
 {
     private const NAME_TOKENS = [
         T_STRING,
-        T_NS_SEPARATOR,
-        T_NAMESPACE,
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
@@ -76,7 +75,7 @@ class NoFirstPartyMocksSniff implements Sniff
         ];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->firstPartyNamespaces === []) {
             return;
@@ -223,7 +222,7 @@ class NoFirstPartyMocksSniff implements Sniff
             return $this->parentName($phpcsFile, $classPtr);
         }
 
-        $declared = $phpcsFile->getDeclarationName($classPtr);
+        $declared = (new Declarations())->name($phpcsFile, $classPtr);
 
         if ($declared === null) {
             return null;

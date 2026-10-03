@@ -20,7 +20,7 @@ class DisallowNowdocSniff implements Sniff
     }
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $fix = $phpcsFile->addFixableError(self::MESSAGE, $stackPtr, 'NowdocFound');
 

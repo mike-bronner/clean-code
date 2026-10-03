@@ -25,7 +25,7 @@ class RequireHeredocForStructuredTextSniff implements Sniff
     }
 
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->opensChain($phpcsFile, $stackPtr) === false) {
             return;

@@ -159,6 +159,13 @@ it('reports a static property chain at the property', function (): void {
         ->and(array_key_first($errors[44]))->toBe(29);
 });
 
+it('rewrites a static read through a qualified class name in full', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'qualified-static.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('ArrayAccessorsSniff', 'qualified-static.fixed.php')));
+});
+
 it('reports an unterminated chain without falling over', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'unterminated.php');
 

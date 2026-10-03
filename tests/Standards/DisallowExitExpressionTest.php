@@ -62,6 +62,13 @@ it('quotes the construct as it was written', function (): void {
         ->and($errors[20][5][0]['message'])->toStartWith('Exit expression die ');
 });
 
+it('quotes a fully qualified construct without its leading separator', function (): void {
+    $errors = analyzeFixture(DISALLOW_EXIT_EXPRESSION, 'divergences.php')->getErrors();
+
+    expect($errors[36][5][0]['message'])->toStartWith('Exit expression exit ')
+        ->and($errors[41][5][0]['message'])->toStartWith('Exit expression die ');
+});
+
 it('reports detection-only violations', function (): void {
     $file = analyzeFixture(DISALLOW_EXIT_EXPRESSION, 'failing.php');
 
@@ -80,7 +87,7 @@ it('reports the shapes PHPMD misses', function (): void {
     expect($positions)->toBe([
         [23, 9],
         [30, 9],
-        [36, 6],
-        [41, 6],
+        [36, 5],
+        [41, 5],
     ]);
 });

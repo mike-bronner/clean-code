@@ -77,7 +77,6 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     private const STATEMENT_ANCHOR_BOUNDARY_TOKENS = [
         T_OPEN_CURLY_BRACKET,
-        T_OBJECT,
         T_OPEN_TAG,
         T_OPEN_TAG_WITH_ECHO,
         T_CLOSE_TAG,
@@ -89,7 +88,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
         return self::MANIPULATION_OPERATORS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;

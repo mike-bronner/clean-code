@@ -19,7 +19,7 @@ it('reports an error on its failing fixture through the installed package', func
     expect(array_column($run['messages'], 'source'))->not->toBeEmpty()
         ->each->toStartWith($sniffCode . '.')
         ->and(array_unique(array_column($run['messages'], 'type')))->toBe(['ERROR'])
-        ->and($run['status'])->toBe(expectedFailingStatus($sniffCode));
+        ->and($run['status'])->toBe(expectedFailingStatus($sniffCode, $run['messages']));
 })->with('shipped error sniffs');
 
 it('reports a warning on its failing fixture through the installed package', function (string $sniffCode): void {
@@ -28,7 +28,7 @@ it('reports a warning on its failing fixture through the installed package', fun
     expect(array_column($run['messages'], 'source'))->not->toBeEmpty()
         ->each->toStartWith($sniffCode . '.')
         ->and(array_unique(array_column($run['messages'], 'type')))->toBe(['WARNING'])
-        ->and($run['status'])->toBe(expectedFailingStatus($sniffCode));
+        ->and($run['status'])->toBe(expectedFailingStatus($sniffCode, $run['messages']));
 })->with('shipped warning sniffs');
 
 it('stays silent on its passing fixture through the installed package', function (string $sniffCode): void {

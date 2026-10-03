@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Constructors;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -147,10 +148,10 @@ class DisallowCombinedConstructorSniff implements Sniff
         return $this->cacheCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $name === null
@@ -202,7 +203,7 @@ class DisallowCombinedConstructorSniff implements Sniff
             }
 
             if (
-                $code === T_STRING
+                in_array($code, FunctionCalls::CALLEE_TOKENS, true) === true
                 && $this->isArgumentReader($phpcsFile, $pointer)
             ) {
                 $this->reportArgumentReader($phpcsFile, $pointer, $closer);
@@ -381,6 +382,7 @@ class DisallowCombinedConstructorSniff implements Sniff
 
     private function reportArgumentReader(File $phpcsFile, int $pointer, int $closer): void
     {
+        $functionCalls = $this->functionCalls;
         $branch = $this->branchOwner($phpcsFile, $pointer, $closer);
 
         if (
@@ -397,7 +399,7 @@ class DisallowCombinedConstructorSniff implements Sniff
                 . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
             $pointer,
             'ArgumentCount',
-            [$phpcsFile->getTokens()[$pointer]['content']]
+            [$functionCalls->calleeName($phpcsFile, $pointer)]
         );
     }
 
@@ -537,8 +539,8 @@ class DisallowCombinedConstructorSniff implements Sniff
         $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, $opener - 1, null, true);
 
         return $callee !== false
-            && $tokens[$callee]['code'] === T_STRING
-            && in_array(strtolower($tokens[$callee]['content']), self::TYPE_PREDICATES, true)
+            && in_array($tokens[$callee]['code'], FunctionCalls::CALLEE_TOKENS, true)
+            && in_array(strtolower($functionCalls->calleeName($phpcsFile, $callee)), self::TYPE_PREDICATES, true)
             && $functionCalls->isGlobalFunctionCall($phpcsFile, $callee);
     }
 
@@ -562,7 +564,7 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $functionCalls = $this->functionCalls;
 
-        if (! in_array(strtolower($phpcsFile->getTokens()[$pointer]['content']), self::ARGUMENT_READERS, true)) {
+        if (! in_array(strtolower($functionCalls->calleeName($phpcsFile, $pointer)), self::ARGUMENT_READERS, true)) {
             return false;
         }
 

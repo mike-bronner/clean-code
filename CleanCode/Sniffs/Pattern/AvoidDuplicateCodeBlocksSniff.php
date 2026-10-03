@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Pattern;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -29,7 +30,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         return self::OPEN_TAGS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($phpcsFile->findPrevious(self::OPEN_TAGS, ($stackPtr - 1)) !== false) {
             return;
@@ -94,7 +95,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
                 $summaries[$line] = ['anchor' => $pointer, 'shape' => '', 'code' => false];
             }
 
-            $summaries[$line]['shape'] .= "{$token['code']},";
+            $summaries[$line]['shape'] .= $this->shapeOf($token);
             $summaries[$line]['code'] = $summaries[$line]['code']
                 || isset($delimiters[$token['code']]) === false;
         }
@@ -113,6 +114,26 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         }
 
         return [$lineShapes, $anchors];
+    }
+
+    private function shapeOf(array $token): string
+    {
+        if (in_array($token['code'], NameTokens::QUALIFIED, true) === false) {
+            return "{$token['code']},";
+        }
+
+        $shape = '';
+
+        foreach (explode('\\', $token['content']) as $index => $segment) {
+            $separator = $index === 0 ? '' : T_NS_SEPARATOR . ',';
+            $shape .= $separator . match (true) {
+                $segment === '' => '',
+                $index === 0 && $token['code'] === T_NAME_RELATIVE => T_NAMESPACE . ',',
+                default => T_STRING . ',',
+            };
+        }
+
+        return $shape;
     }
 
     private function findRepeatedBlocks(array $lineShapes, int $minimumLines): array

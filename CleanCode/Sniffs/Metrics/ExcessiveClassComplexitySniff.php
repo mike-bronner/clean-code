@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Support\CyclomaticComplexity;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -17,7 +18,7 @@ class ExcessiveClassComplexitySniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $maximum = (int) $this->maximum;
         $count = $this->weightedMethodCount($phpcsFile, $stackPtr);
@@ -35,7 +36,7 @@ class ExcessiveClassComplexitySniff implements Sniff
                 . 'resources/boost/guidelines/pattern-solid.md)',
             $stackPtr,
             'MaximumExceeded',
-            [(string) $phpcsFile->getDeclarationName($stackPtr), $count, $maximum]
+            [(string) (new Declarations())->name($phpcsFile, $stackPtr), $count, $maximum]
         );
     }
 

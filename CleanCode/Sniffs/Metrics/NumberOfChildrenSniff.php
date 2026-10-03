@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\FileList;
@@ -70,7 +71,7 @@ class NumberOfChildrenSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $path = $phpcsFile->getFilename();
 
@@ -78,7 +79,7 @@ class NumberOfChildrenSniff implements Sniff
             return;
         }
 
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if ($name === null) {
             return;
@@ -163,7 +164,7 @@ class NumberOfChildrenSniff implements Sniff
         $pointer = $phpcsFile->findNext(T_CLASS, 0);
 
         while ($pointer !== false) {
-            $name = $phpcsFile->getDeclarationName($pointer);
+            $name = (new Declarations())->name($phpcsFile, $pointer);
 
             if ($name !== null) {
                 $slot = $tokens[$pointer]['line'] . '|' . strtolower($name);

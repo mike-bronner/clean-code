@@ -45,7 +45,7 @@ class DisallowCountInLoopExpressionSniff implements Sniff
         return self::LOOP_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $condition = $this->conditionRange($phpcsFile, $stackPtr);
 
@@ -53,7 +53,7 @@ class DisallowCountInLoopExpressionSniff implements Sniff
             return;
         }
 
-        $tokens = $phpcsFile->getTokens();
+        $functionCalls = $this->functionCalls;
         [$start, $end] = $condition;
         $claimed = $this->nestedConditions($phpcsFile, $start, $end);
 
@@ -72,7 +72,7 @@ class DisallowCountInLoopExpressionSniff implements Sniff
                 '%s() must not be called in a loop condition; assign its result to a variable before the loop',
                 $i,
                 'Found',
-                [$tokens[$i]['content']]
+                [$functionCalls->calleeName($phpcsFile, $i)]
             );
         }
     }
@@ -159,9 +159,9 @@ class DisallowCountInLoopExpressionSniff implements Sniff
     {
         $functionCalls = $this->functionCalls;
 
-        $tokens = $phpcsFile->getTokens();
+        $name = strtolower($functionCalls->calleeName($phpcsFile, $stackPtr));
 
-        if (in_array(strtolower($tokens[$stackPtr]['content']), self::SIZE_FUNCTIONS, true) === false) {
+        if (in_array($name, self::SIZE_FUNCTIONS, true) === false) {
             return false;
         }
 

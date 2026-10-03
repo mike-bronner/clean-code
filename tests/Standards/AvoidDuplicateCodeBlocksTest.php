@@ -81,6 +81,15 @@ it('honours a lowered line threshold', function (): void {
     ]);
 });
 
+it('compares each qualified name by the segments it spells', function (): void {
+    $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'qualified-names.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 10, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 28, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+    ]);
+});
+
 it('says nothing about a file shorter than one window', function (): void {
     expect(warningTuples(analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'floor.php')))->toBe([]);
 });

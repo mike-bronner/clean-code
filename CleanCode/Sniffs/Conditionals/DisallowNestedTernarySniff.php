@@ -55,7 +55,7 @@ class DisallowNestedTernarySniff implements Sniff
         return [T_INLINE_THEN];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $isNested = $this->segmentHasNestingTernary($phpcsFile, $stackPtr, -1) === true
             || $this->segmentHasNestingTernary($phpcsFile, $stackPtr, 1) === true;

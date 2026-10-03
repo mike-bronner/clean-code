@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Functions;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -18,7 +19,7 @@ class ExcessiveParameterListSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $threshold = $this->threshold();
 
@@ -70,6 +71,8 @@ class ExcessiveParameterListSniff implements Sniff
             }
         }
 
-        return "{$subject} {$phpcsFile->getDeclarationName($stackPtr)}()";
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+
+        return "{$subject} {$name}()";
     }
 }

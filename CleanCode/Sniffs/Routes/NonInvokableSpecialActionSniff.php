@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Routes;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -37,7 +38,6 @@ class NonInvokableSpecialActionSniff implements Sniff
 
     private const NAME_TOKENS = [
         T_STRING,
-        T_NS_SEPARATOR,
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
@@ -86,7 +86,7 @@ class NonInvokableSpecialActionSniff implements Sniff
         return [T_DOUBLE_COLON];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isRouteFile($phpcsFile->getFilename()) === false) {
             return;
@@ -145,12 +145,14 @@ class NonInvokableSpecialActionSniff implements Sniff
 
         if (
             $receiverPtr === false
-            || $tokens[$receiverPtr]['code'] !== T_STRING
+            || in_array($tokens[$receiverPtr]['code'], self::NAME_TOKENS, true) === false
         ) {
             return null;
         }
 
-        if ($tokens[$receiverPtr]['content'] !== self::ROUTE_FACADE) {
+        $receiver = (new NameTokens())->lastSegment($tokens[$receiverPtr]['content']);
+
+        if ($receiver !== self::ROUTE_FACADE) {
             return null;
         }
 

@@ -27,7 +27,7 @@ class RequireTestFileSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $path = str_replace('\\', '/', $phpcsFile->getFilename());
 

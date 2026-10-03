@@ -9,25 +9,25 @@ const CLEANCODE_PROPERTY_TYPE_HINT = 'CleanCode.TypeHints.PropertyTypeHint';
 it('skips a parameter an ancestor declares untyped, and reports every other', function (): void {
     $file = analyzeFixture(CLEANCODE_PARAMETER_TYPE_HINT, 'failing.php');
 
-    expect(array_keys($file->getErrors()))->toBe([11, 34, 44]);
+    expect(array_keys($file->getErrors()))->toBe([8, 31, 41]);
 });
 
 it('stays silent on the declaration whose ancestor leaves the parameter untyped', function (): void {
     $file = analyzeFixture(CLEANCODE_PARAMETER_TYPE_HINT, 'failing.php');
 
-    expect($file->getErrors())->not->toHaveKey(26, 'process() overrides an untyped Sniff::process()');
+    expect($file->getErrors())->not->toHaveKey(23, 'filter() overrides an untyped php_user_filter::filter()');
 });
 
 it('still reports a sibling declaration its loadable ancestor does not declare', function (): void {
     $file = analyzeFixture(CLEANCODE_PARAMETER_TYPE_HINT, 'failing.php');
 
-    expect($file->getErrors())->toHaveKey(34);
+    expect($file->getErrors())->toHaveKey(31);
 });
 
 it('still reports a declaration whose ancestor cannot be resolved', function (): void {
     $file = analyzeFixture(CLEANCODE_PARAMETER_TYPE_HINT, 'failing.php');
 
-    expect($file->getErrors())->toHaveKey(44);
+    expect($file->getErrors())->toHaveKey(41);
 });
 
 it('skips a PHP_CodeSniffer class property, and reports an ordinary one', function (): void {

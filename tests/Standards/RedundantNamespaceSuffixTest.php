@@ -146,6 +146,6 @@ it('leaves the package own source alone', function (): void {
 });
 
 it('reports the violation end to end through the installed package', function (): void {
-    expect(installedSniffFixtureRun(REDUNDANT_NAMESPACE_SUFFIX, 'failing.php')['status'])->toBe(1)
+    expect(installedSniffFixtureRun(REDUNDANT_NAMESPACE_SUFFIX, 'failing.php')['status'])->toBe(2)
         ->and(installedSniffFixtureRun(REDUNDANT_NAMESPACE_SUFFIX, 'passing.php')['status'])->toBe(0);
 });

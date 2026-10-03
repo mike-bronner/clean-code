@@ -37,7 +37,7 @@ class SuperglobalsSniff implements Sniff
         return [T_VARIABLE, T_DOUBLE_QUOTED_STRING, T_HEREDOC];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $token = $phpcsFile->getTokens()[$stackPtr];
 

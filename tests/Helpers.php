@@ -39,9 +39,9 @@ function installedStandardPaths(): array
     ];
 }
 
-function restoreInstalledPaths(): void
+function restoreInstalledPaths(Config $config): void
 {
-    Config::setConfigData('installed_paths', implode(',', installedStandardPaths()), true);
+    $config->setConfigData('installed_paths', implode(',', installedStandardPaths()), true);
 }
 
 function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
@@ -57,7 +57,7 @@ function buildRuleset(array $sniffCodes = [], bool $fresh = false): array
     $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml']);
     $config->cache = false;
 
-    restoreInstalledPaths();
+    restoreInstalledPaths($config);
 
     $ruleset = new Ruleset($config);
 
@@ -97,12 +97,21 @@ function globalFunctionCallVerdicts(LocalFile $file, string $prefix): array
     $verdicts = [];
     $functionCalls = new FunctionCalls();
 
+    $nameTokens = [T_STRING, T_NAME_FULLY_QUALIFIED, T_NAME_QUALIFIED, T_NAME_RELATIVE];
+
     foreach ($file->getTokens() as $pointer => $token) {
-        if ($token['code'] !== T_STRING || str_starts_with($token['content'], $prefix) === false) {
+        if (in_array($token['code'], $nameTokens, true) === false) {
             continue;
         }
 
-        $verdicts[$token['content']][] = $functionCalls->isGlobalFunctionCall($file, $pointer);
+        $segments = explode('\\', $token['content']);
+        $last = array_key_last($segments);
+
+        foreach ($segments as $index => $segment) {
+            if (str_starts_with($segment, $prefix) === true) {
+                $verdicts[$segment][] = $index === $last && $functionCalls->isGlobalFunctionCall($file, $pointer);
+            }
+        }
     }
 
     return $verdicts;
@@ -126,7 +135,7 @@ function analyzeWithStandard(string $standard, string $path): LocalFile
         $config = new ConfigDouble(['--standard=' . $standard]);
         $config->cache = false;
 
-        restoreInstalledPaths();
+        restoreInstalledPaths($config);
 
         $cache[$standard] = [$config, new Ruleset($config)];
     }
@@ -303,7 +312,7 @@ function analyzeWithConfiguredRuleset(
     $config = new ConfigDouble(['--standard=' . $standard]);
     $config->cache = false;
 
-    restoreInstalledPaths();
+    restoreInstalledPaths($config);
 
     $ruleset = new Ruleset($config);
     unlink($standard);
@@ -699,7 +708,7 @@ function buildRulesetForStandard(string $standard): Ruleset
     $config = new ConfigDouble(['--standard=' . $standard]);
     $config->cache = false;
 
-    restoreInstalledPaths();
+    restoreInstalledPaths($config);
 
     return new Ruleset($config);
 }
@@ -1060,7 +1069,7 @@ function analyzeFileset(array $sniffCodes, string $directory): array
     $config = new ConfigDouble(['--standard=' . cleanCodeRoot() . '/CleanCode/ruleset.xml', $directory]);
     $config->cache = false;
 
-    restoreInstalledPaths();
+    restoreInstalledPaths($config);
 
     $ruleset = new Ruleset($config);
 

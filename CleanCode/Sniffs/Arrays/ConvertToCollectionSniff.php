@@ -26,10 +26,10 @@ class ConvertToCollectionSniff implements Sniff
 
     public function register(): array
     {
-        return [T_STRING];
+        return FunctionCalls::CALLEE_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $functionCalls = $this->functionCalls;
 
@@ -45,7 +45,8 @@ class ConvertToCollectionSniff implements Sniff
         }
 
         $replacements = $this->replacements();
-        $function = strtolower($tokens[$stackPtr]['content']);
+        $name = $functionCalls->calleeName($phpcsFile, $stackPtr);
+        $function = strtolower($name);
 
         if (isset($replacements[$function]) === false) {
             return;
@@ -59,7 +60,7 @@ class ConvertToCollectionSniff implements Sniff
             '%s() manipulates a native array; use collect()->%s() instead',
             $stackPtr,
             'Found',
-            [$tokens[$stackPtr]['content'], $replacements[$function]]
+            [$name, $replacements[$function]]
         );
     }
 

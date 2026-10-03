@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -16,7 +17,7 @@ class ExcessivePublicCountSniff implements Sniff
         return [T_CLASS, T_ANON_CLASS, T_TRAIT];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -98,6 +99,8 @@ class ExcessivePublicCountSniff implements Sniff
 
         $kind = $tokens[$stackPtr]['code'] === T_TRAIT ? 'trait' : 'class';
 
-        return "{$kind} {$phpcsFile->getDeclarationName($stackPtr)}";
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+
+        return "{$kind} {$name}";
     }
 }

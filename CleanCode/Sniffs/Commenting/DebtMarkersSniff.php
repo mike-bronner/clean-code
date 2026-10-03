@@ -22,7 +22,7 @@ class DebtMarkersSniff implements Sniff
         return array_diff(Tokens::$commentTokens, Tokens::$phpcsCommentTokens);
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

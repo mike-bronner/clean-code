@@ -79,7 +79,7 @@ it('pins the PSR opening-tag sniffs', function (string $fixture, array $expected
         'open-tag-not-alone.php',
         [
             1 => [
-                'PSR12.Files.FileHeader.SpacingAfterBlock',
+                'PSR12.Files.FileHeader.SpacingAfterTagBlock',
                 'PSR12.Files.OpenTag.NotAlone',
             ],
         ],

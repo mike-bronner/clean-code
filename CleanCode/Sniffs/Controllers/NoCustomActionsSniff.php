@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Controllers;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -28,9 +29,9 @@ class NoCustomActionsSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
-        $className = $phpcsFile->getDeclarationName($stackPtr);
+        $className = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $className === null
@@ -73,7 +74,7 @@ class NoCustomActionsSniff implements Sniff
 
     private function reportCustomAction(File $phpcsFile, int $actionPtr): void
     {
-        $method = $phpcsFile->getDeclarationName($actionPtr);
+        $method = (new Declarations())->name($phpcsFile, $actionPtr);
 
         if (
             $method === null

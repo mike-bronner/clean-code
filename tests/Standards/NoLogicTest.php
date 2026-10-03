@@ -236,8 +236,7 @@ it('probes every token the target scan rejects as a write', function (): void {
             array_values(Tokens::$assignmentTokens),
             $sniff->getConstant('WRITING_TOKENS')
         ),
-        $sniff->getConstant('NON_WRITING_ASSIGNMENT_TOKENS'),
-        [T_ZSR_EQUAL]
+        $sniff->getConstant('NON_WRITING_ASSIGNMENT_TOKENS')
     );
     $probed = array_map(constant(...), array_keys(WRITING_PROBES));
 

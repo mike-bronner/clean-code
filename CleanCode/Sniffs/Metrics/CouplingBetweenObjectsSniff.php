@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -33,6 +35,9 @@ class CouplingBetweenObjectsSniff implements Sniff
     private const NAME_TOKENS = [
         T_STRING => true,
         T_NS_SEPARATOR => true,
+        T_NAME_QUALIFIED => true,
+        T_NAME_FULLY_QUALIFIED => true,
+        T_NAME_RELATIVE => true,
     ];
 
     public $maximum = 13;
@@ -42,7 +47,7 @@ class CouplingBetweenObjectsSniff implements Sniff
         return [T_CLASS, T_ANON_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -241,6 +246,7 @@ class CouplingBetweenObjectsSniff implements Sniff
         if (
             $next === false
             || isset(self::NAME_TOKENS[$tokens[$next]['code']]) === false
+            || $tokens[$next]['code'] === T_NAME_RELATIVE
         ) {
             return $operatorPtr;
         }
@@ -263,7 +269,7 @@ class CouplingBetweenObjectsSniff implements Sniff
 
         if (
             $end === false
-            || $tokens[$end]['code'] !== T_STRING
+            || in_array($tokens[$end]['code'], [T_STRING, ...NameTokens::QUALIFIED], true) === false
         ) {
             return;
         }
@@ -352,7 +358,7 @@ class CouplingBetweenObjectsSniff implements Sniff
 
             if (
                 $next !== false
-                && $tokens[$next]['code'] === T_STRING
+                && in_array($tokens[$next]['code'], [T_STRING, T_NAME_QUALIFIED], true) === true
             ) {
                 return $this->readName($phpcsFile, $next)[0];
             }
@@ -367,7 +373,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             return null;
         }
 
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $name === null
@@ -510,7 +516,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             $ptr !== false
             && isset(self::NAME_TOKENS[$tokens[$ptr]['code']]) === true
         ) {
-            $name .= $tokens[$ptr]['content'];
+            $name .= (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]);
             $end = $ptr;
             $ptr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
         }
@@ -527,7 +533,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             $ptr !== false
             && isset(self::NAME_TOKENS[$tokens[$ptr]['code']]) === true
         ) {
-            $name = $tokens[$ptr]['content'] . $name;
+            $name = (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]) . $name;
             $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
         }
 
@@ -540,6 +546,8 @@ class CouplingBetweenObjectsSniff implements Sniff
             return 'anonymous class';
         }
 
-        return "class {$phpcsFile->getDeclarationName($stackPtr)}";
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+
+        return "class {$name}";
     }
 }

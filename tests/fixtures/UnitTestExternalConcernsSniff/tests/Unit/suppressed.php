@@ -11,7 +11,7 @@ class CustomTestCaseTest
         // phpcs:ignore CleanCode.Testing.UnitTestExternalConcerns.HttpRequest
         $this->get('config.key');
 
-        // @codingStandardsIgnoreLine
+        // phpcs:ignore
         $this->postJson('config.key');
 
         $this->patch('config.key'); // phpcs:ignore CleanCode.Testing.UnitTestExternalConcerns.HttpRequest

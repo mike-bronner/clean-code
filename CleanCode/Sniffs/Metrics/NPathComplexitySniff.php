@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -92,7 +93,7 @@ class NPathComplexitySniff implements Sniff
         return ($left * $right);
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $minimum = (int) $this->minimum;
         $npath = $this->callableComplexity($phpcsFile, $stackPtr);
@@ -114,7 +115,7 @@ class NPathComplexitySniff implements Sniff
             'MinimumExceeded',
             [
                 $this->callableKind($phpcsFile, $stackPtr),
-                (string) $phpcsFile->getDeclarationName($stackPtr),
+                (string) (new Declarations())->name($phpcsFile, $stackPtr),
                 $measured,
                 $minimum,
             ]

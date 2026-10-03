@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -255,7 +254,7 @@ it('accepts both properties from a ruleset file', function (): void {
 
     $config = new ConfigDouble(['--standard=' . $standard]);
     $config->cache = false;
-    Config::setConfigData('installed_paths', '', true);
+    $config->setConfigData('installed_paths', '', true);
 
     $file = new LocalFile(
         fixturePath('ExcessiveMethodLengthSniff', 'configured.php'),

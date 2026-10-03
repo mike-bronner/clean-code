@@ -26,7 +26,7 @@ class DuplicatedArrayKeySniff implements Sniff
         return [T_ARRAY, T_OPEN_SHORT_ARRAY];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $bounds = $this->arrayBounds($tokens, $stackPtr);

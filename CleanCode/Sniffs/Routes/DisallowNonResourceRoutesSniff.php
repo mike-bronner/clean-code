@@ -39,7 +39,7 @@ class DisallowNonResourceRoutesSniff implements Sniff
         return [T_DOUBLE_COLON];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isRouteFile($phpcsFile->getFilename()) === false) {
             return;

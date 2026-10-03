@@ -20,7 +20,7 @@ class BlankLinesSniff implements Sniff
     }
 
     // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- interface-mandated, see CONTRIBUTING.md
-    public function process(File $phpcsFile, $stackPtr): int
+    public function process(File $phpcsFile, int $stackPtr): int
     {
         $blankLines = $this->findBlankLines($phpcsFile);
 

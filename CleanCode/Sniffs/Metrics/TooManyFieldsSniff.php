@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Support\ParameterDeclaration;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -25,7 +26,7 @@ class TooManyFieldsSniff implements Sniff
         return [T_CLASS, T_ANON_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -40,7 +41,7 @@ class TooManyFieldsSniff implements Sniff
             return;
         }
 
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
             'The class %s has %s fields; consider redesigning it to keep the number of fields under %s',

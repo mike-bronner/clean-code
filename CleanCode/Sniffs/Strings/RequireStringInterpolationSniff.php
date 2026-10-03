@@ -35,7 +35,7 @@ class RequireStringInterpolationSniff implements Sniff
         return [T_STRING_CONCAT];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

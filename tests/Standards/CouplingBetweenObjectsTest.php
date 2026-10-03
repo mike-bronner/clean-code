@@ -51,6 +51,15 @@ it('counts one dependency per source, and nothing for a near miss', function ():
         ->toBe([16, 23, 28, 36, 44, 52, 60, 68, 79, 89, 96, 106, 119]);
 });
 
+it('resolves each qualified name the way it always has', function (): void {
+    $file = analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'qualified-names.php', static function (object $sniff): void {
+        $sniff->maximum = 1;
+    });
+
+    expect($file->getErrors()[13][1][0]['message'])
+        ->toStartWith('The class Statement has a coupling between objects value of 3.');
+});
+
 it('counts a type once however many times it is named', function (): void {
     $file = analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'sources.php', static function (object $sniff): void {
         $sniff->maximum = 2;

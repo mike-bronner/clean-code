@@ -55,7 +55,8 @@ class MappingArrayCandidateSniff implements Sniff
         T_STATIC,
         T_PARENT,
         T_DOUBLE_COLON,
-        T_NS_SEPARATOR,
+        T_NAME_QUALIFIED,
+        T_NAME_FULLY_QUALIFIED,
         T_OBJECT_OPERATOR,
         T_NULLSAFE_OBJECT_OPERATOR,
         T_OPEN_SQUARE_BRACKET,
@@ -83,7 +84,7 @@ class MappingArrayCandidateSniff implements Sniff
         return $this->scanCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isChainHead($phpcsFile, $stackPtr) === false) {
             return;

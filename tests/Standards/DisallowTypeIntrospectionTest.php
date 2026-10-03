@@ -95,7 +95,7 @@ it('flags introspection functions driving a branch at their exact position', fun
             [25, 17],
             [36, 13],
             [37, 13],
-            [44, 14],
+            [44, 13],
             [53, 13],
             [64, 16],
             [76, 18],
@@ -175,7 +175,7 @@ it('does not treat an imported name as the global introspection function', funct
         ],
         [
             [64, 13],
-            [77, 14],
+            [77, 13],
         ]
     );
 
@@ -192,7 +192,7 @@ it('does not treat a name declared as a function in the file as the global one',
             'source' => TYPE_INTROSPECTION_FUNCTION,
         ],
         [
-            [37, 14],
+            [37, 13],
             [51, 13],
             [69, 13],
         ]
@@ -426,7 +426,7 @@ it('resolves a namespace-relative name against the enclosing block, unnamed incl
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'namespace-blocks.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 22, 'column' => 27, 'source' => TYPE_INTROSPECTION_FUNCTION],
+        ['line' => 22, 'column' => 17, 'source' => TYPE_INTROSPECTION_FUNCTION],
         ['line' => 56, 'column' => 17, 'source' => TYPE_INTROSPECTION_FUNCTION],
     ])->and($file->getWarnings())->toBe([]);
 });

@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Ruleset;
 use PHP_CodeSniffer\Tests\ConfigDouble;
@@ -26,7 +25,7 @@ $analyzeUnconfigured = static function (string $fixture): LocalFile {
     $config->cache = false;
     $config->standards = ['VariableAnalysis'];
 
-    Config::setConfigData(
+    $config->setConfigData(
         'installed_paths',
         cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
         true

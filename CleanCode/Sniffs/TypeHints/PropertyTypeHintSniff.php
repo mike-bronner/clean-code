@@ -10,7 +10,7 @@ use SlevomatCodingStandard\Sniffs\TypeHints\PropertyTypeHintSniff as SlevomatPro
 
 class PropertyTypeHintSniff extends SlevomatPropertyTypeHint
 {
-    public function process(File $phpcsFile, $pointer): void
+    public function process(File $phpcsFile, int $pointer): void
     {
         if ((new InheritedMembers())->isCodeSnifferClass($phpcsFile, $pointer) === true) {
             return;

@@ -33,7 +33,7 @@ class UnusedPrivateElementsSniff implements Sniff
         return [T_CLASS, T_ENUM, T_ANON_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

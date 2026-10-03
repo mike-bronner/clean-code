@@ -16,7 +16,7 @@ class OneConditionPerLineSniff implements Sniff
         return [T_IF, T_ELSEIF, T_WHILE, T_FOR];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $region = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $stackPtr);
 

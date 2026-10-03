@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\DeadCode;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -20,6 +22,11 @@ class UnusedFormalParameterSniff implements Sniff
         '__set',
         '__set_state',
         '__unset',
+    ];
+
+    private const ATTRIBUTE_NAME_TOKENS = [
+        T_STRING,
+        T_NAME_FULLY_QUALIFIED,
     ];
 
     private const CLASS_LIKE = [
@@ -73,7 +80,7 @@ class UnusedFormalParameterSniff implements Sniff
         return [T_CLOSURE, T_FN, T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -206,7 +213,7 @@ class UnusedFormalParameterSniff implements Sniff
     {
         $functionCalls = $this->functionCalls;
 
-        if (strtolower($phpcsFile->getTokens()[$pointer]['content']) !== $name) {
+        if (strtolower($functionCalls->calleeName($phpcsFile, $pointer)) !== $name) {
             return false;
         }
 
@@ -281,7 +288,7 @@ class UnusedFormalParameterSniff implements Sniff
             return false;
         }
 
-        $name = strtolower((string) $phpcsFile->getDeclarationName($stackPtr));
+        $name = strtolower((string) (new Declarations())->name($phpcsFile, $stackPtr));
 
         return in_array($name, self::FIXED_SIGNATURE_METHODS, true);
     }
@@ -335,8 +342,8 @@ class UnusedFormalParameterSniff implements Sniff
             }
 
             if (
-                $tokens[$pointer]['code'] !== T_STRING
-                || strtolower($tokens[$pointer]['content']) !== 'override'
+                in_array($tokens[$pointer]['code'], self::ATTRIBUTE_NAME_TOKENS, true) === false
+                || strtolower(ltrim($tokens[$pointer]['content'], '\\')) !== 'override'
             ) {
                 continue;
             }
@@ -354,13 +361,6 @@ class UnusedFormalParameterSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $pointer - 1, null, true);
 
-        if (
-            $previous !== false
-            && $tokens[$previous]['code'] === T_NS_SEPARATOR
-        ) {
-            $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, $previous - 1, null, true);
-        }
-
         return $previous !== false
             && in_array($tokens[$previous]['code'], [T_ATTRIBUTE, T_COMMA], true) === true;
     }
@@ -373,7 +373,7 @@ class UnusedFormalParameterSniff implements Sniff
             return false;
         }
 
-        $name = strtolower((string) $phpcsFile->getDeclarationName($stackPtr));
+        $name = strtolower((string) (new Declarations())->name($phpcsFile, $stackPtr));
         $declarations = $this->declarationsByName($phpcsFile);
         $seen = [];
         $queue = $this->inheritedNames($phpcsFile, $classPtr);
@@ -505,8 +505,8 @@ class UnusedFormalParameterSniff implements Sniff
         for ($pointer = $start; $pointer < $end; $pointer++) {
             $code = $tokens[$pointer]['code'];
 
-            if ($code === T_STRING) {
-                $segment = $tokens[$pointer]['content'];
+            if (in_array($code, [T_STRING, ...NameTokens::QUALIFIED], true) === true) {
+                $segment = (new NameTokens())->lastSegment($tokens[$pointer]['content']);
 
                 continue;
             }
@@ -562,7 +562,7 @@ class UnusedFormalParameterSniff implements Sniff
             return $this->namespaceName($phpcsFile, $pointer) ?? $namespace;
         }
 
-        $name = $phpcsFile->getDeclarationName($pointer);
+        $name = (new Declarations())->name($phpcsFile, $pointer);
         $this->declarationNamespace[$pointer] = $namespace;
 
         if (
@@ -589,10 +589,7 @@ class UnusedFormalParameterSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-        if (
-            $next === false
-            || $tokens[$next]['code'] === T_NS_SEPARATOR
-        ) {
+        if ($next === false) {
             return null;
         }
 
@@ -603,7 +600,7 @@ class UnusedFormalParameterSniff implements Sniff
             $segment = $next; $end !== false
             && $segment < $end; $segment++
         ) {
-            if (in_array($tokens[$segment]['code'], [T_NS_SEPARATOR, T_STRING], true) === true) {
+            if (in_array($tokens[$segment]['code'], [T_STRING, T_NAME_QUALIFIED], true) === true) {
                 $name .= $tokens[$segment]['content'];
             }
         }
@@ -646,7 +643,7 @@ class UnusedFormalParameterSniff implements Sniff
         $pointer = $phpcsFile->findNext(T_FUNCTION, $opener + 1, $closer);
 
         while ($pointer !== false) {
-            $name = $phpcsFile->getDeclarationName($pointer);
+            $name = (new Declarations())->name($phpcsFile, $pointer);
 
             if (
                 $name !== null
@@ -694,6 +691,8 @@ class UnusedFormalParameterSniff implements Sniff
 
         $subject = $this->enclosingClass($phpcsFile, $stackPtr) === null ? 'function' : 'method';
 
-        return "{$subject} {$phpcsFile->getDeclarationName($stackPtr)}()";
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+
+        return "{$subject} {$name}()";
     }
 }

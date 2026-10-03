@@ -13,7 +13,6 @@ class NoReflectionAccessSniff implements Sniff
 {
     private const NAME_TOKENS = [
         T_STRING,
-        T_NS_SEPARATOR,
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
@@ -53,7 +52,7 @@ class NoReflectionAccessSniff implements Sniff
         ];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $path = $phpcsFile->getFilename();
 

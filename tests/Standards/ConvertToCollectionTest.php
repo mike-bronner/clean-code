@@ -13,13 +13,13 @@ const CONVERT_TO_COLLECTION_TUPLES = [
     ['line' => 5, 'column' => 11],
     ['line' => 6, 'column' => 10],
     ['line' => 10, 'column' => 10],
-    ['line' => 14, 'column' => 13],
+    ['line' => 14, 'column' => 12],
     ['line' => 19, 'column' => 12],
     ['line' => 27, 'column' => 16],
     ['line' => 33, 'column' => 11],
     ['line' => 37, 'column' => 12],
     ['line' => 37, 'column' => 30],
-    ['line' => 44, 'column' => 23],
+    ['line' => 44, 'column' => 13],
 ];
 
 const CONVERT_TO_COLLECTION_MESSAGES = [
@@ -174,8 +174,8 @@ it('flags a namespace-relative call inside a global namespace block', function (
     $file = analyzeFixture(CONVERT_TO_COLLECTION, 'namespaced-blocks.php');
 
     expect(warningTuples($file))->toBe([
-        ['line' => 17, 'column' => 24, 'source' => CONVERT_TO_COLLECTION . '.Found'],
-        ['line' => 22, 'column' => 25, 'source' => CONVERT_TO_COLLECTION . '.Found'],
+        ['line' => 17, 'column' => 14, 'source' => CONVERT_TO_COLLECTION . '.Found'],
+        ['line' => 22, 'column' => 15, 'source' => CONVERT_TO_COLLECTION . '.Found'],
     ])->and($convertToCollectionMessages($file))->toBe([
         'array_map() manipulates a native array; use collect()->map() instead',
         'array_filter() manipulates a native array; use collect()->filter() instead',

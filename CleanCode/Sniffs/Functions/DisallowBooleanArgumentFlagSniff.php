@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Functions;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -26,12 +27,12 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
         return [T_CLOSURE, T_FN, T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $code = $tokens[$stackPtr]['code'];
 
-        $name = $code === T_FUNCTION ? $phpcsFile->getDeclarationName($stackPtr) : null;
+        $name = $code === T_FUNCTION ? (new Declarations())->name($phpcsFile, $stackPtr) : null;
 
         if ($this->isIgnoredName($name) === true) {
             return;
@@ -87,7 +88,7 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
 
         foreach (array_reverse($conditions, true) as $ptr => $code) {
             if (in_array($code, self::CLASS_LIKE_TOKENS, true) === true) {
-                return $phpcsFile->getDeclarationName($ptr);
+                return (new Declarations())->name($phpcsFile, $ptr);
             }
         }
 

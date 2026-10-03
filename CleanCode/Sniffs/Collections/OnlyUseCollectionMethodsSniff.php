@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Collections;
 
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -132,6 +133,12 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         'whennotempty' => 'mixed — the callback\'s return, else $this; argument-dependent',
     ];
 
+    private const CLASS_NAME_TOKENS = [
+        T_STRING,
+        T_NAME_QUALIFIED,
+        T_NAME_FULLY_QUALIFIED,
+    ];
+
     private const CALLABLE_EXPRESSION_ENDERS = [
         T_ANON_CLASS,
         T_CLOSE_CURLY_BRACKET,
@@ -158,7 +165,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     }
 
     // phpcs:ignore CleanCode.DeadCode.UnusedFormalParameter -- interface-mandated, see CONTRIBUTING.md
-    public function process(File $phpcsFile, $stackPtr): int
+    public function process(File $phpcsFile, int $stackPtr): int
     {
         $this->importAliases = $this->mapImports($phpcsFile);
         $this->arrowFunctions = $this->mapArrowFunctions($phpcsFile);
@@ -277,8 +284,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
                 continue;
             }
 
-            if ($tokens[$ptr]['code'] === T_STRING) {
-                $imported = $tokens[$ptr]['content'];
+            if (in_array($tokens[$ptr]['code'], self::CLASS_NAME_TOKENS, true) === true) {
+                $imported = (new NameTokens())->lastSegment($tokens[$ptr]['content']);
 
                 continue;
             }
@@ -572,7 +579,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return true;
         }
 
-        if (in_array($tokens[$callee]['code'], [T_STRING, T_VARIABLE], true) === false) {
+        $calleeTokens = [...FunctionCalls::CALLEE_TOKENS, T_VARIABLE];
+
+        if (in_array($tokens[$callee]['code'], $calleeTokens, true) === false) {
             return $this->isCallableExpressionEnd($phpcsFile, $callee) === false;
         }
 
@@ -588,7 +597,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return true;
         }
 
-        return isset(self::GENERIC_FUNCTIONS[strtolower($tokens[$callee]['content'])]) === true
+        $function = strtolower($functionCalls->calleeName($phpcsFile, $callee));
+
+        return isset(self::GENERIC_FUNCTIONS[$function]) === true
             && $functionCalls->isGlobalFunctionCall($phpcsFile, $callee) === true;
     }
 
@@ -719,11 +730,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         for ($ptr = 0; $ptr < $phpcsFile->numTokens; $ptr++) {
-            if ($tokens[$ptr]['code'] !== T_STRING) {
+            if (in_array($tokens[$ptr]['code'], FunctionCalls::CALLEE_TOKENS, true) === false) {
                 continue;
             }
 
-            $function = strtolower($tokens[$ptr]['content']);
+            $function = strtolower($functionCalls->calleeName($phpcsFile, $ptr));
 
             if (isset(self::GENERIC_FUNCTIONS[$function]) === false) {
                 continue;
@@ -871,7 +882,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $method = self::GENERIC_FUNCTIONS[$function];
         $message = 'Use the Collection method %s() instead of the generic PHP function %s() on a Collection';
-        $data = [$method, $tokens[$stackPtr]['content']];
+        $functionCalls = $this->functionCalls;
+        $data = [$method, $functionCalls->calleeName($phpcsFile, $stackPtr)];
 
         if ($isFixable === false) {
             $phpcsFile->addError($message, $stackPtr, 'Found', $data);
@@ -889,15 +901,12 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         ));
         $closer = $tokens[$opener]['parenthesis_closer'];
 
-        $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
-        $start = $prev !== false && $tokens[$prev]['code'] === T_NS_SEPARATOR ? $prev : $stackPtr;
-
         $phpcsFile->fixer
             ->beginChangeset();
         $phpcsFile->fixer
-            ->replaceToken($start, "{$expression}->{$method}()");
+            ->replaceToken($stackPtr, "{$expression}->{$method}()");
 
-        for ($ptr = ($start + 1); $ptr <= $closer; $ptr++) {
+        for ($ptr = ($stackPtr + 1); $ptr <= $closer; $ptr++) {
             $phpcsFile->fixer
                 ->replaceToken($ptr, '');
         }
@@ -983,11 +992,11 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             return $this->constructedCollectionEnd($phpcsFile, $ptr, $end);
         }
 
-        if (in_array($tokens[$ptr]['code'], [T_NS_SEPARATOR, T_STRING], true) === false) {
+        if (in_array($tokens[$ptr]['code'], self::CLASS_NAME_TOKENS, true) === false) {
             return null;
         }
 
-        $name = $this->qualifiedName($phpcsFile, $ptr, $end);
+        $name = $this->qualifiedName($phpcsFile, $ptr);
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($name['end'] + 1), ($end + 1), true);
 
         if ($next === false) {
@@ -996,7 +1005,6 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         if ($tokens[$next]['code'] === T_OPEN_PARENTHESIS) {
             $isHelper = $name['short'] === 'collect'
-                && $name['qualified'] === false
                 && $functionCalls->isGlobalFunctionCall($phpcsFile, $name['end']) === true;
 
             return $isHelper === true ? $tokens[$next]['parenthesis_closer'] : null;
@@ -1019,12 +1027,12 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         if (
             $classPtr === false
-            || in_array($tokens[$classPtr]['code'], [T_NS_SEPARATOR, T_STRING], true) === false
+            || in_array($tokens[$classPtr]['code'], self::CLASS_NAME_TOKENS, true) === false
         ) {
             return null;
         }
 
-        $name = $this->qualifiedName($phpcsFile, $classPtr, $end);
+        $name = $this->qualifiedName($phpcsFile, $classPtr);
 
         if ($this->isCollectionClass($name['short'], $name['aliasable']) === false) {
             return null;
@@ -1060,31 +1068,15 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             : null;
     }
 
-    private function qualifiedName(File $phpcsFile, int $ptr, int $end): array
+    private function qualifiedName(File $phpcsFile, int $ptr): array
     {
-        $tokens = $phpcsFile->getTokens();
-        $short = '';
-        $last = $ptr;
-        $segments = 0;
-
-        for ($current = $ptr; $current <= $end; $current++) {
-            if (in_array($tokens[$current]['code'], [T_NS_SEPARATOR, T_STRING], true) === false) {
-                break;
-            }
-
-            if ($tokens[$current]['code'] === T_STRING) {
-                $short = $tokens[$current]['content'];
-                $segments++;
-            }
-
-            $last = $current;
-        }
+        $token = $phpcsFile->getTokens()[$ptr];
+        $segments = explode('\\', ltrim($token['content'], '\\'));
 
         return [
-            'short' => $short,
-            'end' => $last,
-            'qualified' => $segments > 1,
-            'aliasable' => $segments === 1 && $tokens[$ptr]['code'] !== T_NS_SEPARATOR,
+            'short' => end($segments),
+            'end' => $ptr,
+            'aliasable' => $token['code'] === T_STRING,
         ];
     }
 

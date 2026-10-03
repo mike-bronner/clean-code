@@ -3,6 +3,10 @@ PHPCS linter rules for all coding standards defined in https://mikebronner.dev/c
 
 ## Installation
 
+The package needs PHP 8.3 or later and PHP_CodeSniffer 4
+(`squizlabs/php_codesniffer` `^4.0.2`). A project still on PHP_CodeSniffer 3
+cannot install it.
+
 Composer 2.2 and later will not run a plugin the consuming project has not
 allowed, and the codesniffer installer is a plugin. Allow it **first**:
 

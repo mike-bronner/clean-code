@@ -50,7 +50,7 @@ class DisallowMagicNumbersSniff implements Sniff
         ];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isDeclarationSite($phpcsFile, $stackPtr) === true) {
             return;

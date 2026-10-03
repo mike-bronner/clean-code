@@ -26,7 +26,7 @@ it('flags every dynamic-argument read at its own line and column', function (): 
         ['line' => 11, 'column' => 17, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 13, 'column' => 13, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 14, 'column' => 21, 'source' => DECLARED_PARAMETERS_ERROR],
-        ['line' => 22, 'column' => 17, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 22, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 27, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 34, 'column' => 24, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 40, 'column' => 9, 'source' => DECLARED_PARAMETERS_ERROR],
@@ -38,7 +38,7 @@ it('resolves use function imports before the global function', function (): void
 
     expect(violationTuples($file))->toBe([
         ['line' => 35, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
-        ['line' => 42, 'column' => 17, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 42, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
     ]);
 });
 
@@ -63,8 +63,8 @@ it('flags a relative call when the file declares no namespace', function (): voi
     $file = analyzeFixture(DECLARED_PARAMETERS, 'global-namespace.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 14, 'column' => 26, 'source' => DECLARED_PARAMETERS_ERROR],
-        ['line' => 19, 'column' => 26, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 14, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 19, 'column' => 16, 'source' => DECLARED_PARAMETERS_ERROR],
     ]);
 });
 
@@ -72,7 +72,7 @@ it('resolves the relative qualifier against the enclosing braced block', functio
     $file = analyzeFixture(DECLARED_PARAMETERS, 'braced-namespaces.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 28, 'column' => 30, 'source' => DECLARED_PARAMETERS_ERROR],
+        ['line' => 28, 'column' => 20, 'source' => DECLARED_PARAMETERS_ERROR],
         ['line' => 33, 'column' => 20, 'source' => DECLARED_PARAMETERS_ERROR],
     ]);
 });

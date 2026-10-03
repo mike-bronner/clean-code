@@ -69,6 +69,14 @@ it('names the model, the parameter and the action in the warning', function (): 
         ->toContain('shout()');
 });
 
+it('names a qualified model by its class name alone', function (): void {
+    $warnings = analyzeFixture(MANUAL_RESOLUTION, 'failing.php')->getWarnings();
+
+    expect($warnings[30][29][0]['message'])
+        ->toContain('Model User')
+        ->not->toContain('Models\\');
+});
+
 it('judges nested scopes by the enclosing method', function () use ($warningsByPosition): void {
     expect(analyzeFixture(MANUAL_RESOLUTION, 'nested-scopes.php')->getErrors())->toBe([])
         ->and($warningsByPosition('nested-scopes.php'))->toBe([

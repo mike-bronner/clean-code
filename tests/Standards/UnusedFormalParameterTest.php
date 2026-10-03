@@ -90,6 +90,13 @@ it('resolves a same-file ancestor within its own namespace', function (): void {
         ->and($file->getWarnings())->toBe([]);
 });
 
+it('resolves a same-file ancestor named through a qualified name', function (): void {
+    $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'qualified-ancestors.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
 it('reports the documented divergences, and only those', function (): void {
     $file = analyzeFixture(UNUSED_FORMAL_PARAMETER, 'divergences.php');
 

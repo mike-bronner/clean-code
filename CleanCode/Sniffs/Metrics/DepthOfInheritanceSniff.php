@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Metrics;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Config;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Files\FileList;
@@ -35,7 +36,7 @@ class DepthOfInheritanceSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $declaration = $this->declarationOf($phpcsFile, $stackPtr);
 
@@ -65,7 +66,7 @@ class DepthOfInheritanceSniff implements Sniff
             $this->declarationStart($phpcsFile, $stackPtr),
             'TooDeep',
             [
-                $phpcsFile->getDeclarationName($stackPtr),
+                (new Declarations())->name($phpcsFile, $stackPtr),
                 $depth,
                 $this->minimum,
             ]
@@ -109,7 +110,7 @@ class DepthOfInheritanceSniff implements Sniff
 
     private function declarationOf(File $phpcsFile, int $stackPtr): ?array
     {
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

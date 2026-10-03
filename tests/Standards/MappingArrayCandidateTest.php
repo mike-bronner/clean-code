@@ -32,6 +32,15 @@ it('warns once per qualifying chain, at its leading if', function (): void {
     ]);
 });
 
+it('reads a constant behind a qualified class name as a value', function (): void {
+    $file = analyzeFixture(MAPPING_ARRAY_CANDIDATE, 'qualified-values.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 12, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
+        ['line' => 23, 'column' => 9, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
+    ]);
+});
+
 it('reports the failing fixture as warnings, never errors', function (): void {
     $file = analyzeFixture(MAPPING_ARRAY_CANDIDATE, 'failing.php');
 

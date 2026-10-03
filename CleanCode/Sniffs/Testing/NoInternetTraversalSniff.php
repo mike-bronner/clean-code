@@ -15,8 +15,6 @@ class NoInternetTraversalSniff implements Sniff
 {
     private const NAME_TOKENS = [
         T_STRING,
-        T_NS_SEPARATOR,
-        T_NAMESPACE,
         T_NAME_QUALIFIED,
         T_NAME_FULLY_QUALIFIED,
         T_NAME_RELATIVE,
@@ -70,11 +68,11 @@ class NoInternetTraversalSniff implements Sniff
     {
         return [
             T_NEW,
-            T_STRING,
+            ...FunctionCalls::CALLEE_TOKENS,
         ];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isFeatureTest($phpcsFile->getFilename()) === false) {
             return;
@@ -108,8 +106,8 @@ class NoInternetTraversalSniff implements Sniff
     {
         $functionCalls = $this->functionCalls;
 
-        $tokens = $phpcsFile->getTokens();
-        $name = strtolower($tokens[$stackPtr]['content']);
+        $calleeName = $functionCalls->calleeName($phpcsFile, $stackPtr);
+        $name = strtolower($calleeName);
         $isNetworkFunction = in_array($name, self::NETWORK_FUNCTIONS, true);
 
         if (
@@ -133,7 +131,7 @@ class NoInternetTraversalSniff implements Sniff
             }
         }
 
-        $this->report($phpcsFile, $stackPtr, "{$tokens[$stackPtr]['content']}()");
+        $this->report($phpcsFile, $stackPtr, "{$calleeName}()");
     }
 
     private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool

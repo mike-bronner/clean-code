@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Controllers;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -47,7 +49,7 @@ class ManualModelResolutionSniff implements Sniff
         return [T_DOUBLE_COLON];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $methodPtr = $this->resolutionMethodPointer($phpcsFile, $stackPtr);
         $argumentPtr = $this->firstArgumentVariablePointer($phpcsFile, $methodPtr);
@@ -64,9 +66,9 @@ class ManualModelResolutionSniff implements Sniff
                 $methodPtr,
                 'Found',
                 [
-                    $this->contentOf($phpcsFile, $receiverPtr),
+                    (new NameTokens())->lastSegment($this->contentOf($phpcsFile, $receiverPtr)),
                     $this->contentOf($phpcsFile, (int) $argumentPtr),
-                    $phpcsFile->getDeclarationName($actionPtr),
+                    (new Declarations())->name($phpcsFile, $actionPtr),
                 ]
             ),
         };
@@ -101,7 +103,9 @@ class ManualModelResolutionSniff implements Sniff
     {
         $receiverPtr = $this->previousSignificant($phpcsFile, $stackPtr);
 
-        return match ($this->isToken($phpcsFile, $receiverPtr, T_STRING)) {
+        $nameTokens = [T_STRING, ...NameTokens::QUALIFIED];
+
+        return match ($this->isToken($phpcsFile, $receiverPtr, $nameTokens)) {
             false => null,
             default => $receiverPtr,
         };
@@ -160,7 +164,9 @@ class ManualModelResolutionSniff implements Sniff
 
     private function isControllerClass(File $phpcsFile, int $classPtr): bool
     {
-        return str_ends_with((string) $phpcsFile->getDeclarationName($classPtr), 'Controller');
+        $name = (string) (new Declarations())->name($phpcsFile, $classPtr);
+
+        return str_ends_with($name, 'Controller');
     }
 
     private function isPublic(File $phpcsFile, int $functionPtr): bool
@@ -170,7 +176,7 @@ class ManualModelResolutionSniff implements Sniff
 
     private function isRoutable(File $phpcsFile, int $functionPtr): bool
     {
-        $name = strtolower((string) $phpcsFile->getDeclarationName($functionPtr));
+        $name = strtolower((string) (new Declarations())->name($phpcsFile, $functionPtr));
 
         return match (true) {
             $name === self::ROUTED_MAGIC_METHOD => true,

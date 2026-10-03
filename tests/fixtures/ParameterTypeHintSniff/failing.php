@@ -2,9 +2,6 @@
 
 declare(strict_types=1);
 
-use PHP_CodeSniffer\Files\File;
-use PHP_CodeSniffer\Sniffs\Sniff;
-
 // Violation: an ordinary method with no ancestor constraining it.
 class PlainClass
 {
@@ -14,23 +11,23 @@ class PlainClass
     }
 }
 
-// Silent: PHP_CodeSniffer's Sniff interface declares process()'s second
-// parameter untyped, so writing the hint is a fatal narrowing error.
-class InheritedFromSniffInterface implements Sniff
+// Silent: PHP's php_user_filter declares filter()'s first parameters untyped,
+// so writing a hint on them is a fatal narrowing error.
+class InheritedFromUntypedAncestor extends php_user_filter
 {
-    public function register(): array
+    public function onClose(): void
     {
-        return [T_VARIABLE];
+        echo 'closed';
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function filter($in, $out, &$consumed, bool $closing): int
     {
-        echo $stackPtr;
+        return PSFS_PASS_ON;
     }
 
     // Violation: the ancestor is loadable and does not declare this method, so
     // it constrains nothing and the hint can be written. Sharing the class with
-    // process() above is the point — the skip is per declaration, not per class.
+    // filter() above is the point — the skip is per declaration, not per class.
     public function helper($value): bool
     {
         return $value !== null;

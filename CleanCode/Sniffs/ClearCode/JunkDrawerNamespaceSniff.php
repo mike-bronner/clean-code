@@ -24,15 +24,11 @@ class JunkDrawerNamespaceSniff implements Sniff
         return [T_NAMESPACE];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
-        $tokens = $phpcsFile->getTokens();
         $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        if (
-            $namePtr === false
-            || $tokens[$namePtr]['code'] === T_NS_SEPARATOR
-        ) {
+        if ($namePtr === false) {
             return;
         }
 

@@ -65,7 +65,7 @@ class ComponentMarkupSniff implements Sniff
         return $this->scanCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($stackPtr !== $phpcsFile->findNext(T_INLINE_HTML, 0)) {
             return;

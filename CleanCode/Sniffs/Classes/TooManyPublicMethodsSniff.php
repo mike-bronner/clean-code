@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -22,7 +23,7 @@ class TooManyPublicMethodsSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -37,7 +38,7 @@ class TooManyPublicMethodsSniff implements Sniff
             return;
         }
 
-        $name = (string) $phpcsFile->getDeclarationName($stackPtr);
+        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
             'The class %s has %s public methods. Consider refactoring %s to keep the number of '
@@ -65,7 +66,7 @@ class TooManyPublicMethodsSniff implements Sniff
                 continue;
             }
 
-            if ($this->isIgnoredName($phpcsFile->getDeclarationName($pointer)) === true) {
+            if ($this->isIgnoredName((new Declarations())->name($phpcsFile, $pointer)) === true) {
                 continue;
             }
 

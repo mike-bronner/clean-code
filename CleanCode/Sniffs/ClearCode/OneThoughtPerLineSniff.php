@@ -47,7 +47,7 @@ class OneThoughtPerLineSniff implements Sniff
         return self::ACCESS_OPERATORS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isGrouped($phpcsFile, $stackPtr) === true) {
             return;

@@ -27,15 +27,15 @@ class DisallowDebugFunctionsSniff implements Sniff
 
     public function register(): array
     {
-        return [T_STRING];
+        return FunctionCalls::CALLEE_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $functionCalls = $this->functionCalls;
 
-        $tokens = $phpcsFile->getTokens();
-        $content = strtolower($tokens[$stackPtr]['content']);
+        $name = $functionCalls->calleeName($phpcsFile, $stackPtr);
+        $content = strtolower($name);
 
         if (in_array($content, self::DEBUG_FUNCTIONS, true) === false) {
             return;
@@ -49,7 +49,7 @@ class DisallowDebugFunctionsSniff implements Sniff
             'Debug function %s() must not be committed',
             $stackPtr,
             'Found',
-            [$tokens[$stackPtr]['content']]
+            [$name]
         );
     }
 }

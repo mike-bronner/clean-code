@@ -95,6 +95,17 @@ it('reads trait names past separators, qualifiers, and a conflict block', functi
         ->and(violationMessagesByLine($file->getErrors())[19][0])->toContain('this one declares 3');
 });
 
+it('reads a qualified trait name whole, and a relative one without its keyword', function (): void {
+    $file = analyzeFixture(MEMBER_ORDERING, 'qualified-traits.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationTuples($file))->toBe([
+            ['line' => 12, 'column' => 9, 'source' => MEMBER_ORDERING_TRAIT_ORDER],
+            ['line' => 14, 'column' => 9, 'source' => MEMBER_ORDERING_TRAIT_ORDER],
+            ['line' => 18, 'column' => 9, 'source' => MEMBER_ORDERING_TRAIT_ORDER],
+        ]);
+});
+
 it('checks every property of a multi-property or attributed declaration', function (): void {
     $file = analyzeFixture(MEMBER_ORDERING, 'multi-property.php');
 

@@ -21,7 +21,7 @@ class ApiControllerNamespaceSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($phpcsFile->getFilename() === self::UNKNOWN_PATH) {
             return;
@@ -91,7 +91,6 @@ class ApiControllerNamespaceSniff implements Sniff
 
     private function namespaceSegments(File $phpcsFile, int $stackPtr): array
     {
-        $tokens = $phpcsFile->getTokens();
         $searchFrom = $stackPtr;
 
         while (true) {
@@ -104,10 +103,7 @@ class ApiControllerNamespaceSniff implements Sniff
             $searchFrom = $namespacePtr;
             $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
 
-            if (
-                $namePtr === false
-                || $tokens[$namePtr]['code'] === T_NS_SEPARATOR
-            ) {
+            if ($namePtr === false) {
                 continue;
             }
 

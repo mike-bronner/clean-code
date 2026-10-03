@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Models;
 
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -34,6 +35,13 @@ class MemberOrderingSniff implements Sniff
         'Relation',
     ];
 
+    private const TRAIT_NAME_TOKENS = [
+        T_STRING,
+        T_NAME_QUALIFIED,
+        T_NAME_FULLY_QUALIFIED,
+        T_NAME_RELATIVE,
+    ];
+
     private const VISIBILITY_RANKS = [
         'public' => 0,
         'protected' => 1,
@@ -52,7 +60,7 @@ class MemberOrderingSniff implements Sniff
         return [T_ANON_CLASS, T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->hasModelShapedParent($phpcsFile, $stackPtr) === false) {
             return;
@@ -141,12 +149,12 @@ class MemberOrderingSniff implements Sniff
                 continue;
             }
 
-            if (in_array($tokens[$ptr]['code'], [T_STRING, T_NS_SEPARATOR], true) === false) {
+            if (in_array($tokens[$ptr]['code'], self::TRAIT_NAME_TOKENS, true) === false) {
                 continue;
             }
 
             $currentPtr ??= $ptr;
-            $current .= $tokens[$ptr]['content'];
+            $current .= (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]);
         }
 
         $this->appendName($names, $current, $currentPtr);

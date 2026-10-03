@@ -15,7 +15,7 @@ class EscapeNestedQuotesSniff implements Sniff
         return [T_CONSTANT_ENCAPSED_STRING];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
         $content = $tokens[$stackPtr]['content'];

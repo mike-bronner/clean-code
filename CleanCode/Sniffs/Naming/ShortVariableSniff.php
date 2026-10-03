@@ -29,7 +29,7 @@ class ShortVariableSniff implements Sniff
         return array_merge([T_OPEN_TAG, T_FUNCTION], self::CLASS_LIKE_TOKENS);
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $occurrences = $this->occurrencesInScope($phpcsFile, $stackPtr);
 

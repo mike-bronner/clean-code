@@ -34,7 +34,7 @@ class CombinableConditionsSniff implements Sniff
         return $this->scanCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($phpcsFile->findPrevious(self::OPEN_TAGS, ($stackPtr - 1)) !== false) {
             return;

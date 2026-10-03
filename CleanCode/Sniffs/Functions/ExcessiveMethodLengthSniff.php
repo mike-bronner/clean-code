@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Functions;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -28,7 +29,7 @@ class ExcessiveMethodLengthSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $minimum = $this->normalizedMinimum();
         $start = $this->declarationStart($phpcsFile, $stackPtr);
@@ -41,7 +42,7 @@ class ExcessiveMethodLengthSniff implements Sniff
             return;
         }
 
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
             'The %s %s() has %s lines of code, and the threshold is %s; a declaration '

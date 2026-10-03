@@ -150,7 +150,11 @@ function shippedSmokeSniffs(array $swept): array
     return array_values(array_diff($custom, SHIPPED_SMOKE_EXCLUSIONS));
 }
 
-function expectedFailingStatus(string $sniffCode): int
+function expectedFailingStatus(string $sniffCode, array $messages): int
 {
-    return in_array($sniffCode, AUTOFIXABLE_SNIFFS, true) === true ? 2 : 1;
+    if (in_array($sniffCode, AUTOFIXABLE_SNIFFS, true) === false) {
+        return 2;
+    }
+
+    return in_array(false, array_column($messages, 'fixable'), true) === true ? 3 : 1;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Files;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -50,7 +51,7 @@ class NoProceduralCodeSniff implements Sniff
         return self::FILE_ENTRY_TOKENS;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($phpcsFile->findPrevious(self::FILE_ENTRY_TOKENS, ($stackPtr - 1)) !== false) {
             return;
@@ -120,7 +121,7 @@ class NoProceduralCodeSniff implements Sniff
                 'MultipleDeclarations',
                 [
                     strtolower($tokens[$pointer]['content']),
-                    (string) $phpcsFile->getDeclarationName($pointer),
+                    (string) (new Declarations())->name($phpcsFile, $pointer),
                 ]
             );
         }

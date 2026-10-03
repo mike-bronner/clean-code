@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\CodeSize;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -18,7 +19,7 @@ class TooManyMethodsSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->hasUsableIgnorePattern() === false) {
             $phpcsFile->addError(
@@ -35,7 +36,7 @@ class TooManyMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$stackPtr]['scope_opener'] ?? null;
         $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $opener === null
@@ -83,7 +84,7 @@ class TooManyMethodsSniff implements Sniff
                 continue;
             }
 
-            $name = $phpcsFile->getDeclarationName($ptr);
+            $name = (new Declarations())->name($phpcsFile, $ptr);
 
             if (
                 $name === null

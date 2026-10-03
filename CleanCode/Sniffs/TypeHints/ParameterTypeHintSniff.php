@@ -10,7 +10,7 @@ use SlevomatCodingStandard\Sniffs\TypeHints\ParameterTypeHintSniff as SlevomatPa
 
 class ParameterTypeHintSniff extends SlevomatParameterTypeHint
 {
-    public function process(File $phpcsFile, $functionPointer): void
+    public function process(File $phpcsFile, int $functionPointer): void
     {
         if ((new InheritedMembers())->overridesUntypedParameter($phpcsFile, $functionPointer) === true) {
             return;

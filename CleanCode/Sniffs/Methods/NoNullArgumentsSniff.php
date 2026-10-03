@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Methods;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -56,7 +57,7 @@ class NoNullArgumentsSniff implements Sniff
         return [T_NULL];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $opener = $this->getCallOpener($phpcsFile, $stackPtr);
 
@@ -279,8 +280,7 @@ class NoNullArgumentsSniff implements Sniff
         }
 
         if (
-            $previous === T_NS_SEPARATOR
-            || $previous === T_STRING
+            $previous === T_STRING
             || $previous === T_FUNCTION
         ) {
             return null;
@@ -366,10 +366,7 @@ class NoNullArgumentsSniff implements Sniff
         if ($previousPtr !== false) {
             $previous = $tokens[$previousPtr]['code'];
 
-            if (
-                $previous === T_NS_SEPARATOR
-                || $previous === T_STRING
-            ) {
+            if ($previous === T_STRING) {
                 return null;
             }
         }
@@ -445,7 +442,9 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            if (strcasecmp((string) $phpcsFile->getDeclarationName($pointer), $name) === 0) {
+            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+
+            if (strcasecmp($declared, $name) === 0) {
                 return $pointer;
             }
         }
@@ -467,7 +466,9 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            if (strcasecmp((string) $phpcsFile->getDeclarationName($pointer), $name) === 0) {
+            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+
+            if (strcasecmp($declared, $name) === 0) {
                 return $pointer;
             }
         }
@@ -498,7 +499,9 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            if (strcasecmp((string) $phpcsFile->getDeclarationName($pointer), $name) === 0) {
+            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+
+            if (strcasecmp($declared, $name) === 0) {
                 return $pointer;
             }
         }

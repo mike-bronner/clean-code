@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Classes;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -25,7 +26,7 @@ class ExcessiveClassLengthSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -48,7 +49,7 @@ class ExcessiveClassLengthSniff implements Sniff
             $declarationPtr,
             'TooLong',
             [
-                $phpcsFile->getDeclarationName($stackPtr),
+                (new Declarations())->name($phpcsFile, $stackPtr),
                 $length,
                 $this->minimum,
             ]

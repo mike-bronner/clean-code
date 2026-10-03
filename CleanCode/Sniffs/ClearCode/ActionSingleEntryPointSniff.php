@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\ClearCode;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use SlevomatCodingStandard\Helpers\NamespaceHelper;
@@ -21,7 +22,7 @@ class ActionSingleEntryPointSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isActionClass($phpcsFile, $stackPtr) === false) {
             return;
@@ -30,7 +31,7 @@ class ActionSingleEntryPointSniff implements Sniff
         $extras = array_slice($this->entryPoints($phpcsFile, $stackPtr), 1);
 
         foreach ($extras as $methodPtr) {
-            $name = (string) $phpcsFile->getDeclarationName($methodPtr);
+            $name = (string) (new Declarations())->name($phpcsFile, $methodPtr);
 
             $phpcsFile->addWarning(
                 'Public method %s() is an additional entry point; an Action class exposes a'
@@ -47,7 +48,7 @@ class ActionSingleEntryPointSniff implements Sniff
 
     private function isActionClass(File $phpcsFile, int $stackPtr): bool
     {
-        $name = $phpcsFile->getDeclarationName($stackPtr);
+        $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         if (
             $name !== null
@@ -126,7 +127,7 @@ class ActionSingleEntryPointSniff implements Sniff
             return false;
         }
 
-        $name = $phpcsFile->getDeclarationName($methodPtr);
+        $name = (new Declarations())->name($phpcsFile, $methodPtr);
 
         return $name !== null && strtolower($name) !== self::CONSTRUCTOR;
     }

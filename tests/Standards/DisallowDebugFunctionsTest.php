@@ -28,9 +28,9 @@ it('flags every debug call at its own line', function (): void {
         ],
         [
             [3, 1], [4, 1], [5, 1], [6, 1], [7, 1],
-            [22, 11],
-            [24, 2], [26, 1], [27, 2], [28, 1], [29, 1], [30, 2], [31, 1],
-            [32, 2],
+            [22, 1],
+            [24, 1], [26, 1], [27, 1], [28, 1], [29, 1], [30, 1], [31, 1],
+            [32, 1],
         ]
     ))->and($file->getWarnings())->toBe([]);
 });
@@ -49,7 +49,7 @@ it('stays silent on a namespace-relative call inside a declared namespace', func
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'namespace-relative.php');
 
     expect(violationTuples($file))
-        ->toBe([['line' => 22, 'column' => 2, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found']])
+        ->toBe([['line' => 22, 'column' => 1, 'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found']])
         ->and($file->getWarnings())->toBe([]);
 });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Support;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use ReflectionClass;
 use SlevomatCodingStandard\Helpers\ClassHelper;
@@ -15,7 +16,7 @@ class InheritedMembers
 
     public function overridesUntypedParameter(File $phpcsFile, int $functionPtr): bool
     {
-        $name = $phpcsFile->getDeclarationName($functionPtr);
+        $name = (new Declarations())->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return false;
@@ -41,7 +42,7 @@ class InheritedMembers
 
     public function overridesStaticMethod(File $phpcsFile, int $functionPtr): bool
     {
-        $name = $phpcsFile->getDeclarationName($functionPtr);
+        $name = (new Declarations())->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return false;
@@ -89,7 +90,7 @@ class InheritedMembers
 
     public function declaredReturnType(File $phpcsFile, int $functionPtr): ?string
     {
-        $name = $phpcsFile->getDeclarationName($functionPtr);
+        $name = (new Declarations())->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return null;

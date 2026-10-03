@@ -24,7 +24,12 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private const IMPORT_KEYWORDS = ['function', 'const'];
 
-    private const NAME_TOKENS = [T_STRING, T_NS_SEPARATOR];
+    private const NAME_TOKENS = [
+        T_STRING,
+        T_NS_SEPARATOR,
+        T_NAME_QUALIFIED,
+        T_NAME_FULLY_QUALIFIED,
+    ];
 
     private const NAME_STARTERS = [T_ATTRIBUTE, T_COMMA];
 
@@ -45,7 +50,7 @@ class ModelMagicMethodLocationSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $imports = $this->readImports($phpcsFile);
 

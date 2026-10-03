@@ -65,8 +65,6 @@ class MultiLineStatementIndentSniff implements Sniff
         T_DECLARE,
         T_CASE,
         T_DEFAULT,
-        T_OBJECT,
-        T_PROPERTY,
     ];
 
     private const RAW_CONTENT = [
@@ -111,7 +109,7 @@ class MultiLineStatementIndentSniff implements Sniff
         return $this->scanCounts;
     }
 
-    public function process(File $phpcsFile, $stackPtr): int
+    public function process(File $phpcsFile, int $stackPtr): int
     {
         $tokens = $phpcsFile->getTokens();
         $this->mapLines($phpcsFile);

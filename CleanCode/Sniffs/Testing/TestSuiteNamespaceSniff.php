@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -31,7 +32,7 @@ class TestSuiteNamespaceSniff implements Sniff
         return [T_CLASS];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($phpcsFile->getFilename() === self::UNKNOWN_PATH) {
             return;
@@ -91,7 +92,7 @@ class TestSuiteNamespaceSniff implements Sniff
             return false;
         }
 
-        $name = (string) $phpcsFile->getDeclarationName($stackPtr);
+        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
 
         return str_ends_with($name, $this->testClassSuffix)
             || $this->extendsTestBase($phpcsFile, $stackPtr);
@@ -160,7 +161,6 @@ class TestSuiteNamespaceSniff implements Sniff
 
     private function namespaceSegments(File $phpcsFile, int $stackPtr): array
     {
-        $tokens = $phpcsFile->getTokens();
         $searchFrom = $stackPtr;
 
         while (true) {
@@ -173,10 +173,7 @@ class TestSuiteNamespaceSniff implements Sniff
             $searchFrom = $namespacePtr;
             $namePtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($namespacePtr + 1), null, true);
 
-            if (
-                $namePtr === false
-                || $tokens[$namePtr]['code'] === T_NS_SEPARATOR
-            ) {
+            if ($namePtr === false) {
                 continue;
             }
 

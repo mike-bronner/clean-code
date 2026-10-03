@@ -16,7 +16,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         T_OPEN_TAG_WITH_ECHO,
         T_SEMICOLON,
         T_OPEN_CURLY_BRACKET,
-        T_GOTO_LABEL,
+        T_GOTO_COLON,
 
         T_OPEN_PARENTHESIS,
         T_OPEN_SQUARE_BRACKET,
@@ -53,7 +53,6 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     ];
 
     private const GROUP_PRECEDER_TYPES = [
-        'T_VOID_CAST',
         'T_PIPE',
     ];
 
@@ -91,7 +90,7 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         return $this->walkSteps;
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 

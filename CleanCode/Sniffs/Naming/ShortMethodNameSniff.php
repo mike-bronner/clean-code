@@ -21,7 +21,7 @@ class ShortMethodNameSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $namePtr = $this->namePointer($phpcsFile, $stackPtr);
 

@@ -298,7 +298,7 @@ it('reads a group import without recursing once per brace', function (): void {
     }
 
     expect($stderr)->not->toContain('Allowed memory size');
-    expect($status)->toBe(1);
+    expect($status)->toBe(2);
     expect($reported)->toBe([
         'Base.php:5 The class Base has 15 children.'
             . ' Consider to rebalance this class hierarchy to keep number of children under 15.',
@@ -348,7 +348,7 @@ it('indexes a packed line of declarations once, not once per declaration', funct
 
     ksort($indexed);
 
-    expect($status)->toBe(1);
+    expect($status)->toBe(2);
     expect($reported)->toBe([
         'Base.php:5 The class Base has 15 children.'
             . ' Consider to rebalance this class hierarchy to keep number of children under 15.',

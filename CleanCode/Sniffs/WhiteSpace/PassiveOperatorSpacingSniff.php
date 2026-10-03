@@ -17,7 +17,7 @@ class PassiveOperatorSpacingSniff implements Sniff
         return [T_PLUS, T_MINUS, T_ASPERAND, T_BACKTICK];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $code = $phpcsFile->getTokens()[$stackPtr]['code'];
 

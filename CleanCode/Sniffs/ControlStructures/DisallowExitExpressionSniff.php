@@ -14,7 +14,7 @@ class DisallowExitExpressionSniff implements Sniff
         return [T_EXIT];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
 
@@ -27,7 +27,7 @@ class DisallowExitExpressionSniff implements Sniff
                 . 'relocate it to a startup script that returns an error code',
             $stackPtr,
             'Found',
-            [$tokens[$stackPtr]['content']]
+            [ltrim($tokens[$stackPtr]['content'], '\\')]
         );
     }
 }

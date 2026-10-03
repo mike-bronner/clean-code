@@ -94,6 +94,15 @@ it('exercises every watched trait, facade and request method', function (string 
     'the HTTP-kernel methods' => 'HTTP_KERNEL_METHODS',
 ]);
 
+it('reads a facade behind a relative or a rooted name', function (): void {
+    $file = analyzeFixture(UNIT_EXTERNAL, 'tests/Unit/qualified-facades.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 13, 'column' => 23, 'source' => UNIT_EXTERNAL_FAKE],
+        ['line' => 14, 'column' => 41, 'source' => UNIT_EXTERNAL_FAKE],
+    ]);
+});
+
 it('flags a test under the shipped unit-suite directory', function (): void {
     $file = analyzeFixture(UNIT_EXTERNAL, 'tests/Unit/external-concerns.php');
 
@@ -239,7 +248,7 @@ it('reports the violation end to end through the installed package', function ()
         UNIT_EXTERNAL_HTTP => 12,
     ])
         ->and(array_unique(array_column($inSuite['messages'], 'type')))->toBe(['WARNING'])
-        ->and($inSuite['status'])->toBe(1)
+        ->and($inSuite['status'])->toBe(2)
         ->and($outsideSuite['messages'])->toBe([])
         ->and($outsideSuite['status'])->toBe(0)
         ->and($compliant['messages'])->toBe([])

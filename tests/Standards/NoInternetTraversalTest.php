@@ -34,7 +34,7 @@ $expectedWarnings = static fn (): array => array_map(
         [9, 1],
         [10, 11],
         [11, 11],
-        [12, 12],
+        [12, 11],
         [13, 10],
         [14, 9],
         [15, 10],
@@ -215,7 +215,7 @@ it('accounts for every heredoc token PHPCS defines', function (): void {
         ->toHaveCount(2, 'the closing tokens the scope_closer stands in for are still the two named here');
 });
 
-it('sees a qualified class name in the pre-8.0 spelling', function (): void {
+it('sees a qualified class name as one fully qualified name token', function (): void {
     $file = parseFixture(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php');
     $tokens = $file->getTokens();
     $codes = [];
@@ -226,9 +226,8 @@ it('sees a qualified class name in the pre-8.0 spelling', function (): void {
         }
     }
 
-    expect($codes)->toContain('T_NS_SEPARATOR')
-        ->and($codes)->toContain('T_STRING')
-        ->and($codes)->not->toContain('T_NAME_FULLY_QUALIFIED');
+    expect($codes)->toContain('T_NAME_FULLY_QUALIFIED')
+        ->and($codes)->not->toContain('T_NS_SEPARATOR');
 });
 
 it('reports the violation end to end through the installed package', function () use (
@@ -244,7 +243,7 @@ it('reports the violation end to end through the installed package', function ()
     expect(array_column($staged['messages'], 'source'))->toHaveCount(22)
         ->each->toBe(NO_INTERNET_TRAVERSAL_WARNING)
         ->and(array_unique(array_column($staged['messages'], 'type')))->toBe(['WARNING'])
-        ->and($staged['status'])->toBe(1)
+        ->and($staged['status'])->toBe(2)
         ->and($inRepo['messages'])->toBe([])
         ->and($inRepo['status'])->toBe(0)
         ->and($passing['messages'])->toBe([])

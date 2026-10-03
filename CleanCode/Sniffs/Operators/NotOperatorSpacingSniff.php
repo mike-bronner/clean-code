@@ -19,7 +19,7 @@ class NotOperatorSpacingSniff implements Sniff
         return [T_BOOLEAN_NOT];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         $this->checkSpaceBefore($phpcsFile, $stackPtr);
         $this->checkSpaceAfter($phpcsFile, $stackPtr);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
+use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -54,9 +55,9 @@ class ActionMethodReturnSniff implements Sniff
         return [T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
-        $name = (string) $phpcsFile->getDeclarationName($stackPtr);
+        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
         $prefix = $this->matchedPrefix($name);
 
         match (true) {
@@ -181,7 +182,7 @@ class ActionMethodReturnSniff implements Sniff
 
         return match ($classPtr) {
             self::NO_POINTER => null,
-            default => $phpcsFile->getDeclarationName($classPtr),
+            default => (new Declarations())->name($phpcsFile, $classPtr),
         };
     }
 

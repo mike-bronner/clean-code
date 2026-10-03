@@ -42,7 +42,7 @@ class LongVariableSniff implements Sniff
         return [T_CLASS, T_TRAIT, T_INTERFACE, T_ENUM, T_FUNCTION];
     }
 
-    public function process(File $phpcsFile, $stackPtr): void
+    public function process(File $phpcsFile, int $stackPtr): void
     {
         if ($this->isReachableArtifact($phpcsFile, $stackPtr) === false) {
             return;
