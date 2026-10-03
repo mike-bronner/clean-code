@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Files\LocalFile;
 
+pest()->group('arch');
+
 const PROCEDURAL = 'CleanCode.Files.NoProceduralCode';
 
 const PROCEDURAL_STATEMENT = PROCEDURAL . '.ProceduralStatement';

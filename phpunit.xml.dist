@@ -28,4 +28,12 @@
             <directory>tests/Support</directory>
         </testsuite>
     </testsuites>
+    <source>
+        <exclude>
+            <directory>tests/fixtures</directory>
+            <directory>tests/Integration/fixtures</directory>
+            <directory>tests/Ruleset/fixtures</directory>
+            <directory>tests/Standards/Fixtures</directory>
+        </exclude>
+    </source>
 </phpunit>

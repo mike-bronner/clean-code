@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const PERSISTENCE = 'CleanCode.Models.DisallowExternalPersistenceCalls';
 
 const PERSISTENCE_WARNING = PERSISTENCE . '.Found';

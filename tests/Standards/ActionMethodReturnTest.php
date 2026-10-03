@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
 
+pest()->group('arch');
+
 const ACTION_METHOD_RETURN = 'CleanCode.Naming.ActionMethodReturn';
 
 const ACTION_METHOD_RETURN_WARNING = ACTION_METHOD_RETURN . '.Found';

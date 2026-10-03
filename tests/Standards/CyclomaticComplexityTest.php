@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const CYCLOMATIC_COMPLEXITY = 'CleanCode.Metrics.CyclomaticComplexity';
 
 it('is registered in the master ruleset', function (): void {

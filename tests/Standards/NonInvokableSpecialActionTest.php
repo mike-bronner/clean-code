@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use MikeBronner\CleanCode\Tests\PregFailure;
 
+pest()->group('arch');
+
 const SPECIAL_ACTION = 'CleanCode.Routes.NonInvokableSpecialAction';
 
 const SPECIAL_ACTION_FOUND = SPECIAL_ACTION . '.Found';

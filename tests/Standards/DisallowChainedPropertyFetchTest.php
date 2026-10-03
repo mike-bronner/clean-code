@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const CHAINED = 'CleanCode.Models.DisallowChainedPropertyFetch';
 
 const CHAINED_ERROR = CHAINED . '.Found';

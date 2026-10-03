@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Files\LocalFile;
 
+pest()->group('arch');
+
 const NON_RESOURCE_ROUTES = 'CleanCode.Routes.DisallowNonResourceRoutes';
 
 const NON_RESOURCE_ROUTES_WARNING = NON_RESOURCE_ROUTES . '.Found';

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 $sourcesWithoutShortOpenTags = static function (string $path): array {
     $command = implode(' ', array_map('escapeshellarg', [
         PHP_BINARY,

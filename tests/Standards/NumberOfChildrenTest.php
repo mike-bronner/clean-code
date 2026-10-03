@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const NUMBER_OF_CHILDREN = 'CleanCode.Metrics.NumberOfChildren';
 
 const NUMBER_OF_CHILDREN_ERROR = 'CleanCode.Metrics.NumberOfChildren.Found';

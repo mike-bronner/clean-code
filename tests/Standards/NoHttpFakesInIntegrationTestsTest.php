@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Files\LocalFile;
 
+pest()->group('arch');
+
 const NO_HTTP_FAKES = 'CleanCode.Testing.NoHttpFakesInIntegrationTests';
 
 const NO_HTTP_FAKES_FAKE = NO_HTTP_FAKES . '.FakedHttpClient';

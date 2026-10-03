@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 it('installs exactly one standard, named CleanCode', function (): void {
     $rulesets = array_merge(
         (array) glob(cleanCodeRoot() . '/*/ruleset.xml'),

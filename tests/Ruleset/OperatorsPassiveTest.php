@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Util\ExitCode;
 
+pest()->group('arch');
+
 const OPERATORS_PASSIVE_SNIFFS = [
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',
     'Generic.WhiteSpace.IncrementDecrementSpacing',

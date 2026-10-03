@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PHP_CodeSniffer\Files\LocalFile;
 
+pest()->group('arch');
+
 const MODEL_MAGIC_METHOD = 'CleanCode.Models.ModelMagicMethodLocation';
 
 const MODEL_MAGIC_ATTRIBUTE = MODEL_MAGIC_METHOD . '.AttributeMethod';

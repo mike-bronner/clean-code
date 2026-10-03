@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const ORDINAL_INDEX_SNIFF = 'CleanCode.Metrics.NumberOfChildren';
 
 const ORDINAL_INDEX_DIAGNOSTIC = ORDINAL_INDEX_SNIFF . '.OrdinalIndex';

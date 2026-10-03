@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Testing\UnitTestExternalConcernsSniff;
 
+pest()->group('arch');
+
 const UNIT_EXTERNAL = 'CleanCode.Testing.UnitTestExternalConcerns';
 
 const UNIT_EXTERNAL_TRAIT = UNIT_EXTERNAL . '.DatabaseTrait';

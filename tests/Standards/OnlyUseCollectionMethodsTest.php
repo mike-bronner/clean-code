@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use MikeBronner\CleanCode\Sniffs\Collections\OnlyUseCollectionMethodsSniff;
 
+pest()->group('arch');
+
 const ONLY_USE_COLLECTION_METHODS = 'CleanCode.Collections.OnlyUseCollectionMethods';
 
 const ONLY_USE_COLLECTION_METHODS_MESSAGE = '/^Use the Collection method (\w+)\(\) instead of'

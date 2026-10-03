@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const DUPLICATED_ARRAY_KEY = 'CleanCode.Arrays.DuplicatedArrayKey';
 
 it('is registered in the master ruleset', function (): void {

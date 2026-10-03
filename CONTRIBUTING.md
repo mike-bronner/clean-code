@@ -262,8 +262,8 @@ only because a detection-only sniff has no safe mechanical rewrite to assert.
 
 One directory sits outside this contract: `tests/Ruleset/fixtures/` holds
 `clean.inc`, `violations.inc`, `edge-cases.inc` and `fixable.inc`/`.inc.fixed`
-for `NoDeadCodeRulesetTest`, which drives the `phpcs`/`phpcbf` binaries directly
-rather than going through `tests/Helpers.php`. The `.inc` extension is
+for `NoDeadCodeRulesetTest`, which drives the `phpcs`/`phpcbf` binaries in a
+subprocess rather than analyzing in-process. The `.inc` extension is
 load-bearing there: the PSR-12 self-lint scans `.php` only, so `.inc` keeps the
 deliberately violating fixtures out of `composer lint`, and the phpcs invocation
 opts back in with `--extensions=inc`. New fixtures do not go there — use
@@ -508,9 +508,20 @@ in and what applies the `<properties>` configured there.
 Use Pest's functional style — `it('does the thing', function () { … })` — not a
 `TestCase` subclass. Where several fixtures exercise the same assertion, use a
 dataset (`->with([...])`) rather than copy-pasting the test.
-`tests/Ruleset/NoDeadCodeRulesetTest.php` is the only surviving subclass; it
-shells out to the `phpcs`/`phpcbf` binaries and predates the Pest migration.
-Do not copy its shape.
+No subclass remains, and `vendor/bin/pest --tia` refuses to run while one
+exists.
+
+Test impact analysis (`--tia`) links a test to the PHP it executes, so it
+cannot see a file a test only reads: a fixture, `CleanCode/ruleset.xml`, or a
+guideline. `tests/Pest.php` therefore re-runs the whole suite when a file
+outside the graph changes. `phpunit.xml.dist` excludes the fixture directories
+from the source scope, so a fixture that a test executes falls under the same
+rule. Code that runs in a `phpcs` or `phpcbf` subprocess is not tracked
+either, so every test file that starts a subprocess declares
+`pest()->group('arch');`. TIA re-runs an `arch` test after any PHP change
+outside `tests/` and `vendor/`.
+`tests/Contract/SubprocessTestsRerunUnderTiaTest.php` fails when a file
+starts a subprocess without that line.
 
 Say *why* in the test's name, or in the issue that records the decision, whenever the
 assertion encodes a judgement call: which of two overlapping sniffs owns a diagnostic, a deliberate
@@ -528,6 +539,7 @@ composer lint:self # the shipped ruleset against CleanCode/, at zero errors
 
 vendor/bin/pest --testsuite=Standards      # one suite
 vendor/bin/pest --filter='flags every'     # one test
+vendor/bin/pest --tia                      # only the tests a change affects
 vendor/bin/phpcs --standard=CleanCode/ruleset.xml <file>   # run the standard
 ```
 

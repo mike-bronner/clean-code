@@ -5,6 +5,8 @@ declare(strict_types=1);
 use PHP_CodeSniffer\Files\LocalFile;
 use PHP_CodeSniffer\Util\Tokens;
 
+pest()->group('arch');
+
 const NO_INTERNET_TRAVERSAL = 'CleanCode.Testing.NoInternetTraversal';
 
 const NO_INTERNET_TRAVERSAL_WARNING = NO_INTERNET_TRAVERSAL . '.Found';

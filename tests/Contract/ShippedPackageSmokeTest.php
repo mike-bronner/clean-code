@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 dataset('shipped error sniffs', shippedSmokeSniffs(SWEPT_SNIFFS));
 
 dataset('shipped warning sniffs', shippedSmokeSniffs(SWEPT_WARNING_SNIFFS));

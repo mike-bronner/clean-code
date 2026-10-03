@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const REDUNDANT_NAMESPACE_SUFFIX = 'CleanCode.Naming.RedundantNamespaceSuffix';
 
 const REDUNDANT_NAMESPACE_SUFFIX_FOUND = REDUNDANT_NAMESPACE_SUFFIX . '.Found';

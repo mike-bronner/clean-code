@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+pest()->group('arch');
+
 const MANUAL_RESOLUTION = 'CleanCode.Controllers.ManualModelResolution';
 
 const MANUAL_RESOLUTION_WARNING = MANUAL_RESOLUTION . '.Found';
