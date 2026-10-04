@@ -17,8 +17,6 @@ class ArrayAccessorsSniff implements Sniff
     private const MESSAGES = [
         'DirectArrayAccess' => 'Direct array element access on %s is not allowed;'
             . ' use data_get(%s, ...) so a missing element falls back instead of erroring',
-        'DirectPropertyAccess' => 'Direct property access on %s is not allowed;'
-            . ' use data_get(%s, ...) so any object shape resolves without type checks',
     ];
 
     private const VERDICT_TARGET = 'target';
@@ -113,9 +111,9 @@ class ArrayAccessorsSniff implements Sniff
             return;
         }
 
-        $errorCode = $this->readAccessCode($phpcsFile, $accessorPtr);
+        $read = $this->classifyRead($phpcsFile, $stackPtr, $accessorPtr);
 
-        if ($errorCode === null) {
+        if ($read === null) {
             return;
         }
 
@@ -127,17 +125,17 @@ class ArrayAccessorsSniff implements Sniff
             return;
         }
 
-        $variable = $this->chainRootName($phpcsFile, $rootPtr, $stackPtr);
-        $path = $this->readPath($phpcsFile, $accessorPtr);
+        $variable = $this->chainRootName($phpcsFile, $rootPtr, $read['subjectEnd']);
+        $path = $this->readPath($phpcsFile, $read['arrayPtr']);
 
         if (
             $path === null
             || $this->isByReferenceArgument($phpcsFile, $rootPtr) === true
         ) {
             $phpcsFile->addError(
-                self::MESSAGES[$errorCode],
+                self::MESSAGES['DirectArrayAccess'],
                 $rootPtr,
-                $errorCode,
+                'DirectArrayAccess',
                 [$variable, $variable]
             );
 
@@ -145,9 +143,9 @@ class ArrayAccessorsSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            self::MESSAGES[$errorCode],
+            self::MESSAGES['DirectArrayAccess'],
             $rootPtr,
-            $errorCode,
+            'DirectArrayAccess',
             [$variable, $variable]
         );
 
@@ -158,7 +156,7 @@ class ArrayAccessorsSniff implements Sniff
                 $phpcsFile,
                 $targetStartPtr,
                 $path['end'],
-                $this->chainRootName($phpcsFile, $targetStartPtr, $stackPtr),
+                $this->chainRootName($phpcsFile, $targetStartPtr, $read['subjectEnd']),
                 $path['segments']
             );
         }
@@ -542,45 +540,37 @@ class ArrayAccessorsSniff implements Sniff
         return in_array($tokens[$previousPtr]['code'], self::OBJECT_OPERATORS, true);
     }
 
-    private function readAccessCode(File $phpcsFile, int $accessorPtr): ?string
+    private function classifyRead(File $phpcsFile, int $stackPtr, int $accessorPtr): ?array
     {
         $tokens = $phpcsFile->getTokens();
-        $code = $tokens[$accessorPtr]['code'];
+        $subjectEndPtr = $stackPtr;
+        $cursorPtr = $accessorPtr;
 
-        if ($code === T_OPEN_SQUARE_BRACKET) {
-            return 'DirectArrayAccess';
-        }
+        while (in_array($tokens[$cursorPtr]['code'], self::OBJECT_OPERATORS, true) === true) {
+            $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($cursorPtr + 1), null, true);
+            $memberEndPtr = $memberPtr === false || $tokens[$memberPtr]['code'] !== T_OPEN_CURLY_BRACKET
+                ? $memberPtr
+                : ($tokens[$memberPtr]['bracket_closer'] ?? false);
 
-        if (in_array($code, self::OBJECT_OPERATORS, true) === false) {
-            return null;
-        }
-
-        $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($accessorPtr + 1), null, true);
-
-        if ($memberPtr === false) {
-            return 'DirectPropertyAccess';
-        }
-
-        $memberEndPtr = $memberPtr;
-
-        if ($tokens[$memberPtr]['code'] === T_OPEN_CURLY_BRACKET) {
-            if (isset($tokens[$memberPtr]['bracket_closer']) === false) {
-                return 'DirectPropertyAccess';
+            if ($memberEndPtr === false) {
+                return null;
             }
 
-            $memberEndPtr = $tokens[$memberPtr]['bracket_closer'];
+            $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($memberEndPtr + 1), null, true);
+
+            if ($nextPtr === false) {
+                return null;
+            }
+
+            $subjectEndPtr = $memberEndPtr;
+            $cursorPtr = $nextPtr;
         }
 
-        $afterMemberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($memberEndPtr + 1), null, true);
-
-        if (
-            $afterMemberPtr !== false
-            && $tokens[$afterMemberPtr]['code'] === T_OPEN_PARENTHESIS
-        ) {
+        if ($tokens[$cursorPtr]['code'] !== T_OPEN_SQUARE_BRACKET) {
             return null;
         }
 
-        return 'DirectPropertyAccess';
+        return ['subjectEnd' => $subjectEndPtr, 'arrayPtr' => $cursorPtr];
     }
 
     private function isWriteTarget(File $phpcsFile, int $rootPtr, int $stackPtr): bool

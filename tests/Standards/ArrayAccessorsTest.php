@@ -90,18 +90,14 @@ it('flags every violation at its own line with the expected code', function (): 
         9 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         10 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         11 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        18 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
-        19 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
-        20 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
+        18 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        19 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        20 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         27 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        31 => [
-            ARRAY_ACCESSORS . '.DirectPropertyAccess',
-            ARRAY_ACCESSORS . '.DirectArrayAccess',
-        ],
+        31 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         36 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        43 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
+        43 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
         44 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        45 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
         52 => [
             ARRAY_ACCESSORS . '.DirectArrayAccess',
             ARRAY_ACCESSORS . '.DirectArrayAccess',
@@ -170,10 +166,8 @@ it('reports an unterminated chain without falling over', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'unterminated.php');
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
-        9 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        10 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
-        19 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
-        27 => [ARRAY_ACCESSORS . '.DirectPropertyAccess'],
+        10 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
+        20 => [ARRAY_ACCESSORS . '.DirectArrayAccess'],
     ]);
 });
 
@@ -313,11 +307,12 @@ it('stops a staggered walk at an unterminated construct partway up it', function
         ->and(array_sum(array_map('count', $errors)))->toBe(3, 'every read past the opener survives');
 });
 
-it('flags a dynamic member only when it is not a call', function (): void {
+it('does not report a property read through a dynamic member', function (): void {
     $errors = analyzeFixture(ARRAY_ACCESSORS, 'failing.php')->getErrors();
 
-    expect($errors[45])->toHaveCount(1)
-        ->and(array_key_first($errors[45]))->toBe(20);
+    expect($errors)->not->toHaveKey(45)
+        ->and($errors[43])->toHaveCount(1)
+        ->and(array_key_first($errors[43]))->toBe(23);
 });
 
 it('still flags reads that sit beside writes', function (): void {
@@ -445,8 +440,8 @@ it('does not report a file ending on a bare variable', function (): void {
 it('offers every reported read as fixable', function (): void {
     $file = analyzeFixture(ARRAY_ACCESSORS, 'failing.php');
 
-    expect($file->getErrorCount())->toBe(47)
-        ->and($file->getFixableCount())->toBe(47);
+    expect($file->getErrorCount())->toBe(45)
+        ->and($file->getFixableCount())->toBe(45);
 });
 
 it('rewrites every read to a data_get() call when fixed', function (): void {
@@ -482,8 +477,8 @@ it('chooses the dotted path only for identifier-shaped segments', function (): v
         "data_get(\$payload, [''])",
         'data_get($payload, [0])',
         'data_get($payload, [$index])',
-        "data_get(\$order, 'reference')",
-        'data_get($order, [$field])',
+        "data_get(\$payload, 'row.reference')",
+        "data_get(\$payload, ['row', \$field])",
     ]);
 });
 
@@ -584,3 +579,41 @@ it('builds its enclosure map once per stream, not once per read', function (): v
             );
     }
 });
+
+it('reports an element read behind properties once, at its root', function (): void {
+    $errors = analyzeFixture(ARRAY_ACCESSORS, 'element-after-property.php')->getErrors();
+    $element = [ARRAY_ACCESSORS . '.DirectArrayAccess'];
+
+    expect(violationSourcesByLine($errors))->toBe(array_fill(10, 7, $element));
+
+    foreach ($errors as $line => $columns) {
+        expect(array_keys($columns))->toBe([$line === 15 ? 19 : 13], "line {$line} reports at its root");
+    }
+});
+
+it('names the property read as the data_get subject of an element read behind it', function (): void {
+    $messages = violationMessagesByLine(analyzeFixture(ARRAY_ACCESSORS, 'element-after-property.php')->getErrors());
+
+    expect($messages[10])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$order->tags')])
+        ->and($messages[11])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$order?->tags')])
+        ->and($messages[13])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$order->customer->tags')])
+        ->and($messages[14])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$order->{$name}')])
+        ->and($messages[16])->toBe([sprintf(ARRAY_ACCESSORS_READ, '$payload')]);
+});
+
+it('rewrites an element read behind properties with the property read as the subject', function (): void {
+    $file = analyzeFixture(ARRAY_ACCESSORS, 'element-after-property.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('ArrayAccessorsSniff', 'element-after-property.fixed.php')));
+});
+
+it('does not report a truncated property read', function (string $source): void {
+    $file = analyzeStdinSource([ARRAY_ACCESSORS], "<?php\n\n" . $source);
+
+    expect($file->getErrors())->toBe([]);
+})->with([
+    'one hop at the operator' => ['$value = $order->'],
+    'one hop in an open brace' => ["\$value = \$order->{\n"],
+    'two hops at the operator' => ['$value = $order->customer->'],
+]);

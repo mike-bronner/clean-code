@@ -15,9 +15,9 @@ class ArrayAccessorsFailing
 
     public function readsProperties(object $order, object $customer): array
     {
-        $reference = data_get($order, 'reference');
-        $city = data_get($order, 'address.city');
-        $email = data_get($customer, 'email');
+        $reference = data_get($order->meta, 'reference');
+        $city = data_get($order->address->lines, 'city');
+        $email = data_get($customer?->contact, 'email');
 
         return [$reference, $city, $email];
     }
@@ -28,7 +28,7 @@ class ArrayAccessorsFailing
             return true;
         }
 
-        return data_get($order, 'status') === data_get($payload, 'status');
+        return $order->status === data_get($payload, 'status');
     }
 
     public function readsNestedShapes(array $payload): string
@@ -40,9 +40,9 @@ class ArrayAccessorsFailing
 
     public function readsThroughIndirection(object $order, string $field): array
     {
-        $translated = data_get($order, [$field, 'locale']);
+        $translated = data_get($order->$field, 'locale');
         $registered = data_get(self::$registry, 'key');
-        $dynamic = data_get($order, [$field]);
+        $dynamic = $order->{$field};
 
         return [$translated, $registered, $dynamic];
     }

@@ -26,8 +26,8 @@ class ArrayAccessorsPathForms
             $payload[''],
             $payload[0],
             $payload[$index],
-            $order->reference,
-            $order->{$field},
+            $payload['row']->reference,
+            $payload['row']->{$field},
         ];
     }
 }

@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-const ACCESSOR = 'CleanCode.Arrays.ArrayAccessors.DirectPropertyAccess';
-
 const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVariable';
 
 const SHORT_NAME = 'CleanCode.Naming.ShortVariable.TooShort';
@@ -107,18 +105,17 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
     'one-thought-per-line chain style is PSR12-clean' => [
         fixturePath('OneThoughtPerLineSniff', 'autofixed.php'),
         [
-            3 => [ACCESSOR, UNDEFINED],
-            4 => [ACCESSOR, UNDEFINED],
-            9 => [ACCESSOR, UNDEFINED, UNDEFINED],
+            3 => [UNDEFINED],
+            4 => [UNDEFINED],
+            9 => [UNDEFINED, UNDEFINED],
             10 => [UNDEFINED],
-            11 => [ACCESSOR, ACCESSOR],
-            12 => [ACCESSOR, ACCESSOR, UNDEFINED, UNDEFINED],
+            12 => [UNDEFINED, UNDEFINED],
             20 => [UNDEFINED],
             23 => [UNDEFINED],
-            25 => [ACCESSOR, UNDEFINED],
-            30 => [ACCESSOR, SHORT_NAME, UNDEFINED],
+            25 => [UNDEFINED],
+            30 => [SHORT_NAME, UNDEFINED],
             38 => [UNDEFINED],
-            41 => [ACCESSOR, UNDEFINED],
+            41 => [UNDEFINED],
             45 => [UNDEFINED, UNDEFINED],
             47 => [UNDEFINED],
             49 => [UNDEFINED, UNDEFINED],
