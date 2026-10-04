@@ -35,4 +35,38 @@ class ArrayAccessorsPassing
     {
         return strtoupper(data_get($payload, 'items.0.name', ''));
     }
+
+    public function readsOneProperty(object $order, object $customer, string $field): array
+    {
+        $reference = $order->reference;
+        $email = $customer?->email;
+        $dynamic = $order->{$field};
+        $variable = $order->$field;
+        $static = self::$registry->name;
+        $status = $order->status === 'open';
+
+        return [$reference, $email, $dynamic, $variable, $static, $status];
+    }
+
+    public function readsPropertyChains(object $crossReference, object $order, string $field): array
+    {
+        return [
+            $crossReference->source->crossbibleChapterNumber,
+            $order?->customer->name,
+            $order->customer?->address->city,
+            $order->{$field}->name,
+            $order->customer->address->format(),
+            self::$registry->owner->name,
+        ];
+    }
+
+    public function callsAMethodAfterOneProperty(object $order): string
+    {
+        return $order->customer->name();
+    }
+
+    public function readsThroughAMethodCall(object $order): string
+    {
+        return $order->customer()->address->city;
+    }
 }

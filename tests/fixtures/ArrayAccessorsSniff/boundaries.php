@@ -167,4 +167,30 @@ class ArrayAccessorsBoundaries
 
         return $reference . $city . $dynamic;
     }
+
+    public function leavesElementsBehindPropertiesThatAreNotReads(array $rows, array $source, object $order): array
+    {
+        $order->tags['primary'] = 'set';
+        $order->customer->tags['primary'] = 'set';
+        $order->stats['count'] += 1;
+        ++$order->stats['count'];
+        $order->stats['count']--;
+        $order->tags[] = 'appended';
+        $reference = &$order->tags['primary'];
+        [$order->tags['first'], $order->tags['second']] = $source;
+        list($order->tags['third']) = $source;
+
+        foreach ($rows as $order->tags['last']) {
+        }
+
+        $present = isset($order->tags['primary']);
+        $blank = empty($order?->tags['primary']);
+        unset($order->tags['primary']);
+
+        $owned = $this->owner->tags['primary'];
+        $called = $order->tags()['primary'];
+        $nested = $order->customer()->tags['primary'];
+
+        return [$reference, $present, $blank, $owned, $called, $nested];
+    }
 }

@@ -15,9 +15,9 @@ class ArrayAccessorsFailing
 
     public function readsProperties(object $order, object $customer): array
     {
-        $reference = $order->reference;
-        $city = $order->address->city;
-        $email = $customer?->email;
+        $reference = $order->meta['reference'];
+        $city = $order->address->lines['city'];
+        $email = $customer?->contact['email'];
 
         return [$reference, $city, $email];
     }
