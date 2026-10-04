@@ -113,9 +113,9 @@ it('does not borrow a later declaration name for an unfinished one', function ()
 it('judges each file in a run on its own imports', function (): void {
     [$config, $ruleset] = buildRuleset([MODEL_MAGIC_METHOD], true);
     $ruleset->sniffs = array_intersect_key(
-        $ruleset->sniffs,
-        array_flip($ruleset->sniffCodes === [] ? [] : [$ruleset->sniffCodes[MODEL_MAGIC_METHOD]])
-    );
+            $ruleset->sniffs,
+            array_flip($ruleset->sniffCodes === [] ? [] : [$ruleset->sniffCodes[MODEL_MAGIC_METHOD]])
+        );
 
     $directory = __DIR__ . '/../fixtures/ModelMagicMethodLocationSniff/';
     $counts = [];
@@ -139,9 +139,9 @@ it('reads a group import past its function and constant members', function (): v
 
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
-        'CleanCode',
-        cleanCodeRoot() . '/CleanCode/Sniffs/Models/ModelMagicMethodLocationSniff.php'
-    );
+            'CleanCode',
+            cleanCodeRoot() . '/CleanCode/Sniffs/Models/ModelMagicMethodLocationSniff.php'
+        );
 
     expect(array_column($report, 'source'))->toBe([]);
 });

@@ -70,36 +70,36 @@ it('exposes configurable class and member lists', function (): void {
         ->toBe([5, 10]);
 
     $retunedClasses = analyzeFixture(
-        REFLECTION_ACCESS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->reflectionClasses = ['ReflectionClass'];
-            $sniff->reflectionMembers = [];
-        }
-    );
+            REFLECTION_ACCESS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->reflectionClasses = ['ReflectionClass'];
+                $sniff->reflectionMembers = [];
+            }
+        );
 
     expect(array_keys($retunedClasses->getWarnings()))->toBe([6]);
 
     $retunedMembers = analyzeFixture(
-        REFLECTION_ACCESS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->reflectionClasses = [];
-            $sniff->reflectionMembers = ['getName'];
-        }
-    );
+            REFLECTION_ACCESS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->reflectionClasses = [];
+                $sniff->reflectionMembers = ['getName'];
+            }
+        );
 
     expect(array_keys($retunedMembers->getWarnings()))->toBe([11]);
 });
 
 it('exposes a configurable test-file pattern that gates the whole rule', function (): void {
     $retuned = analyzeFixture(
-        REFLECTION_ACCESS,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->testFilePatterns = ['*/production/*'];
-        }
-    );
+            REFLECTION_ACCESS,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->testFilePatterns = ['*/production/*'];
+            }
+        );
 
     expect($retuned->getWarnings())->toBe([])
         ->and($retuned->getErrors())->toBe([])
@@ -108,9 +108,9 @@ it('exposes a configurable test-file pattern that gates the whole rule', functio
 
 it('never inspects a file outside a test path', function (): void {
     $staged = analyzeWithSniffs(
-        [REFLECTION_ACCESS],
-        stageFixtureOutsideTests(fixturePath('NoReflectionAccessSniff', 'failing.php'))
-    );
+            [REFLECTION_ACCESS],
+            stageFixtureOutsideTests(fixturePath('NoReflectionAccessSniff', 'failing.php'))
+        );
 
     expect($staged->getWarnings())->toBe([])
         ->and($staged->getErrors())->toBe([])

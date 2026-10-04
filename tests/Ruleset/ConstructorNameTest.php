@@ -19,10 +19,10 @@ $analyzeUnconfigured = static function (string $fixture): LocalFile {
     $config->sniffs = [CONSTRUCTOR_NAME_SNIFF];
 
     $file = new LocalFile(
-        fixturePath('ConstructorNameSniff', $fixture),
-        new Ruleset($config),
-        $config
-    );
+            fixturePath('ConstructorNameSniff', $fixture),
+            new Ruleset($config),
+            $config
+        );
     $file->process();
 
     return $file;

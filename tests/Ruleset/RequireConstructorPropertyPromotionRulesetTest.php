@@ -6,8 +6,8 @@ const PROPERTY_PROMOTION = 'SlevomatCodingStandard.Classes.RequireConstructorPro
 
 $promotionCounts = static function (string $fixture): array {
     $file = analyzeWithMasterRuleset(
-        fixturePath('RequireConstructorPropertyPromotionSniff', $fixture)
-    );
+            fixturePath('RequireConstructorPropertyPromotionSniff', $fixture)
+        );
     $counts = [];
 
     foreach ($file->getErrors() as $line => $columns) {

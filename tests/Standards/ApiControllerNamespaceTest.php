@@ -43,9 +43,9 @@ it('leaves a controller whose namespace matches its API path alone', function ()
 
 it('leaves a controller sitting directly on the controller root alone', function (): void {
     $file = analyzeFixture(
-        API_CONTROLLER_NAMESPACE,
-        'app/Http/Controllers/root-compliant.php'
-    );
+            API_CONTROLLER_NAMESPACE,
+            'app/Http/Controllers/root-compliant.php'
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -65,9 +65,9 @@ it('does not anchor the controller root on an ancestor directory', function (str
 
 it('flags a controller under an API path whose namespace has no API segment', function (): void {
     $file = analyzeFixture(
-        API_CONTROLLER_NAMESPACE,
-        API_PATH_FIXTURES . 'api-path-missing-namespace.php'
-    );
+            API_CONTROLLER_NAMESPACE,
+            API_PATH_FIXTURES . 'api-path-missing-namespace.php'
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 9, 'column' => 5, 'source' => API_CONTROLLER_NAMESPACE_MISSING],
@@ -97,9 +97,9 @@ it('says nothing when the file has no path to compare against', function (): voi
         PHP;
 
     $onDisk = analyzeWithSniffs(
-        [API_CONTROLLER_NAMESPACE],
-        stageSourceOutsideTests($source, 'ReportController.php')
-    );
+            [API_CONTROLLER_NAMESPACE],
+            stageSourceOutsideTests($source, 'ReportController.php')
+        );
 
     expect(violationTuples($onDisk))->toBe([
         ['line' => 5, 'column' => 1, 'source' => API_CONTROLLER_NAMESPACE_UNEXPECTED],

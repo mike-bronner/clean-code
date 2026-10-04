@@ -23,19 +23,19 @@ it('flags every duplicate key at the overriding entry', function (): void {
     $file = analyzeFixture(DUPLICATED_ARRAY_KEY, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => DUPLICATED_ARRAY_KEY . '.Found',
-        ],
-        [
-            [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
-            [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
-            [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5], [93, 5],
-            [102, 5], [110, 5], [118, 5], [125, 5], [135, 5], [136, 5],
-            [144, 5], [151, 5], [152, 5], [153, 5], [154, 5],
-        ]
-    ))->and($file->getWarnings())->toBe([]);
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => DUPLICATED_ARRAY_KEY . '.Found',
+            ],
+            [
+                [7, 5], [9, 5], [16, 5], [17, 5], [23, 5], [29, 5], [30, 5], [31, 5],
+                [32, 5], [38, 5], [40, 5], [47, 5], [54, 5], [55, 5], [59, 25],
+                [65, 9], [67, 5], [72, 17], [79, 5], [81, 5], [91, 5], [93, 5],
+                [102, 5], [110, 5], [118, 5], [125, 5], [135, 5], [136, 5],
+                [144, 5], [151, 5], [152, 5], [153, 5], [154, 5],
+            ]
+        ))->and($file->getWarnings())->toBe([]);
 });
 
 it('names the coerced key and the declaration it overrides', function (): void {

@@ -125,12 +125,12 @@ it('shares these tokens in the master ruleset only with sniffs reporting another
     $ours = array_values((new BooleanOperatorSpacingSniff())->register());
 
     $sharing = array_keys(array_filter(
-        $ruleset->sniffCodes,
-        static fn (string $class): bool => array_intersect(
-            array_values((array) $ruleset->sniffs[$class]->register()),
-            $ours
-        ) !== []
-    ));
+            $ruleset->sniffCodes,
+            static fn (string $class): bool => array_intersect(
+                    array_values((array) $ruleset->sniffs[$class]->register()),
+                    $ours
+                ) !== []
+        ));
 
     sort($sharing);
 

@@ -33,8 +33,8 @@ it('flags every class over the threshold at its declaration', function (): void 
 
 it('counts the fields it reports', function (): void {
     expect(violationMessages(analyzeFixture(TOO_MANY_FIELDS, 'failing.php')))->each(
-        fn ($message) => $message->toContain('has 16 fields')
-    );
+            fn ($message) => $message->toContain('has 16 fields')
+        );
 });
 
 it('reports a class only once it is above the threshold', function (): void {
@@ -64,8 +64,8 @@ it('diverges from PHPMD on promoted properties and anonymous classes', function 
         ['line' => 50, 'column' => 20, 'source' => TOO_MANY_FIELDS_CODE],
         ['line' => 74, 'column' => 17, 'source' => TOO_MANY_FIELDS_CODE],
     ])->and(violationMessages($file))->each(
-        fn ($message) => $message->toContain('has 16 fields')
-    );
+            fn ($message) => $message->toContain('has 16 fields')
+        );
 });
 
 it('names an anonymous class in the message', function (): void {
@@ -99,9 +99,9 @@ it('reports through the master ruleset', function (): void {
     $file = analyzeWithMasterRuleset(fixturePath('TooManyFieldsSniff', 'failing.php'));
 
     $lines = array_keys(array_filter(
-        violationSourcesByLine($file->getErrors()),
-        static fn (array $sources): bool => in_array(TOO_MANY_FIELDS_CODE, $sources, true)
-    ));
+            violationSourcesByLine($file->getErrors()),
+            static fn (array $sources): bool => in_array(TOO_MANY_FIELDS_CODE, $sources, true)
+        ));
 
     expect($lines)->toBe([13, 34, 56, 70, 108]);
 });

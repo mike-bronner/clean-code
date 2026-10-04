@@ -79,18 +79,18 @@ class HtmlAttributeQuotesSniff implements Sniff
                 (new Markup())->tagSpanPattern(),
                 function (array $match) use ($apostrophe, $quote, &$unsafe): string {
                     $span = preg_replace_callback(
-                    $this->attributePattern($apostrophe),
-                    function (array $attr) use ($quote, &$unsafe): string {
-                        if ($this->isSafeToConvert($attr[2]) === false) {
-                            $unsafe = true;
+                            $this->attributePattern($apostrophe),
+                            function (array $attr) use ($quote, &$unsafe): string {
+                                if ($this->isSafeToConvert($attr[2]) === false) {
+                                    $unsafe = true;
 
-                            return $attr[0];
-                        }
+                                    return $attr[0];
+                                }
 
-                        return "{$attr[1]}={$quote}{$attr[2]}{$quote}";
-                    },
-                    $match[0]
-                    );
+                                return "{$attr[1]}={$quote}{$attr[2]}{$quote}";
+                            },
+                            $match[0]
+                        );
 
                     if ($span === null) {
                         $unsafe = true;

@@ -18,12 +18,12 @@ trait Attributes
     protected function witnessVersionName(): Attribute
     {
         return Attribute::make(
-            get: fn (): ?string => $this->textualApparatusWitness
-                ?->version
-                ?->name,
-            set: function (string $value): array {
-                return ['name' => $this->textualApparatusWitness->version->name . $value];
-            },
-        );
+                get: fn (): ?string => $this->textualApparatusWitness
+                    ?->version
+                    ?->name,
+                set: function (string $value): array {
+                    return ['name' => $this->textualApparatusWitness->version->name . $value];
+                },
+            );
     }
 }

@@ -25,13 +25,13 @@ it('names the class, its coupling value, and the threshold', function (): void {
     $errors = analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors();
 
     expect($errors[16][1][0]['message'])->toBe(
-        'The class AtTheThreshold has a coupling between objects value of 13.'
-            . ' Consider to reduce the number of dependencies under 13.'
-    );
+            'The class AtTheThreshold has a coupling between objects value of 13.'
+                . ' Consider to reduce the number of dependencies under 13.'
+        );
     expect($errors[51][1][0]['message'])->toBe(
-        'The class FarPastTheThreshold has a coupling between objects value of 18.'
-            . ' Consider to reduce the number of dependencies under 13.'
-    );
+            'The class FarPastTheThreshold has a coupling between objects value of 18.'
+                . ' Consider to reduce the number of dependencies under 13.'
+        );
 });
 
 it('treats the threshold as inclusive', function (): void {
@@ -117,9 +117,9 @@ it('names an anonymous class by its kind', function (): void {
     });
 
     expect($file->getErrors()[24][22][0]['message'])->toBe(
-        'The anonymous class has a coupling between objects value of 3.'
-            . ' Consider to reduce the number of dependencies under 1.'
-    );
+            'The anonymous class has a coupling between objects value of 3.'
+                . ' Consider to reduce the number of dependencies under 1.'
+        );
 });
 
 it('reports at a lowered maximum', function (): void {
@@ -142,10 +142,10 @@ it('stays silent above the widest coupling in the file', function (): void {
 
 it('accepts a maximum supplied as a string, the way a ruleset supplies it', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        COUPLING_BETWEEN_OBJECTS,
-        'configured.php',
-        ['maximum' => '3']
-    );
+            COUPLING_BETWEEN_OBJECTS,
+            'configured.php',
+            ['maximum' => '3']
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 12, 'column' => 1, 'source' => COUPLING_BETWEEN_OBJECTS_ERROR],
@@ -203,12 +203,12 @@ it('counts an unsplittable union type as a single member', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_split',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => $pattern === '/[|&]/'
-        );
+                'preg_split',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(COUPLING_BETWEEN_OBJECTS, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => $pattern === '/[|&]/'
+            );
     });
 
     expect(array_keys($expected))->toContain(16)

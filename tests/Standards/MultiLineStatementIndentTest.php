@@ -103,9 +103,9 @@ it('reaches every scope-block and statement-boundary branch it documents', funct
 
 it('converges with the sniff that rewrites multi-line strings', function (): void {
     $file = analyzeWithSniffs(
-        [MULTI_LINE_STATEMENT_INDENT, 'CleanCode.Strings.MultilineStrings'],
-        fixturePath('MultiLineStatementIndentSniff', 'passing.php')
-    );
+            [MULTI_LINE_STATEMENT_INDENT, 'CleanCode.Strings.MultilineStrings'],
+            fixturePath('MultiLineStatementIndentSniff', 'passing.php')
+        );
 
     expect($file->fixer->fixFile())->toBeTrue();
 });
@@ -173,6 +173,46 @@ it('rewrites the old call layout into the new one', function (): void {
 
     expect(autofixedContents($file))
         ->toBe(file_get_contents(fixturePath('MultiLineStatementIndentSniff', 'calls.php')));
+});
+
+it('accepts calls in the new layout inside closure and anonymous class bodies', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'closures.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('reports the old call layout inside closure and anonymous class bodies', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'closures-old-layout.php');
+
+    $incorrect = MULTI_LINE_STATEMENT_INDENT . '.IncorrectIndent';
+    $closeBracket = MULTI_LINE_STATEMENT_INDENT . '.CloseBracketIndent';
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 9, 'column' => 13, 'source' => $incorrect],
+        ['line' => 10, 'column' => 13, 'source' => $incorrect],
+        ['line' => 12, 'column' => 17, 'source' => $incorrect],
+        ['line' => 13, 'column' => 17, 'source' => $incorrect],
+        ['line' => 14, 'column' => 17, 'source' => $closeBracket],
+        ['line' => 16, 'column' => 13, 'source' => $incorrect],
+        ['line' => 17, 'column' => 13, 'source' => $closeBracket],
+        ['line' => 26, 'column' => 9, 'source' => $incorrect],
+        ['line' => 27, 'column' => 5, 'source' => $closeBracket],
+        ['line' => 34, 'column' => 5, 'source' => $incorrect],
+        ['line' => 35, 'column' => 5, 'source' => $closeBracket],
+        ['line' => 42, 'column' => 13, 'source' => $incorrect],
+        ['line' => 43, 'column' => 9, 'source' => $closeBracket],
+    ]);
+});
+
+it('rewrites the old call layout inside closure bodies into the new one', function (): void {
+    $file = analyzeWithSniffs(
+            [MULTI_LINE_STATEMENT_INDENT, 'Generic.WhiteSpace.ScopeIndent'],
+            fixturePath('MultiLineStatementIndentSniff', 'closures-old-layout.php')
+        );
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('MultiLineStatementIndentSniff', 'closures.php')));
 });
 
 it('indents each call from the line its own expression starts on', function (
@@ -305,9 +345,9 @@ it('accounts for every scope opener PHPCS defines', function (): void {
     }
 
     $tokens = analyzeStdinSource(
-        [MULTI_LINE_STATEMENT_INDENT],
-        "<?php\n\n\$double = fn (\$value) => \$value * 2;\n"
-    )->getTokens();
+            [MULTI_LINE_STATEMENT_INDENT],
+            "<?php\n\n\$double = fn (\$value) => \$value * 2;\n"
+        )->getTokens();
     $arrows = array_values(array_filter($tokens, static fn (array $token): bool => $token['code'] === T_FN));
 
     expect(in_array('T_FN', $family, true))->toBeFalse('T_FN is still missing from the register')
@@ -391,7 +431,7 @@ it('anchors lines on a long comment\'s opening line in linear time', function ()
         ->and($counted['lineStart.steps'])->toBe(
             16,
             'the 5 readings and 3 hops examine 16 tokens between them — two each, from the map,'
-            . ' never a line walked back along nor a comment replayed'
+                . ' never a line walked back along nor a comment replayed'
         )
         ->and($counted['commentStaysOpen.evaluations'])->toBe(
             ((5 * $size) + 20),
@@ -433,7 +473,7 @@ it('anchors sibling lines on a long opener line in linear time', function (): vo
         ->and($counted['lineStart.steps'])->toBe(
             ((4 * $size) + 6),
             'the 2n+3 readings examine 4n+6 tokens between them — two each, from the map, not the'
-            . ' whole line the opener sits at the end of'
+                . ' whole line the opener sits at the end of'
         )
         ->and($counted['lineFirstToken.commentHops'])->toBe(
             0,
@@ -445,7 +485,7 @@ it('stays silent on this package\'s own source', function (): void {
     $root = dirname(__DIR__, 2);
     $files = [];
 
-    foreach ([$root . '/CleanCode/Sniffs', $root . '/CleanCode/Support', $root . '/tests'] as $directory) {
+    foreach ([$root . '/CleanCode', $root . '/tests'] as $directory) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory));
 
         foreach ($iterator as $file) {

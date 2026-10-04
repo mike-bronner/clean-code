@@ -103,14 +103,14 @@ it('flags every trailing operator at its exact line and column', function (): vo
 
 it('admits every operand terminator PHP_CodeSniffer enumerates', function (): void {
     $reflected = new ReflectionClass(
-        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
-    );
+            MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+        );
     $admitted = $reflected->getConstant('OPERAND_END_TOKENS');
 
     $closers = array_values(array_filter(
-        PHP_CodeSniffer\Util\Tokens::$bracketTokens,
-        fn ($token): bool => str_contains(PHP_CodeSniffer\Util\Tokens::tokenName($token), '_CLOSE_')
-    ));
+            PHP_CodeSniffer\Util\Tokens::$bracketTokens,
+            fn ($token): bool => str_contains(PHP_CodeSniffer\Util\Tokens::tokenName($token), '_CLOSE_')
+        ));
 
     expect($admitted)->toContain(...$closers)
         ->and($admitted)->toContain(T_CLOSE_SHORT_ARRAY)
@@ -121,8 +121,8 @@ it('admits every operand terminator PHP_CodeSniffer enumerates', function (): vo
 
 it('exercises every operand terminator it admits', function (): void {
     $reflected = new ReflectionClass(
-        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
-    );
+            MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+        );
     $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
     $errors = $file->getErrors();
     $tokens = $file->getTokens();
@@ -145,9 +145,9 @@ it('exercises every operand terminator it admits', function (): void {
 
 it('separates a value-producing brace from a scope-closing one', function (): void {
     $flagged = array_column(
-        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php')),
-        'line'
-    );
+            violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php')),
+            'line'
+        );
     $compliant = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php');
 
     expect($flagged)->toContain(70, 74, 78, 87, 90, 93, 96, 99, 102)
@@ -157,9 +157,9 @@ it('separates a value-producing brace from a scope-closing one', function (): vo
 it('reads a bare block as a statement, not as an ownerless value', function (): void {
     $blockOperatorLines = [149, 157, 163, 170];
     $flagged = array_column(
-        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
-        'line'
-    );
+            violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+            'line'
+        );
 
     expect($flagged)->not->toContain(...$blockOperatorLines);
 
@@ -172,8 +172,8 @@ it('reads a bare block as a statement, not as an ownerless value', function (): 
 
 it('admits every token that can open a brace dereference', function (): void {
     $reflected = new ReflectionClass(
-        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
-    );
+            MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+        );
 
     expect($reflected->getConstant('CURLY_DEREFERENCE_INTRODUCERS'))
         ->toBe([T_DOLLAR, T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON]);
@@ -181,8 +181,8 @@ it('admits every token that can open a brace dereference', function (): void {
 
 it('exercises every brace-dereference introducer it admits', function (): void {
     $reflected = new ReflectionClass(
-        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
-    );
+            MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+        );
     $file = analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php');
     $errors = $file->getErrors();
     $tokens = $file->getTokens();
@@ -206,11 +206,11 @@ it('exercises every brace-dereference introducer it admits', function (): void {
         }
 
         $introducer = $file->findPrevious(
-            PHP_CodeSniffer\Util\Tokens::$emptyTokens,
-            ($tokens[$closer]['bracket_opener'] - 1),
-            null,
-            true
-        );
+                PHP_CodeSniffer\Util\Tokens::$emptyTokens,
+                ($tokens[$closer]['bracket_opener'] - 1),
+                null,
+                true
+            );
         $exercised[] = $tokens[$introducer]['code'];
     }
 
@@ -219,21 +219,21 @@ it('exercises every brace-dereference introducer it admits', function (): void {
 
 it('classifies every token findStartOfStatement halts on', function (): void {
     $reflected = new ReflectionClass(
-        MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
-    );
+            MikeBronner\CleanCode\Sniffs\Operators\ManipulationOperatorPlacementSniff::class
+        );
 
     $classified = array_merge(
-        $reflected->getConstant('STATEMENT_ANCHOR_GROUPING_OPENERS'),
-        $reflected->getConstant('STATEMENT_ANCHOR_SEPARATORS'),
-        $reflected->getConstant('STATEMENT_ANCHOR_BOUNDARY_TOKENS'),
-        [T_COLON, T_SEMICOLON]
-    );
+            $reflected->getConstant('STATEMENT_ANCHOR_GROUPING_OPENERS'),
+            $reflected->getConstant('STATEMENT_ANCHOR_SEPARATORS'),
+            $reflected->getConstant('STATEMENT_ANCHOR_BOUNDARY_TOKENS'),
+            [T_COLON, T_SEMICOLON]
+        );
 
     $halts = array_merge(
-        array_keys(PHP_CodeSniffer\Util\Tokens::$blockOpeners),
-        [T_OPEN_SHORT_ARRAY, T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO],
-        [T_CLOSE_TAG, T_COLON, T_COMMA, T_DOUBLE_ARROW, T_MATCH_ARROW, T_SEMICOLON]
-    );
+            array_keys(PHP_CodeSniffer\Util\Tokens::$blockOpeners),
+            [T_OPEN_SHORT_ARRAY, T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO],
+            [T_CLOSE_TAG, T_COLON, T_COMMA, T_DOUBLE_ARROW, T_MATCH_ARROW, T_SEMICOLON]
+        );
 
     sort($classified);
     sort($halts);
@@ -326,9 +326,9 @@ it('leaves a multi-line catch type union alone while still flagging a real bitwi
 it('exempts both catch-clause type separators, not only the union', function (): void {
     $separatorLines = [64, 75];
     $flagged = array_column(
-        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
-        'line'
-    );
+            violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+            'line'
+        );
 
     expect($flagged)->not->toContain(...$separatorLines);
 
@@ -341,13 +341,13 @@ it('exempts both catch-clause type separators, not only the union', function ():
 
 it('keeps a for-loop init or increment wrap it cannot defer', function (): void {
     $flagged = array_column(
-        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php')),
-        'line'
-    );
+            violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'failing.php')),
+            'line'
+        );
     $deferred = array_column(
-        violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
-        'line'
-    );
+            violationTuples(analyzeFixture(MANIPULATION_OPERATOR_PLACEMENT, 'passing.php')),
+            'line'
+        );
 
     expect($flagged)->toContain(229, 232, 243, 247)
         ->and($deferred)->not->toContain(223);

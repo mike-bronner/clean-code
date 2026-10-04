@@ -58,20 +58,20 @@ it('names the declaration and the threshold in the message', function (): void {
 
 it('passes a name exactly at the minimum and fails one character shorter', function (): void {
     $atMinimum = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 3;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 3;
+            }
+        );
 
     $oneAbove = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 4;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 4;
+            }
+        );
 
     expect($atMinimum->getErrors())->toBe([])
         ->and(array_keys($oneAbove->getErrors()))->toContain(77);
@@ -81,12 +81,12 @@ it('measures the name in bytes, as PHPMD does', function (): void {
     $atDefault = analyzeFixture(SHORT_METHOD_NAME, 'passing.php');
 
     $raised = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 4;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 4;
+            }
+        );
 
     expect(array_keys($atDefault->getErrors()))->not->toContain(83)
         ->and(array_keys($raised->getErrors()))->toContain(83);
@@ -94,12 +94,12 @@ it('measures the name in bytes, as PHPMD does', function (): void {
 
 it('reports magic methods below the threshold, matching PHPMD', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 12;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 12;
+            }
+        );
 
     expect(array_keys($file->getErrors()))
         ->toContain(57)
@@ -110,24 +110,24 @@ it('reports magic methods below the threshold, matching PHPMD', function (): voi
 
 it('never reports an unnamed declaration', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 40;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 40;
+            }
+        );
 
     expect(array_keys($file->getErrors()))->not->toContain(109, 112);
 });
 
 it('never reports a name in the exceptions list', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->exceptions = 'ct';
-        }
-    );
+            SHORT_METHOD_NAME,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->exceptions = 'ct';
+            }
+        );
 
     expect(array_keys($file->getErrors()))
         ->not->toContain(32)
@@ -137,12 +137,12 @@ it('never reports a name in the exceptions list', function (): void {
 
 it('does not trim the exceptions list, matching PHPMD', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->exceptions = 'ct, st';
-        }
-    );
+            SHORT_METHOD_NAME,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->exceptions = 'ct, st';
+            }
+        );
 
     expect(array_keys($file->getErrors()))
         ->toContain(34)
@@ -151,12 +151,12 @@ it('does not trim the exceptions list, matching PHPMD', function (): void {
 
 it('matches exceptions case-sensitively, matching PHPMD', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->exceptions = 'CT';
-        }
-    );
+            SHORT_METHOD_NAME,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->exceptions = 'CT';
+            }
+        );
 
     expect(array_keys($file->getErrors()))->toContain(32, 51);
 });
@@ -175,12 +175,12 @@ it('receives null from PHPCS for an empty ruleset property', function (): void {
 
 it('falls back to the default minimum when the configured one is unusable', function (mixed $configured): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'failing.php',
-        static function (object $sniff) use ($configured): void {
-            $sniff->minimum = $configured;
-        }
-    );
+            SHORT_METHOD_NAME,
+            'failing.php',
+            static function (object $sniff) use ($configured): void {
+                $sniff->minimum = $configured;
+            }
+        );
 
     expect($file->getErrorCount())->toBe(11);
 })->with([
@@ -194,12 +194,12 @@ it('falls back to the default minimum when the configured one is unusable', func
 
 it('honours a numeric string threshold from a ruleset', function (): void {
     $file = analyzeFixture(
-        SHORT_METHOD_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = '4';
-        }
-    );
+            SHORT_METHOD_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = '4';
+            }
+        );
 
     expect(array_keys($file->getErrors()))->toContain(77, 83);
 });

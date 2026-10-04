@@ -182,10 +182,10 @@ final class AttributeCasts
     private function isImportKeyword(File $phpcsFile, int $stackPtr): bool
     {
         return in_array(
-            strtolower($this->contentOf($phpcsFile, $stackPtr)),
-            self::IMPORT_KEYWORDS,
-            true
-        );
+                strtolower($this->contentOf($phpcsFile, $stackPtr)),
+                self::IMPORT_KEYWORDS,
+                true
+            );
     }
 
     private function readName(File $phpcsFile, int $startPtr): array

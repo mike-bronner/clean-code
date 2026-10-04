@@ -21,9 +21,9 @@ it('flags every closure route action at its own position', function (): void {
     $file = analyzeFixture(DISALLOW_CLOSURE_ROUTES, 'failing.php');
 
     $positions = array_map(
-        static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
-        violationTuples($file)
-    );
+            static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
+            violationTuples($file)
+        );
 
     expect($positions)->toBe([
         [9, 18],
@@ -78,9 +78,9 @@ it('reports a route action once, not once per closure inside it', function (arra
     $file = analyzeFixture(DISALLOW_CLOSURE_ROUTES, 'failing.php');
 
     $reported = array_filter(
-        violationTuples($file),
-        static fn (array $tuple): bool => in_array($tuple['line'], $lines, true)
-    );
+            violationTuples($file),
+            static fn (array $tuple): bool => in_array($tuple['line'], $lines, true)
+        );
 
     expect($reported)->toHaveCount(1);
 })->with([

@@ -115,10 +115,10 @@ it('rewrites the behaviour fixture into its committed fixed sibling', function (
 it('keeps a lifted line as written when its indentation cannot be read', function (): void {
     [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): string => autofixedContents(analyzeFixture(DISALLOW_ELSE, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/^    /'
-        );
+                'preg_replace',
+                static fn (): string => autofixedContents(analyzeFixture(DISALLOW_ELSE, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/^    /'
+            );
     });
 
     expect($fixed)->toContain("\n            return 2;")

@@ -75,42 +75,42 @@ it('exposes a configurable discouraged-segment list', function (): void {
     expect(array_keys($shipped->getWarnings()))->toBe([5]);
 
     $replaced = analyzeFixture(
-        JUNK_DRAWER_NAMESPACE,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->discouragedSegments = ['Widgets'];
-        }
-    );
+            JUNK_DRAWER_NAMESPACE,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->discouragedSegments = ['Widgets'];
+            }
+        );
 
     expect(array_keys($replaced->getWarnings()))->toBe([8]);
 
     $extended = analyzeFixture(
-        JUNK_DRAWER_NAMESPACE,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->discouragedSegments = ['Helpers', 'Widgets'];
-        }
-    );
+            JUNK_DRAWER_NAMESPACE,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->discouragedSegments = ['Helpers', 'Widgets'];
+            }
+        );
 
     expect(array_keys($extended->getWarnings()))->toBe([5, 8]);
 
     $emptied = analyzeFixture(
-        JUNK_DRAWER_NAMESPACE,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->discouragedSegments = [];
-        }
-    );
+            JUNK_DRAWER_NAMESPACE,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->discouragedSegments = [];
+            }
+        );
 
     expect($emptied->getWarnings())->toBe([]);
 });
 
 it('accepts the list from a consuming ruleset', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        JUNK_DRAWER_NAMESPACE,
-        'configured.php',
-        ['discouragedSegments' => ['Helpers', 'Widgets']]
-    );
+            JUNK_DRAWER_NAMESPACE,
+            'configured.php',
+            ['discouragedSegments' => ['Helpers', 'Widgets']]
+        );
 
     expect(array_keys($file->getWarnings()))->toBe([5, 8]);
 });

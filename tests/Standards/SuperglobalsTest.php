@@ -23,9 +23,9 @@ it('flags every superglobal access at its own position', function (): void {
     $file = analyzeFixture(SUPERGLOBALS, 'failing.php');
 
     $positions = array_map(
-        static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
-        violationTuples($file)
-    );
+            static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
+            violationTuples($file)
+        );
 
     expect($positions)->toBe([
         [13, 9],
@@ -146,10 +146,10 @@ it('flags a plain parameter as it flags the same parameter in a function', funct
 it('stays silent on a promoted parameter', function (): void {
     $fixture = file(fixturePath(sniffFixtureDirectory(SUPERGLOBALS), 'parameters.php'));
     $promotedLines = array_keys(array_filter(
-        $fixture,
-        static fn (string $line): bool => str_contains($line, 'public $HTTP_POST_VARS = [],')
+            $fixture,
+            static fn (string $line): bool => str_contains($line, 'public $HTTP_POST_VARS = [],')
             || str_contains($line, 'protected array $HTTP_SERVER_VARS = []')
-    ));
+        ));
 
     expect($promotedLines)->toHaveCount(2);
 
@@ -180,9 +180,9 @@ it('reports the shapes PHPMD misses', function (): void {
     $file = analyzeFixture(SUPERGLOBALS, 'divergences.php');
 
     $positions = array_map(
-        static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
-        violationTuples($file)
-    );
+            static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
+            violationTuples($file)
+        );
 
     expect($positions)->toBe([
         [18, 19],
@@ -196,9 +196,9 @@ it('reports the shapes PHPMD misses', function (): void {
 it('stays silent on a static property access', function (): void {
     $fixture = file(fixturePath(sniffFixtureDirectory(SUPERGLOBALS), 'divergences.php'));
     $staticAccessLines = array_keys(array_filter(
-        $fixture,
-        static fn (string $line): bool => str_contains($line, 'StaticHolder::$_POST')
-    ));
+            $fixture,
+            static fn (string $line): bool => str_contains($line, 'StaticHolder::$_POST')
+        ));
 
     expect($staticAccessLines)->toHaveCount(1);
 
@@ -213,9 +213,9 @@ it('measures the vendor candidates the comparison table rejects', function (): v
         $file = analyzeWithStandard($standard, fixturePath(sniffFixtureDirectory(SUPERGLOBALS), $fixture));
 
         $lines = array_keys(array_filter(
-            allViolationSourcesByLine($file),
-            static fn (array $sources): bool => in_array($source, $sources, true)
-        ));
+                allViolationSourcesByLine($file),
+                static fn (array $sources): bool => in_array($source, $sources, true)
+            ));
 
         sort($lines);
 
@@ -231,13 +231,13 @@ it('measures the vendor candidates the comparison table rejects', function (): v
 
     $fixture = file(fixturePath(sniffFixtureDirectory(SUPERGLOBALS), 'failing.php'));
     $missed = array_filter(
-        array_column($violations, 'line'),
-        static fn (int $line): bool => in_array($line, $slevomatLines, true) === false
-    );
+            array_column($violations, 'line'),
+            static fn (int $line): bool => in_array($line, $slevomatLines, true) === false
+        );
     $aliases = array_filter(
-        $missed,
-        static fn (int $line): bool => str_contains($fixture[$line - 1], '$HTTP_')
-    );
+            $missed,
+            static fn (int $line): bool => str_contains($fixture[$line - 1], '$HTTP_')
+        );
 
     expect($slevomatLines)->toBe([13, 14, 15, 16, 17, 18, 19, 20, 21, 56, 57, 67])
         ->and($reportedLines('SlevomatCodingStandard', $slevomat, 'passing.php'))->toHaveCount(2)
@@ -252,10 +252,10 @@ it('reports nothing from a string whose interpolations cannot be read', function
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_match_all',
-            static fn (): array => violationSourcesByLine(analyzeFixture(SUPERGLOBALS, 'failing.php')->getErrors()),
-            static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
-        );
+                'preg_match_all',
+                static fn (): array => violationSourcesByLine(analyzeFixture(SUPERGLOBALS, 'failing.php')->getErrors()),
+                static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
+            );
     });
 
     expect(array_keys($expected))->toContain(42)

@@ -56,21 +56,21 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     $file = analyzeRulesetFixture(OPERATORS_PASSIVE_SNIFFS, 'OperatorsPassive', 'failing.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(__DIR__ . '/../fixtures/_rulesets/OperatorsPassive/autofixed.php')
-    );
+            file_get_contents(__DIR__ . '/../fixtures/_rulesets/OperatorsPassive/autofixed.php')
+        );
 });
 
 it('converges under the real phpcbf over the whole master ruleset', function (): void {
     $staged = stageFixtureOutsideTests(
-        __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.php'
-    );
+            __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.php'
+        );
 
     $command = sprintf(
-        '%s --standard=%s --no-cache %s',
-        escapeshellarg(__DIR__ . '/../../vendor/bin/phpcbf'),
-        escapeshellarg('CleanCode'),
-        escapeshellarg($staged)
-    );
+            '%s --standard=%s --no-cache %s',
+            escapeshellarg(__DIR__ . '/../../vendor/bin/phpcbf'),
+            escapeshellarg('CleanCode'),
+            escapeshellarg($staged)
+        );
 
     [, , $status] = runOutsidePackage($command);
 
@@ -79,8 +79,8 @@ it('converges under the real phpcbf over the whole master ruleset', function ():
     $fixed = file_get_contents($staged);
 
     expect($fixed)->toBe(file_get_contents(
-        __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.fixed.php'
-    ));
+            __DIR__ . '/../fixtures/_rulesets/OperatorsPassive/convergence.fixed.php'
+        ));
 
     [, , $secondStatus] = runOutsidePackage($command);
 

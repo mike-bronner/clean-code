@@ -193,8 +193,8 @@ it('decides enclosing constructs in linear time', function (
     $source = $shape === 'nesting'
         ? "<?php\n\n\$out = " . str_repeat('$target[', $size) . '$key' . str_repeat(']', $size) . ";\n"
         : "<?php\n\nfunction sink(\$row): void\n{\n"
-            . str_repeat("    \$value = \$row['key'];\n", $size)
-            . "}\n";
+        . str_repeat("    \$value = \$row['key'];\n", $size)
+        . "}\n";
 
     $path = sys_get_temp_dir() . '/' . uniqid('cleancode-scale-', true) . '.php';
     file_put_contents($path, $source);
@@ -271,10 +271,10 @@ it('grows linearly across each doubling of a staggered staircase', function (str
         $previous = intdiv($size, 2);
 
         expect($hops[$size] / $hops[$previous])->toBeLessThan(
-            2.5,
-            "{$shape}: crossings from n={$previous} to n={$size} grow by"
-            . " {$hops[$size]}/{$hops[$previous]}, which a quadratic walk cannot do"
-        );
+                2.5,
+                "{$shape}: crossings from n={$previous} to n={$size} grow by"
+                    . " {$hops[$size]}/{$hops[$previous]}, which a quadratic walk cannot do"
+            );
     }
 })->with([
     'nested call arguments' => 'calls',

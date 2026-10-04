@@ -39,6 +39,6 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     $file = analyzeFixture(SCOPE_CLOSING_BRACE, 'failing.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(fixturePath('ScopeClosingBraceSniff', 'autofixed.php'))
-    );
+            file_get_contents(fixturePath('ScopeClosingBraceSniff', 'autofixed.php'))
+        );
 });

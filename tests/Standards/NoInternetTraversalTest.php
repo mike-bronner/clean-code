@@ -99,14 +99,14 @@ it('names the offending primitive in the warning message', function () use ($fea
 
 it('inspects nothing outside a feature test', function () use ($featureRun): void {
     $inRepo = analyzeWithSniffs(
-        [NO_INTERNET_TRAVERSAL],
-        fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php')
-    );
+            [NO_INTERNET_TRAVERSAL],
+            fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php')
+        );
 
     $outsideSuite = analyzeWithSniffs(
-        [NO_INTERNET_TRAVERSAL],
-        stageFixtureOutsideTests(fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php'))
-    );
+            [NO_INTERNET_TRAVERSAL],
+            stageFixtureOutsideTests(fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php'))
+        );
 
     expect($inRepo->getWarnings())->toBe([])
         ->and($inRepo->getErrors())->toBe([])
@@ -117,19 +117,19 @@ it('inspects nothing outside a feature test', function () use ($featureRun): voi
 
 it('exposes a configurable feature-test pattern list', function () use ($expectedWarnings): void {
     $staged = stageFixtureOutsideTests(
-        fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php'),
-        'suites/Acceptance'
-    );
+            fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php'),
+            'suites/Acceptance'
+        );
 
     $default = analyzeWithSniffs([NO_INTERNET_TRAVERSAL], $staged);
 
     $configured = analyzeWithSniffs(
-        [NO_INTERNET_TRAVERSAL],
-        $staged,
-        static function (object $sniff) use ($staged): void {
-            $sniff->featureTestPatterns = ['*/' . basename(dirname($staged)) . '/*'];
-        }
-    );
+            [NO_INTERNET_TRAVERSAL],
+            $staged,
+            static function (object $sniff) use ($staged): void {
+                $sniff->featureTestPatterns = ['*/' . basename(dirname($staged)) . '/*'];
+            }
+        );
 
     expect($default->getWarnings())->toBe([])
         ->and(warningTuples($configured))->toBe($expectedWarnings());
@@ -167,11 +167,11 @@ it('accounts for every string token PHPCS defines', function (): void {
     preg_match_all('/^\s+(T_[A-Z_0-9]+),$/m', $body, $entries);
 
     $family = array_map(
-        static fn (int|string $code): string => is_int($code) === true
-            ? (string) token_name($code)
-            : (string) preg_replace('/^PHPCS_/', '', $code),
-        array_values(Tokens::$stringTokens)
-    );
+            static fn (int|string $code): string => is_int($code) === true
+                ? (string) token_name($code)
+                : (string) preg_replace('/^PHPCS_/', '', $code),
+            array_values(Tokens::$stringTokens)
+        );
 
     sort($family);
     $accounted = $entries[1];
@@ -201,11 +201,11 @@ it('accounts for every heredoc token PHPCS defines', function (): void {
     $closers = ['T_END_HEREDOC', 'T_END_NOWDOC'];
 
     $whole = array_map(
-        static fn (int|string $code): string => is_int($code) === true
-            ? (string) token_name($code)
-            : (string) preg_replace('/^PHPCS_/', '', $code),
-        array_values(Tokens::$heredocTokens)
-    );
+            static fn (int|string $code): string => is_int($code) === true
+                ? (string) token_name($code)
+                : (string) preg_replace('/^PHPCS_/', '', $code),
+            array_values(Tokens::$heredocTokens)
+        );
 
     $family = array_values(array_diff($whole, $closers));
 
@@ -237,9 +237,9 @@ it('reports the violation end to end through the installed package', function ()
 ): void {
     $staged = installedSniffRun(NO_INTERNET_TRAVERSAL, $featurePath('failing.php'));
     $inRepo = installedSniffRun(
-        NO_INTERNET_TRAVERSAL,
-        fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php')
-    );
+            NO_INTERNET_TRAVERSAL,
+            fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, 'failing.php')
+        );
     $passing = installedSniffRun(NO_INTERNET_TRAVERSAL, $featurePath('passing.php'));
 
     expect(array_column($staged['messages'], 'source'))->toHaveCount(22)

@@ -126,9 +126,9 @@ it('scans repeated uses of one parameter in linear time', function (): void {
 it('scans a many-armed match in linear time', function (): void {
     $size = 4000;
     $arms = implode("\n", array_map(
-        static fn (int $index): string => "            \$flag => new Mode{$index}(),",
-        range(0, $size - 1)
-    ));
+            static fn (int $index): string => "            \$flag => new Mode{$index}(),",
+            range(0, $size - 1)
+        ));
     $source = "<?php\n\nclass ScaleProbe\n{\n    public function __construct(bool \$flag)\n    {\n"
         . "        \$this->mode = match (true) {\n{$arms}\n"
         . "            default => throw new LogicException('unreachable'),\n        };\n    }\n}\n";
@@ -716,10 +716,10 @@ it('reads a type hint that cannot be normalised as written', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(COMBINED_CONSTRUCTOR, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_replace',
+                static fn (): array => allViolationSourcesByLine(analyzeFixture(COMBINED_CONSTRUCTOR, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect($expected)->not->toBe([])

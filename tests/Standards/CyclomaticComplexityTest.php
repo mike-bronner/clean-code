@@ -14,10 +14,10 @@ it('is registered in the master ruleset', function (): void {
 
 it('reports the violation end to end through the installed package', function (string $standard): void {
     $violations = installedPhpcsViolations(
-        $standard,
-        fixturePath('CyclomaticComplexitySniff', 'failing.php'),
-        CYCLOMATIC_COMPLEXITY . '.Found'
-    );
+            $standard,
+            fixturePath('CyclomaticComplexitySniff', 'failing.php'),
+            CYCLOMATIC_COMPLEXITY . '.Found'
+        );
 
     expect(array_column($violations, 'line'))->toBe([46, 93, 110, 152, 210])
         ->and($violations[0]['message'])
@@ -131,10 +131,10 @@ it('reports at the configured level and stays silent one above it', function ():
 
 it('accepts the report level as the string a ruleset supplies', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        CYCLOMATIC_COMPLEXITY,
-        'configured.php',
-        ['reportLevel' => '5']
-    );
+            CYCLOMATIC_COMPLEXITY,
+            'configured.php',
+            ['reportLevel' => '5']
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 16, 'column' => 12, 'source' => CYCLOMATIC_COMPLEXITY . '.Found'],
@@ -151,10 +151,10 @@ it('falls back to the default level on an unusable configured value', function (
 
 it('survives an empty report-level property from a ruleset', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        CYCLOMATIC_COMPLEXITY,
-        'configured.php',
-        ['reportLevel' => '']
-    );
+            CYCLOMATIC_COMPLEXITY,
+            'configured.php',
+            ['reportLevel' => '']
+        );
 
     expect($file->getErrors())->toBe([]);
 });
@@ -176,12 +176,12 @@ it('reports detection-only violations', function (): void {
 
 it('matches PHPMD on a real source file in this repository', function (): void {
     $file = analyzeWithSniffs(
-        [CYCLOMATIC_COMPLEXITY],
-        cleanCodeRoot() . '/CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php',
-        static function (object $sniff): void {
-            $sniff->reportLevel = 1;
-        }
-    );
+            [CYCLOMATIC_COMPLEXITY],
+            cleanCodeRoot() . '/CleanCode/Sniffs/Functions/DisallowBooleanArgumentFlagSniff.php',
+            static function (object $sniff): void {
+                $sniff->reportLevel = 1;
+            }
+        );
 
     expect(measuredComplexities($file))->toBe([
         'method register()' => 1,

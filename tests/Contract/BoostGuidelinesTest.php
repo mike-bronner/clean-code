@@ -11,9 +11,9 @@ const BOOST_REVIEW_ONLY = 'Enforced by code review only. No sniff checks this st
 
 $standardSlugs = static function (string $directory): array {
     $slugs = array_map(
-        static fn (string $path): string => basename($path, '.md'),
-        glob(cleanCodeRoot() . '/' . $directory . '/*.md')
-    );
+            static fn (string $path): string => basename($path, '.md'),
+            glob(cleanCodeRoot() . '/' . $directory . '/*.md')
+        );
 
     sort($slugs);
 
@@ -73,8 +73,8 @@ it('shapes every guideline as rule, examples, sniffs', function (string $slug) u
 
 it('points every sniff message at a guideline that exists', function (): void {
     $sources = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(cleanCodeRoot() . '/CleanCode', FilesystemIterator::SKIP_DOTS)
-    );
+            new RecursiveDirectoryIterator(cleanCodeRoot() . '/CleanCode', FilesystemIterator::SKIP_DOTS)
+        );
     $targets = [];
 
     foreach ($sources as $source) {
@@ -85,9 +85,9 @@ it('points every sniff message at a guideline that exists', function (): void {
     }
 
     $missing = array_values(array_filter(
-        array_unique($targets),
-        static fn (string $target): bool => is_file(cleanCodeRoot() . '/' . $target) === false
-    ));
+            array_unique($targets),
+            static fn (string $target): bool => is_file(cleanCodeRoot() . '/' . $target) === false
+        ));
 
     expect($targets)->not->toBeEmpty()
         ->and($missing)->toBe([]);
@@ -120,9 +120,9 @@ it('lists every name its sniff checks', function (string $slug, Closure $names):
     $rule = (string) preg_replace('/\s+/', ' ', $rule);
 
     $unlisted = array_values(array_filter(
-        $names(),
-        static fn (string $name): bool => str_contains($rule, "`{$name}`") === false
-    ));
+            $names(),
+            static fn (string $name): bool => str_contains($rule, "`{$name}`") === false
+        ));
 
     expect($names())->not->toBeEmpty()
         ->and($unlisted)->toBe([]);

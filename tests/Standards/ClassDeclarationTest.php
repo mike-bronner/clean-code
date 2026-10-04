@@ -46,6 +46,6 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     $file = analyzeFixture(CLASS_DECLARATION, 'failing.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(fixturePath('ClassDeclarationSniff', 'autofixed.php'))
-    );
+            file_get_contents(fixturePath('ClassDeclarationSniff', 'autofixed.php'))
+        );
 });

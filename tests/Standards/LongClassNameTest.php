@@ -57,12 +57,12 @@ it('passes over a class keyword with no name', function (): void {
 
 it('reads the maximum from its property', function (): void {
     $file = analyzeFixture(
-        LONG_CLASS_NAME,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 39;
-        }
-    );
+            LONG_CLASS_NAME,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 39;
+            }
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         14 => ['CleanCode.Naming.LongClassName.TooLong'],
@@ -74,12 +74,12 @@ it('reads the maximum from its property', function (): void {
 
 it('stays silent at exactly the maximum', function (): void {
     $file = analyzeFixture(
-        LONG_CLASS_NAME,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 41;
-        }
-    );
+            LONG_CLASS_NAME,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 41;
+            }
+        );
 
     expect(violationSourcesByLine($file->getErrors()))
         ->toBe([31 => ['CleanCode.Naming.LongClassName.TooLong']]);
@@ -94,13 +94,13 @@ it('flags every name in the subtraction fixture without the lists configured', f
 
 it('subtracts one prefix and one suffix, each the first that matches', function (): void {
     $file = analyzeFixture(
-        LONG_CLASS_NAME,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractPrefixes'];
-            $sniff->subtractSuffixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractSuffixes'];
-        }
-    );
+            LONG_CLASS_NAME,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractPrefixes'];
+                $sniff->subtractSuffixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractSuffixes'];
+            }
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         37 => ['CleanCode.Naming.LongClassName.TooLong'],
@@ -110,12 +110,12 @@ it('subtracts one prefix and one suffix, each the first that matches', function 
 
 it('stops at the first matching prefix', function (): void {
     $file = analyzeFixture(
-        LONG_CLASS_NAME,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = 'Abstract,AbstractWarehouse';
-        }
-    );
+            LONG_CLASS_NAME,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = 'Abstract,AbstractWarehouse';
+            }
+        );
 
     expect(array_keys(violationSourcesByLine($file->getErrors())))
         ->toBe([18, 24, 30, 37, 43]);
@@ -123,31 +123,31 @@ it('stops at the first matching prefix', function (): void {
 
 it('reports the subtracted length', function (): void {
     $errors = analyzeFixture(
-        LONG_CLASS_NAME,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractPrefixes'];
-            $sniff->subtractSuffixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractSuffixes'];
-        }
-    )->getErrors();
+            LONG_CLASS_NAME,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractPrefixes'];
+                $sniff->subtractSuffixes = LONG_CLASS_NAME_SUBTRACTIONS['subtractSuffixes'];
+            }
+        )->getErrors();
 
     expect($errors[37][1][0]['message'])
         ->toBe('Name WarehouseInventoryReplenishmentAuditsMockRepository is 41 characters long; keep it to 40 or fewer')
         ->and($errors[43][10][0]['message'])
         ->toBe(
             'Name AbstractWarehouseInventoryReplenishmentAuditTrailRepository'
-            . ' is 41 characters long; keep it to 40 or fewer'
+                . ' is 41 characters long; keep it to 40 or fewer'
         );
 });
 
 it('trims list entries and drops empty ones', function (): void {
     $file = analyzeFixture(
-        LONG_CLASS_NAME,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = ' , Abstract , ';
-        }
-    );
+            LONG_CLASS_NAME,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = ' , Abstract , ';
+            }
+        );
 
     expect(array_keys(violationSourcesByLine($file->getErrors())))
         ->toBe([18, 24, 30, 37, 43]);

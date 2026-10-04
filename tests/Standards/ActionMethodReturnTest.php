@@ -18,9 +18,9 @@ it('is registered in the master ruleset', function (): void {
 
 it('passes the standard it belongs to', function (): void {
     $run = installedPhpcsRun(
-        'CleanCode',
-        cleanCodeRoot() . '/CleanCode/Sniffs/Naming/ActionMethodReturnSniff.php'
-    );
+            'CleanCode',
+            cleanCodeRoot() . '/CleanCode/Sniffs/Naming/ActionMethodReturnSniff.php'
+        );
 
     expect(array_column($run['messages'], 'source'))->toBe([])
         ->and($run['status'])->toBe(0);
@@ -151,10 +151,10 @@ it('widens to fluent declarations only when allowFluentInterface is off', functi
 
 it('turns the fluent exemption off from a ruleset property', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        ACTION_METHOD_RETURN,
-        'fluent.php',
-        ['allowFluentInterface' => 'false']
-    );
+            ACTION_METHOD_RETURN,
+            'fluent.php',
+            ['allowFluentInterface' => 'false']
+        );
 
     expect(warningTuples($file))->toHaveCount(8);
 });
@@ -167,11 +167,11 @@ it('ignores verbs outside the configured prefix list', function (): void {
 
 it('flags configured verbs when actionPrefixes is retuned', function (): void {
     $file = analyzeFixtureWithProperty(
-        ACTION_METHOD_RETURN,
-        'prefixes.php',
-        'actionPrefixes',
-        ['archive', 'publish']
-    );
+            ACTION_METHOD_RETURN,
+            'prefixes.php',
+            'actionPrefixes',
+            ['archive', 'publish']
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 15, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
@@ -181,10 +181,10 @@ it('flags configured verbs when actionPrefixes is retuned', function (): void {
 
 it('matches nothing for an empty verb in the configured list', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        ACTION_METHOD_RETURN,
-        'passing.php',
-        ['actionPrefixes[]' => 'set,,save']
-    );
+            ACTION_METHOD_RETURN,
+            'passing.php',
+            ['actionPrefixes[]' => 'set,,save']
+        );
 
     expect(warningTuples($file))->toBe([]);
 });
@@ -217,10 +217,10 @@ it('reads a return type that cannot be normalised as written', function (): void
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(ACTION_METHOD_RETURN, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_replace',
+                static fn (): array => allViolationSourcesByLine(analyzeFixture(ACTION_METHOD_RETURN, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect($expected)->not->toBe([])

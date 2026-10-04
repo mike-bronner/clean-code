@@ -79,14 +79,14 @@ it('names the doubled dependency in the warning message', function () use ($inte
 
 it('inspects nothing outside an integration test', function () use ($integrationRun): void {
     $inRepo = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php')
-    );
+            [NO_HTTP_FAKES],
+            fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php')
+        );
 
     $outsideIntegration = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        stageFixtureOutsideTests(fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php'), 'tests/Feature')
-    );
+            [NO_HTTP_FAKES],
+            stageFixtureOutsideTests(fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php'), 'tests/Feature')
+        );
 
     expect($inRepo->getWarnings())->toBe([])
         ->and($inRepo->getErrors())->toBe([])
@@ -97,19 +97,19 @@ it('inspects nothing outside an integration test', function () use ($integration
 
 it('exposes a configurable integration-test pattern list', function () use ($expectedWarnings): void {
     $staged = stageFixtureOutsideTests(
-        fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php'),
-        'suites/e2e'
-    );
+            fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php'),
+            'suites/e2e'
+        );
 
     $default = analyzeWithSniffs([NO_HTTP_FAKES], $staged);
 
     $configured = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        $staged,
-        static function (object $sniff) use ($staged): void {
-            $sniff->integrationPatterns = ['*/' . basename(dirname($staged)) . '/*'];
-        }
-    );
+            [NO_HTTP_FAKES],
+            $staged,
+            static function (object $sniff) use ($staged): void {
+                $sniff->integrationPatterns = ['*/' . basename(dirname($staged)) . '/*'];
+            }
+        );
 
     expect($default->getWarnings())->toBe([])
         ->and(warningTuples($configured))->toBe($expectedWarnings());
@@ -119,28 +119,28 @@ it('exposes the detection lists as configurable properties', function () use ($i
     $staged = $integrationPath('failing.php');
 
     $withoutFakes = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        $staged,
-        static function (object $sniff): void {
-            $sniff->fakeMethods = ['fakeSequence'];
-        }
-    );
+            [NO_HTTP_FAKES],
+            $staged,
+            static function (object $sniff): void {
+                $sniff->fakeMethods = ['fakeSequence'];
+            }
+        );
 
     $withoutCreators = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        $staged,
-        static function (object $sniff): void {
-            $sniff->mockCreators = ['createMock'];
-        }
-    );
+            [NO_HTTP_FAKES],
+            $staged,
+            static function (object $sniff): void {
+                $sniff->mockCreators = ['createMock'];
+            }
+        );
 
     $withoutClients = analyzeWithSniffs(
-        [NO_HTTP_FAKES],
-        $staged,
-        static function (object $sniff): void {
-            $sniff->httpClientClasses = [];
-        }
-    );
+            [NO_HTTP_FAKES],
+            $staged,
+            static function (object $sniff): void {
+                $sniff->httpClientClasses = [];
+            }
+        );
 
     expect(array_column(warningTuples($withoutFakes), 'source'))
         ->toBe(array_merge([NO_HTTP_FAKES_FAKE], array_fill(0, 7, NO_HTTP_FAKES_MOCK)))
@@ -161,9 +161,9 @@ it('reports detection-only warnings', function () use ($integrationRun): void {
 it('reports the violation end to end through the installed package', function () use ($integrationPath): void {
     $staged = installedSniffRun(NO_HTTP_FAKES, $integrationPath('failing.php'));
     $inRepo = installedSniffRun(
-        NO_HTTP_FAKES,
-        fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php')
-    );
+            NO_HTTP_FAKES,
+            fixturePath(NO_HTTP_FAKES_FIXTURES, 'failing.php')
+        );
     $passing = installedSniffRun(NO_HTTP_FAKES, $integrationPath('passing.php'));
 
     expect(array_values(array_unique(array_column($staged['messages'], 'source'))))

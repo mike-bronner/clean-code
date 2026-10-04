@@ -55,9 +55,9 @@ it('offers an auto-fix for the convertible if/else only', function (): void {
 
 it('has no Slevomat sniff covering nested ternaries', function (): void {
     $file = analyzeWithStandard(
-        'SlevomatCodingStandard',
-        fixturePath('DisallowNestedTernarySniff', 'failing.php')
-    );
+            'SlevomatCodingStandard',
+            fixturePath('DisallowNestedTernarySniff', 'failing.php')
+        );
 
     expect($file->ruleset->sniffCodes)
         ->not->toHaveKey('SlevomatCodingStandard.ControlStructures.DisallowNestedTernaryOperator')

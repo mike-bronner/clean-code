@@ -88,10 +88,12 @@ it('skips a string literal whose words cannot be read', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_match_all',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/'
-        );
+                'preg_match_all',
+                static fn (): array => allViolationSourcesByLine(
+                        analyzeFixture(UNUSED_PRIVATE_ELEMENTS, 'failing.php')
+                    ),
+                static fn (string $pattern): bool => $pattern === '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/'
+            );
     });
 
     expect($expected)->not->toBe([])

@@ -75,12 +75,12 @@ it('exempts nothing by default', function (): void {
 
 it('exempts the classes named by the exceptions property', function (): void {
     $file = analyzeFixture(
-        BOOLEAN_ARGUMENT_FLAG,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->exceptions = 'ExemptedRenderer';
-        }
-    );
+            BOOLEAN_ARGUMENT_FLAG,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->exceptions = 'ExemptedRenderer';
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 29, 'column' => 41, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
@@ -90,24 +90,24 @@ it('exempts the classes named by the exceptions property', function (): void {
 
 it('matches the exceptions list case-sensitively', function (): void {
     $file = analyzeFixture(
-        BOOLEAN_ARGUMENT_FLAG,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->exceptions = 'exemptedrenderer';
-        }
-    );
+            BOOLEAN_ARGUMENT_FLAG,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->exceptions = 'exemptedrenderer';
+            }
+        );
 
     expect(violationTuples($file))->toHaveCount(6);
 });
 
 it('exempts the names matched by the ignore pattern', function (): void {
     $file = analyzeFixture(
-        BOOLEAN_ARGUMENT_FLAG,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->ignorepattern = '/^(__construct|get.*Filtered)$/';
-        }
-    );
+            BOOLEAN_ARGUMENT_FLAG,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->ignorepattern = '/^(__construct|get.*Filtered)$/';
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 9, 'column' => 28, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
@@ -128,12 +128,12 @@ it('reports everything when the ignore pattern is malformed', function (): void 
 
     try {
         $file = analyzeFixture(
-            BOOLEAN_ARGUMENT_FLAG,
-            'configured.php',
-            static function (object $sniff): void {
-                $sniff->ignorepattern = 'not-a-pattern';
-            }
-        );
+                BOOLEAN_ARGUMENT_FLAG,
+                'configured.php',
+                static function (object $sniff): void {
+                    $sniff->ignorepattern = 'not-a-pattern';
+                }
+            );
     } finally {
         restore_error_handler();
     }
@@ -156,12 +156,12 @@ it('reads a type hint that cannot be normalised as written', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_replace',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect($expected)->not->toBe([])

@@ -68,9 +68,9 @@ it('declines to fix an attribute value carrying a backslash', function (): void 
 
 it('stays silent on a tag whose apostrophes do not pair, in either php context', function (): void {
     $analyze = static fn (string $literal): int => analyzeStdinSource(
-        [HTML_ATTRIBUTE_QUOTES],
-        "<?php\n\n\$x = {$literal};\n"
-    )->getErrorCount();
+            [HTML_ATTRIBUTE_QUOTES],
+            "<?php\n\n\$x = {$literal};\n"
+        )->getErrorCount();
 
     expect($analyze('"<a class=\'card\'s\'>text</a>"'))->toBe(0)
         ->and($analyze('\'<a class=\\\'card\\\'s\\\'>text</a>\''))->toBe(0)
@@ -104,14 +104,14 @@ it('treats the whole rewrite as unsafe when an attribute list cannot be read', f
 
     [[$fixed, $messages], $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace_callback',
-            static function (): array {
-                $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
+                'preg_replace_callback',
+                static function (): array {
+                    $file = analyzeFixture(HTML_ATTRIBUTE_QUOTES, 'failing.php');
 
-                return [autofixedContents($file), violationMessagesByLine($file->getErrors())];
-            },
-            static fn (string $pattern): bool => str_starts_with($pattern, '#([a-zA-Z_:]')
-        );
+                    return [autofixedContents($file), violationMessagesByLine($file->getErrors())];
+                },
+                static fn (string $pattern): bool => str_starts_with($pattern, '#([a-zA-Z_:]')
+            );
     });
 
     $reported = array_values(array_unique(array_merge(...array_values($messages))));

@@ -58,9 +58,9 @@ it('still reports Internal.NoCodeFound on a .php file with no PHP tag', function
     $stageFixtureAs
 ): void {
     $staged = $stageFixtureAs(
-        fixturePath('ComponentMarkupSniff', 'no-php-code.blade.php'),
-        'no-php-code.php'
-    );
+            fixturePath('ComponentMarkupSniff', 'no-php-code.blade.php'),
+            'no-php-code.php'
+        );
 
     expect($sourcesWithoutShortOpenTags($staged))->toContain('Internal.NoCodeFound');
 });

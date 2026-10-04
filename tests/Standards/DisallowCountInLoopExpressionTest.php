@@ -62,13 +62,13 @@ it('flags every count and sizeof call in a loop condition at its exact position'
     $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => COUNT_IN_LOOP_SNIFF . '.Found',
-        ],
-        COUNT_IN_LOOP_VIOLATIONS
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => COUNT_IN_LOOP_SNIFF . '.Found',
+            ],
+            COUNT_IN_LOOP_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -110,8 +110,8 @@ it('does not mistake a semicolon nested in the for initialiser for a section sep
 
 it('still finds the condition when an arrow function precedes it in the for header', function (): void {
     $sources = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+        );
 
     expect($sources)->toHaveKey(81)
         ->and($sources[81])->toBe([COUNT_IN_LOOP_SNIFF . '.Found']);
@@ -121,13 +121,13 @@ it('reports a nested scope in a loop condition once, never twice', function (): 
     $file = analyzeFixture(COUNT_IN_LOOP_SNIFF, 'nested-loops-in-condition.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => COUNT_IN_LOOP_SNIFF . '.Found',
-        ],
-        COUNT_IN_LOOP_NESTED_VIOLATIONS
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => COUNT_IN_LOOP_SNIFF . '.Found',
+            ],
+            COUNT_IN_LOOP_NESTED_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -149,8 +149,8 @@ it('ignores the first-class callable syntax, which never invokes the function', 
 
 it('still flags a real call that spreads its arguments', function (): void {
     $sources = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+        );
 
     expect($sources)->toHaveKey(96)
         ->and($sources[96])->toBe([COUNT_IN_LOOP_SNIFF . '.Found']);
@@ -158,8 +158,8 @@ it('still flags a real call that spreads its arguments', function (): void {
 
 it('flags the case and namespace spellings PHPMD misses', function (): void {
     $sources = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+        );
 
     expect($sources[56])->toBe([COUNT_IN_LOOP_SNIFF . '.Found'])
         ->and($sources[61])->toBe([COUNT_IN_LOOP_SNIFF . '.Found'])
@@ -175,14 +175,14 @@ it('refuses a malformed loop header rather than guessing at it', function (): vo
 
 it('resolves a namespace-relative name against the namespace in force', function (): void {
     $global = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'failing.php')->getErrors()
+        );
 
     expect($global[105])->toBe([COUNT_IN_LOOP_SNIFF . '.Found']);
 
     $namespaced = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespaced-relative.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespaced-relative.php')->getErrors()
+        );
 
     expect($namespaced)->toBe([22 => [COUNT_IN_LOOP_SNIFF . '.Found']]);
 });
@@ -203,8 +203,8 @@ it('reads a by-reference declaration as a declaration, not a call', function ():
 
 it('resolves a namespace-relative name against the enclosing block, unnamed included', function (): void {
     $sources = violationSourcesByLine(
-        analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespace-blocks.php')->getErrors()
-    );
+            analyzeFixture(COUNT_IN_LOOP_SNIFF, 'namespace-blocks.php')->getErrors()
+        );
 
     expect($sources)->toBe([
         17 => [COUNT_IN_LOOP_SNIFF . '.Found'],

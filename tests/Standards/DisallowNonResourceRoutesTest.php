@@ -75,14 +75,14 @@ it('names the offending verb in the warning message', function () use ($routeRun
 
 it('inspects nothing outside a route file', function () use ($routeRun): void {
     $inRepo = analyzeWithSniffs(
-        [NON_RESOURCE_ROUTES],
-        fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php')
-    );
+            [NON_RESOURCE_ROUTES],
+            fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php')
+        );
 
     $outsideRoutes = analyzeWithSniffs(
-        [NON_RESOURCE_ROUTES],
-        stageFixtureOutsideTests(fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php'))
-    );
+            [NON_RESOURCE_ROUTES],
+            stageFixtureOutsideTests(fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php'))
+        );
 
     expect($inRepo->getWarnings())->toBe([])
         ->and($inRepo->getErrors())->toBe([])
@@ -93,19 +93,19 @@ it('inspects nothing outside a route file', function () use ($routeRun): void {
 
 it('exposes a configurable route-file pattern list', function () use ($expectedWarnings): void {
     $staged = stageFixtureOutsideTests(
-        fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php'),
-        'http'
-    );
+            fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php'),
+            'http'
+        );
 
     $default = analyzeWithSniffs([NON_RESOURCE_ROUTES], $staged);
 
     $configured = analyzeWithSniffs(
-        [NON_RESOURCE_ROUTES],
-        $staged,
-        static function (object $sniff) use ($staged): void {
-            $sniff->routeFilePatterns = ['*/' . basename(dirname($staged)) . '/*'];
-        }
-    );
+            [NON_RESOURCE_ROUTES],
+            $staged,
+            static function (object $sniff) use ($staged): void {
+                $sniff->routeFilePatterns = ['*/' . basename(dirname($staged)) . '/*'];
+            }
+        );
 
     expect($default->getWarnings())->toBe([])
         ->and(warningTuples($configured))->toBe($expectedWarnings());
@@ -122,9 +122,9 @@ it('reports detection-only warnings', function () use ($routeRun): void {
 it('reports the violation end to end through the installed package', function () use ($routePath): void {
     $staged = installedSniffRun(NON_RESOURCE_ROUTES, $routePath('failing.php'));
     $inRepo = installedSniffRun(
-        NON_RESOURCE_ROUTES,
-        fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php')
-    );
+            NON_RESOURCE_ROUTES,
+            fixturePath(NON_RESOURCE_ROUTES_FIXTURES, 'failing.php')
+        );
     $passing = installedSniffRun(NON_RESOURCE_ROUTES, $routePath('passing.php'));
 
     expect(array_column($staged['messages'], 'source'))->toHaveCount(14)

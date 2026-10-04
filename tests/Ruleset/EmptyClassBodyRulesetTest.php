@@ -6,8 +6,8 @@ const EMPTY_BODY_CLASS_DECLARATION = 'CleanCode.Classes.ClassDeclaration';
 const EMPTY_BODY_SCOPE_CLOSING_BRACE = 'CleanCode.WhiteSpace.ScopeClosingBrace';
 
 $analyzeEmptyBody = static fn (string $fixture): array => allViolationSourcesByLine(
-    analyzeWithMasterRuleset(fixturePath('_rulesets/EmptyClassBody', $fixture))
-);
+        analyzeWithMasterRuleset(fixturePath('_rulesets/EmptyClassBody', $fixture))
+    );
 
 it('swaps both brace sniffs for their CleanCode replacements', function (): void {
     [, $ruleset] = buildRuleset();

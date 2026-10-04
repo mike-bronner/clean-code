@@ -26,16 +26,16 @@ $analyzeUnconfigured = static function (string $fixture): LocalFile {
     $config->standards = ['VariableAnalysis'];
 
     $config->setConfigData(
-        'installed_paths',
-        cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
-        true
-    );
+            'installed_paths',
+            cleanCodeRoot() . '/vendor/sirbrillig/phpcs-variable-analysis',
+            true
+        );
 
     $file = new LocalFile(
-        fixturePath('VariableAnalysisSniff', $fixture),
-        new Ruleset($config),
-        $config
-    );
+            fixturePath('VariableAnalysisSniff', $fixture),
+            new Ruleset($config),
+            $config
+        );
     $file->process();
 
     return $file;

@@ -88,9 +88,9 @@ it('produces the expected fixer output', function (string $fixture) use ($integr
     $file = $integrationFixture($fixture . '.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(__DIR__ . '/fixtures/' . $fixture . '.fixed.php'),
-        'Fixer output for ' . $fixture
-    );
+            file_get_contents(__DIR__ . '/fixtures/' . $fixture . '.fixed.php'),
+            'Fixer output for ' . $fixture
+        );
 })->with([
     'indentation is auto-fixable' => ['indentation'],
     'brace placement is auto-fixable' => ['braces'],

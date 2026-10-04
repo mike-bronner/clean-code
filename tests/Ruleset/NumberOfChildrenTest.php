@@ -12,9 +12,9 @@ const ORDINAL_INDEX_FOUND = ORDINAL_INDEX_SNIFF . '.Found';
 
 $stageOrdinalIndexProject = static function (): string {
     $children = implode("\n\n", array_map(
-        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
-        range(1, 15)
-    ));
+            static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+            range(1, 15)
+        ));
 
     return dirname(stageProjectOutsideTests([
         'Base.php' => "<?php\n\nnamespace Fixture\\Ordinal;\n\nclass Base\n{\n}\n\n" . $children . "\n",
@@ -23,9 +23,9 @@ $stageOrdinalIndexProject = static function (): string {
 
 $runThrowawayPhpcs = static function (string $binary, array $arguments): array {
     [$stdout, , $status] = runOutsidePackage(implode(' ', array_map(
-        'escapeshellarg',
-        array_merge([PHP_BINARY, $binary], $arguments)
-    )));
+            'escapeshellarg',
+            array_merge([PHP_BINARY, $binary], $arguments)
+        )));
 
     return [$stdout, $status];
 };

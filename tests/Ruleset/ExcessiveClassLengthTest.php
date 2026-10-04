@@ -15,8 +15,8 @@ it('ships PHPMD\'s own thresholds', function (): void {
 
 it('flags a 1000-line class through the whole ruleset', function (): void {
     $file = analyzeWithMasterRuleset(
-        fixturePath('ExcessiveClassLengthSniff', 'failing.php')
-    );
+            fixturePath('ExcessiveClassLengthSniff', 'failing.php')
+        );
 
     $reports = [];
 

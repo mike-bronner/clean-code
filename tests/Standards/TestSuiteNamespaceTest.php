@@ -98,10 +98,10 @@ it('reports against the configured suite segments', function (): void {
     ]);
 
     $configured = analyzeFixtureWithRulesetProperties(
-        TEST_SUITE_NAMESPACE,
-        $fixture,
-        ['suiteSegments' => ['Contract', 'Unit']]
-    );
+            TEST_SUITE_NAMESPACE,
+            $fixture,
+            ['suiteSegments' => ['Contract', 'Unit']]
+        );
 
     expect(warningTuples($configured))->toBe([
         ['line' => 12, 'column' => 1, 'source' => TEST_SUITE_NAMESPACE_NAMESPACE],
@@ -110,10 +110,10 @@ it('reports against the configured suite segments', function (): void {
 
 it('matches the configured test root case-insensitively', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        TEST_SUITE_NAMESPACE,
-        'failing.php',
-        ['testRoot' => 'TESTS']
-    );
+            TEST_SUITE_NAMESPACE,
+            'failing.php',
+            ['testRoot' => 'TESTS']
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 11, 'column' => 5, 'source' => TEST_SUITE_NAMESPACE_DIRECTORY],
@@ -149,9 +149,9 @@ it('says nothing when the file has no path to compare against', function (): voi
         PHP;
 
     $onDisk = analyzeWithSniffs(
-        [TEST_SUITE_NAMESPACE],
-        stageSourceOutsideTests($source, 'CalculatorTest.php')
-    );
+            [TEST_SUITE_NAMESPACE],
+            stageSourceOutsideTests($source, 'CalculatorTest.php')
+        );
 
     expect(warningTuples($onDisk))->toBe([
         ['line' => 5, 'column' => 1, 'source' => TEST_SUITE_NAMESPACE_DIRECTORY],

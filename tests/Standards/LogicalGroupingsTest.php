@@ -71,7 +71,7 @@ it('derives the expected indent from the immediate parent group', function (): v
 
     expect(violationMessagesByLine($file->getErrors())[72])->toBe([
         'Grouped condition must be indented one level deeper than its enclosing'
-        . ' condition; expected 20 spaces, found 16',
+            . ' condition; expected 20 spaces, found 16',
     ]);
 });
 
@@ -82,7 +82,7 @@ it('reports a first condition glued to the group opener, and gives it its own li
 
     expect($reported[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe([
         'The first condition of a parenthesized group must start on its own line,'
-        . ' indented one level deeper than its enclosing condition; expected 16 spaces',
+            . ' indented one level deeper than its enclosing condition; expected 16 spaces',
     ])->and($fixed[(LOGICAL_GROUPINGS_GLUED_LINES[0] - 1)])->toBe('            || (')
         ->and($fixed[LOGICAL_GROUPINGS_GLUED_LINES[0]])->toBe('                $this->isActive');
 });
@@ -94,13 +94,13 @@ it('inserts the break when no spacing separates the opener from the condition', 
     $glued = LOGICAL_GROUPINGS_GLUED_LINES[2];
 
     $opener = (($glued - 1) + count(array_filter(
-        LOGICAL_GROUPINGS_GLUED_LINES,
-        static fn (int $line): bool => $line < $glued
-    )));
+            LOGICAL_GROUPINGS_GLUED_LINES,
+            static fn (int $line): bool => $line < $glued
+        )));
 
     expect($reported[$glued])->toBe([
         'The first condition of a parenthesized group must start on its own line,'
-        . ' indented one level deeper than its enclosing condition; expected 16 spaces',
+            . ' indented one level deeper than its enclosing condition; expected 16 spaces',
     ])->and($fixed[$opener])->toBe('            || (')
         ->and($fixed[($opener + 1)])->toBe('                $this->isActive');
 });
@@ -148,9 +148,9 @@ it('stays linear as groupings nest', function (): void {
 
     foreach ($sizes as $levels) {
         [$counts[$levels], $violations[$levels]] = $measure(
-            "nested-groupings-{$levels}.php",
-            $build('&& (', $levels)
-        );
+                "nested-groupings-{$levels}.php",
+                $build('&& (', $levels)
+            );
     }
 
     [$skippedCounts, $skippedViolations] = $measure('nested-calls.php', $build('&& check(', $count));
@@ -176,9 +176,9 @@ it('stays linear as groupings nest', function (): void {
 
     foreach ($sizes as $levels) {
         expect($violations[$levels])->toHaveCount(
-            $levels,
-            "n={$levels}: one violation per level, and every level reached"
-        );
+                $levels,
+                "n={$levels}: one violation per level, and every level reached"
+            );
     }
 
     foreach (array_slice($sizes, 1) as $levels) {
@@ -186,31 +186,31 @@ it('stays linear as groupings nest', function (): void {
         $grown = ($counts[$levels]['conditionWalk.steps'] / $counts[$previous]['conditionWalk.steps']);
 
         expect($grown)->toBeLessThan(
-            2.8,
-            "steps from n={$previous} to n={$levels} grow by {$counts[$levels]['conditionWalk.steps']}"
-            . "/{$counts[$previous]['conditionWalk.steps']}, which a walk into each nested region cannot do"
-        );
+                2.8,
+                "steps from n={$previous} to n={$levels} grow by {$counts[$levels]['conditionWalk.steps']}"
+                    . "/{$counts[$previous]['conditionWalk.steps']}, which a walk into each nested region cannot do"
+            );
     }
 
     foreach ($sizes as $levels) {
         expect($counts[$levels]['conditionWalk.jumps'])->toBe(
-            ($levels - 1),
-            "n={$levels}: each nested grouping is crossed whole once,"
-            . ' by the walk of the group holding it'
-        )->and($counts[$levels]['conditionWalk.steps'])->toBe(
-            ((33 * $levels) + 16),
-            "n={$levels}: the walks touch a fixed number of tokens per level,"
-            . ' not the condition below it'
-        );
+                ($levels - 1),
+                "n={$levels}: each nested grouping is crossed whole once,"
+                    . ' by the walk of the group holding it'
+            )->and($counts[$levels]['conditionWalk.steps'])->toBe(
+                ((33 * $levels) + 16),
+                "n={$levels}: the walks touch a fixed number of tokens per level,"
+                    . ' not the condition below it'
+            );
     }
 
     expect($skippedCounts['conditionWalk.steps'])->toBe(
-        13,
-        'the control is refused whole: its cost does not scale with its nesting'
-    )->and($skippedCounts['conditionWalk.jumps'])->toBe(
-        0,
-        'a call is never entered, so no nested region inside one is ever crossed'
-    );
+            13,
+            'the control is refused whole: its cost does not scale with its nesting'
+        )->and($skippedCounts['conditionWalk.jumps'])->toBe(
+            0,
+            'a call is never entered, so no nested region inside one is ever crossed'
+        );
 });
 
 $stackedGroupings = function (string $opener, int $leading, int $stacked): array {
@@ -272,47 +272,47 @@ it('stays linear as group openers stack on one line', function () use ($stackedG
     [$skippedCounts, $skippedViolations] = $measure('stacked-calls.php', $controlSource);
 
     $expected = array_map(
-        static fn (int $column): array => [
-            'line' => 7,
-            'column' => $column,
-            'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
-        ],
-        $reported
-    );
+            static fn (int $column): array => [
+                'line' => 7,
+                'column' => $column,
+                'source' => LOGICAL_GROUPINGS_NOT_INDENTED,
+            ],
+            $reported
+        );
 
     expect($groupedViolations)->toBe($expected)
         ->and($skippedViolations)->toBe([])
         ->and($halfViolations)->toHaveCount(299, 'the half-size file reaches every level too')
         ->and(array_values(array_unique($groupedMessages[7])))->toBe([
             'The first condition of a parenthesized group must start on its own line,'
-            . ' indented one level deeper than its enclosing condition; expected 12 spaces',
+                . ' indented one level deeper than its enclosing condition; expected 12 spaces',
         ]);
 
     expect($groupedCounts['lineStarts.steps'] / $halfCounts['lineStarts.steps'])->toBeLessThan(
-        2.6,
-        "doubling the line grows the tokens examined by {$groupedCounts['lineStarts.steps']}"
-        . "/{$halfCounts['lineStarts.steps']}, which a walk back along it cannot do"
-    );
+            2.6,
+            "doubling the line grows the tokens examined by {$groupedCounts['lineStarts.steps']}"
+                . "/{$halfCounts['lineStarts.steps']}, which a walk back along it cannot do"
+        );
 
     expect($groupedCounts['lineStarts.hits'])->toBe(
-        599,
-        'the index is read once per reported group and built once for the stream'
-    )->and($groupedCounts['lineStarts.steps'])->toBe(
-        600,
-        'the 600 readings examine 600 tokens between them — one each, from the index,'
-        . ' not an ever-growing prefix of the line the openers stack on'
-    )->and($halfCounts['lineStarts.steps'])->toBe(
-        300,
-        'and 300 readings examine 300, on a line half as long'
-    );
+            599,
+            'the index is read once per reported group and built once for the stream'
+        )->and($groupedCounts['lineStarts.steps'])->toBe(
+            600,
+            'the 600 readings examine 600 tokens between them — one each, from the index,'
+                . ' not an ever-growing prefix of the line the openers stack on'
+        )->and($halfCounts['lineStarts.steps'])->toBe(
+            300,
+            'and 300 readings examine 300, on a line half as long'
+        );
 
     expect($skippedCounts['lineStarts.hits'])->toBe(
-        0,
-        'a call is refused before any line start is asked for'
-    )->and($skippedCounts['lineStarts.steps'])->toBe(
-        0,
-        'so no token is examined on its behalf'
-    );
+            0,
+            'a call is refused before any line start is asked for'
+        )->and($skippedCounts['lineStarts.steps'])->toBe(
+            0,
+            'so no token is examined on its behalf'
+        );
 });
 
 it('reindents a stack of same-line openers through the multi-pass fixer', function () use ($stackedGroupings): void {
@@ -419,14 +419,14 @@ it('moves the reported condition lines and nothing else', function (): void {
     expect($after)->toHaveCount(count($before));
 
     $changed = array_keys(array_filter(
-        $before,
-        static fn (string $line, int $index): bool => $line !== $after[$index],
-        ARRAY_FILTER_USE_BOTH
-    ));
+            $before,
+            static fn (string $line, int $index): bool => $line !== $after[$index],
+            ARRAY_FILTER_USE_BOTH
+        ));
 
     expect(array_map(static fn (int $index): int => ($index + 1), $changed))->toBe(
-        array_column(violationTuples(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')), 'line')
-    );
+            array_column(violationTuples(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')), 'line')
+        );
 });
 
 it('keeps its line-start index from answering another STDIN analysis', function (): void {
@@ -523,10 +523,10 @@ it('fixes a group whose leading break cannot be read the same way', function ():
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): string {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): string => autofixedContents(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/[^\r\n]+$/'
-        );
+                'preg_replace',
+                static fn (): string => autofixedContents(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/[^\r\n]+$/'
+            );
     });
 
     $reports = allViolationSourcesByLine(analyzeFixture(LOGICAL_GROUPINGS, 'failing.php'));

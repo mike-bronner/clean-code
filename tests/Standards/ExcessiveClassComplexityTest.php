@@ -19,12 +19,12 @@ it('produces no violations on the compliant fixture', function (): void {
 
 it('measures each class in the compliant fixture exactly', function (): void {
     $errors = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 0;
-        }
-    )->getErrors();
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 0;
+            }
+        )->getErrors();
 
     expect($errors[20][1][0]['message'])
         ->toContain('Class AtOneBelowTheMaximum has a weighted method count of 49,')
@@ -80,12 +80,12 @@ it('stays silent on every declaration that is not a named class', function (): v
 
 it('measures each class in the not-a-class fixture exactly', function (): void {
     $errors = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'not-a-class.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 0;
-        }
-    )->getErrors();
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'not-a-class.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 0;
+            }
+        )->getErrors();
 
     expect($errors[45][1][0]['message'])
         ->toContain('Class UsesHugeTrait has a weighted method count of 0,')
@@ -98,12 +98,12 @@ it('measures each class in the not-a-class fixture exactly', function (): void {
 
 it('passes over a class the tokenizer never closed', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'truncated.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 0;
-        }
-    );
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'truncated.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 0;
+            }
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -111,20 +111,20 @@ it('passes over a class the tokenizer never closed', function (): void {
 
 it('reports at the configured maximum and stays silent one above it', function (): void {
     $atThreshold = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 13;
-        }
-    );
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 13;
+            }
+        );
 
     $aboveThreshold = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 14;
-        }
-    );
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 14;
+            }
+        );
 
     expect(violationTuples($atThreshold))->toBe([
         ['line' => 11, 'column' => 1, 'source' => EXCESSIVE_CLASS_COMPLEXITY . '.MaximumExceeded'],
@@ -133,12 +133,12 @@ it('reports at the configured maximum and stays silent one above it', function (
 
 it('accepts the maximum as the string a ruleset supplies', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maximum = '13';
-        }
-    );
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maximum = '13';
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 11, 'column' => 1, 'source' => EXCESSIVE_CLASS_COMPLEXITY . '.MaximumExceeded'],
@@ -147,12 +147,12 @@ it('accepts the maximum as the string a ruleset supplies', function (): void {
 
 it('over-reports rather than falling silent on an unreadable maximum', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_CLASS_COMPLEXITY,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maximum = 'forty';
-        }
-    );
+            EXCESSIVE_CLASS_COMPLEXITY,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maximum = 'forty';
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 11, 'column' => 1, 'source' => EXCESSIVE_CLASS_COMPLEXITY . '.MaximumExceeded'],

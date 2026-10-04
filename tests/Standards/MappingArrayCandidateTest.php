@@ -128,12 +128,12 @@ it('stays silent on a chain below the default minimum', function (): void {
 
 it('reports that same chain once minimumBranches is lowered', function (): void {
     $file = analyzeFixture(
-        MAPPING_ARRAY_CANDIDATE,
-        'threshold.php',
-        static function (object $sniff): void {
-            $sniff->minimumBranches = '2';
-        }
-    );
+            MAPPING_ARRAY_CANDIDATE,
+            'threshold.php',
+            static function (object $sniff): void {
+                $sniff->minimumBranches = '2';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 17, 'column' => 5, 'source' => MAPPING_ARRAY_CANDIDATE_CHAIN],
@@ -142,8 +142,8 @@ it('reports that same chain once minimumBranches is lowered', function (): void 
 
 it('leaves the chain to no other sniff in the ruleset', function (): void {
     $sources = allViolationSourcesByLine(
-        analyzeWithMasterRuleset(fixturePath('MappingArrayCandidateSniff', 'failing.php'))
-    );
+            analyzeWithMasterRuleset(fixturePath('MappingArrayCandidateSniff', 'failing.php'))
+        );
 
     $atChainHeads = array_intersect_key($sources, array_flip([20, 32, 46, 60, 75, 91]));
 
@@ -151,9 +151,9 @@ it('leaves the chain to no other sniff in the ruleset', function (): void {
 
     foreach ($atChainHeads as $line => $reported) {
         expect($reported)->toBe(
-            ['CleanCode.Conditionals.AvoidConditionals.IfStatement', MAPPING_ARRAY_CANDIDATE_CHAIN],
-            'unexpected sources on line ' . $line
-        );
+                ['CleanCode.Conditionals.AvoidConditionals.IfStatement', MAPPING_ARRAY_CANDIDATE_CHAIN],
+                'unexpected sources on line ' . $line
+            );
     }
 });
 

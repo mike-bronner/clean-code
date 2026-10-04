@@ -56,9 +56,9 @@ it('is registered in the master ruleset', function (): void {
 
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'passing.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'passing.php')
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -66,27 +66,27 @@ it('produces no violations on the compliant fixture', function (): void {
 
 it('flags every assignment PHPMD reports, at the same line', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'failing.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'failing.php')
+        );
 
     expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_SHARED);
 });
 
 it('flags the conditions PHPMD overlooks too', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'divergences.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'divergences.php')
+        );
 
     expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_BROADER);
 });
 
 it('lowers the while-condition code to a warning and leaves every other condition an error', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'divergences.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'divergences.php')
+        );
 
     expect(warningTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS)
         ->and(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_BROADER)
@@ -96,9 +96,9 @@ it('lowers the while-condition code to a warning and leaves every other conditio
 
 it('keeps the while-condition code reporting rather than excluding it', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'divergences.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'divergences.php')
+        );
 
     expect(array_column(warningTuples($file), 'source'))
         ->toBe(array_fill(0, count(IF_STATEMENT_ASSIGNMENT_WHILE_WARNINGS), IF_STATEMENT_ASSIGNMENT_IN_WHILE));
@@ -106,18 +106,18 @@ it('keeps the while-condition code reporting rather than excluding it', function
 
 it('closes the list() destructuring gap with the custom sniff', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'list-gap.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'list-gap.php')
+        );
 
     expect(violationTuples($file))->toBe(IF_STATEMENT_ASSIGNMENT_LIST_GAP);
 });
 
 it('reports at error severity rather than as a warning', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'failing.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'failing.php')
+        );
 
     expect($file->getErrorCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_SHARED))
         ->and($file->getWarningCount())->toBe(0)
@@ -126,9 +126,9 @@ it('reports at error severity rather than as a warning', function (): void {
 
 it('reports without offering an auto-fix', function (): void {
     $file = analyzeWithSniffs(
-        [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
-        fixturePath('AssignmentInConditionSniff', 'failing.php')
-    );
+            [IF_STATEMENT_ASSIGNMENT_SNIFF, IF_STATEMENT_ASSIGNMENT_LIST_SNIFF],
+            fixturePath('AssignmentInConditionSniff', 'failing.php')
+        );
 
     expect($file->getErrorCount())->toBe(count(IF_STATEMENT_ASSIGNMENT_SHARED))
         ->and($file->getFixableCount())->toBe(0)

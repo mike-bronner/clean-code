@@ -105,11 +105,11 @@ it('reports detection-only violations', function (): void {
 
 it('flags nothing once the shipped directives leave the configured list', function (): void {
     $file = analyzeFixtureWithProperty(
-        NO_FORMATTER_DIRECTIVES,
-        'failing.php',
-        'directives',
-        ['@fmt:off']
-    );
+            NO_FORMATTER_DIRECTIVES,
+            'failing.php',
+            'directives',
+            ['@fmt:off']
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -131,11 +131,11 @@ it('takes both element-node property spellings from a real ruleset file', functi
 
 it('trims a configured directive before matching it', function (): void {
     $file = analyzeFixtureWithProperty(
-        NO_FORMATTER_DIRECTIVES,
-        'failing.php',
-        'directives',
-        ['  @formatter:off  ']
-    );
+            NO_FORMATTER_DIRECTIVES,
+            'failing.php',
+            'directives',
+            ['  @formatter:off  ']
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 3, 'column' => 1, 'source' => NO_FORMATTER_DIRECTIVES . '.Found'],
@@ -149,11 +149,11 @@ it('trims a configured directive before matching it', function (): void {
 
 it('ignores a configured directive that is empty once trimmed', function (): void {
     $file = analyzeFixtureWithProperty(
-        NO_FORMATTER_DIRECTIVES,
-        'failing.php',
-        'directives',
-        ['', '   ']
-    );
+            NO_FORMATTER_DIRECTIVES,
+            'failing.php',
+            'directives',
+            ['', '   ']
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);

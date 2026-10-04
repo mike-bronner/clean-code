@@ -97,9 +97,9 @@ it('passes over a declaration keyword with no name', function (): void {
 
 it('measures the Slevomat naming sniffs as unaffected by the namespace', function (): void {
     $file = analyzeWithStandard(
-        'SlevomatCodingStandard',
-        fixturePath(sniffFixtureDirectory(REDUNDANT_NAMESPACE_SUFFIX), 'vendor-superfluous-naming.php')
-    );
+            'SlevomatCodingStandard',
+            fixturePath(sniffFixtureDirectory(REDUNDANT_NAMESPACE_SUFFIX), 'vendor-superfluous-naming.php')
+        );
 
     $superfluous = [];
 

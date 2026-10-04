@@ -14,9 +14,9 @@ it('raises no line-length violations on the compliant fixture', function () use 
     $file = $lineLengthFixture('passing.php');
 
     $sources = array_merge(
-        ...array_values(violationSourcesByLine($file->getWarnings())),
-        ...array_values(violationSourcesByLine($file->getErrors())),
-    );
+            ...array_values(violationSourcesByLine($file->getWarnings())),
+            ...array_values(violationSourcesByLine($file->getErrors())),
+        );
 
     expect($sources)->not->toContain(LINE_LENGTH_WARNING, 'Compliant fixture must raise no line-length warning.')
         ->and($sources)->not->toContain(LINE_LENGTH_ERROR, 'Compliant fixture must raise no line-length error.');

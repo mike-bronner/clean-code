@@ -68,12 +68,12 @@ it('exposes a configurable watched-provider list', function (): void {
     expect(analyzeFixture(LAZY_LOADING, 'configured.php')->getWarnings())->toBe([]);
 
     $configured = analyzeFixture(
-        LAZY_LOADING,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->serviceProviderClasses = ['modelserviceprovider'];
-        }
-    );
+            LAZY_LOADING,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->serviceProviderClasses = ['modelserviceprovider'];
+            }
+        );
 
     expect(warningTuples($configured))->toBe([
         ['line' => 3, 'column' => 1, 'source' => LAZY_LOADING_WARNING],
@@ -97,12 +97,12 @@ it('skips comments between the double colon and the method name', function (): v
 
 it('skips comments between the method name and its argument list', function (): void {
     $file = analyzeFixture(
-        LAZY_LOADING,
-        'spaced.php',
-        static function (object $sniff): void {
-            $sniff->serviceProviderClasses = ['ModelServiceProvider'];
-        }
-    );
+            LAZY_LOADING,
+            'spaced.php',
+            static function (object $sniff): void {
+                $sniff->serviceProviderClasses = ['ModelServiceProvider'];
+            }
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);

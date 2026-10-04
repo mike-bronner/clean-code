@@ -57,10 +57,10 @@ it('reports at PHPMD\'s default threshold of ten', function (): void {
 
 it('applies a lowered maxmethods given as a ruleset string', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        TOO_MANY_PUBLIC_METHODS,
-        'configured.php',
-        ['maxmethods' => '3']
-    );
+            TOO_MANY_PUBLIC_METHODS,
+            'configured.php',
+            ['maxmethods' => '3']
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 14, 'column' => 1, 'source' => TOO_MANY_PUBLIC_METHODS_ERROR],
@@ -71,10 +71,10 @@ it('applies a lowered maxmethods given as a ruleset string', function (): void {
 
 it('applies the narrower ignore pattern phpmd.org documents', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        TOO_MANY_PUBLIC_METHODS,
-        'configured.php',
-        ['ignorepattern' => '(^(set|get))i']
-    );
+            TOO_MANY_PUBLIC_METHODS,
+            'configured.php',
+            ['ignorepattern' => '(^(set|get))i']
+        );
 
     $errors = $file->getErrors();
 
@@ -116,10 +116,10 @@ it('exempts nothing when the ignore pattern is malformed', function (): void {
 
     try {
         $file = analyzeFixtureWithRulesetProperties(
-            TOO_MANY_PUBLIC_METHODS,
-            'configured.php',
-            ['ignorepattern' => 'not-a-pattern']
-        );
+                TOO_MANY_PUBLIC_METHODS,
+                'configured.php',
+                ['ignorepattern' => 'not-a-pattern']
+            );
     } finally {
         restore_error_handler();
     }

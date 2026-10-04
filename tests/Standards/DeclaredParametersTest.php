@@ -93,13 +93,13 @@ it('names the offending call as written', function (): void {
     $errors = analyzeFixture(DECLARED_PARAMETERS, 'failing.php')->getErrors();
 
     expect($errors[13][13][0]['message'])->toBe(
-        'func_num_args() is not allowed; declare the parameter list instead of'
-            . ' reading arguments dynamically'
-    );
+            'func_num_args() is not allowed; declare the parameter list instead of'
+                . ' reading arguments dynamically'
+        );
     expect($errors[27][16][0]['message'])->toBe(
-        'FUNC_GET_ARGS() is not allowed; declare the parameter list instead of'
-            . ' reading arguments dynamically'
-    );
+            'FUNC_GET_ARGS() is not allowed; declare the parameter list instead of'
+                . ' reading arguments dynamically'
+        );
 });
 
 it('reports every violation as non-fixable', function (string $fixture): void {

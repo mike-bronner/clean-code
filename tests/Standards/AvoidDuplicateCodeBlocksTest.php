@@ -66,12 +66,12 @@ it('compares only blocks at or above the default line threshold', function (): v
 
 it('honours a lowered line threshold', function (): void {
     $file = analyzeFixture(
-        AVOID_DUPLICATE_CODE_BLOCKS,
-        'boundaries.php',
-        static function (object $sniff): void {
-            $sniff->minimumLines = '4';
-        }
-    );
+            AVOID_DUPLICATE_CODE_BLOCKS,
+            'boundaries.php',
+            static function (object $sniff): void {
+                $sniff->minimumLines = '4';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 17, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
@@ -96,12 +96,12 @@ it('says nothing about a file shorter than one window', function (): void {
 
 it('floors the line threshold at one', function (): void {
     $file = analyzeFixture(
-        AVOID_DUPLICATE_CODE_BLOCKS,
-        'floor.php',
-        static function (object $sniff): void {
-            $sniff->minimumLines = '0';
-        }
-    );
+            AVOID_DUPLICATE_CODE_BLOCKS,
+            'floor.php',
+            static function (object $sniff): void {
+                $sniff->minimumLines = '0';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 16, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
@@ -113,12 +113,12 @@ it('floors the line threshold at one', function (): void {
 
 it('reports more, not less, on a mistyped threshold', function (): void {
     $file = analyzeFixture(
-        AVOID_DUPLICATE_CODE_BLOCKS,
-        'floor.php',
-        static function (object $sniff): void {
-            $sniff->minimumLines = 'not-a-number';
-        }
-    );
+            AVOID_DUPLICATE_CODE_BLOCKS,
+            'floor.php',
+            static function (object $sniff): void {
+                $sniff->minimumLines = 'not-a-number';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 16, 'column' => 1, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
@@ -184,9 +184,9 @@ it('reports a group through the extent all of its blocks share', function (): vo
 
 it('leaves its own source alone', function (): void {
     $file = analyzeWithSniffs(
-        [AVOID_DUPLICATE_CODE_BLOCKS],
-        cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/AvoidDuplicateCodeBlocksSniff.php'
-    );
+            [AVOID_DUPLICATE_CODE_BLOCKS],
+            cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/AvoidDuplicateCodeBlocksSniff.php'
+        );
 
     expect($file->numTokens)->toBeGreaterThan(0)
         ->and(warningTuples($file))->toBe([]);
@@ -203,12 +203,12 @@ it('leaves a run of literal data out of the comparison', function (string $fixtu
 
 it('treats every literal, name and string-body token as data', function (): void {
     $file = analyzeFixture(
-        AVOID_DUPLICATE_CODE_BLOCKS,
-        'data-kinds.php',
-        static function (object $sniff): void {
-            $sniff->minimumLines = '1';
-        }
-    );
+            AVOID_DUPLICATE_CODE_BLOCKS,
+            'data-kinds.php',
+            static function (object $sniff): void {
+                $sniff->minimumLines = '1';
+            }
+        );
 
     expect(warningTuples($file))->toBe([]);
 });
@@ -228,12 +228,12 @@ it('still reports logic that literal lines sit between', function (): void {
 
 it('still compares a call that opens a statement', function (): void {
     $file = analyzeFixture(
-        AVOID_DUPLICATE_CODE_BLOCKS,
-        'statement-calls.php',
-        static function (object $sniff): void {
-            $sniff->minimumLines = '1';
-        }
-    );
+            AVOID_DUPLICATE_CODE_BLOCKS,
+            'statement-calls.php',
+            static function (object $sniff): void {
+                $sniff->minimumLines = '1';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 1, 'column' => 7, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],

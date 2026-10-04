@@ -50,12 +50,12 @@ it('exposes a configurable minimum', function (): void {
     expect(analyzeFixture(SHORT_CLASS_NAME, 'exceptions.php')->getErrors())->toBe([]);
 
     $raised = analyzeFixture(
-        SHORT_CLASS_NAME,
-        'exceptions.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 4;
-        }
-    );
+            SHORT_CLASS_NAME,
+            'exceptions.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 4;
+            }
+        );
 
     expect(violationSourcesByLine($raised->getErrors()))->toBe([
         3 => [SHORT_CLASS_NAME_ERROR],
@@ -67,13 +67,13 @@ it('exposes a configurable minimum', function (): void {
 
 it('honors the exceptions list, case-sensitively', function (): void {
     $file = analyzeFixture(
-        SHORT_CLASS_NAME,
-        'exceptions.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 4;
-            $sniff->exceptions = 'Log, URL , FTP';
-        }
-    );
+            SHORT_CLASS_NAME,
+            'exceptions.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 4;
+                $sniff->exceptions = 'Log, URL , FTP';
+            }
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         19 => [SHORT_CLASS_NAME_ERROR],

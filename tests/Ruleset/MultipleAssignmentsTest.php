@@ -16,8 +16,8 @@ $multipleAssignmentsPackageFiles = static function (): array {
 
     foreach (['CleanCode', 'tests'] as $tree) {
         $entries = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($root . '/' . $tree, FilesystemIterator::SKIP_DOTS)
-        );
+                new RecursiveDirectoryIterator($root . '/' . $tree, FilesystemIterator::SKIP_DOTS)
+            );
 
         foreach ($entries as $entry) {
             $path = $entry->getPathname();
@@ -57,9 +57,9 @@ it('is registered in the master ruleset', function (): void {
 
 it('produces no violations on the compliant fixture', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'passing.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'passing.php')
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -67,18 +67,18 @@ it('produces no violations on the compliant fixture', function (): void {
 
 it('flags every binding beyond the first in a chained assignment', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
+        );
 
     expect(violationTuples($file))->toBe(MULTIPLE_ASSIGNMENTS_CHAINED);
 });
 
 it('reports at error severity rather than as a warning', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
+        );
 
     expect($file->getErrorCount())->toBe(count(MULTIPLE_ASSIGNMENTS_CHAINED))
         ->and($file->getWarningCount())->toBe(0)
@@ -87,9 +87,9 @@ it('reports at error severity rather than as a warning', function (): void {
 
 it('reports without offering an auto-fix', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'failing.php')
+        );
 
     expect($file->getErrorCount())->toBe(count(MULTIPLE_ASSIGNMENTS_CHAINED))
         ->and($file->getFixableCount())->toBe(0)
@@ -98,9 +98,9 @@ it('reports without offering an auto-fix', function (): void {
 
 it('separates the control-structure code from the plain one', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
+        );
 
     expect(violationTuples($file))->toBe(MULTIPLE_ASSIGNMENTS_BOUNDARIES)
         ->and($file->getWarnings())->toBe([]);
@@ -108,9 +108,9 @@ it('separates the control-structure code from the plain one', function (): void 
 
 it('leaves a chain inside a while header to the sibling sniff, at warning severity', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF, ASSIGNMENT_IN_CONDITION_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF, ASSIGNMENT_IN_CONDITION_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 47, 'column' => 25, 'source' => ASSIGNMENT_IN_CONDITION_SNIFF . '.FoundInWhileCondition'],
@@ -138,9 +138,9 @@ it('reports no errors from either rule against the package source', function () 
 
 it('reports a condition assignment under both rules', function (): void {
     $file = analyzeWithSniffs(
-        [MULTIPLE_ASSIGNMENTS_SNIFF, ASSIGNMENT_IN_CONDITION_SNIFF],
-        fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
-    );
+            [MULTIPLE_ASSIGNMENTS_SNIFF, ASSIGNMENT_IN_CONDITION_SNIFF],
+            fixturePath('DisallowMultipleAssignmentsSniff', 'divergences.php')
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 25, 'column' => 21, 'source' => ASSIGNMENT_IN_CONDITION_SNIFF . '.Found'],

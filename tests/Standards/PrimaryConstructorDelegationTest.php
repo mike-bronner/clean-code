@@ -115,10 +115,10 @@ it('reads an unsplittable union return type as a single member', function (): vo
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_split',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(DELEGATION, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/[|&]/'
-        );
+                'preg_split',
+                static fn (): array => allViolationSourcesByLine(analyzeFixture(DELEGATION, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/[|&]/'
+            );
     });
 
     expect(array_keys($expected))->toContain(59)

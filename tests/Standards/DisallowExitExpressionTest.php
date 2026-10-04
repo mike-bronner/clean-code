@@ -21,9 +21,9 @@ it('flags every exit expression at its own position', function (): void {
     $file = analyzeFixture(DISALLOW_EXIT_EXPRESSION, 'failing.php');
 
     $positions = array_map(
-        static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
-        violationTuples($file)
-    );
+            static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
+            violationTuples($file)
+        );
 
     expect($positions)->toBe([
         [5, 5],
@@ -80,9 +80,9 @@ it('reports the shapes PHPMD misses', function (): void {
     $file = analyzeFixture(DISALLOW_EXIT_EXPRESSION, 'divergences.php');
 
     $positions = array_map(
-        static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
-        violationTuples($file)
-    );
+            static fn (array $tuple): array => [$tuple['line'], $tuple['column']],
+            violationTuples($file)
+        );
 
     expect($positions)->toBe([
         [23, 9],

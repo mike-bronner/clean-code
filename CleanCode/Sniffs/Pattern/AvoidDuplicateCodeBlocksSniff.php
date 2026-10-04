@@ -59,17 +59,17 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
                 unset($others[$position]);
 
                 $phpcsFile->addWarning(
-                    'This block of code, through line %d, is near-identical to %s, ignoring'
-                        . ' variable, literal, and identifier names. Extract the shared logic'
-                        . ' once the duplication has earned an abstraction (see'
-                        . ' resources/boost/guidelines/pattern-dont-repeat-yourself-dry.md).',
-                    $anchors[$start],
-                    'Found',
-                    [
-                        $tokens[$anchors[($start + $block['length']) - 1]]['line'],
-                        $this->describeBlocks($tokens, $anchors, $others),
-                    ]
-                );
+                        'This block of code, through line %d, is near-identical to %s, ignoring'
+                            . ' variable, literal, and identifier names. Extract the shared logic'
+                            . ' once the duplication has earned an abstraction (see'
+                            . ' resources/boost/guidelines/pattern-dont-repeat-yourself-dry.md).',
+                        $anchors[$start],
+                        'Found',
+                        [
+                            $tokens[$anchors[($start + $block['length']) - 1]]['line'],
+                            $this->describeBlocks($tokens, $anchors, $others),
+                        ]
+                    );
             }
         }
     }
@@ -96,9 +96,9 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $ignored = Tokens::$emptyTokens + array_fill_keys(self::NON_CODE_TOKENS, true);
         $dataOnly = array_fill_keys(
-            [...self::DELIMITER_TOKENS, ...self::DATA_TOKENS, ...NameTokens::QUALIFIED],
-            true
-        );
+                [...self::DELIMITER_TOKENS, ...self::DATA_TOKENS, ...NameTokens::QUALIFIED],
+                true
+            );
         $summaries = [];
         $line = null;
 

@@ -67,10 +67,10 @@ it('collapses an escaped separator in either quote style', function (): void {
         ->and($messages[19][0])->toContain('Mocking App\Services\Payments,');
 
     $narrowed = analyzeWithConfiguredRuleset(
-        FIRST_PARTY_MOCKS,
-        'escaped-literals.php',
-        ['firstPartyNamespaces' => ['App\Models']]
-    );
+            FIRST_PARTY_MOCKS,
+            'escaped-literals.php',
+            ['firstPartyNamespaces' => ['App\Models']]
+        );
 
     expect($narrowed->getErrors())->toBe([])
         ->and(array_keys($narrowed->getWarnings()))->toBe([10, 11, 15]);
@@ -85,12 +85,12 @@ it('ignores the empty clause a trailing comma leaves in a group import', functio
         ->toContain('Mocking App\Tests\Unit\Models,');
 
     $vendor = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'group-import-trailing-comma.php',
-        static function (object $sniff): void {
-            $sniff->firstPartyNamespaces = ['Vendor'];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'group-import-trailing-comma.php',
+            static function (object $sniff): void {
+                $sniff->firstPartyNamespaces = ['Vendor'];
+            }
+        );
 
     expect($vendor->getErrors())->toBe([])
         ->and(array_keys($vendor->getWarnings()))->toBe([15, 16]);
@@ -103,12 +103,12 @@ it('reads a function or const keyword before it prefixes a group clause', functi
         ->and(array_keys($shipped->getWarnings()))->toBe([24, 25, 29, 30, 31, 32]);
 
     $vendor = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'group-import-mixed-keywords.php',
-        static function (object $sniff): void {
-            $sniff->firstPartyNamespaces = ['Vendor'];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'group-import-mixed-keywords.php',
+            static function (object $sniff): void {
+                $sniff->firstPartyNamespaces = ['Vendor'];
+            }
+        );
 
     expect($vendor->getErrors())->toBe([])
         ->and(array_keys($vendor->getWarnings()))->toBe([19]);
@@ -125,19 +125,19 @@ it('keeps every segment written past an import alias', function (): void {
         ->and($messages[19][0])->toContain('Mocking App\Enums\Status,');
 
     $narrowed = analyzeWithConfiguredRuleset(
-        FIRST_PARTY_MOCKS,
-        'import-resolution.php',
-        ['firstPartyNamespaces' => ['App\Models\Comment']]
-    );
+            FIRST_PARTY_MOCKS,
+            'import-resolution.php',
+            ['firstPartyNamespaces' => ['App\Models\Comment']]
+        );
 
     expect($narrowed->getErrors())->toBe([])
         ->and(array_keys($narrowed->getWarnings()))->toBe([17, 18]);
 
     $vendor = analyzeWithConfiguredRuleset(
-        FIRST_PARTY_MOCKS,
-        'import-resolution.php',
-        ['firstPartyNamespaces' => ['Vendor\Sdk\Client']]
-    );
+            FIRST_PARTY_MOCKS,
+            'import-resolution.php',
+            ['firstPartyNamespaces' => ['Vendor\Sdk\Client']]
+        );
 
     expect($vendor->getErrors())->toBe([])
         ->and(array_keys($vendor->getWarnings()))->toBe([24]);
@@ -145,10 +145,10 @@ it('keeps every segment written past an import alias', function (): void {
 
 it('treats a class under any configured namespace root as first-party', function (): void {
     $configured = analyzeWithConfiguredRuleset(
-        FIRST_PARTY_MOCKS,
-        'configured.php',
-        ['firstPartyNamespaces' => ['Vendor', 'App']]
-    );
+            FIRST_PARTY_MOCKS,
+            'configured.php',
+            ['firstPartyNamespaces' => ['Vendor', 'App']]
+        );
 
     expect($configured->getErrors())->toBe([])
         ->and(array_keys($configured->getWarnings()))->toBe([10, 11]);
@@ -158,12 +158,12 @@ it('is a no-op until its first-party namespaces are configured', function (): vo
     expect((new NoFirstPartyMocksSniff())->firstPartyNamespaces)->toBe([]);
 
     $unconfigured = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->firstPartyNamespaces = [];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->firstPartyNamespaces = [];
+            }
+        );
 
     expect($unconfigured->getWarnings())->toBe([])
         ->and($unconfigured->getErrors())->toBe([])
@@ -176,44 +176,44 @@ it('exposes configurable namespace and mock-creator lists', function (): void {
         ->toBe([10]);
 
     $retunedNamespaces = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->firstPartyNamespaces = ['Vendor'];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->firstPartyNamespaces = ['Vendor'];
+            }
+        );
 
     expect(array_keys($retunedNamespaces->getWarnings()))->toBe([11]);
 
     $retunedCreators = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->mockCreators = ['double'];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->mockCreators = ['double'];
+            }
+        );
 
     expect(array_keys($retunedCreators->getWarnings()))->toBe([15]);
 });
 
 it('accepts its namespace list from a consuming ruleset in XML', function (): void {
     $configured = analyzeWithConfiguredRuleset(
-        FIRST_PARTY_MOCKS,
-        'configured.php',
-        ['firstPartyNamespaces' => ['Vendor']]
-    );
+            FIRST_PARTY_MOCKS,
+            'configured.php',
+            ['firstPartyNamespaces' => ['Vendor']]
+        );
 
     expect(array_keys($configured->getWarnings()))->toBe([11]);
 });
 
 it('exposes a configurable test-file pattern that gates the whole rule', function (): void {
     $retuned = analyzeFixture(
-        FIRST_PARTY_MOCKS,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->testFilePatterns = ['*/production/*'];
-        }
-    );
+            FIRST_PARTY_MOCKS,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->testFilePatterns = ['*/production/*'];
+            }
+        );
 
     expect($retuned->getWarnings())->toBe([])
         ->and($retuned->getErrors())->toBe([])
@@ -223,9 +223,9 @@ it('exposes a configurable test-file pattern that gates the whole rule', functio
 
 it('never inspects a file outside a test path', function (): void {
     $staged = analyzeWithSniffs(
-        [FIRST_PARTY_MOCKS],
-        stageFixtureOutsideTests(fixturePath('NoFirstPartyMocksSniff', 'failing.php'))
-    );
+            [FIRST_PARTY_MOCKS],
+            stageFixtureOutsideTests(fixturePath('NoFirstPartyMocksSniff', 'failing.php'))
+        );
 
     expect($staged->getWarnings())->toBe([])
         ->and($staged->getErrors())->toBe([])
@@ -293,10 +293,10 @@ it('reads an unsplittable import clause as one piece', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_split',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/\s+as\s+/i'
-        );
+                'preg_split',
+                static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/\s+as\s+/i'
+            );
     });
 
     expect($expected)->not->toBe([])
@@ -309,10 +309,10 @@ it('matches an import whose whitespace cannot be collapsed', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_replace',
+                static fn (): array => allViolationSourcesByLine(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect($expected)->not->toBe([])

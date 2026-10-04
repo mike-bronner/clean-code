@@ -116,11 +116,11 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         }
 
         $previousOperatorPtr = $phpcsFile->findPrevious(
-            Tokens::$emptyTokens,
-            ($receiverPtr - 1),
-            null,
-            true
-        );
+                Tokens::$emptyTokens,
+                ($receiverPtr - 1),
+                null,
+                true
+            );
 
         if (
             $previousOperatorPtr === false
@@ -142,18 +142,18 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Chained property fetch %s; expose the value as an accessor attribute on the '
-                . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
-                . '$book->authorName rather than $book->author->name) '
-                . '(see resources/boost/guidelines/models-relationship-properties.md)',
-            $memberPtr,
-            'Found',
-            [
-                $tokens[$receiverPtr]['content']
-                    . $tokens[$stackPtr]['content']
-                    . $tokens[$memberPtr]['content'],
-            ]
-        );
+                'Chained property fetch %s; expose the value as an accessor attribute on the '
+                    . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
+                    . '$book->authorName rather than $book->author->name) '
+                    . '(see resources/boost/guidelines/models-relationship-properties.md)',
+                $memberPtr,
+                'Found',
+                [
+                    $tokens[$receiverPtr]['content']
+                        . $tokens[$stackPtr]['content']
+                        . $tokens[$memberPtr]['content'],
+                ]
+            );
     }
 
     private function isInsideAccessor(File $phpcsFile, int $stackPtr): bool
@@ -218,9 +218,9 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     private function rootBefore(File $phpcsFile, int $beforePtr): int|false
     {
         return $this->rootFrom(
-            $phpcsFile,
-            $phpcsFile->findPrevious(Tokens::$emptyTokens, ($beforePtr - 1), null, true)
-        );
+                $phpcsFile,
+                $phpcsFile->findPrevious(Tokens::$emptyTokens, ($beforePtr - 1), null, true)
+            );
     }
 
     // phpcs:ignore CleanCode.Functions.ExcessiveMethodLength -- one root resolution, split only by guard clauses
@@ -390,16 +390,16 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         }
 
         return in_array(
-            $tokens[$beforeOpenerPtr]['code'],
-            [
-                T_STRING,
-                T_VARIABLE,
-                T_CLOSE_PARENTHESIS,
-                T_CLOSE_SQUARE_BRACKET,
-                T_CLOSE_CURLY_BRACKET,
-            ],
-            true
-        );
+                $tokens[$beforeOpenerPtr]['code'],
+                [
+                    T_STRING,
+                    T_VARIABLE,
+                    T_CLOSE_PARENTHESIS,
+                    T_CLOSE_SQUARE_BRACKET,
+                    T_CLOSE_CURLY_BRACKET,
+                ],
+                true
+            );
     }
 
     private function isGroupingParenthesis(array $tokens, int|false $beforeOpenerPtr): bool

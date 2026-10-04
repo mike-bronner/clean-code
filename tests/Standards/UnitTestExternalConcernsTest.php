@@ -72,10 +72,10 @@ it('exercises every watched trait, facade and request method', function (string 
         foreach ($columns as $messages) {
             foreach ($messages as $message) {
                 preg_match(
-                    '/: (?:(\w+) stands|(\w+)::fake\(\)|\$this->(\w+)\(\))/',
-                    $message['message'],
-                    $matches
-                );
+                        '/: (?:(\w+) stands|(\w+)::fake\(\)|\$this->(\w+)\(\))/',
+                        $message['message'],
+                        $matches
+                    );
 
                 $named[] = strtolower(implode('', array_slice($matches, 1)));
             }
@@ -129,12 +129,12 @@ it('leaves an identical file outside the unit suite alone', function (string $fi
 
 it('matches the unit-suite directory case-insensitively', function (): void {
     $file = analyzeFixture(
-        UNIT_EXTERNAL,
-        'tests/Unit/lowercase-suite.php',
-        static function (object $sniff): void {
-            $sniff->unitTestPath = 'TESTS/UNIT';
-        }
-    );
+            UNIT_EXTERNAL,
+            'tests/Unit/lowercase-suite.php',
+            static function (object $sniff): void {
+                $sniff->unitTestPath = 'TESTS/UNIT';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 7, 'column' => 5, 'source' => UNIT_EXTERNAL_TRAIT],
@@ -165,12 +165,12 @@ it('inspects only what the configured unit-test path reaches', function (): void
 
 it('inspects nothing when the configured path is empty', function (): void {
     $file = analyzeFixture(
-        UNIT_EXTERNAL,
-        'tests/Unit/external-concerns.php',
-        static function (object $sniff): void {
-            $sniff->unitTestPath = '';
-        }
-    );
+            UNIT_EXTERNAL,
+            'tests/Unit/external-concerns.php',
+            static function (object $sniff): void {
+                $sniff->unitTestPath = '';
+            }
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -178,12 +178,12 @@ it('inspects nothing when the configured path is empty', function (): void {
 
 it('names the sibling suite from the configured path', function (): void {
     $file = analyzeFixture(
-        UNIT_EXTERNAL,
-        'tests/Unit/external-concerns.php',
-        static function (object $sniff): void {
-            $sniff->unitTestPath = 'Tests/Unit';
-        }
-    );
+            UNIT_EXTERNAL,
+            'tests/Unit/external-concerns.php',
+            static function (object $sniff): void {
+                $sniff->unitTestPath = 'Tests/Unit';
+            }
+        );
 
     $messages = $file->getWarnings()[17][16];
 
@@ -192,8 +192,8 @@ it('names the sibling suite from the configured path', function (): void {
 
 it('says nothing when there is no path to read', function (): void {
     $source = (string) file_get_contents(
-        fixturePath(sniffFixtureDirectory(UNIT_EXTERNAL), 'tests/Unit/external-concerns.php')
-    );
+            fixturePath(sniffFixtureDirectory(UNIT_EXTERNAL), 'tests/Unit/external-concerns.php')
+        );
 
     $piped = analyzeStdinSource([UNIT_EXTERNAL], $source);
 
@@ -215,8 +215,8 @@ it('reads the test-case receiver case-sensitively', function (): void {
         PHP;
 
     $stage = static fn (string $receiver, string $name): string => stageProjectOutsideTests(
-        ['tests/Unit/' . $name => str_replace('RECEIVER', $receiver, $template)]
-    );
+            ['tests/Unit/' . $name => str_replace('RECEIVER', $receiver, $template)]
+        );
 
     $canonical = analyzeWithSniffs([UNIT_EXTERNAL], $stage('$this', 'CanonicalReceiverTest.php'));
     $miscased = analyzeWithSniffs([UNIT_EXTERNAL], $stage('$This', 'MiscasedReceiverTest.php'));
@@ -232,17 +232,17 @@ it('reports the violation end to end through the installed package', function ()
     $fixtures = sniffFixtureDirectory(UNIT_EXTERNAL);
 
     $inSuite = installedSniffRun(
-        UNIT_EXTERNAL,
-        stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Unit')
-    );
+            UNIT_EXTERNAL,
+            stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Unit')
+        );
     $outsideSuite = installedSniffRun(
-        UNIT_EXTERNAL,
-        stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Feature')
-    );
+            UNIT_EXTERNAL,
+            stageFixtureOutsideTests(fixturePath($fixtures, 'failing.php'), 'tests/Feature')
+        );
     $compliant = installedSniffRun(
-        UNIT_EXTERNAL,
-        stageFixtureOutsideTests(fixturePath($fixtures, 'passing.php'), 'tests/Unit')
-    );
+            UNIT_EXTERNAL,
+            stageFixtureOutsideTests(fixturePath($fixtures, 'passing.php'), 'tests/Unit')
+        );
 
     expect(array_count_values(array_column($inSuite['messages'], 'source')))->toBe([
         UNIT_EXTERNAL_TRAIT => 7,

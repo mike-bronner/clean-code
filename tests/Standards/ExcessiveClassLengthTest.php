@@ -41,9 +41,9 @@ it(
             $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(1));
 
             expect(violationTuples($file))->toBe([
-            ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+                ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ])->and(violationMessagesByLine($file->getErrors()))->toBe([
-            59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
+                59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
             ]);
         }
     );
@@ -73,15 +73,15 @@ it(
             $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1));
 
             expect(violationTuples($file))->toBe([
-            ['line' => 16, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-            ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-            ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-            ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+                ['line' => 16, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+                ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+                ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
+                ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ])->and(violationMessagesByLine($file->getErrors()))->toBe([
-            16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
-            21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
-            28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
-            35 => ['The class Delta has 5 lines of code. Current threshold is 1. Avoid really long classes.'],
+                16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
+                21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
+                28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
+                35 => ['The class Delta has 5 lines of code. Current threshold is 1. Avoid really long classes.'],
             ]);
         }
     );

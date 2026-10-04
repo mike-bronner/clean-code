@@ -190,8 +190,8 @@ it('stays linear on long runs and deep nesting', function (): void {
 
 it('leaves the combinable conditional to no other sniff in the ruleset', function (): void {
     $sources = allViolationSourcesByLine(
-        analyzeWithMasterRuleset(fixturePath('CombinableConditionsSniff', 'ruleset-overlap.php'))
-    );
+            analyzeWithMasterRuleset(fixturePath('CombinableConditionsSniff', 'ruleset-overlap.php'))
+        );
 
     expect(array_intersect_key($sources, array_flip([20, 22, 31, 35])))->toBe([
         20 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_CHAIN],

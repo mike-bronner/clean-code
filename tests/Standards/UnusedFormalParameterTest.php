@@ -253,9 +253,9 @@ it('indexes an ancestor once per file, not once per descendant method', function
                 : ['builds' => 0, 'hits' => 0];
 
             expect($reported)->toBe(
-                $spec['reports'] === true ? $size : 0,
-                "{$shape} n={$size}: the override exemption still resolves"
-            )
+                    $spec['reports'] === true ? $size : 0,
+                    "{$shape} n={$size}: the override exemption still resolves"
+                )
                 ->and($counted['methodNames.builds'])->toBe(
                     1,
                     "{$shape} n={$size}: the ancestor's method list is read once for the file"
@@ -388,12 +388,12 @@ it('collects no interpolated name when the string cannot be read', function (): 
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_match_all',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
-        );
+                'preg_match_all',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(UNUSED_FORMAL_PARAMETER, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => str_contains($pattern, '(?P<name>')
+            );
     });
 
     expect($expected)->not->toBe([])

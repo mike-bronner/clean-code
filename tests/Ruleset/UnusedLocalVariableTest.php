@@ -37,12 +37,12 @@ $parityTuples = static function (array $withoutLines = []): array {
 
 $analyzeOverridden = static function (string $fixture, string $property, $value): LocalFile {
     return analyzeFixture(
-        UNUSED_LOCAL_VARIABLE_SNIFF,
-        $fixture,
-        static function (object $sniff) use ($property, $value): void {
-            $sniff->{$property} = $value;
-        }
-    );
+            UNUSED_LOCAL_VARIABLE_SNIFF,
+            $fixture,
+            static function (object $sniff) use ($property, $value): void {
+                $sniff->{$property} = $value;
+            }
+        );
 };
 
 it('produces no violations on the compliant fixture', function (): void {

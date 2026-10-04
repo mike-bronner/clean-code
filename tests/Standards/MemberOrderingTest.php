@@ -209,17 +209,17 @@ it('settles which of the pinned Slevomat sniffs cover which rules', function (
     array $expected
 ): void {
     $file = analyzeWithStandard(
-        'SlevomatCodingStandard',
-        fixturePath('MemberOrderingSniff', $fixture)
-    );
+            'SlevomatCodingStandard',
+            fixturePath('MemberOrderingSniff', $fixture)
+        );
 
     $matched = array_values(array_unique(array_filter(
-        array_merge(...array_values(allViolationSourcesByLine($file))),
-        static fn (string $violation): bool => preg_match(
-            '/^SlevomatCodingStandard\\.Classes\\.(ClassStructure|PropertyDeclaration|TraitUseDeclaration)\\./',
-            $violation
-        ) === 1
-    )));
+            array_merge(...array_values(allViolationSourcesByLine($file))),
+            static fn (string $violation): bool => preg_match(
+                    '/^SlevomatCodingStandard\\.Classes\\.(ClassStructure|PropertyDeclaration|TraitUseDeclaration)\\./',
+                    $violation
+                ) === 1
+        )));
 
     sort($matched);
 

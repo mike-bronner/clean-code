@@ -75,18 +75,18 @@ const CHAINED_TOKENS_ADDED_IN = [
 ];
 
 $stagedRun = static fn (string $fixture) => analyzeWithSniffs(
-    [CHAINED],
-    stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', $fixture))
-);
+        [CHAINED],
+        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', $fixture))
+    );
 
 $namedPreceders = static fn (): array => array_merge(...array_map(
-    static fn (string $constant): array => tokenNamesInConstant(
-        cleanCodeRoot() . '/CleanCode/Sniffs/Models/DisallowChainedPropertyFetchSniff.php',
-        $constant,
-        [CHAINED]
-    ),
-    ['GROUP_PRECEDERS', 'GROUP_PRECEDER_TYPES']
-));
+        static fn (string $constant): array => tokenNamesInConstant(
+                cleanCodeRoot() . '/CleanCode/Sniffs/Models/DisallowChainedPropertyFetchSniff.php',
+                $constant,
+                [CHAINED]
+            ),
+        ['GROUP_PRECEDERS', 'GROUP_PRECEDER_TYPES']
+    ));
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();
@@ -138,8 +138,8 @@ it('reports no chain inside an attribute accessor declared in a model', function
 
 it('leaves an accessor trait clean through the whole master ruleset', function (): void {
     $file = analyzeWithMasterRuleset(
-        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'accessors-in-trait.php'))
-    );
+            stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'accessors-in-trait.php'))
+        );
 
     expect($file->getErrors())->toBe([])
         ->and($file->getWarnings())->toBe([]);
@@ -187,14 +187,14 @@ it('classifies every token in PHP_CodeSniffer\'s catalogue', function () use ($n
         + \PHP_CodeSniffer\Util\Tokens::$castTokens;
 
     $admitted = array_merge(
-        $namedPreceders(),
-        array_keys(array_filter($catalogue, static fn ($code): bool => isset($unions[$code]) === true))
-    );
+            $namedPreceders(),
+            array_keys(array_filter($catalogue, static fn ($code): bool => isset($unions[$code]) === true))
+        );
 
     $premature = array_keys(array_filter(
-        CHAINED_TOKENS_ADDED_IN,
-        static fn (int $addedIn): bool => PHP_VERSION_ID < $addedIn
-    ));
+            CHAINED_TOKENS_ADDED_IN,
+            static fn (int $addedIn): bool => PHP_VERSION_ID < $addedIn
+        ));
 
     $classified = array_diff(array_merge($admitted, CHAINED_REFUSED_PRECEDERS), $premature);
 
@@ -225,18 +225,18 @@ it('gates a token name only for the PHP versions that predate it', function () u
 
 it('errors through the whole master ruleset', function (): void {
     $file = analyzeWithMasterRuleset(
-        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php'))
-    );
+            stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php'))
+        );
 
     $onlyChained = static fn (array $messages): array => array_filter(
-        array_map(
-            static fn (array $sources): array => array_values(
-                array_filter($sources, static fn (string $source): bool => $source === CHAINED_ERROR)
-            ),
-            violationSourcesByLine($messages)
-        ),
-        static fn (array $sources): bool => $sources !== []
-    );
+            array_map(
+                    static fn (array $sources): array => array_values(
+                            array_filter($sources, static fn (string $source): bool => $source === CHAINED_ERROR)
+                        ),
+                    violationSourcesByLine($messages)
+                ),
+            static fn (array $sources): bool => $sources !== []
+        );
 
     expect($onlyChained($file->getErrors()))
         ->toBe(array_fill_keys(CHAINED_FAILING_LINES, [CHAINED_ERROR]))
@@ -245,9 +245,9 @@ it('errors through the whole master ruleset', function (): void {
 
 it('is scoped out of test paths', function () use ($stagedRun): void {
     $inRepo = analyzeWithSniffs(
-        [CHAINED],
-        fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php')
-    );
+            [CHAINED],
+            fixturePath('DisallowChainedPropertyFetchSniff', 'failing.php')
+        );
 
     expect($inRepo->getErrors())->toBe([])
         ->and($stagedRun('failing.php')->getErrors())->toHaveCount(count(CHAINED_FAILING_LINES));
@@ -331,9 +331,9 @@ it('reports the violation end to end through the installed package', function ()
     $staged = installedSniffRun(CHAINED, stageFixtureOutsideTests($failing));
     $inRepo = installedSniffRun(CHAINED, $failing);
     $passing = installedSniffRun(
-        CHAINED,
-        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'passing.php'))
-    );
+            CHAINED,
+            stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'passing.php'))
+        );
 
     expect(array_column($staged['messages'], 'line'))->toBe(CHAINED_FAILING_LINES)
         ->and(array_unique(array_column($staged['messages'], 'source')))->toBe([CHAINED_ERROR])

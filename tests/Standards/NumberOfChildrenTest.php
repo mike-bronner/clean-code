@@ -46,9 +46,9 @@ it('quotes the count and the threshold the way PHPMD does', function (): void {
     $messages = violationMessagesByLine($file->getErrors());
 
     expect($messages[11][0])->toBe(
-        'The class Base has 15 children.'
-            . ' Consider to rebalance this class hierarchy to keep number of children under 15.'
-    );
+            'The class Base has 15 children.'
+                . ' Consider to rebalance this class hierarchy to keep number of children under 15.'
+        );
 });
 
 it('stays silent one child below the threshold, and on every near miss', function (): void {
@@ -88,10 +88,10 @@ it('counts a named readonly class as the child it is', function (): void {
 
 it('counts children declared in other files of the run', function (): void {
     $file = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        NUMBER_OF_CHILDREN_PROJECT,
-        NUMBER_OF_CHILDREN_BASE
-    );
+            NUMBER_OF_CHILDREN,
+            NUMBER_OF_CHILDREN_PROJECT,
+            NUMBER_OF_CHILDREN_BASE
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 12, 'column' => 10, 'source' => NUMBER_OF_CHILDREN_ERROR],
@@ -101,21 +101,21 @@ it('counts children declared in other files of the run', function (): void {
 
 it('counts each spelling of the parent name, and only its own share', function (array $paths, int $total): void {
     $reported = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        $paths,
-        NUMBER_OF_CHILDREN_BASE,
-        static function (object $sniff) use ($total): void {
-            $sniff->minimum = $total;
-        }
-    );
+            NUMBER_OF_CHILDREN,
+            $paths,
+            NUMBER_OF_CHILDREN_BASE,
+            static function (object $sniff) use ($total): void {
+                $sniff->minimum = $total;
+            }
+        );
     $silent = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        $paths,
-        NUMBER_OF_CHILDREN_BASE,
-        static function (object $sniff) use ($total): void {
-            $sniff->minimum = ($total + 1);
-        }
-    );
+            NUMBER_OF_CHILDREN,
+            $paths,
+            NUMBER_OF_CHILDREN_BASE,
+            static function (object $sniff) use ($total): void {
+                $sniff->minimum = ($total + 1);
+            }
+        );
 
     expect(violationMessagesByLine($reported->getErrors())[12][0])->toContain("has {$total} children");
     expect(violationTuples($silent))->toBe([]);
@@ -128,13 +128,13 @@ it('counts each spelling of the parent name, and only its own share', function (
 
 it('resolves a group import\'s alias to its own fully qualified target', function (): void {
     $file = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        NUMBER_OF_CHILDREN_PROJECT,
-        NUMBER_OF_CHILDREN_BASE,
-        static function (object $sniff): void {
-            $sniff->minimum = 1;
-        }
-    );
+            NUMBER_OF_CHILDREN,
+            NUMBER_OF_CHILDREN_PROJECT,
+            NUMBER_OF_CHILDREN_BASE,
+            static function (object $sniff): void {
+                $sniff->minimum = 1;
+            }
+        );
     $messages = violationMessagesByLine($file->getErrors());
 
     expect(violationTuples($file))->toBe([
@@ -150,17 +150,17 @@ it('keeps a trait use written after an interpolated string out of the import map
         $sniff->minimum = 1;
     };
     $bare = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        NUMBER_OF_CHILDREN_INTERPOLATION,
-        NUMBER_OF_CHILDREN_INTERPOLATION . '/Bare.php',
-        $lowered
-    );
+            NUMBER_OF_CHILDREN,
+            NUMBER_OF_CHILDREN_INTERPOLATION,
+            NUMBER_OF_CHILDREN_INTERPOLATION . '/Bare.php',
+            $lowered
+        );
     $anchor = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        NUMBER_OF_CHILDREN_INTERPOLATION,
-        NUMBER_OF_CHILDREN_INTERPOLATION . '/Interpolated.php',
-        $lowered
-    );
+            NUMBER_OF_CHILDREN,
+            NUMBER_OF_CHILDREN_INTERPOLATION,
+            NUMBER_OF_CHILDREN_INTERPOLATION . '/Interpolated.php',
+            $lowered
+        );
 
     expect(violationTuples($bare))->toBe([]);
     expect(violationTuples($anchor))->toBe([
@@ -272,9 +272,9 @@ it('tells two same-named classes on one line apart', function (): void {
 
 it('reads a group import without recursing once per brace', function (): void {
     $children = implode("\n\n", array_map(
-        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
-        range(1, 15)
-    ));
+            static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+            range(1, 15)
+        ));
     $project = stageProjectOutsideTests([
         'Base.php' => "<?php\n\nnamespace Fixture\\Groups;\n\nclass Base\n{\n}\n\n" . $children . "\n",
         'Nested.php' => "<?php\n\nuse " . str_repeat('A\\{', 20000) . ";\n",
@@ -309,13 +309,13 @@ it('reads a group import without recursing once per brace', function (): void {
 
 it('indexes a packed line of declarations once, not once per declaration', function (): void {
     $children = implode("\n\n", array_map(
-        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
-        range(1, 15)
-    ));
+            static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+            range(1, 15)
+        ));
     $packed = implode('', array_map(
-        static fn (int $index): string => "class Packed{$index}{}",
-        range(1, 8000)
-    ));
+            static fn (int $index): string => "class Packed{$index}{}",
+            range(1, 8000)
+        ));
     $project = stageProjectOutsideTests([
         'Base.php' => "<?php\n\nnamespace Fixture\\Packed;\n\nclass Base\n{\n}\n\n" . $children . "\n",
         'Packed.php' => '<?php ' . $packed . "\n",
@@ -420,9 +420,9 @@ it('takes a run\'s file list by key, building no file for any of it', function (
 
 it('reports a parent whose declaration line a fixer loop has moved', function (): void {
     $children = static fn (int $from, int $to): string => implode("\n\n", array_map(
-        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
-        range($from, $to)
-    ));
+            static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+            range($from, $to)
+        ));
     $project = stageProjectOutsideTests([
         'Base.php' => "<?php\n\n\n\nclass Base\n{\n}\n\n" . $children(1, 5) . "\n",
         'Children.php' => "<?php\n\n" . $children(6, 15) . "\n",
@@ -448,9 +448,9 @@ it('reports a parent whose declaration line a fixer loop has moved', function ()
 
 it('resolves the subject against the buffer when the run lints one under a real path', function (): void {
     $children = static fn (int $from, int $to): string => implode("\n\n", array_map(
-        static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
-        range($from, $to)
-    ));
+            static fn (int $index): string => "class Child{$index} extends Base\n{\n}",
+            range($from, $to)
+        ));
     $project = stageProjectOutsideTests([
         'Base.php' => "<?php\n\nclass Base\n{\n}\n\n" . $children(1, 5) . "\n",
         'Children.php' => "<?php\n\n" . $children(6, 15) . "\n",
@@ -471,13 +471,13 @@ it('resolves the subject against the buffer when the run lints one under a real 
 
 it('resolves parents fully qualified, keeping a same-named class separate', function (): void {
     $file = analyzeProjectFixture(
-        NUMBER_OF_CHILDREN,
-        NUMBER_OF_CHILDREN_PROJECT,
-        NUMBER_OF_CHILDREN_PROJECT . '/Decoy.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 3;
-        }
-    );
+            NUMBER_OF_CHILDREN,
+            NUMBER_OF_CHILDREN_PROJECT,
+            NUMBER_OF_CHILDREN_PROJECT . '/Decoy.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 3;
+            }
+        );
 
     expect(violationMessagesByLine($file->getErrors())[12][0])->toContain('has 3 children');
 });

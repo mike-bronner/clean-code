@@ -24,13 +24,13 @@ it('names the type, its public count, and the threshold', function (): void {
     $errors = analyzeFixture(EXCESSIVE_PUBLIC_COUNT, 'failing.php')->getErrors();
 
     expect($errors[14][1][0]['message'])->toBe(
-        'The class AtTheThreshold has 45 public methods and attributes.'
-            . ' Consider reducing the number of public items to less than 45'
-    );
+            'The class AtTheThreshold has 45 public methods and attributes.'
+                . ' Consider reducing the number of public items to less than 45'
+        );
     expect($errors[308][1][0]['message'])->toBe(
-        'The trait WideTrait has 45 public methods and attributes.'
-            . ' Consider reducing the number of public items to less than 45'
-    );
+            'The trait WideTrait has 45 public methods and attributes.'
+                . ' Consider reducing the number of public items to less than 45'
+        );
 });
 
 it('treats the threshold as inclusive', function (): void {
@@ -64,9 +64,9 @@ it('names an anonymous class by its kind', function (): void {
     $errors = analyzeFixture(EXCESSIVE_PUBLIC_COUNT, 'divergences.php')->getErrors();
 
     expect($errors[128][20][0]['message'])->toBe(
-        'The anonymous class has 45 public methods and attributes.'
-            . ' Consider reducing the number of public items to less than 45'
-    );
+            'The anonymous class has 45 public methods and attributes.'
+                . ' Consider reducing the number of public items to less than 45'
+        );
 });
 
 it('reports at a lowered minimum', function (): void {

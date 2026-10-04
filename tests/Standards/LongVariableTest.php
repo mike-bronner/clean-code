@@ -100,13 +100,13 @@ it('flags every name in the subtraction fixture without the lists configured', f
 
 it('subtracts one prefix and one suffix, each the first that matches', function (): void {
     $file = analyzeFixture(
-        LONG_VARIABLE,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = LONG_VARIABLE_SUBTRACTIONS['subtractPrefixes'];
-            $sniff->subtractSuffixes = LONG_VARIABLE_SUBTRACTIONS['subtractSuffixes'];
-        }
-    );
+            LONG_VARIABLE,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = LONG_VARIABLE_SUBTRACTIONS['subtractPrefixes'];
+                $sniff->subtractSuffixes = LONG_VARIABLE_SUBTRACTIONS['subtractSuffixes'];
+            }
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         48 => [LONG_VARIABLE_TOO_LONG],
@@ -116,10 +116,10 @@ it('subtracts one prefix and one suffix, each the first that matches', function 
 
 it('takes its lists from ruleset properties', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        LONG_VARIABLE,
-        'subtraction.php',
-        LONG_VARIABLE_SUBTRACTIONS
-    );
+            LONG_VARIABLE,
+            'subtraction.php',
+            LONG_VARIABLE_SUBTRACTIONS
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         48 => [LONG_VARIABLE_TOO_LONG],
@@ -129,11 +129,11 @@ it('takes its lists from ruleset properties', function (): void {
 
 it('stops at the first matching prefix', function (): void {
     $file = analyzeFixtureWithProperty(
-        LONG_VARIABLE,
-        'subtraction.php',
-        'subtractPrefixes',
-        'temporary,temporaryWarehouseInventory'
-    );
+            LONG_VARIABLE,
+            'subtraction.php',
+            'subtractPrefixes',
+            'temporary,temporaryWarehouseInventory'
+        );
 
     expect(array_keys(violationSourcesByLine($file->getErrors())))
         ->toBe([27, 34, 48, 59]);
@@ -141,30 +141,30 @@ it('stops at the first matching prefix', function (): void {
 
 it('reports the subtracted length', function (): void {
     $errors = analyzeFixture(
-        LONG_VARIABLE,
-        'subtraction.php',
-        static function (object $sniff): void {
-            $sniff->subtractPrefixes = LONG_VARIABLE_SUBTRACTIONS['subtractPrefixes'];
-            $sniff->subtractSuffixes = LONG_VARIABLE_SUBTRACTIONS['subtractSuffixes'];
-        }
-    )->getErrors();
+            LONG_VARIABLE,
+            'subtraction.php',
+            static function (object $sniff): void {
+                $sniff->subtractPrefixes = LONG_VARIABLE_SUBTRACTIONS['subtractPrefixes'];
+                $sniff->subtractSuffixes = LONG_VARIABLE_SUBTRACTIONS['subtractSuffixes'];
+            }
+        )->getErrors();
 
     expect($errors[48][21][0]['message'])
         ->toBe('Name $warehouseAuditLogMockCollection is 21 characters long; keep it to 20 or fewer')
         ->and($errors[59][21][0]['message'])
         ->toBe(
             'Name $temporaryWarehouseInventoryAuditCollection'
-            . ' is 23 characters long; keep it to 20 or fewer'
+                . ' is 23 characters long; keep it to 20 or fewer'
         );
 });
 
 it('trims list entries and drops empty ones', function (): void {
     $file = analyzeFixtureWithProperty(
-        LONG_VARIABLE,
-        'subtraction.php',
-        'subtractPrefixes',
-        ' , temporary , '
-    );
+            LONG_VARIABLE,
+            'subtraction.php',
+            'subtractPrefixes',
+            ' , temporary , '
+        );
 
     expect(array_keys(violationSourcesByLine($file->getErrors())))
         ->toBe([27, 34, 48, 59]);

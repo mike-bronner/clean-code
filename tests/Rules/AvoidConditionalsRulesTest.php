@@ -20,9 +20,9 @@ it('reports every boolean-return if', function () use ($booleanReturnFixture): v
     $file = $booleanReturnFixture('boolean-return.php');
 
     $lines = array_keys(array_filter(
-        violationSourcesByLine($file->getWarnings()),
-        static fn (array $sources): bool => in_array(USELESS_IF_CONDITION, $sources, true)
-    ));
+            violationSourcesByLine($file->getWarnings()),
+            static fn (array $sources): bool => in_array(USELESS_IF_CONDITION, $sources, true)
+        ));
 
     expect($lines)->toBe([23, 33, 44]);
 });
@@ -64,9 +64,9 @@ it('still reports the unfixable shape after fixing', function () use ($booleanRe
     $file = $booleanReturnFixture('boolean-return.fixed.php');
 
     $lines = array_keys(array_filter(
-        violationSourcesByLine($file->getWarnings()),
-        static fn (array $sources): bool => in_array(USELESS_IF_CONDITION, $sources, true)
-    ));
+            violationSourcesByLine($file->getWarnings()),
+            static fn (array $sources): bool => in_array(USELESS_IF_CONDITION, $sources, true)
+        ));
 
     expect($lines)->toBe([36]);
 });

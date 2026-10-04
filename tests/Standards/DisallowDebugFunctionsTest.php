@@ -21,18 +21,18 @@ it('flags every debug call at its own line', function (): void {
     $file = analyzeFixture(DISALLOW_DEBUG_FUNCTIONS, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found',
-        ],
-        [
-            [3, 1], [4, 1], [5, 1], [6, 1], [7, 1],
-            [22, 1],
-            [24, 1], [26, 1], [27, 1], [28, 1], [29, 1], [30, 1], [31, 1],
-            [32, 1],
-        ]
-    ))->and($file->getWarnings())->toBe([]);
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => DISALLOW_DEBUG_FUNCTIONS . '.Found',
+            ],
+            [
+                [3, 1], [4, 1], [5, 1], [6, 1], [7, 1],
+                [22, 1],
+                [24, 1], [26, 1], [27, 1], [28, 1], [29, 1], [30, 1], [31, 1],
+                [32, 1],
+            ]
+        ))->and($file->getWarnings())->toBe([]);
 });
 
 it('flags every debug call an import did not bind', function (): void {

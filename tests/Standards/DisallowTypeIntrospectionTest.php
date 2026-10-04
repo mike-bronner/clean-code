@@ -68,13 +68,13 @@ it('flags instanceof driving a branch at its exact position', function (): void 
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'failing.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_INSTANCEOF,
-        ],
-        TYPE_INTROSPECTION_VIOLATIONS
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_INSTANCEOF,
+            ],
+            TYPE_INTROSPECTION_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -84,25 +84,25 @@ it('flags introspection functions driving a branch at their exact position', fun
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'introspection-functions.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_FUNCTION,
-        ],
-        [
-            [11, 13],
-            [20, 16],
-            [25, 17],
-            [36, 13],
-            [37, 13],
-            [44, 13],
-            [53, 13],
-            [64, 16],
-            [76, 18],
-            [89, 23],
-            [104, 13],
-        ]
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_FUNCTION,
+            ],
+            [
+                [11, 13],
+                [20, 16],
+                [25, 17],
+                [36, 13],
+                [37, 13],
+                [44, 13],
+                [53, 13],
+                [64, 16],
+                [76, 18],
+                [89, 23],
+                [104, 13],
+            ]
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -126,13 +126,13 @@ it('still flags a branch inside that same function body', function (): void {
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'function-scope-branches.php');
 
     $expected = array_map(
-        static fn (array $violation): array => [
-            'line' => $violation[0],
-            'column' => $violation[1],
-            'source' => $violation[2],
-        ],
-        TYPE_INTROSPECTION_INLINE_METHOD_VIOLATIONS
-    );
+            static fn (array $violation): array => [
+                'line' => $violation[0],
+                'column' => $violation[1],
+                'source' => $violation[2],
+            ],
+            TYPE_INTROSPECTION_INLINE_METHOD_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -152,13 +152,13 @@ it('confines a branch check to the property hook body it is written in', functio
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'property-hooks.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_INSTANCEOF,
-        ],
-        TYPE_INTROSPECTION_HOOK_VIOLATIONS
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_INSTANCEOF,
+            ],
+            TYPE_INTROSPECTION_HOOK_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
@@ -168,16 +168,16 @@ it('does not treat an imported name as the global introspection function', funct
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'shadowed-by-import.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_FUNCTION,
-        ],
-        [
-            [64, 13],
-            [77, 13],
-        ]
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_FUNCTION,
+            ],
+            [
+                [64, 13],
+                [77, 13],
+            ]
+        );
 
     expect(violationTuples($file))->toBe($expected);
 });
@@ -186,17 +186,17 @@ it('does not treat a name declared as a function in the file as the global one',
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'shadowed-by-declaration.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_FUNCTION,
-        ],
-        [
-            [37, 13],
-            [51, 13],
-            [69, 13],
-        ]
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_FUNCTION,
+            ],
+            [
+                [37, 13],
+                [51, 13],
+                [69, 13],
+            ]
+        );
 
     expect(violationTuples($file))->toBe($expected);
 });
@@ -362,13 +362,13 @@ it('crosses a braced body written inside an expression', function (): void {
     $file = analyzeFixture(TYPE_INTROSPECTION_SNIFF, 'expression-bodies.php');
 
     $expected = array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => TYPE_INTROSPECTION_INSTANCEOF,
-        ],
-        TYPE_INTROSPECTION_BRACED_OPERAND_VIOLATIONS
-    );
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => TYPE_INTROSPECTION_INSTANCEOF,
+            ],
+            TYPE_INTROSPECTION_BRACED_OPERAND_VIOLATIONS
+        );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);

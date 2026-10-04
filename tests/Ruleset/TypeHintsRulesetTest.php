@@ -126,19 +126,19 @@ it('keeps the excluded property codes silent through the master ruleset', functi
     $file = analyzeWithMasterRuleset(fixturePath('_rulesets/TypeHints', 'excluded-codes.php'));
     $warnings = violationSourcesByLine($file->getWarnings());
     $typeHintsWarnings = array_filter(
-        $warnings === [] ? [] : array_merge(...array_values($warnings)),
-        static fn (string $source): bool => isTypeHintsSource($source)
-    );
+            $warnings === [] ? [] : array_merge(...array_values($warnings)),
+            static fn (string $source): bool => isTypeHintsSource($source)
+        );
 
     expect($typeHintsWarnings)->toBe([]);
 });
 
 it('raises every excluded property code without the master rulesets excludes', function (): void {
     $file = analyzeWithoutExcludes(
-        [PROPERTY_TYPE_HINT_SNIFF],
-        PROPERTY_TYPE_HINT_EXCLUDED_CODES,
-        fixturePath('_rulesets/TypeHints', 'excluded-codes.php')
-    );
+            [PROPERTY_TYPE_HINT_SNIFF],
+            PROPERTY_TYPE_HINT_EXCLUDED_CODES,
+            fixturePath('_rulesets/TypeHints', 'excluded-codes.php')
+        );
 
     expect(allViolationSourcesByLine($file))->toBe([
         12 => [PROPERTY_TYPE_HINT_SNIFF . '.MissingTraversableTypeHintSpecification'],

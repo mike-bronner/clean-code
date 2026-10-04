@@ -54,12 +54,12 @@ it('exposes a configurable allowlist', function (): void {
     ]);
 
     $configured = analyzeFixture(
-        NO_CUSTOM_ACTIONS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->allowedMethods = ['MIDDLEWARE'];
-        }
-    );
+            NO_CUSTOM_ACTIONS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->allowedMethods = ['MIDDLEWARE'];
+            }
+        );
 
     expect($configured->getErrors())->toBe([])
         ->and($configured->getWarnings())->toBe([]);

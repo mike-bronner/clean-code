@@ -153,21 +153,21 @@ it('leaves the root of a view carrying only an any-view directive alone', functi
 
 it('does not read a binding on a component tag as the view\'s own', function (): void {
     $path = stageSource(
-        '<div x-data="{ open: false }" class="app-shell">' . "\n"
-            . '    <livewire:search-box wire:model="query" wire:key="search" />' . "\n"
-            . "</div>\n"
-    );
+            '<div x-data="{ open: false }" class="app-shell">' . "\n"
+                . '    <livewire:search-box wire:model="query" wire:key="search" />' . "\n"
+                . "</div>\n"
+        );
 
     expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
 });
 
 it('does not read a wire: directive quoted in text as the view\'s own', function (): void {
     $path = stageSource(
-        '<div x-data="{ open: false }" class="app-shell">' . "\n"
-            . '    <p>Bind a button with wire:click="save" to call the method.</p>' . "\n"
-            . '    <livewire:notifications-bell wire:key="bell" />' . "\n"
-            . "</div>\n"
-    );
+            '<div x-data="{ open: false }" class="app-shell">' . "\n"
+                . '    <p>Bind a button with wire:click="save" to call the method.</p>' . "\n"
+                . '    <livewire:notifications-bell wire:key="bell" />' . "\n"
+                . "</div>\n"
+        );
 
     expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
 });
@@ -188,12 +188,12 @@ it('flags a real .blade.php view through the master ruleset', function (): void 
     $file = analyzeWithMasterRuleset(fixturePath('ComponentMarkupSniff', 'component.blade.php'));
 
     $sources = array_map(
-        static fn (array $violation): array => [$violation['line'], $violation['source']],
-        array_filter(
-            violationTuples($file),
-            static fn (array $violation): bool => str_starts_with($violation['source'], COMPONENT_MARKUP . '.')
-        )
-    );
+            static fn (array $violation): array => [$violation['line'], $violation['source']],
+            array_filter(
+                    violationTuples($file),
+                    static fn (array $violation): bool => str_starts_with($violation['source'], COMPONENT_MARKUP . '.')
+                )
+        );
 
     expect(array_values($sources))->toBe([
         [1, ROOT_ELEMENT_ATTRIBUTES],
@@ -261,16 +261,16 @@ it('scans a large view of keyed loops in linear time', function (): void {
 
 it('flags a keyless component in a loop that a later directive kind follows', function (): void {
     $path = stageSource(
-        "<div wire:poll class=\"feed\">\n"
-            . "    @for (\$i = 0; \$i < 3; \$i++)\n"
-            . "        <livewire:tick-item />\n"
-            . "    @endfor\n"
-            . "\n"
-            . "    @foreach (\$rows as \$row)\n"
-            . "        <livewire:row-item :row=\"\$row\" />\n"
-            . "    @endforeach\n"
-            . "</div>\n"
-    );
+            "<div wire:poll class=\"feed\">\n"
+                . "    @for (\$i = 0; \$i < 3; \$i++)\n"
+                . "        <livewire:tick-item />\n"
+                . "    @endfor\n"
+                . "\n"
+                . "    @foreach (\$rows as \$row)\n"
+                . "        <livewire:row-item :row=\"\$row\" />\n"
+                . "    @endforeach\n"
+                . "</div>\n"
+        );
 
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
 
@@ -283,15 +283,15 @@ it('flags a keyless component in a loop that a later directive kind follows', fu
 
 it('flags a keyless component inside nested loops', function (): void {
     $path = stageSource(
-        "<div wire:poll class=\"feed\">\n"
-            . "    @while (\$page->hasMore())\n"
-            . "        @foreach (\$rows as \$row)\n"
-            . "            <livewire:row-item :row=\"\$row\" />\n"
-            . "            <livewire:row-note wire:key=\"note\" />\n"
-            . "        @endforeach\n"
-            . "    @endwhile\n"
-            . "</div>\n"
-    );
+            "<div wire:poll class=\"feed\">\n"
+                . "    @while (\$page->hasMore())\n"
+                . "        @foreach (\$rows as \$row)\n"
+                . "            <livewire:row-item :row=\"\$row\" />\n"
+                . "            <livewire:row-note wire:key=\"note\" />\n"
+                . "        @endforeach\n"
+                . "    @endwhile\n"
+                . "</div>\n"
+        );
 
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
 
@@ -334,11 +334,11 @@ it('scans a view of unclosed comments in linear time', function (): void {
 
 it('blanks a Blade comment below an unclosed HTML comment', function (): void {
     $path = stageSource(
-        "<div wire:poll class=\"feed\">\n"
-            . "    <!-- a note nobody closed\n"
-            . "    {{-- <livewire:one /><livewire:two /> --}}\n"
-            . "</div>\n"
-    );
+            "<div wire:poll class=\"feed\">\n"
+                . "    <!-- a note nobody closed\n"
+                . "    {{-- <livewire:one /><livewire:two /> --}}\n"
+                . "</div>\n"
+        );
 
     $file = analyzeWithSniffs([COMPONENT_MARKUP], $path);
 
@@ -372,10 +372,10 @@ it('scans a view of unparseable tags without backtracking that grows with it', f
 
 it('says nothing about a view whose first element tag does not parse', function (): void {
     $path = stageSource(
-        "<div data-range=1<2>\n"
-            . "    <button wire:model=\"query\">Search</button>\n"
-            . "</div>\n"
-    );
+            "<div data-range=1<2>\n"
+                . "    <button wire:model=\"query\">Search</button>\n"
+                . "</div>\n"
+        );
 
     expect(analyzeWithSniffs([COMPONENT_MARKUP], $path)->getErrors())->toBe([]);
 });
@@ -383,8 +383,8 @@ it('says nothing about a view whose first element tag does not parse', function 
 it('says nothing about a view whose element tags cannot be read at all', function (): void {
     $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'ELEMENT_TAG'))->getValue();
     $markup = file_get_contents(
-        fixturePath('ComponentMarkupSniff', 'unreadable-element-tags.php')
-    );
+            fixturePath('ComponentMarkupSniff', 'unreadable-element-tags.php')
+        );
 
     $matched = preg_match_all($pattern, $markup, $matches, PREG_SET_ORDER);
     $error = preg_last_error();
@@ -404,8 +404,8 @@ it('says nothing about a view whose element tags cannot be read at all', functio
 it('says nothing about a view whose component tags cannot be read at all', function (): void {
     $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'COMPONENT_TAG'))->getValue();
     $markup = file_get_contents(
-        fixturePath('ComponentMarkupSniff', 'unreadable-component-tags.php')
-    );
+            fixturePath('ComponentMarkupSniff', 'unreadable-component-tags.php')
+        );
 
     $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
     $error = preg_last_error();
@@ -432,8 +432,8 @@ it('says nothing about a view whose component tags cannot be read at all', funct
 it('reports correctly wrapped components when the wrapper tags cannot be read at all', function (): void {
     $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_TAG'))->getValue();
     $markup = file_get_contents(
-        fixturePath('ComponentMarkupSniff', 'unreadable-template-tags.php')
-    );
+            fixturePath('ComponentMarkupSniff', 'unreadable-template-tags.php')
+        );
 
     $matched = preg_match_all($pattern, $markup, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER);
     $error = preg_last_error();
@@ -463,8 +463,8 @@ it('reports correctly wrapped components when the wrapper tags cannot be read at
 it('judges the root when the gap before the first component cannot be read', function (): void {
     $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_WRAPPER'))->getValue();
     $markup = file_get_contents(
-        fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-root.php')
-    );
+            fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-root.php')
+        );
 
     $elementStart = strpos($markup, '<div');
     $componentStart = strpos($markup, '<livewire:');
@@ -505,10 +505,10 @@ it('judges the root when the gap before the first component cannot be read', fun
         ->and(substr_count($readable, $close))->toBe(1);
 
     $compliant = str_replace(
-        [$root, $close],
-        ['<div class="editor">', '    <span wire:model="query"></span>' . PHP_EOL . $close],
-        $readable
-    );
+            [$root, $close],
+            ['<div class="editor">', '    <span wire:model="query"></span>' . PHP_EOL . $close],
+            $readable
+        );
 
     $isComponentView = new ReflectionMethod(ComponentMarkupSniff::class, 'isComponentView');
 
@@ -523,8 +523,8 @@ it('judges the root when the gap before the first component cannot be read', fun
 it('leaves siblings alone when the gap between them cannot be read', function (): void {
     $pattern = (new ReflectionClassConstant(ComponentMarkupSniff::class, 'TEMPLATE_WRAPPER'))->getValue();
     $markup = file_get_contents(
-        fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-siblings.php')
-    );
+            fixturePath('ComponentMarkupSniff', 'unreadable-wrapper-gap-siblings.php')
+        );
 
     $previousEnd = (strpos($markup, '>', strpos($markup, '<livewire:')) + 1);
     $currentStart = strpos($markup, '<livewire:', $previousEnd);
@@ -559,10 +559,10 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
         ->and($control->getWarnings())->toBe([]);
 
     $paragraph = substr(
-        $readable,
-        strpos($readable, '<p>'),
-        ((strpos($readable, '</p>') + strlen('</p>')) - strpos($readable, '<p>'))
-    );
+            $readable,
+            strpos($readable, '<p>'),
+            ((strpos($readable, '</p>') + strlen('</p>')) - strpos($readable, '<p>'))
+        );
     $adjacent = str_replace($paragraph, '', $readable);
 
     expect($adjacent)->not->toBe($readable)
@@ -578,13 +578,13 @@ it('leaves siblings alone when the gap between them cannot be read', function ()
 
 it('keeps every line number after an unreadable comment where it was', function (): void {
     $expected = violationSourcesByLine(
-        analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
-    );
+            analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+        );
 
     $blanked = PregFailure::during('preg_replace', static function (): array {
         return violationSourcesByLine(
-            analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
-        );
+                analyzeFixture(COMPONENT_MARKUP, 'comment-before-violation.php')->getErrors()
+            );
     }, static fn (string $pattern): bool => $pattern === '/[^\r\n]/');
 
     expect(array_keys($expected))->toBe([1, 10, 11])

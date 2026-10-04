@@ -57,9 +57,9 @@ it('flags top-level code after every continuation-clause shape', function (
     array $lines
 ) use ($sourceRun): void {
     expect(violationTuples($sourceRun($fixture)))->toBe(array_map(
-        static fn (int $line): array => ['line' => $line, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
-        $lines
-    ));
+            static fn (int $line): array => ['line' => $line, 'column' => 1, 'source' => PROCEDURAL_STATEMENT],
+            $lines
+        ));
 })->with([
     'spaced else if' => ['continuation-spaced-else-if.php', [7, 17, 19]],
     'merged elseif' => ['continuation-elseif.php', [7, 15]],
@@ -72,13 +72,13 @@ it('terminates on a truncated continuation clause', function (
     array $tuples
 ) use ($sourceRun): void {
     expect(violationTuples($sourceRun($fixture)))->toBe(array_map(
-        static fn (array $tuple): array => [
-            'line' => $tuple[0],
-            'column' => $tuple[1],
-            'source' => PROCEDURAL_STATEMENT,
-        ],
-        $tuples
-    ));
+            static fn (array $tuple): array => [
+                'line' => $tuple[0],
+                'column' => $tuple[1],
+                'source' => PROCEDURAL_STATEMENT,
+            ],
+            $tuples
+        ));
 })->with([
     'braced else' => ['truncated-else.php', [[3, 1], [5, 1]]],
     'alternative-syntax elseif' => ['truncated-elseif.php', [[3, 1], [5, 1], [6, 5]]],
@@ -161,9 +161,9 @@ it('stops at a truncated construct without misreading it', function (
 
 it('reports a purely procedural file that PSR-1 passes', function () use ($sourceRun): void {
     $staged = stageFixtureOutsideTests(
-        fixturePath('NoProceduralCodeSniff', 'no-declaration.php'),
-        'src'
-    );
+            fixturePath('NoProceduralCodeSniff', 'no-declaration.php'),
+            'src'
+        );
 
     $sideEffects = analyzeWithSniffs(['PSR1.Files.SideEffects'], $staged);
 
@@ -240,9 +240,9 @@ it('reports the violation end to end through the installed package', function ()
     $inSource = installedSniffRun(PROCEDURAL, stageFixtureOutsideTests($failing, 'src'));
     $outsideSource = installedSniffRun(PROCEDURAL, stageFixtureOutsideTests($failing, 'config'));
     $passing = installedSniffRun(
-        PROCEDURAL,
-        stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', 'passing.php'), 'src')
-    );
+            PROCEDURAL,
+            stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', 'passing.php'), 'src')
+        );
 
     expect(array_column($inSource['messages'], 'source'))->toHaveCount(14)
         ->each->toStartWith(PROCEDURAL . '.')

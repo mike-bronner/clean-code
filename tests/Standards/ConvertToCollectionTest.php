@@ -54,12 +54,12 @@ $convertToCollectionMessages = static function (LocalFile $file): array {
 
 $analyzeWithArrayFunctions = static function (string $fixture, array $arrayFunctions): LocalFile {
     return analyzeFixture(
-        CONVERT_TO_COLLECTION,
-        $fixture,
-        static function (object $sniff) use ($arrayFunctions): void {
-            $sniff->arrayFunctions = $arrayFunctions;
-        }
-    );
+            CONVERT_TO_COLLECTION,
+            $fixture,
+            static function (object $sniff) use ($arrayFunctions): void {
+                $sniff->arrayFunctions = $arrayFunctions;
+            }
+        );
 };
 
 $analyzeThroughRulesetFile = static function (string $ruleset, string $fixture): LocalFile {

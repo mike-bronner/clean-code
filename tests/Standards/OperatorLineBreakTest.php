@@ -59,9 +59,9 @@ it('reports a dangling boolean outside the clause it defers', function (): void 
     $deferred = analyzeFixture(OPERATOR_LINE_BREAK, 'deferred-conditional.php');
 
     $inForHeader = array_values(array_filter(
-        $reported,
-        static fn (array $violation): bool => in_array($violation['line'], [42, 45], true)
-    ));
+            $reported,
+            static fn (array $violation): bool => in_array($violation['line'], [42, 45], true)
+        ));
 
     expect($inForHeader)->toHaveCount(2)
         ->and($inForHeader[0])

@@ -49,8 +49,8 @@ it('flags a fully qualified trait use and leaves an imported one alone', functio
     expect(violationTuples($failing))->toContain(TRAIT_USE_VIOLATION);
 
     $traitLine = trim(explode("\n", (string) file_get_contents(
-        fixturePath('ReferenceUsedNamesOnlySniff', 'failing.php')
-    ))[TRAIT_USE_VIOLATION['line'] - 1]);
+            fixturePath('ReferenceUsedNamesOnlySniff', 'failing.php')
+        ))[TRAIT_USE_VIOLATION['line'] - 1]);
 
     expect($traitLine)->toBe('use \App\Billing\Support\Loggable;');
 
@@ -79,12 +79,12 @@ it('reports fully qualified references as errors rather than warnings', function
 
 it('silences global-namespace classes when ignore-global is switched on', function (): void {
     $file = analyzeFixture(
-        REFERENCE_USED_NAMES_ONLY,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->allowFullyQualifiedGlobalClasses = true;
-        }
-    );
+            REFERENCE_USED_NAMES_ONLY,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->allowFullyQualifiedGlobalClasses = true;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         TRAIT_USE_VIOLATION,
@@ -103,24 +103,24 @@ it('flags a fully qualified reference in a file with no namespace', function ():
     ]);
 
     $skipped = analyzeFixture(
-        REFERENCE_USED_NAMES_ONLY,
-        'no-namespace.php',
-        static function (object $sniff): void {
-            $sniff->allowWhenNoNamespace = false;
-        }
-    );
+            REFERENCE_USED_NAMES_ONLY,
+            'no-namespace.php',
+            static function (object $sniff): void {
+                $sniff->allowWhenNoNamespace = false;
+            }
+        );
 
     expect($skipped->getErrors())->toBe([]);
 });
 
 it('keeps reporting namespace-less files even with ignore-global switched on', function (): void {
     $file = analyzeFixture(
-        REFERENCE_USED_NAMES_ONLY,
-        'no-namespace.php',
-        static function (object $sniff): void {
-            $sniff->allowFullyQualifiedGlobalClasses = true;
-        }
-    );
+            REFERENCE_USED_NAMES_ONLY,
+            'no-namespace.php',
+            static function (object $sniff): void {
+                $sniff->allowFullyQualifiedGlobalClasses = true;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 7, 'column' => 29, 'source' => REFERENCE_VIA_FQN_WITHOUT_NAMESPACE],
@@ -130,24 +130,24 @@ it('keeps reporting namespace-less files even with ignore-global switched on', f
 
 it('allows fully qualified global functions and constants, and would report them without that', function (): void {
     $file = analyzeFixture(
-        REFERENCE_USED_NAMES_ONLY,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->allowFullyQualifiedGlobalFunctions = false;
-        }
-    );
+            REFERENCE_USED_NAMES_ONLY,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->allowFullyQualifiedGlobalFunctions = false;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 42, 'column' => 16, 'source' => REFERENCE_VIA_FQN],
     ]);
 
     $constants = analyzeFixture(
-        REFERENCE_USED_NAMES_ONLY,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->allowFullyQualifiedGlobalConstants = false;
-        }
-    );
+            REFERENCE_USED_NAMES_ONLY,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->allowFullyQualifiedGlobalConstants = false;
+            }
+        );
 
     expect(violationTuples($constants))->toBe([
         ['line' => 42, 'column' => 51, 'source' => REFERENCE_VIA_FQN],
@@ -182,8 +182,8 @@ it('leaves no violation behind on its own fixed output', function (): void {
 
 it('reports a caught general exception through both rules at once', function (): void {
     $file = analyzeWithMasterRuleset(
-        fixturePath('ReferenceUsedNamesOnlySniff', 'throwable-interaction.php')
-    );
+            fixturePath('ReferenceUsedNamesOnlySniff', 'throwable-interaction.php')
+        );
 
     $sources = violationSourcesByLine($file->getErrors());
 
@@ -193,8 +193,8 @@ it('reports a caught general exception through both rules at once', function ():
 
 it('converges on an imported Throwable when the whole ruleset is fixed', function (): void {
     $file = analyzeWithMasterRuleset(
-        fixturePath('ReferenceUsedNamesOnlySniff', 'throwable-interaction.php')
-    );
+            fixturePath('ReferenceUsedNamesOnlySniff', 'throwable-interaction.php')
+        );
 
     $fixed = autofixedContents($file);
 

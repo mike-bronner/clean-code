@@ -67,10 +67,10 @@ it('reports at exactly the default threshold and not one below it', function ():
 
 it('honours a minimum configured in ruleset XML, inclusively', function (): void {
     $file = analyzeWithConfiguredRuleset(
-        EXCESSIVE_PARAMETER_LIST,
-        'boundaries.php',
-        ['minimum' => '5']
-    );
+            EXCESSIVE_PARAMETER_LIST,
+            'boundaries.php',
+            ['minimum' => '5']
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 11, 'column' => 12, 'source' => EXCESSIVE_PARAMETER_LIST_ERROR],
@@ -83,10 +83,10 @@ it('honours a minimum configured in ruleset XML, inclusively', function (): void
 
 it('falls back to the default minimum when the property is unusable', function (string $configured): void {
     $file = analyzeWithConfiguredRuleset(
-        EXCESSIVE_PARAMETER_LIST,
-        'boundaries.php',
-        ['minimum' => $configured]
-    );
+            EXCESSIVE_PARAMETER_LIST,
+            'boundaries.php',
+            ['minimum' => $configured]
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 23, 'column' => 12, 'source' => EXCESSIVE_PARAMETER_LIST_ERROR],
@@ -96,9 +96,9 @@ it('falls back to the default minimum when the property is unusable', function (
 
 it('reports the anonymous-class method PHPMD misses', function (): void {
     $file = analyzeWithSniffs(
-        [EXCESSIVE_PARAMETER_LIST],
-        fixturePath('ExcessiveParameterListSniff', 'divergences.php')
-    );
+            [EXCESSIVE_PARAMETER_LIST],
+            fixturePath('ExcessiveParameterListSniff', 'divergences.php')
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 8, 'column' => 16, 'source' => EXCESSIVE_PARAMETER_LIST_ERROR],

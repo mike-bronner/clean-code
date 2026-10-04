@@ -139,8 +139,8 @@ it('leaves #45 property type-hint violations out of #70 coverage', function () u
     ]);
 
     $sources = allViolationSourcesByLine(
-        analyzeWithMasterRuleset(fixturePath('_rulesets/MethodTypeHints', 'property-hint-not-counted.php'))
-    );
+            analyzeWithMasterRuleset(fixturePath('_rulesets/MethodTypeHints', 'property-hint-not-counted.php'))
+        );
 
     expect($sources[11])->toContain('CleanCode.TypeHints.PropertyTypeHint.MissingAnyTypeHint');
 });
@@ -165,9 +165,9 @@ it('marks exactly the annotated violations fixable', function (): void {
     sort($lines);
 
     expect(array_values(array_unique($lines)))->toBe(
-        [14, 31, 36, 70, 86, 94, 102, 110, 118, 139, 147, 162, 170, 178, 197, 205, 213, 221, 229, 237, 252],
-        'Only a hint the sniff can infer — from an annotation, or a body that returns nothing — is fixable.'
-    );
+            [14, 31, 36, 70, 86, 94, 102, 110, 118, 139, 147, 162, 170, 178, 197, 205, 213, 221, 229, 237, 252],
+            'Only a hint the sniff can infer — from an annotation, or a body that returns nothing — is fixable.'
+        );
 });
 
 it('resolves every inferrable hint when fixed', function (): void {
@@ -187,10 +187,10 @@ it('keeps the excluded codes silent through the master ruleset', function () use
 
 it('raises every excluded code without the master rulesets excludes', function (): void {
     $file = analyzeWithoutExcludes(
-        METHOD_TYPE_HINTS_SNIFFS,
-        METHOD_TYPE_HINTS_EXCLUDED_CODES,
-        fixturePath('_rulesets/MethodTypeHints', 'excluded-codes.php')
-    );
+            METHOD_TYPE_HINTS_SNIFFS,
+            METHOD_TYPE_HINTS_EXCLUDED_CODES,
+            fixturePath('_rulesets/MethodTypeHints', 'excluded-codes.php')
+        );
 
     expect(allViolationSourcesByLine($file))->toBe([
         12 => [PARAMETER_TRAVERSABLE],

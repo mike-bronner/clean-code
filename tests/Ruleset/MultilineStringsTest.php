@@ -87,9 +87,9 @@ it('reports a marker collision as non-fixable and leaves the file untouched', fu
 
 it('preserves a binary-prefixed multi-line literal exactly', function (string $variable): void {
     $fixed = stageSourceOutsideTests(
-        autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
-        'binary-prefixed.php'
-    );
+            autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
+            'binary-prefixed.php'
+        );
 
     expect(evaluateFixtureVariables($fixed)[$variable])
         ->toBe(evaluateFixtureVariables(fixturePath('MultilineStringsSniff', 'failing.php'))[$variable]);
@@ -108,10 +108,10 @@ it('rewrites nothing when a string body cannot be split into lines', function ()
 
     [$fixed, $diagnostics] = withPhpDiagnostics(static function (): string {
         return PregFailure::during(
-            'preg_split',
-            static fn (): string => autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
-            static fn (string $pattern): bool => $pattern === '/\r\n|\n|\r/'
-        );
+                'preg_split',
+                static fn (): string => autofixedContents(analyzeFixture(MULTILINE_STRINGS, 'failing.php')),
+                static fn (string $pattern): bool => $pattern === '/\r\n|\n|\r/'
+            );
     });
 
     expect($fixed)->toBe(file_get_contents($path))

@@ -49,8 +49,8 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     $file = analyzeFixture(BINARY_OPERATOR_SPACING, 'failing.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(__DIR__ . '/../fixtures/BinaryOperatorSpacingSniff/autofixed.php')
-    );
+            file_get_contents(__DIR__ . '/../fixtures/BinaryOperatorSpacingSniff/autofixed.php')
+        );
 });
 
 it('registers exactly the tokens its parent does', function (): void {
@@ -68,9 +68,9 @@ it('cedes every context where the passive sniff and its parent disagree', functi
 
 it('cedes nothing the passive sniff does not claim', function (): void {
     expect(array_diff_key(
-        BinaryOperatorSpacingSniff::UNARY_SIGN_PRECEDERS,
-        passiveNonOperandTokens()
-    ))->toBe([]);
+            BinaryOperatorSpacingSniff::UNARY_SIGN_PRECEDERS,
+            passiveNonOperandTokens()
+        ))->toBe([]);
 });
 
 it('claims every context its binary counterpart already treats as a non-operand', function (): void {

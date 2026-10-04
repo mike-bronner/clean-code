@@ -21,16 +21,16 @@ it('flags inline conditionals at the expected lines', function (): void {
     $file = analyzeFixture(INLINE_CONTROL_STRUCTURE, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => INLINE_CONTROL_STRUCTURE . '.NotAllowed',
-        ],
-        [
-            [25, 1], [28, 1], [29, 1], [32, 1], [33, 1], [34, 1],
-            [37, 1], [37, 22], [41, 5], [46, 5],
-        ]
-    ));
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => INLINE_CONTROL_STRUCTURE . '.NotAllowed',
+            ],
+            [
+                [25, 1], [28, 1], [29, 1], [32, 1], [33, 1], [34, 1],
+                [37, 1], [37, 22], [41, 5], [46, 5],
+            ]
+        ));
 });
 
 it('marks every violation auto-fixable', function (): void {

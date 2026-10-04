@@ -38,9 +38,9 @@ it('reports the measured line count and threshold', function (): void {
     $file = analyzeFixture(EXCESSIVE_METHOD_LENGTH, 'failing.php');
 
     $messages = array_map(
-        static fn (array $columns): string => reset($columns)[0]['message'],
-        $file->getErrors()
-    );
+            static fn (array $columns): string => reset($columns)[0]['message'],
+            $file->getErrors()
+        );
 
     expect(array_values($messages))->toBe([
         'The method exactlyAtTheThreshold() has 100 lines of code, and the threshold is 100; '
@@ -67,12 +67,12 @@ it('offers no fix for any violation', function (): void {
 
 it('honours a lowered minimum', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 14;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 14;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -82,12 +82,12 @@ it('honours a lowered minimum', function (): void {
 
 it('treats a declaration of exactly minimum lines as too long', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 15;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 15;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -96,12 +96,12 @@ it('treats a declaration of exactly minimum lines as too long', function (): voi
 
 it('starts the span at the first modifier when a comment sits between two', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 6;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 6;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -115,13 +115,13 @@ it('starts the span at the first modifier when a comment sits between two', func
 
 it('counts only executable lines when ignoreWhitespace is set', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'failing.php',
-        static function (object $sniff): void {
-            $sniff->ignoreWhitespace = true;
-            $sniff->minimum = 99;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'failing.php',
+            static function (object $sniff): void {
+                $sniff->ignoreWhitespace = true;
+                $sniff->minimum = 99;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 14, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -131,13 +131,13 @@ it('counts only executable lines when ignoreWhitespace is set', function (): voi
 
 it('excludes comments and the signature from the executable count', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->ignoreWhitespace = true;
-            $sniff->minimum = 11;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->ignoreWhitespace = true;
+                $sniff->minimum = 11;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 45, 'column' => 1, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -146,13 +146,13 @@ it('excludes comments and the signature from the executable count', function ():
 
 it('counts every line a multi-line construct spans', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->ignoreWhitespace = true;
-            $sniff->minimum = 7;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->ignoreWhitespace = true;
+                $sniff->minimum = 7;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 13, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -163,13 +163,13 @@ it('counts every line a multi-line construct spans', function (): void {
 
 it('scores a bodiless declaration zero executable lines', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->ignoreWhitespace = true;
-            $sniff->minimum = 1;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->ignoreWhitespace = true;
+                $sniff->minimum = 1;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 29, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -182,17 +182,17 @@ it('scores a bodiless declaration zero executable lines', function (): void {
 
 it('measures a bodiless declaration as one line under the default metric', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 1;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 1;
+            }
+        );
 
     $bodiless = array_filter(
-        violationTuples($file),
-        static fn (array $tuple): bool => in_array($tuple['line'], [160, 165], true)
-    );
+            violationTuples($file),
+            static fn (array $tuple): bool => in_array($tuple['line'], [160, 165], true)
+        );
 
     expect(array_values($bodiless))->toBe([
         ['line' => 160, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -207,12 +207,12 @@ it('measures a bodiless declaration as one line under the default metric', funct
 
 it('scores a declaration with no body and no terminator as one line', function (): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'malformed.php',
-        static function (object $sniff): void {
-            $sniff->minimum = 5;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'malformed.php',
+            static function (object $sniff): void {
+                $sniff->minimum = 5;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 22, 'column' => 5, 'source' => EXCESSIVE_METHOD_LENGTH_ERROR],
@@ -221,12 +221,12 @@ it('scores a declaration with no body and no terminator as one line', function (
 
 it('falls back to the default threshold on an unusable minimum', function (string $minimum): void {
     $file = analyzeFixture(
-        EXCESSIVE_METHOD_LENGTH,
-        'configured.php',
-        static function (object $sniff) use ($minimum): void {
-            $sniff->minimum = $minimum;
-        }
-    );
+            EXCESSIVE_METHOD_LENGTH,
+            'configured.php',
+            static function (object $sniff) use ($minimum): void {
+                $sniff->minimum = $minimum;
+            }
+        );
 
     expect($file->getErrors())->toBe([]);
 })->with([
@@ -257,10 +257,10 @@ it('accepts both properties from a ruleset file', function (): void {
     $config->setConfigData('installed_paths', '', true);
 
     $file = new LocalFile(
-        fixturePath('ExcessiveMethodLengthSniff', 'configured.php'),
-        new Ruleset($config),
-        $config
-    );
+            fixturePath('ExcessiveMethodLengthSniff', 'configured.php'),
+            new Ruleset($config),
+            $config
+        );
     $file->process();
 
     unlink($standard);

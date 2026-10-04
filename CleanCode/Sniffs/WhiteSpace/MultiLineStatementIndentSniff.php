@@ -119,16 +119,26 @@ class MultiLineStatementIndentSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): int
     {
-        $tokens = $phpcsFile->getTokens();
         $this->mapLines($phpcsFile);
         $this->callIndents = [];
-        $i = $stackPtr;
+        $this->checkStatements($phpcsFile, $stackPtr, $phpcsFile->numTokens);
 
-        while ($i < $phpcsFile->numTokens) {
+        return $phpcsFile->numTokens;
+    }
+
+    private function checkStatements(File $phpcsFile, int $from, int $to): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $i = $from;
+
+        while ($i < $to) {
             $start = $this->findStatementStart($phpcsFile, $i);
 
-            if ($start === null) {
-                break;
+            if (
+                $start === null
+                || $start >= $to
+            ) {
+                return;
             }
 
             $end = $this->findStatementEnd($phpcsFile, $start);
@@ -139,8 +149,6 @@ class MultiLineStatementIndentSniff implements Sniff
 
             $i = $end + 1;
         }
-
-        return $phpcsFile->numTokens;
     }
 
     private function findStatementStart(File $phpcsFile, int $ptr): ?int
@@ -307,9 +315,15 @@ class MultiLineStatementIndentSniff implements Sniff
                 && isset($token['scope_condition'], $token['scope_closer']) === true
                 && in_array($tokens[$token['scope_condition']]['code'], self::EXPRESSION_SCOPES, true) === true;
 
-            if ($isExpressionScopeOpener === true) {
-                $i = $token['scope_closer'] - 1;
+            if ($isExpressionScopeOpener === false) {
+                continue;
             }
+
+            if ($tokens[$token['scope_condition']]['code'] !== T_MATCH) {
+                $this->checkStatements($phpcsFile, $i + 1, $token['scope_closer']);
+            }
+
+            $i = $token['scope_closer'] - 1;
         }
     }
 

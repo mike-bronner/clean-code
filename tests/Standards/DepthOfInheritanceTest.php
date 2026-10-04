@@ -38,13 +38,13 @@ it('names the class, its parent count, and the threshold', function (): void {
     $errors = analyzeFixture(DEPTH_OF_INHERITANCE, 'failing.php')->getErrors();
 
     expect($errors[51][1][0]['message'])->toBe(
-        'The class Level6 has 6 parents. Current threshold is 6.'
-            . ' Reduce the depth of this class hierarchy.'
-    );
+            'The class Level6 has 6 parents. Current threshold is 6.'
+                . ' Reduce the depth of this class hierarchy.'
+        );
     expect($errors[81][1][0]['message'])->toBe(
-        'The class Grafted has 6 parents. Current threshold is 6.'
-            . ' Reduce the depth of this class hierarchy.'
-    );
+            'The class Grafted has 6 parents. Current threshold is 6.'
+                . ' Reduce the depth of this class hierarchy.'
+        );
 });
 
 it('treats the threshold as inclusive', function (): void {
@@ -99,9 +99,9 @@ it('counts a ${expr} interpolation opened across a namespace boundary', function
         ['line' => 34, 'column' => 5, 'source' => DEPTH_OF_INHERITANCE_ERROR],
     ]);
     expect($files['interpolated.php']->getErrors()[34][5][0]['message'])->toBe(
-        'The class Deepest has 8 parents. Current threshold is 6.'
-            . ' Reduce the depth of this class hierarchy.'
-    );
+            'The class Deepest has 8 parents. Current threshold is 6.'
+                . ' Reduce the depth of this class hierarchy.'
+        );
 });
 
 it('counts a {$expr} interpolation inside a class body', function (): void {
@@ -115,13 +115,13 @@ it('counts every resolved ancestor across files', function (): void {
     $files = analyzeFileset([DEPTH_OF_INHERITANCE], $directory);
 
     expect($files['leaf.php']->getErrors()[23][1][0]['message'])->toBe(
-        'The class Leaf3 has 6 parents. Current threshold is 6.'
-            . ' Reduce the depth of this class hierarchy.'
-    );
+            'The class Leaf3 has 6 parents. Current threshold is 6.'
+                . ' Reduce the depth of this class hierarchy.'
+        );
     expect($files['braced.php']->getErrors()[14][5][0]['message'])->toBe(
-        'The class Braced1 has 7 parents. Current threshold is 6.'
-            . ' Reduce the depth of this class hierarchy.'
-    );
+            'The class Braced1 has 7 parents. Current threshold is 6.'
+                . ' Reduce the depth of this class hierarchy.'
+        );
 });
 
 it('stops at the edge of the analysed set', function (): void {

@@ -259,10 +259,10 @@ it('treats the minimum as inclusive at any configured value', function (): void 
 
 it('accepts the minimum from a ruleset property', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        NPATH_COMPLEXITY,
-        'passing.php',
-        ['minimum' => '199']
-    );
+            NPATH_COMPLEXITY,
+            'passing.php',
+            ['minimum' => '199']
+        );
 
     expect(measuredNPathComplexities($file))->toBe(['atOneBelowTheMinimum' => 199]);
 });
@@ -280,14 +280,14 @@ it('names the callable kind the way PHPMD does', function (): void {
     });
 
     expect(violationMessages($functions))->toContain(
-        'The function multipliesSequentialBranches() has an NPath complexity of 256, at or '
-            . 'above the configured minimum of 200; break it into smaller pieces (see '
-            . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
-    )->and(violationMessages($methods))->toContain(
-        'The method abstractMethod() has an NPath complexity of 1, at or above the configured '
-            . 'minimum of 1; break it into smaller pieces (see '
-            . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
-    );
+            'The function multipliesSequentialBranches() has an NPath complexity of 256, at or '
+                . 'above the configured minimum of 200; break it into smaller pieces (see '
+                . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
+        )->and(violationMessages($methods))->toContain(
+            'The method abstractMethod() has an NPath complexity of 1, at or above the configured '
+                . 'minimum of 1; break it into smaller pieces (see '
+                . 'resources/boost/guidelines/codesize-npathcomplexity.md)'
+        );
 });
 
 it('saturates instead of overflowing on an astronomically branching callable', function (): void {

@@ -11,10 +11,10 @@ const NO_DEAD_CODE_SNIFFS = 'Squiz.PHP.CommentedOutCode,'
 
 $noDeadCodeMessages = static function (string $fixture): array {
     return installedPhpcsRun(
-        cleanCodeRoot() . '/CleanCode/ruleset.xml',
-        __DIR__ . '/fixtures/' . $fixture,
-        ['--sniffs=' . NO_DEAD_CODE_SNIFFS, '--extensions=inc']
-    )['messages'];
+            cleanCodeRoot() . '/CleanCode/ruleset.xml',
+            __DIR__ . '/fixtures/' . $fixture,
+            ['--sniffs=' . NO_DEAD_CODE_SNIFFS, '--extensions=inc']
+        )['messages'];
 };
 
 $noDeadCodePositions = static function (string $source) use ($noDeadCodeMessages): array {

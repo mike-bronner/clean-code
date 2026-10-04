@@ -58,20 +58,20 @@ it('exposes a configurable persistence-method list', function () use ($stagedRun
     expect(array_keys($stagedRun('configured.php')->getWarnings()))->toBe([4]);
 
     $configured = $stagedRun(
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->persistenceMethods = ['persist'];
-        }
-    );
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->persistenceMethods = ['persist'];
+            }
+        );
 
     expect(array_keys($configured->getWarnings()))->toBe([3]);
 });
 
 it('is scoped out of test paths', function () use ($stagedRun): void {
     $inRepo = analyzeWithSniffs(
-        [PERSISTENCE],
-        fixturePath('DisallowExternalPersistenceCallsSniff', 'failing.php')
-    );
+            [PERSISTENCE],
+            fixturePath('DisallowExternalPersistenceCallsSniff', 'failing.php')
+        );
 
     expect($inRepo->getWarnings())->toBe([])
         ->and($stagedRun('failing.php')->getWarnings())->toHaveCount(12);
@@ -79,11 +79,11 @@ it('is scoped out of test paths', function () use ($stagedRun): void {
 
 it('handles a truncated chain without falling over', function () use ($stagedRun): void {
     $file = $stagedRun(
-        'unterminated.php',
-        static function (object $sniff): void {
-            $sniff->persistenceMethods = ['save', 'list'];
-        }
-    );
+            'unterminated.php',
+            static function (object $sniff): void {
+                $sniff->persistenceMethods = ['save', 'list'];
+            }
+        );
 
     expect($file->getErrors())->toBe([])
         ->and(violationSourcesByLine($file->getWarnings()))->toBe([
@@ -106,9 +106,9 @@ it('reports the violation end to end through the installed package', function ()
     $staged = installedSniffRun(PERSISTENCE, stageFixtureOutsideTests($failing));
     $inRepo = installedSniffRun(PERSISTENCE, $failing);
     $passing = installedSniffRun(
-        PERSISTENCE,
-        stageFixtureOutsideTests(fixturePath('DisallowExternalPersistenceCallsSniff', 'passing.php'))
-    );
+            PERSISTENCE,
+            stageFixtureOutsideTests(fixturePath('DisallowExternalPersistenceCallsSniff', 'passing.php'))
+        );
 
     expect(array_column($staged['messages'], 'source'))->toHaveCount(12)
         ->each->toBe(PERSISTENCE_WARNING)

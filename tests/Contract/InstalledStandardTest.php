@@ -6,15 +6,15 @@ pest()->group('arch');
 
 it('installs exactly one standard, named CleanCode', function (): void {
     $rulesets = array_merge(
-        (array) glob(cleanCodeRoot() . '/*/ruleset.xml'),
-        (array) glob(cleanCodeRoot() . '/*/*/ruleset.xml'),
-        (array) glob(cleanCodeRoot() . '/*/*/*/ruleset.xml')
-    );
+            (array) glob(cleanCodeRoot() . '/*/ruleset.xml'),
+            (array) glob(cleanCodeRoot() . '/*/*/ruleset.xml'),
+            (array) glob(cleanCodeRoot() . '/*/*/*/ruleset.xml')
+        );
 
     $shipped = array_values(array_filter(
-        array_map(static fn (string $path): string => substr($path, strlen(cleanCodeRoot()) + 1), $rulesets),
-        static fn (string $path): bool => str_starts_with($path, 'vendor/') === false
-    ));
+            array_map(static fn (string $path): string => substr($path, strlen(cleanCodeRoot()) + 1), $rulesets),
+            static fn (string $path): bool => str_starts_with($path, 'vendor/') === false
+        ));
 
     sort($shipped);
 
@@ -29,9 +29,9 @@ it('resolves the standard name to the ruleset this package ships', function (): 
     $byPath = installedPhpcsRun(cleanCodeRoot() . '/CleanCode/ruleset.xml', $fixture);
 
     $sources = array_unique(array_map(
-        static fn (array $message): string => explode('.', (string) $message['source'])[0],
-        $byName['messages']
-    ));
+            static fn (array $message): string => explode('.', (string) $message['source'])[0],
+            $byName['messages']
+        ));
 
     sort($sources);
 
@@ -61,11 +61,11 @@ it('scans Blade views whichever way the standard is named', function (string $st
 
 it('pins php_version to the package PHP floor', function (): void {
     $manifest = json_decode(
-        (string) file_get_contents(cleanCodeRoot() . '/composer.json'),
-        true,
-        512,
-        JSON_THROW_ON_ERROR
-    );
+            (string) file_get_contents(cleanCodeRoot() . '/composer.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
     $constraint = (string) $manifest['require']['php'];
     $source = (string) file_get_contents(cleanCodeRoot() . '/CleanCode/ruleset.xml');
 

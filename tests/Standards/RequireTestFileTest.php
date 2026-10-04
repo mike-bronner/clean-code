@@ -187,10 +187,10 @@ it('looks only where a single custom template points', function (string $fixture
 
 it('keeps a template set from a ruleset as the only one', function (): void {
     $file = analyzeFixtureWithRulesetProperties(
-        REQUIRE_TEST_FILE,
-        'src/Models/Book.php',
-        ['testPathTemplate' => '{path}/{name}Test.php']
-    );
+            REQUIRE_TEST_FILE,
+            'src/Models/Book.php',
+            ['testPathTemplate' => '{path}/{name}Test.php']
+        );
     $expectedPath = fixturePath(sniffFixtureDirectory(REQUIRE_TEST_FILE), 'tests/Models/BookTest.php');
 
     expect(warningTuples($file))->toBe([
@@ -205,16 +205,18 @@ it('names every default candidate in the message', function (): void {
     $directory = sniffFixtureDirectory(REQUIRE_TEST_FILE);
 
     expect($message)->toContain(
-        fixturePath($directory, 'tests/UntestedTest.php') . ' or ' . fixturePath($directory, 'tests/*/UntestedTest.php')
-    );
+            fixturePath($directory, 'tests/UntestedTest.php')
+                . ' or '
+                . fixturePath($directory, 'tests/*/UntestedTest.php')
+        );
 });
 
 it('honours an exclude pattern configured from a ruleset', function (array $patterns, array $expected): void {
     $file = analyzeFixtureWithRulesetProperties(
-        REQUIRE_TEST_FILE,
-        'src/Migrations/CreateUsersTable.php',
-        ['excludePatterns' => $patterns]
-    );
+            REQUIRE_TEST_FILE,
+            'src/Migrations/CreateUsersTable.php',
+            ['excludePatterns' => $patterns]
+        );
 
     expect(warningTuples($file))->toBe($expected);
 })->with([

@@ -232,12 +232,12 @@ it('probes every token the target scan rejects as a write', function (): void {
     $sniff = new ReflectionClass(NoLogicSniff::class);
 
     $rejected = array_diff(
-        array_merge(
-            array_values(Tokens::$assignmentTokens),
-            $sniff->getConstant('WRITING_TOKENS')
-        ),
-        $sniff->getConstant('NON_WRITING_ASSIGNMENT_TOKENS')
-    );
+            array_merge(
+                    array_values(Tokens::$assignmentTokens),
+                    $sniff->getConstant('WRITING_TOKENS')
+                ),
+            $sniff->getConstant('NON_WRITING_ASSIGNMENT_TOKENS')
+        );
     $probed = array_map(constant(...), array_keys(WRITING_PROBES));
 
     sort($rejected);
@@ -371,10 +371,10 @@ const NO_LOGIC_ENUMERATIONS = [
 
 it('claims every hand-enumerated token list in the sniff', function (): void {
     $tokenValues = array_filter(
-        get_defined_constants(),
-        static fn (string $name): bool => str_starts_with($name, 'T_'),
-        ARRAY_FILTER_USE_KEY
-    );
+            get_defined_constants(),
+            static fn (string $name): bool => str_starts_with($name, 'T_'),
+            ARRAY_FILTER_USE_KEY
+        );
 
     $lists = ['tokens' => [], 'other' => []];
 

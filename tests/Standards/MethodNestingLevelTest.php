@@ -139,23 +139,23 @@ it('is not already covered by Generic.Metrics.NestingLevel', function (): void {
     $sources = array_column(violationTuples($file), 'source');
 
     expect(array_filter($sources, static fn (string $source): bool => str_starts_with(
-        $source,
-        'Generic.Metrics.NestingLevel'
-    )))->toBe([])->and($sources)->not->toBeEmpty();
+            $source,
+            'Generic.Metrics.NestingLevel'
+        )))->toBe([])->and($sources)->not->toBeEmpty();
 });
 
 it('is not already covered by SlevomatCodingStandard.Complexity.Cognitive', function (): void {
     $cognitive = analyzeWithStandard(
-        'SlevomatCodingStandard',
-        fixturePath('MethodNestingLevelSniff', 'failing.php')
-    );
+            'SlevomatCodingStandard',
+            fixturePath('MethodNestingLevelSniff', 'failing.php')
+        );
     $cognitiveLines = array_column(array_filter(
-        violationTuples($cognitive),
-        static fn (array $violation): bool => str_starts_with(
-            $violation['source'],
-            'SlevomatCodingStandard.Complexity.Cognitive'
-        )
-    ), 'line');
+            violationTuples($cognitive),
+            static fn (array $violation): bool => str_starts_with(
+                    $violation['source'],
+                    'SlevomatCodingStandard.Complexity.Cognitive'
+                )
+        ), 'line');
 
     $ours = array_column(violationTuples(analyzeFixture(METHOD_NESTING_LEVEL, 'failing.php')), 'line');
 

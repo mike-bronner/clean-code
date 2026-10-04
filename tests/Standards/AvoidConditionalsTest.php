@@ -64,9 +64,9 @@ it('reports a switch once, not once per case', function (): void {
     $file = analyzeFixture(AVOID_CONDITIONALS, 'shapes.php');
 
     $switchWarnings = array_filter(
-        warningTuples($file),
-        static fn (array $violation): bool => $violation['source'] === AVOID_CONDITIONALS . '.SwitchStatement'
-    );
+            warningTuples($file),
+            static fn (array $violation): bool => $violation['source'] === AVOID_CONDITIONALS . '.SwitchStatement'
+        );
 
     expect($switchWarnings)->toHaveCount(1);
 });

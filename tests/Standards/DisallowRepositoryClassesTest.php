@@ -107,9 +107,9 @@ it('accounts for every declaration name PHPCS defines', function (): void {
     $path = cleanCodeRoot() . '/CleanCode/Sniffs/Pattern/DisallowRepositoryClassesSniff.php';
     $probe = analyzeStdinSource([DISALLOW_REPOSITORY_CLASSES], "<?php\n\necho 'repository';\n");
     $echo = array_keys(array_filter(
-        $probe->getTokens(),
-        static fn (array $token): bool => $token['code'] === T_ECHO
-    ));
+            $probe->getTokens(),
+            static fn (array $token): bool => $token['code'] === T_ECHO
+        ));
 
     expect($echo)->toHaveCount(1, 'the probe token is where the source puts it');
 

@@ -42,15 +42,15 @@ it('stays silent on its passing fixture through the installed package', function
 
 it('sweeps every custom sniff the swept datasets carry', function (): void {
     $swept = array_values(array_filter(
-        array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS),
-        static fn (string $code): bool => str_starts_with($code, 'CleanCode.')
-    ));
+            array_merge(SWEPT_SNIFFS, SWEPT_WARNING_SNIFFS),
+            static fn (string $code): bool => str_starts_with($code, 'CleanCode.')
+        ));
 
     $reached = array_merge(
-        shippedSmokeSniffs(SWEPT_SNIFFS),
-        shippedSmokeSniffs(SWEPT_WARNING_SNIFFS),
-        SHIPPED_SMOKE_EXCLUSIONS
-    );
+            shippedSmokeSniffs(SWEPT_SNIFFS),
+            shippedSmokeSniffs(SWEPT_WARNING_SNIFFS),
+            SHIPPED_SMOKE_EXCLUSIONS
+        );
 
     sort($swept);
     sort($reached);
@@ -76,7 +76,7 @@ it('runs against a phpcs binary that is really installed', function (): void {
 
 it('throws rather than reporting silence when phpcs cannot run', function (): void {
     installedPhpcsRun(
-        sys_get_temp_dir() . '/cleancode-standard-that-cannot-exist.xml',
-        fixturePath('ShortClassNameSniff', 'passing.php')
-    );
+            sys_get_temp_dir() . '/cleancode-standard-that-cannot-exist.xml',
+            fixturePath('ShortClassNameSniff', 'passing.php')
+        );
 })->throws(RuntimeException::class);

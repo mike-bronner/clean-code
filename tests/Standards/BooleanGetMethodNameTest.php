@@ -75,12 +75,12 @@ it('reports parameterized methods by default', function (): void {
 
 it('reports only parameterless methods when checkParameterizedMethods is on', function (): void {
     $file = analyzeFixture(
-        BOOLEAN_GET_METHOD_NAME,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->checkParameterizedMethods = true;
-        }
-    );
+            BOOLEAN_GET_METHOD_NAME,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->checkParameterizedMethods = true;
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 14, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
@@ -101,12 +101,12 @@ it('reads an unsplittable annotation as one piece', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_split',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_split',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect(array_keys($expected))->toContain(28)
@@ -119,12 +119,12 @@ it('reads a type that cannot be normalised as written', function (): void {
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => $pattern === '/\s+/'
-        );
+                'preg_replace',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => $pattern === '/\s+/'
+            );
     });
 
     expect($expected)->not->toBe([])

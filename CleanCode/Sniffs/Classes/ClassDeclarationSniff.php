@@ -38,11 +38,11 @@ class ClassDeclarationSniff extends PsrDeclaration
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Expected 1 space before the empty body of a %s; %s found',
-            $opener,
-            'SpaceBeforeEmptyBody',
-            [strtolower($tokens[$stackPtr]['content']), $spaces]
-        );
+                'Expected 1 space before the empty body of a %s; %s found',
+                $opener,
+                'SpaceBeforeEmptyBody',
+                [strtolower($tokens[$stackPtr]['content']), $spaces]
+            );
 
         if ($fix === false) {
             return;

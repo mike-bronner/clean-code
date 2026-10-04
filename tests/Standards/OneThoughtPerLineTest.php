@@ -21,17 +21,17 @@ it('flags every violation at its own line', function (): void {
     $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => ONE_THOUGHT_PER_LINE . '.MultipleAccessOperators',
-        ],
-        [
-            [25, 23], [25, 32], [26, 25], [27, 23], [28, 27], [29, 26],
-            [30, 27], [31, 14], [34, 16], [36, 26], [37, 26], [38, 25],
-            [42, 28],
-        ]
-    ))->and($file->getWarnings())->toBe([]);
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => ONE_THOUGHT_PER_LINE . '.MultipleAccessOperators',
+            ],
+            [
+                [25, 23], [25, 32], [26, 25], [27, 23], [28, 27], [29, 26],
+                [30, 27], [31, 14], [34, 16], [36, 26], [37, 26], [38, 25],
+                [42, 28],
+            ]
+        ))->and($file->getWarnings())->toBe([]);
 });
 
 it('auto-fixes the failing fixture into the autofixed fixture', function (): void {
@@ -45,11 +45,11 @@ it('ignores access operators held inside parentheses or brackets', function (): 
     $file = analyzeFixture(ONE_THOUGHT_PER_LINE, 'grouped.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $position): array => [
-            'line' => $position[0],
-            'column' => $position[1],
-            'source' => ONE_THOUGHT_PER_LINE . '.MultipleAccessOperators',
-        ],
-        [[21, 13], [24, 22], [29, 24], [33, 28]]
-    ));
+            static fn (array $position): array => [
+                'line' => $position[0],
+                'column' => $position[1],
+                'source' => ONE_THOUGHT_PER_LINE . '.MultipleAccessOperators',
+            ],
+            [[21, 13], [24, 22], [29, 24], [33, 28]]
+        ));
 });

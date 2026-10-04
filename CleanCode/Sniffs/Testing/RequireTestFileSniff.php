@@ -46,27 +46,27 @@ class RequireTestFileSniff implements Sniff
         }
 
         $patterns = array_map(
-            fn (string $template): string => $this->testPattern($segments, $sourceIndex, $template),
-            (array) $this->testPathTemplate
-        );
+                fn (string $template): string => $this->testPattern($segments, $sourceIndex, $template),
+                (array) $this->testPathTemplate
+            );
 
         if ($this->hasMatch($patterns) === true) {
             return;
         }
 
         $phpcsFile->addWarning(
-            'Every class gets a unit test, and %s has none; expected a test file matching %s'
-                . ' (Testing: Development Process (TDD), #57 —'
-                . ' resources/boost/guidelines/'
-                . 'testing-development-process-tdd.md). Existence only: this says'
-                . ' nothing about whether the test was written first, nor about what it asserts',
-            $stackPtr,
-            'Missing',
-            [
-                basename($path),
-                implode(' or ', $patterns),
-            ]
-        );
+                'Every class gets a unit test, and %s has none; expected a test file matching %s'
+                    . ' (Testing: Development Process (TDD), #57 —'
+                    . ' resources/boost/guidelines/'
+                    . 'testing-development-process-tdd.md). Existence only: this says'
+                    . ' nothing about whether the test was written first, nor about what it asserts',
+                $stackPtr,
+                'Missing',
+                [
+                    basename($path),
+                    implode(' or ', $patterns),
+                ]
+            );
     }
 
     private function isExempt(File $phpcsFile, int $stackPtr, string $path): bool

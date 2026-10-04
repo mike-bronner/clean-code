@@ -54,12 +54,12 @@ it('excludes case-insensitive prefix matches from the count', function (): void 
         ->and($file->getWarnings())->toBe([]);
 
     $counted = analyzeFixture(
-        TOO_MANY_METHODS,
-        'prefix-matching.php',
-        static function (object $sniff): void {
-            $sniff->maxmethods = 0;
-        }
-    );
+            TOO_MANY_METHODS,
+            'prefix-matching.php',
+            static function (object $sniff): void {
+                $sniff->maxmethods = 0;
+            }
+        );
 
     expect(violationTuples($counted))->toBe([
         ['line' => 3, 'column' => 1, 'source' => TOO_MANY_METHODS_ERROR],
@@ -80,36 +80,36 @@ it('exposes a configurable maximum', function (): void {
     ]);
 
     $raised = analyzeFixture(
-        TOO_MANY_METHODS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maxmethods = 26;
-        }
-    );
+            TOO_MANY_METHODS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maxmethods = 26;
+            }
+        );
 
     expect($raised->getErrors())->toBe([]);
 });
 
 it('exposes a configurable ignore pattern', function (): void {
     $ignored = analyzeFixture(
-        TOO_MANY_METHODS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->ignorepattern = '(^handle)i';
-        }
-    );
+            TOO_MANY_METHODS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->ignorepattern = '(^handle)i';
+            }
+        );
 
     expect($ignored->getErrors())->toBe([]);
 });
 
 it('reports an unusable ignore pattern instead of miscounting', function (): void {
     $file = analyzeFixture(
-        TOO_MANY_METHODS,
-        'broken-pattern.php',
-        static function (object $sniff): void {
-            $sniff->ignorepattern = '(^(set|get';
-        }
-    );
+            TOO_MANY_METHODS,
+            'broken-pattern.php',
+            static function (object $sniff): void {
+                $sniff->ignorepattern = '(^(set|get';
+            }
+        );
 
     expect(violationTuples($file))->toBe([
         ['line' => 3, 'column' => 1, 'source' => TOO_MANY_METHODS_PATTERN_ERROR],
@@ -127,12 +127,12 @@ it('emits no PHP warning while rejecting the pattern', function (): void {
 
     try {
         analyzeFixture(
-            TOO_MANY_METHODS,
-            'broken-pattern.php',
-            static function (object $sniff): void {
-                $sniff->ignorepattern = '(^(set|get';
-            }
-        );
+                TOO_MANY_METHODS,
+                'broken-pattern.php',
+                static function (object $sniff): void {
+                    $sniff->ignorepattern = '(^(set|get';
+                }
+            );
     } finally {
         restore_error_handler();
     }

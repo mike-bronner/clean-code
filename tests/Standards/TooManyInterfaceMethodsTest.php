@@ -51,12 +51,12 @@ it('names the interface, the counts and the principle in the message', function 
 
 it('counts only the signatures the interface body declares', function (): void {
     $file = analyzeFixture(
-        TOO_MANY_INTERFACE_METHODS,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->maxMethods = 0;
-        }
-    );
+            TOO_MANY_INTERFACE_METHODS,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->maxMethods = 0;
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 14, 'column' => 1, 'source' => TOO_MANY_INTERFACE_METHODS_WARNING],
@@ -75,22 +75,22 @@ it('exposes a configurable maximum', function (): void {
     ]);
 
     $raised = analyzeFixture(
-        TOO_MANY_INTERFACE_METHODS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->maxMethods = 6;
-        }
-    );
+            TOO_MANY_INTERFACE_METHODS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->maxMethods = 6;
+            }
+        );
 
     expect($raised->getWarnings())->toBe([]);
 
     $lowered = analyzeFixture(
-        TOO_MANY_INTERFACE_METHODS,
-        'passing.php',
-        static function (object $sniff): void {
-            $sniff->maxMethods = 4;
-        }
-    );
+            TOO_MANY_INTERFACE_METHODS,
+            'passing.php',
+            static function (object $sniff): void {
+                $sniff->maxMethods = 4;
+            }
+        );
 
     expect(warningTuples($lowered))->toBe([
         ['line' => 14, 'column' => 1, 'source' => TOO_MANY_INTERFACE_METHODS_WARNING],
@@ -100,18 +100,18 @@ it('exposes a configurable maximum', function (): void {
 
 it('takes the threshold from a ruleset property', function (): void {
     $raised = analyzeFixtureWithRulesetProperties(
-        TOO_MANY_INTERFACE_METHODS,
-        'configured.php',
-        ['maxMethods' => '6']
-    );
+            TOO_MANY_INTERFACE_METHODS,
+            'configured.php',
+            ['maxMethods' => '6']
+        );
 
     expect($raised->getWarnings())->toBe([]);
 
     $lowered = analyzeFixtureWithRulesetProperties(
-        TOO_MANY_INTERFACE_METHODS,
-        'passing.php',
-        ['maxMethods' => '4']
-    );
+            TOO_MANY_INTERFACE_METHODS,
+            'passing.php',
+            ['maxMethods' => '4']
+        );
 
     expect(warningTuples($lowered))->toBe([
         ['line' => 14, 'column' => 1, 'source' => TOO_MANY_INTERFACE_METHODS_WARNING],

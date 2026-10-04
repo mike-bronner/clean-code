@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 it('reports the markup and the multi-line shape separately', function (): void {
     $file = analyzeStdinSource(
-        ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
-        "<?php\n\n\$x = \"<ul>\n    <li>item</li>\n</ul>\";\n"
-    );
+            ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
+            "<?php\n\n\$x = \"<ul>\n    <li>item</li>\n</ul>\";\n"
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([
         3 => [
@@ -18,9 +18,9 @@ it('reports the markup and the multi-line shape separately', function (): void {
 
 it('keeps each sniff to the slice it owns', function (string $source, array $expected): void {
     $file = analyzeStdinSource(
-        ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
-        $source
-    );
+            ['CleanCode.Strings.RequireHeredocForStructuredText', 'CleanCode.Strings.MultilineStrings'],
+            $source
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([3 => $expected]);
 })->with([
@@ -43,15 +43,15 @@ it('keeps each sniff to the slice it owns', function (string $source, array $exp
 
 it('is satisfied for every Strings sniff once the markup is a HereDoc', function (): void {
     $file = analyzeStdinSource(
-        [
-            'CleanCode.Strings.EscapeNestedQuotes',
-            'CleanCode.Strings.HtmlAttributeQuotes',
-            'CleanCode.Strings.MultilineStrings',
-            'CleanCode.Strings.RequireHeredocForStructuredText',
-            'CleanCode.Strings.RequireStringInterpolation',
-        ],
-        "<?php\n\n\$x = <<<HTML\n<ul>\n    <li class=\"item\">item</li>\n</ul>\nHTML;\n"
-    );
+            [
+                'CleanCode.Strings.EscapeNestedQuotes',
+                'CleanCode.Strings.HtmlAttributeQuotes',
+                'CleanCode.Strings.MultilineStrings',
+                'CleanCode.Strings.RequireHeredocForStructuredText',
+                'CleanCode.Strings.RequireStringInterpolation',
+            ],
+            "<?php\n\n\$x = <<<HTML\n<ul>\n    <li class=\"item\">item</li>\n</ul>\nHTML;\n"
+        );
 
     expect(violationSourcesByLine($file->getErrors()))->toBe([]);
 });

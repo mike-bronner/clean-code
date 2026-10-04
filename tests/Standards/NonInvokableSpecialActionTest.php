@@ -207,21 +207,21 @@ it('inspects a file only under a routes directory', function (string $directory,
 it('honours a ruleset-configured routeFilePatterns', function (): void {
     $staged = stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'failing.php'), 'app');
     $configured = analyzeWithSniffs(
-        [SPECIAL_ACTION],
-        $staged,
-        static function (object $sniff): void {
-            $sniff->routeFilePatterns = ['*/app/*'];
-        }
-    );
+            [SPECIAL_ACTION],
+            $staged,
+            static function (object $sniff): void {
+                $sniff->routeFilePatterns = ['*/app/*'];
+            }
+        );
 
     expect($configured->getWarningCount())->toBe(34);
 });
 
 it('stays silent on input with no path', function (): void {
     $file = analyzeStdinSource(
-        [SPECIAL_ACTION],
-        "<?php\n\nRoute::get('/a', [PostController::class, 'archive']);\n"
-    );
+            [SPECIAL_ACTION],
+            "<?php\n\nRoute::get('/a', [PostController::class, 'archive']);\n"
+        );
 
     expect($file->getWarnings())->toBe([])
         ->and($file->getErrors())->toBe([]);
@@ -233,9 +233,9 @@ it('reports the violation end to end through the installed package', function ()
     $staged = installedSniffRun(SPECIAL_ACTION, stageFixtureOutsideTests($failing, 'routes'));
     $inRepo = installedSniffRun(SPECIAL_ACTION, $failing);
     $passing = installedSniffRun(
-        SPECIAL_ACTION,
-        stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'passing.php'), 'routes')
-    );
+            SPECIAL_ACTION,
+            stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', 'passing.php'), 'routes')
+        );
 
     expect(array_column($staged['messages'], 'source'))->toHaveCount(34)
         ->each->toBe(SPECIAL_ACTION_FOUND)
@@ -256,10 +256,10 @@ it('survives an escaped action whose literal cannot be evaluated', function (
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function () use ($routeSource, $source, $pattern): array {
         return PregFailure::during(
-            'preg_replace_callback',
-            static fn (): array => allViolationSourcesByLine($routeSource($source)),
-            static fn (string $armed): bool => $armed === $pattern
-        );
+                'preg_replace_callback',
+                static fn (): array => allViolationSourcesByLine($routeSource($source)),
+                static fn (string $armed): bool => $armed === $pattern
+            );
     });
 
     expect($expected)->not->toBe([])

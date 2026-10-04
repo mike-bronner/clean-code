@@ -87,12 +87,12 @@ it('exposes a configurable model-parent list', function (): void {
     expect(analyzeFixture(EAGER_LOADING_WITH, 'configured.php')->getWarnings())->toBe([]);
 
     $warnings = analyzeFixture(
-        EAGER_LOADING_WITH,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->modelParentClasses = ['eloquent'];
-        }
-    )->getWarnings();
+            EAGER_LOADING_WITH,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->modelParentClasses = ['eloquent'];
+            }
+        )->getWarnings();
 
     expect(violationSourcesByLine($warnings))->toBe([5 => [EAGER_LOADING_WITH_WARNING]])
         ->and(array_keys($warnings[5]))->toBe([15]);

@@ -191,12 +191,12 @@ it('stays silent on constructs below the default minimum', function (): void {
 
 it('reports those same constructs once minimumBranches is lowered', function (): void {
     $file = analyzeFixture(
-        TYPE_DISCRIMINATOR_DISPATCH,
-        'threshold.php',
-        static function (object $sniff): void {
-            $sniff->minimumBranches = '2';
-        }
-    );
+            TYPE_DISCRIMINATOR_DISPATCH,
+            'threshold.php',
+            static function (object $sniff): void {
+                $sniff->minimumBranches = '2';
+            }
+        );
 
     expect(warningTuples($file))->toBe([
         ['line' => 15, 'column' => 5, 'source' => TYPE_DISCRIMINATOR_SWITCH],

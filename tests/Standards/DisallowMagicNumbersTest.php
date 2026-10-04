@@ -80,12 +80,12 @@ it('exposes a configurable ignore list', function (): void {
     ]);
 
     $configured = analyzeFixture(
-        MAGIC_NUMBERS,
-        'configured.php',
-        static function (object $sniff): void {
-            $sniff->ignoredNumbers = ['1000'];
-        }
-    );
+            MAGIC_NUMBERS,
+            'configured.php',
+            static function (object $sniff): void {
+                $sniff->ignoredNumbers = ['1000'];
+            }
+        );
 
     expect(violationSourcesByLine($configured->getWarnings()))->toBe([
         6 => [MAGIC_NUMBERS_WARNING],

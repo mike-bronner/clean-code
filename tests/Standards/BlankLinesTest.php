@@ -49,26 +49,26 @@ it('flags every superfluous blank line at its own line', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $site): array => [
-            'line' => $site[0],
-            'column' => $site[1],
-            'source' => BLANK_LINES . '.' . $site[2],
-        ],
-        BLANK_LINES_FAILING_SITES
-    ))->and($file->getWarnings())->toBe([]);
+            static fn (array $site): array => [
+                'line' => $site[0],
+                'column' => $site[1],
+                'source' => BLANK_LINES . '.' . $site[2],
+            ],
+            BLANK_LINES_FAILING_SITES
+        ))->and($file->getWarnings())->toBe([]);
 });
 
 it('labels every violation with the code for the edge it sits at', function (): void {
     $file = analyzeFixture(BLANK_LINES, 'failing.php');
 
     expect(violationTuples($file))->toBe(array_map(
-        static fn (array $site): array => [
-            'line' => $site[0],
-            'column' => $site[1],
-            'source' => BLANK_LINES . '.' . $site[2],
-        ],
-        BLANK_LINES_FAILING_SITES
-    ));
+            static fn (array $site): array => [
+                'line' => $site[0],
+                'column' => $site[1],
+                'source' => BLANK_LINES . '.' . $site[2],
+            ],
+            BLANK_LINES_FAILING_SITES
+        ));
 });
 
 it('words every brace diagnostic for the edge it sits at', function (): void {

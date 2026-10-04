@@ -85,10 +85,10 @@ class ModelMagicMethodLocationSniff implements Sniff
     {
         $ownerPtr = $this->conditionPointer($phpcsFile, $functionPtr, T_CLASS);
         $nestedPtr = $this->innermostConditionPointer(
-            $phpcsFile,
-            $functionPtr,
-            self::NESTED_SCOPES
-        );
+                $phpcsFile,
+                $functionPtr,
+                self::NESTED_SCOPES
+            );
 
         return match ($ownerPtr) {
             $classPtr => $classPtr > ($nestedPtr ?? self::NO_POINTER),
@@ -175,8 +175,8 @@ class ModelMagicMethodLocationSniff implements Sniff
 
         foreach ($this->pointersOfType($phpcsFile, self::NAME_TOKENS, $first, $closerPtr) as $ptr) {
             $previousPtr = $this->orNull(
-                $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true)
-            );
+                    $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true)
+                );
             [$name] = $this->readName($phpcsFile, $ptr);
 
             $opened = $this->pointersOfType($phpcsFile, T_OPEN_PARENTHESIS, $openerPtr, $ptr);
@@ -237,9 +237,9 @@ class ModelMagicMethodLocationSniff implements Sniff
 
         foreach ($types as $type) {
             $innermost = max(
-                $innermost,
-                $this->conditionPointer($phpcsFile, $stackPtr, $type) ?? self::NO_POINTER
-            );
+                    $innermost,
+                    $this->conditionPointer($phpcsFile, $stackPtr, $type) ?? self::NO_POINTER
+                );
         }
 
         return match ($innermost) {

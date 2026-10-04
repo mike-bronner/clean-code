@@ -30,9 +30,9 @@ it('is registered in the master ruleset', function (): void {
 
 it('passes the standard it belongs to', function (): void {
     $report = installedPhpcsReport(
-        'CleanCode',
-        cleanCodeRoot() . '/CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php'
-    );
+            'CleanCode',
+            cleanCodeRoot() . '/CleanCode/Sniffs/Controllers/ManualModelResolutionSniff.php'
+        );
 
     expect(array_column($report, 'source'))->toBe([]);
 });

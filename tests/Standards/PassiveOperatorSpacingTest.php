@@ -51,17 +51,17 @@ it('auto-fixes the failing fixture to exactly the recorded output', function ():
     $file = analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php');
 
     expect(autofixedContents($file))->toBe(
-        file_get_contents(__DIR__ . '/../fixtures/PassiveOperatorSpacingSniff/autofixed.php')
-    );
+            file_get_contents(__DIR__ . '/../fixtures/PassiveOperatorSpacingSniff/autofixed.php')
+        );
 });
 
 it('owns a sign that opens a statement or a PHP block', function (): void {
     $tuples = violationTuples(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php'));
 
     $atLine = static fn (int $line): array => array_values(array_filter(
-        $tuples,
-        static fn (array $violation): bool => $violation['line'] === $line
-    ));
+            $tuples,
+            static fn (array $violation): bool => $violation['line'] === $line
+        ));
 
     expect($atLine(35))
         ->toBe([['line' => 35, 'column' => 5, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation']])
@@ -81,9 +81,9 @@ it('still reports a cross-direction sign pair', function (): void {
     $tuples = violationTuples(analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php'));
 
     $atLine = static fn (int $line): array => array_values(array_filter(
-        $tuples,
-        static fn (array $violation): bool => $violation['line'] === $line
-    ));
+            $tuples,
+            static fn (array $violation): bool => $violation['line'] === $line
+        ));
 
     expect($atLine(14))
         ->toBe([['line' => 14, 'column' => 24, 'source' => PASSIVE_OPERATOR_SPACING . '.Negation']])
@@ -102,12 +102,12 @@ it('leaves backtick content alone when it cannot be trimmed', function (): void 
 
     [$degraded, $diagnostics] = withPhpDiagnostics(static function (): array {
         return PregFailure::during(
-            'preg_replace',
-            static fn (): array => violationSourcesByLine(
-                analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors()
-            ),
-            static fn (string $pattern): bool => str_contains($pattern, '[ \t]+')
-        );
+                'preg_replace',
+                static fn (): array => violationSourcesByLine(
+                        analyzeFixture(PASSIVE_OPERATOR_SPACING, 'failing.php')->getErrors()
+                    ),
+                static fn (string $pattern): bool => str_contains($pattern, '[ \t]+')
+            );
     });
 
     expect(array_keys($expected))->toContain(12)

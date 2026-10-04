@@ -56,7 +56,7 @@ it('does not demand an underscore prefix on private properties', function () use
     $sources = array_merge(...array_values($namingViolations()) ?: [[]]);
 
     expect($sources)->not->toContain(
-        VALID_VARIABLE_NAME . '.PrivateNoUnderscore',
-        'PrivateNoUnderscore must stay excluded from the master ruleset.'
-    );
+            VALID_VARIABLE_NAME . '.PrivateNoUnderscore',
+            'PrivateNoUnderscore must stay excluded from the master ruleset.'
+        );
 });
