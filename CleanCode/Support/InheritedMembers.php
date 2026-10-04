@@ -165,11 +165,11 @@ class InheritedMembers
         }
 
         return array_map(
-            static fn (string $name): string => ltrim(
-                NamespaceHelper::resolveClassName($phpcsFile, $name, $classPtr),
-                '\\'
-            ),
-            $names
-        );
+                static fn (string $name): string => ltrim(
+                        NamespaceHelper::resolveClassName($phpcsFile, $name, $classPtr),
+                        '\\'
+                    ),
+                $names
+            );
     }
 }

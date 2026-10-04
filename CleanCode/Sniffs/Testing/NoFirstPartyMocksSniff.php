@@ -106,12 +106,12 @@ class NoFirstPartyMocksSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Mocking %s, a first-party class; mock only interfaces you do not control'
-                . ' (see resources/boost/guidelines/testing-guidelines.md)',
-            $argumentPtr,
-            'Found',
-            [$resolved]
-        );
+                'Mocking %s, a first-party class; mock only interfaces you do not control'
+                    . ' (see resources/boost/guidelines/testing-guidelines.md)',
+                $argumentPtr,
+                'Found',
+                [$resolved]
+            );
     }
 
     private function mockArgumentPointer(File $phpcsFile, int $stackPtr): ?int
@@ -388,9 +388,9 @@ class NoFirstPartyMocksSniff implements Sniff
     private function statementEnd(File $phpcsFile, int $pointer): ?int
     {
         $terminator = $phpcsFile->findNext(
-            [T_SEMICOLON, T_OPEN_CURLY_BRACKET],
-            ($pointer + 1)
-        );
+                [T_SEMICOLON, T_OPEN_CURLY_BRACKET],
+                ($pointer + 1)
+            );
 
         return $terminator === false ? null : ($terminator + 1);
     }

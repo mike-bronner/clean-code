@@ -128,11 +128,11 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            "No space allowed between the passive \"%s\" operator and its operand",
-            $stackPtr,
-            $errorCode,
-            [$symbol]
-        );
+                "No space allowed between the passive \"%s\" operator and its operand",
+                $stackPtr,
+                $errorCode,
+                [$symbol]
+            );
 
         if ($fix === true) {
             $phpcsFile->fixer
@@ -196,10 +196,10 @@ class PassiveOperatorSpacingSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Execution backticks must sit flush against the command; remove the surrounding space',
-            $reportPtr,
-            'Execution'
-        );
+                'Execution backticks must sit flush against the command; remove the surrounding space',
+                $reportPtr,
+                'Execution'
+            );
 
         if ($fix === true) {
             $phpcsFile->fixer

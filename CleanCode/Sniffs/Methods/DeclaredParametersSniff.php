@@ -67,11 +67,11 @@ class DeclaredParametersSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            '%s() is not allowed; declare the parameter list instead of reading arguments dynamically',
-            $stackPtr,
-            'DynamicArguments',
-            [$name]
-        );
+                '%s() is not allowed; declare the parameter list instead of reading arguments dynamically',
+                $stackPtr,
+                'DynamicArguments',
+                [$name]
+            );
     }
 
     private function isInsideMagicMethod(File $phpcsFile, int $stackPtr): bool

@@ -18,7 +18,10 @@ class RequireTestFileSniff implements Sniff
 
     public string $testDirectory = 'tests';
 
-    public string $testPathTemplate = '{path}/{name}Test.php';
+    public array|string $testPathTemplate = [
+        '{path}/{name}Test.php',
+        '*/{path}/{name}Test.php',
+    ];
 
     public array $excludePatterns = [];
 
@@ -42,9 +45,12 @@ class RequireTestFileSniff implements Sniff
             return;
         }
 
-        $pattern = $this->expectedTestPattern($segments, $sourceIndex);
+        $patterns = array_map(
+            fn (string $template): string => $this->testPattern($segments, $sourceIndex, $template),
+            (array) $this->testPathTemplate
+        );
 
-        if ($this->hasMatch($pattern) === true) {
+        if ($this->hasMatch($patterns) === true) {
             return;
         }
 
@@ -58,7 +64,7 @@ class RequireTestFileSniff implements Sniff
             'Missing',
             [
                 basename($path),
-                $pattern,
+                implode(' or ', $patterns),
             ]
         );
     }
@@ -94,10 +100,10 @@ class RequireTestFileSniff implements Sniff
         return $matches === [] ? null : (int) end($matches);
     }
 
-    private function expectedTestPattern(array $segments, int $sourceIndex): string
+    private function testPattern(array $segments, int $sourceIndex, string $template): string
     {
         $relativeDirectory = implode('/', array_slice($segments, ($sourceIndex + 1), -1));
-        $expected = strtr($this->testPathTemplate, [
+        $expected = strtr($template, [
             '{path}' => $this->quoteGlob($relativeDirectory),
             '{name}' => $this->quoteGlob(pathinfo(end($segments), PATHINFO_FILENAME)),
         ]);
@@ -117,8 +123,8 @@ class RequireTestFileSniff implements Sniff
         ]);
     }
 
-    private function hasMatch(string $pattern): bool
+    private function hasMatch(array $patterns): bool
     {
-        return (bool) glob($pattern);
+        return array_filter($patterns, fn (string $pattern): bool => (bool) glob($pattern)) !== [];
     }
 }

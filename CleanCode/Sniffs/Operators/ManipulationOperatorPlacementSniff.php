@@ -184,11 +184,11 @@ class ManipulationOperatorPlacementSniff implements Sniff
         }
 
         $introducer = $phpcsFile->findPrevious(
-            Tokens::$emptyTokens,
-            ($tokens[$closer]['bracket_opener'] - 1),
-            null,
-            true
-        );
+                Tokens::$emptyTokens,
+                ($tokens[$closer]['bracket_opener'] - 1),
+                null,
+                true
+            );
 
         return $introducer !== false
             && in_array($tokens[$introducer]['code'], self::CURLY_DEREFERENCE_INTRODUCERS, true) === true;

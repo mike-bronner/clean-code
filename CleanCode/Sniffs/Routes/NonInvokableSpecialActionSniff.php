@@ -116,13 +116,13 @@ class NonInvokableSpecialActionSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'A special action route should point to an invokable controller; this one targets'
-                . ' %s() on a shared controller (see'
-                . ' resources/boost/guidelines/routes-conventions-do-do-not.md)',
-            $start,
-            'Found',
-            [$method]
-        );
+                'A special action route should point to an invokable controller; this one targets'
+                    . ' %s() on a shared controller (see'
+                    . ' resources/boost/guidelines/routes-conventions-do-do-not.md)',
+                $start,
+                'Found',
+                [$method]
+            );
     }
 
     private function isRouteFile(string $path): bool
@@ -183,9 +183,9 @@ class NonInvokableSpecialActionSniff implements Sniff
         }
 
         $arguments = array_map(
-            fn (array $range): array => $this->labelledArgument($phpcsFile, $range[0], $range[1]),
-            $this->argumentRanges($phpcsFile, $openPtr)
-        );
+                fn (array $range): array => $this->labelledArgument($phpcsFile, $range[0], $range[1]),
+                $this->argumentRanges($phpcsFile, $openPtr)
+            );
 
         foreach ($arguments as $argument) {
             if ($argument['label'] === self::ACTION_PARAMETER) {
@@ -194,8 +194,8 @@ class NonInvokableSpecialActionSniff implements Sniff
         }
 
         $positional = array_values(
-            array_filter($arguments, static fn (array $argument): bool => $argument['label'] === null)
-        );
+                array_filter($arguments, static fn (array $argument): bool => $argument['label'] === null)
+            );
         $action = $positional[$position - 1] ?? null;
 
         return $action === null ? null : [$action['start'], $action['end']];
@@ -397,17 +397,17 @@ class NonInvokableSpecialActionSniff implements Sniff
 
         if ($content[0] === "'") {
             return preg_replace_callback(
-                '/\\\\(.)/s',
-                static fn (array $match): string => self::SINGLE_QUOTED_ESCAPES[$match[1]] ?? $match[0],
-                $body
-            ) ?? $body;
+                    '/\\\\(.)/s',
+                    static fn (array $match): string => self::SINGLE_QUOTED_ESCAPES[$match[1]] ?? $match[0],
+                    $body
+                ) ?? $body;
         }
 
         return preg_replace_callback(
-            '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
-            fn (array $match): string => $this->unescaped($match[1], $match[0]),
-            $body
-        ) ?? $body;
+                '/\\\\([xX][0-9A-Fa-f]{1,2}|[0-7]{1,3}|.)/s',
+                fn (array $match): string => $this->unescaped($match[1], $match[0]),
+                $body
+            ) ?? $body;
     }
 
     private function unescaped(string $sequence, string $written): string

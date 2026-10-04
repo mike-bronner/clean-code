@@ -34,11 +34,11 @@ class NoFormatterDirectivesSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Auto-formatter directive %s must not be committed; correct style by hand instead',
-            $stackPtr,
-            'Found',
-            [$directive]
-        );
+                'Auto-formatter directive %s must not be committed; correct style by hand instead',
+                $stackPtr,
+                'Found',
+                [$directive]
+            );
     }
 
     private function directiveIn(string $content): ?string

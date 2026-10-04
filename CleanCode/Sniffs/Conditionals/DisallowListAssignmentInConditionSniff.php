@@ -41,10 +41,10 @@ class DisallowListAssignmentInConditionSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Variable assignment found within a condition. Did you mean to do a comparison ?',
-            $assignment,
-            'Found'
-        );
+                'Variable assignment found within a condition. Did you mean to do a comparison ?',
+                $assignment,
+                'Found'
+            );
     }
 
     private function isInsideCondition(File $phpcsFile, int $stackPtr): bool

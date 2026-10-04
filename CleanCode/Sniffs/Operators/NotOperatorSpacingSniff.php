@@ -52,11 +52,11 @@ class NotOperatorSpacingSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            "The not operator must sit flush against the preceding \"%s\"; found %s space(s)",
-            $stackPtr,
-            'SpaceBefore',
-            [$delimiter['content'], strlen($previous['content'])]
-        );
+                "The not operator must sit flush against the preceding \"%s\"; found %s space(s)",
+                $stackPtr,
+                'SpaceBefore',
+                [$delimiter['content'], strlen($previous['content'])]
+            );
 
         if ($fix === true) {
             $phpcsFile->fixer
@@ -75,10 +75,10 @@ class NotOperatorSpacingSniff implements Sniff
 
         if ($next['code'] !== T_WHITESPACE) {
             $fix = $phpcsFile->addFixableError(
-                'Expected 1 space after the not operator; 0 found',
-                $stackPtr,
-                'NoSpaceAfter'
-            );
+                    'Expected 1 space after the not operator; 0 found',
+                    $stackPtr,
+                    'NoSpaceAfter'
+                );
 
             if ($fix === true) {
                 $phpcsFile->fixer
@@ -94,11 +94,11 @@ class NotOperatorSpacingSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Expected 1 space after the not operator; %s found',
-            $stackPtr,
-            'TooMuchSpaceAfter',
-            [strlen($next['content'])]
-        );
+                'Expected 1 space after the not operator; %s found',
+                $stackPtr,
+                'TooMuchSpaceAfter',
+                [strlen($next['content'])]
+            );
 
         if ($fix === true) {
             $phpcsFile->fixer

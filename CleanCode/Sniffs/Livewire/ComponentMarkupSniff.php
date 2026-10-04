@@ -208,12 +208,12 @@ class ComponentMarkupSniff implements Sniff
         }
 
         $phpcsFile->addErrorOnLine(
-            'Livewire component root element <%s> carries the %s attribute; the root element must'
-                . ' have no Livewire, Blade, or Alpine attributes',
-            $this->lineAt($markup, $match[0][1]),
-            'RootElementAttributes',
-            [$match[1][0], $attribute]
-        );
+                'Livewire component root element <%s> carries the %s attribute; the root element must'
+                    . ' have no Livewire, Blade, or Alpine attributes',
+                $this->lineAt($markup, $match[0][1]),
+                'RootElementAttributes',
+                [$match[1][0], $attribute]
+            );
     }
 
     private function opensOnAComponent(string $markup, int $elementStart, int $componentStart): bool
@@ -284,11 +284,11 @@ class ComponentMarkupSniff implements Sniff
             }
 
             $phpcsFile->addErrorOnLine(
-                'Livewire component <%s> is rendered in a Blade loop without a wire:key attribute',
-                $tag['line'],
-                'MissingWireKeyInLoop',
-                [$tag['name']]
-            );
+                    'Livewire component <%s> is rendered in a Blade loop without a wire:key attribute',
+                    $tag['line'],
+                    'MissingWireKeyInLoop',
+                    [$tag['name']]
+                );
         }
     }
 
@@ -345,12 +345,12 @@ class ComponentMarkupSniff implements Sniff
 
         if (isset($templates[$wrapper]) === false) {
             $phpcsFile->addErrorOnLine(
-                'Livewire component %s is adjacent to another component and is not wrapped in a'
-                    . ' template tag carrying a wire:key attribute',
-                $tag['line'],
-                'AdjacentComponentNotWrapped',
-                [$tag['name']]
-            );
+                    'Livewire component %s is adjacent to another component and is not wrapped in a'
+                        . ' template tag carrying a wire:key attribute',
+                    $tag['line'],
+                    'AdjacentComponentNotWrapped',
+                    [$tag['name']]
+                );
 
             return;
         }
@@ -365,12 +365,12 @@ class ComponentMarkupSniff implements Sniff
         }
 
         $phpcsFile->addErrorOnLine(
-            'The template tag wrapping adjacent Livewire component %s must carry the same'
-                . ' wire:key as the component',
-            $tag['line'],
-            'TemplateKeyMismatch',
-            [$tag['name']]
-        );
+                'The template tag wrapping adjacent Livewire component %s must carry the same'
+                    . ' wire:key as the component',
+                $tag['line'],
+                'TemplateKeyMismatch',
+                [$tag['name']]
+            );
     }
 
     private function loopRegions(string $markup): array
@@ -410,11 +410,11 @@ class ComponentMarkupSniff implements Sniff
     private function componentTags(string $markup): array
     {
         $matched = preg_match_all(
-            self::COMPONENT_TAG,
-            $markup,
-            $matches,
-            PREG_OFFSET_CAPTURE | PREG_SET_ORDER
-        );
+                self::COMPONENT_TAG,
+                $markup,
+                $matches,
+                PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+            );
 
         if ($matched === false) {
             return [];
@@ -477,11 +477,11 @@ class ComponentMarkupSniff implements Sniff
     {
         $this->scanCounts['templateTags.reads']++;
         $matched = preg_match_all(
-            self::TEMPLATE_TAG,
-            $markup,
-            $matches,
-            PREG_OFFSET_CAPTURE | PREG_SET_ORDER
-        );
+                self::TEMPLATE_TAG,
+                $markup,
+                $matches,
+                PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+            );
 
         if ($matched === false) {
             return [];

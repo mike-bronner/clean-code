@@ -66,12 +66,12 @@ class OneThoughtPerLineSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            "Each line must express a single thought: at most one \"->\", \"?->\", or \"::\""
-                . ' access operator per line; split the chain onto separate lines or extract'
-                . ' an intermediate variable/attribute',
-            $stackPtr,
-            'MultipleAccessOperators'
-        );
+                "Each line must express a single thought: at most one \"->\", \"?->\", or \"::\""
+                    . ' access operator per line; split the chain onto separate lines or extract'
+                    . ' an intermediate variable/attribute',
+                $stackPtr,
+                'MultipleAccessOperators'
+            );
 
         if ($fix === false) {
             return;

@@ -147,11 +147,11 @@ class NoReflectionAccessSniff implements Sniff
     private function report(File $phpcsFile, int $stackPtr, string $name): void
     {
         $phpcsFile->addWarning(
-            'Reflection (%s) reaches a non-public member; test through the public API instead'
-                . ' (see resources/boost/guidelines/testing-guidelines.md)',
-            $stackPtr,
-            'Found',
-            [$name]
-        );
+                'Reflection (%s) reaches a non-public member; test through the public API instead'
+                    . ' (see resources/boost/guidelines/testing-guidelines.md)',
+                $stackPtr,
+                'Found',
+                [$name]
+            );
     }
 }

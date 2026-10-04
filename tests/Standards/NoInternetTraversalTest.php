@@ -16,46 +16,46 @@ const NO_INTERNET_TRAVERSAL_FIXTURES = 'NoInternetTraversalSniff';
 const NO_INTERNET_TRAVERSAL_SUITE = 'tests/Feature';
 
 $featurePath = static fn (string $fixture): string => stageFixtureOutsideTests(
-    fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, $fixture),
-    NO_INTERNET_TRAVERSAL_SUITE
-);
+        fixturePath(NO_INTERNET_TRAVERSAL_FIXTURES, $fixture),
+        NO_INTERNET_TRAVERSAL_SUITE
+    );
 
 $featureRun = static fn (string $fixture): LocalFile => analyzeWithSniffs(
-    [NO_INTERNET_TRAVERSAL],
-    $featurePath($fixture)
-);
+        [NO_INTERNET_TRAVERSAL],
+        $featurePath($fixture)
+    );
 
 $expectedWarnings = static fn (): array => array_map(
-    static fn (array $position): array => [
-        'line' => $position[0],
-        'column' => $position[1],
-        'source' => NO_INTERNET_TRAVERSAL_WARNING,
-    ],
-    [
-        [8, 11],
-        [9, 1],
-        [10, 11],
-        [11, 11],
-        [12, 11],
-        [13, 10],
-        [14, 9],
-        [15, 10],
-        [16, 11],
-        [17, 12],
-        [18, 17],
-        [19, 15],
-        [20, 16],
-        [21, 18],
-        [22, 19],
-        [23, 13],
-        [24, 14],
-        [25, 11],
-        [26, 11],
-        [27, 12],
-        [30, 11],
-        [33, 17],
-    ]
-);
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => NO_INTERNET_TRAVERSAL_WARNING,
+        ],
+        [
+            [8, 11],
+            [9, 1],
+            [10, 11],
+            [11, 11],
+            [12, 11],
+            [13, 10],
+            [14, 9],
+            [15, 10],
+            [16, 11],
+            [17, 12],
+            [18, 17],
+            [19, 15],
+            [20, 16],
+            [21, 18],
+            [22, 19],
+            [23, 13],
+            [24, 14],
+            [25, 11],
+            [26, 11],
+            [27, 12],
+            [30, 11],
+            [33, 17],
+        ]
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

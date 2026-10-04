@@ -41,13 +41,13 @@ class TooManyPublicMethodsSniff implements Sniff
         $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
-            'The class %s has %s public methods. Consider refactoring %s to keep the number of '
-                . 'public methods under %s '
-                . '(see resources/boost/guidelines/pattern-solid.md)',
-            $stackPtr,
-            'Found',
-            [$name, $count, $name, $threshold]
-        );
+                'The class %s has %s public methods. Consider refactoring %s to keep the number of '
+                    . 'public methods under %s '
+                    . '(see resources/boost/guidelines/pattern-solid.md)',
+                $stackPtr,
+                'Found',
+                [$name, $count, $name, $threshold]
+            );
     }
 
     private function countPublicMethods(File $phpcsFile, int $stackPtr): int

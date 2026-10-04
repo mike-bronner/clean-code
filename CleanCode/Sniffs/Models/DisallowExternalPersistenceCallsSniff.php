@@ -64,13 +64,13 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Generic Eloquent CRUD method %s() called on a receiver other than $this; '
-                . 'persistence belongs inside the model behind a descriptive method '
-                . '(see resources/boost/guidelines/'
-                . 'models-persistence-methods-repository-pattern.md)',
-            $methodPtr,
-            'Found',
-            [$tokens[$methodPtr]['content']]
-        );
+                'Generic Eloquent CRUD method %s() called on a receiver other than $this; '
+                    . 'persistence belongs inside the model behind a descriptive method '
+                    . '(see resources/boost/guidelines/'
+                    . 'models-persistence-methods-repository-pattern.md)',
+                $methodPtr,
+                'Found',
+                [$tokens[$methodPtr]['content']]
+            );
     }
 }

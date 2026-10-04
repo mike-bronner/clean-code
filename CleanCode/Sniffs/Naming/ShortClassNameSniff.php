@@ -35,18 +35,18 @@ class ShortClassNameSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Avoid classes with short names like %s. Configured minimum length is %s.',
-            $stackPtr,
-            'TooShort',
-            [$name, $this->minimum]
-        );
+                'Avoid classes with short names like %s. Configured minimum length is %s.',
+                $stackPtr,
+                'TooShort',
+                [$name, $this->minimum]
+            );
     }
 
     private function exceptionList(): array
     {
         return array_filter(
-            array_map('trim', explode(',', $this->exceptions)),
-            static fn (string $exception): bool => $exception !== ''
-        );
+                array_map('trim', explode(',', $this->exceptions)),
+                static fn (string $exception): bool => $exception !== ''
+            );
     }
 }

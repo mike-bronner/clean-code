@@ -168,9 +168,9 @@ it('receives null from PHPCS for an empty ruleset property', function (): void {
 
     expect($ruleset->sniffs[$sniffClass]->minimum)->toBeNull();
 })->skip(
-    method_exists(Ruleset::class, 'setSniffProperty') === false,
-    'This PHPCS release does not expose setSniffProperty().'
-);
+        method_exists(Ruleset::class, 'setSniffProperty') === false,
+        'This PHPCS release does not expose setSniffProperty().'
+    );
 
 it('falls back to the default minimum when the configured one is unusable', function (mixed $configured): void {
     $file = analyzeFixture(

@@ -55,21 +55,21 @@ class ApiControllerNamespaceSniff implements Sniff
 
         if ($pathIsApi === true) {
             $phpcsFile->addError(
-                'A controller under an API path segment must be declared in a namespace with a'
-                    . ' matching API segment, e.g. App\Http\Controllers\API',
-                $stackPtr,
-                'MissingApiNamespace'
-            );
+                    'A controller under an API path segment must be declared in a namespace with a'
+                        . ' matching API segment, e.g. App\Http\Controllers\API',
+                    $stackPtr,
+                    'MissingApiNamespace'
+                );
 
             return;
         }
 
         $phpcsFile->addError(
-            'A controller declared in an API namespace must live under a matching API path'
-                . ' segment; a view controller carries no API namespace segment',
-            $stackPtr,
-            'UnexpectedApiNamespace'
-        );
+                'A controller declared in an API namespace must live under a matching API path'
+                    . ' segment; a view controller carries no API namespace segment',
+                $stackPtr,
+                'UnexpectedApiNamespace'
+            );
     }
 
     private function segmentsBelowControllerRoot(array $segments): ?array

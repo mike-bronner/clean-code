@@ -13,8 +13,8 @@ const INLINE_FQN = 'SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly.Ref
 const INLINE_FQN_NO_NAMESPACE = INLINE_FQN . 'WithoutNamespace';
 
 $integrationFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
-    __DIR__ . '/fixtures/' . $fixture
-);
+        __DIR__ . '/fixtures/' . $fixture
+    );
 
 $shortOpenTagIsOn = (bool) ini_get('short_open_tag');
 

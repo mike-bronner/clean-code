@@ -36,11 +36,11 @@ class LongClassNameSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Name %s is %s characters long; keep it to %s or fewer',
-            $stackPtr,
-            'TooLong',
-            [$name, $length, $this->maximum]
-        );
+                'Name %s is %s characters long; keep it to %s or fewer',
+                $stackPtr,
+                'TooLong',
+                [$name, $length, $this->maximum]
+            );
     }
 
     private function lengthWithoutPrefixesAndSuffixes(string $name): int
@@ -69,8 +69,8 @@ class LongClassNameSniff implements Sniff
     private function splitToList(string $value): array
     {
         return array_filter(
-            array_map('trim', explode(',', $value)),
-            static fn (string $entry): bool => $entry !== ''
-        );
+                array_map('trim', explode(',', $value)),
+                static fn (string $entry): bool => $entry !== ''
+            );
     }
 }

@@ -44,11 +44,11 @@ class TooManyFieldsSniff implements Sniff
         $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
-            'The class %s has %s fields; consider redesigning it to keep the number of fields under %s',
-            $stackPtr,
-            'MaxExceeded',
-            [($name ?? '{anonymous}'), $fields, $threshold]
-        );
+                'The class %s has %s fields; consider redesigning it to keep the number of fields under %s',
+                $stackPtr,
+                'MaxExceeded',
+                [($name ?? '{anonymous}'), $fields, $threshold]
+            );
     }
 
     private function countFields(File $phpcsFile, int $classPtr): int
@@ -86,9 +86,9 @@ class TooManyFieldsSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $boundary = $phpcsFile->findPrevious(
-            [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
-            ($variablePtr - 1)
-        );
+                [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
+                ($variablePtr - 1)
+            );
         $start = ($boundary + 1);
 
         while (

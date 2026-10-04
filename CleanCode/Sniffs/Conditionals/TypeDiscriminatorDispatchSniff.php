@@ -102,10 +102,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         $subject = $this->discriminator($tokens, $this->significantTokens(
-            $phpcsFile,
-            $tokens[$stackPtr]['parenthesis_opener'] + 1,
-            $tokens[$stackPtr]['parenthesis_closer'] - 1
-        ));
+                $phpcsFile,
+                $tokens[$stackPtr]['parenthesis_opener'] + 1,
+                $tokens[$stackPtr]['parenthesis_closer'] - 1
+            ));
 
         if ($subject === null) {
             return;
@@ -121,11 +121,11 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            self::MESSAGE,
-            $stackPtr,
-            'SwitchDispatch',
-            [$branches, 'switch', $subject]
-        );
+                self::MESSAGE,
+                $stackPtr,
+                'SwitchDispatch',
+                [$branches, 'switch', $subject]
+            );
     }
 
     private function switchBranches(File $phpcsFile, int $stackPtr): ?int
@@ -201,11 +201,11 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            self::MESSAGE,
-            $stackPtr,
-            'IfChain',
-            [count($subjects), 'if/elseif chain', $subject]
-        );
+                self::MESSAGE,
+                $stackPtr,
+                'IfChain',
+                [count($subjects), 'if/elseif chain', $subject]
+            );
     }
 
     private function isChainHead(File $phpcsFile, int $stackPtr): bool
@@ -271,9 +271,9 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             }
 
             return $this->continuation(
-                $tokens,
-                $phpcsFile->findNext(Tokens::$emptyTokens, $closer + 1, null, true)
-            );
+                    $tokens,
+                    $phpcsFile->findNext(Tokens::$emptyTokens, $closer + 1, null, true)
+                );
         }
 
         return $this->bracelessNextClause($phpcsFile, $clausePtr);
@@ -288,11 +288,11 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         $pointer = $phpcsFile->findNext(
-            Tokens::$emptyTokens,
-            $tokens[$clausePtr]['parenthesis_closer'] + 1,
-            null,
-            true
-        );
+                Tokens::$emptyTokens,
+                $tokens[$clausePtr]['parenthesis_closer'] + 1,
+                null,
+                true
+            );
 
         $openDoBodies = 0;
         $this->scanCounts['bracelessNextClause.walks']++;
@@ -319,9 +319,9 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             if ($code === T_SEMICOLON) {
                 if ($openDoBodies === 0) {
                     return $this->continuation(
-                        $tokens,
-                        $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true)
-                    );
+                            $tokens,
+                            $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true)
+                        );
                 }
 
                 --$openDoBodies;
@@ -332,11 +332,11 @@ class TypeDiscriminatorDispatchSniff implements Sniff
             }
 
             $pointer = $phpcsFile->findNext(
-                Tokens::$emptyTokens,
-                $this->groupCloser($tokens, $pointer) + 1,
-                null,
-                true
-            );
+                    Tokens::$emptyTokens,
+                    $this->groupCloser($tokens, $pointer) + 1,
+                    null,
+                    true
+                );
         }
 
         return null;
@@ -389,10 +389,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         $condition = $this->significantTokens(
-            $phpcsFile,
-            $tokens[$clausePtr]['parenthesis_opener'] + 1,
-            $tokens[$clausePtr]['parenthesis_closer'] - 1
-        );
+                $phpcsFile,
+                $tokens[$clausePtr]['parenthesis_opener'] + 1,
+                $tokens[$clausePtr]['parenthesis_closer'] - 1
+            );
 
         $operators = [];
 
@@ -445,9 +445,9 @@ class TypeDiscriminatorDispatchSniff implements Sniff
         }
 
         return implode('', array_map(
-            static fn (int $pointer): string => $tokens[$pointer]['content'],
-            $pointers
-        ));
+                static fn (int $pointer): string => $tokens[$pointer]['content'],
+                $pointers
+            ));
     }
 
     private function isScalarLiteral(array $tokens, array $pointers): bool

@@ -63,12 +63,12 @@ class DisallowMagicNumbersSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Magic number %s is not searchable; name it with a constant '
-                . '(see resources/boost/guidelines/naming-semantic-naming-principles.md)',
-            $stackPtr,
-            'Found',
-            [$literal]
-        );
+                'Magic number %s is not searchable; name it with a constant '
+                    . '(see resources/boost/guidelines/naming-semantic-naming-principles.md)',
+                $stackPtr,
+                'Found',
+                [$literal]
+            );
     }
 
     private function isDeclarationSite(File $phpcsFile, int $stackPtr): bool
@@ -119,15 +119,15 @@ class DisallowMagicNumbersSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         $statementStart = $phpcsFile->findPrevious(
-            [
-                T_CONST,
-                T_SEMICOLON,
-                T_OPEN_CURLY_BRACKET,
-                T_CLOSE_CURLY_BRACKET,
-                T_OPEN_TAG,
-            ],
-            ($stackPtr - 1)
-        );
+                [
+                    T_CONST,
+                    T_SEMICOLON,
+                    T_OPEN_CURLY_BRACKET,
+                    T_CLOSE_CURLY_BRACKET,
+                    T_OPEN_TAG,
+                ],
+                ($stackPtr - 1)
+            );
 
         return $statementStart !== false && $tokens[$statementStart]['code'] === T_CONST;
     }

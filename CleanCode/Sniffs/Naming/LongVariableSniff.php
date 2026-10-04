@@ -71,24 +71,24 @@ class LongVariableSniff implements Sniff
         }
 
         $candidates = $this->collect(
-            $phpcsFile,
-            $tokens[$stackPtr]['scope_opener'] + 1,
-            $tokens[$stackPtr]['scope_closer']
-        );
+                $phpcsFile,
+                $tokens[$stackPtr]['scope_opener'] + 1,
+                $tokens[$stackPtr]['scope_closer']
+            );
 
         return array_values(array_filter(
-            $candidates,
-            fn (int $variablePtr): bool => $this->isPropertyDeclaration($phpcsFile, $variablePtr)
-        ));
+                $candidates,
+                fn (int $variablePtr): bool => $this->isPropertyDeclaration($phpcsFile, $variablePtr)
+            ));
     }
 
     private function isPropertyDeclaration(File $phpcsFile, int $variablePtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $boundary = $phpcsFile->findPrevious(
-            [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
-            $variablePtr - 1
-        );
+                [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
+                $variablePtr - 1
+            );
         $start = $boundary + 1;
 
         while (
@@ -115,20 +115,20 @@ class LongVariableSniff implements Sniff
         }
 
         $parameters = $this->collect(
-            $phpcsFile,
-            $tokens[$stackPtr]['parenthesis_opener'] + 1,
-            $tokens[$stackPtr]['parenthesis_closer']
-        );
+                $phpcsFile,
+                $tokens[$stackPtr]['parenthesis_opener'] + 1,
+                $tokens[$stackPtr]['parenthesis_closer']
+            );
 
         if (isset($tokens[$stackPtr]['scope_opener'], $tokens[$stackPtr]['scope_closer']) === false) {
             return $parameters;
         }
 
         $body = $this->collect(
-            $phpcsFile,
-            $tokens[$stackPtr]['scope_opener'] + 1,
-            $tokens[$stackPtr]['scope_closer']
-        );
+                $phpcsFile,
+                $tokens[$stackPtr]['scope_opener'] + 1,
+                $tokens[$stackPtr]['scope_closer']
+            );
 
         $declarations = [];
         $plain = [];
@@ -211,11 +211,11 @@ class LongVariableSniff implements Sniff
             }
 
             $phpcsFile->addError(
-                'Name %s is %s characters long; keep it to %s or fewer',
-                $stackPtr,
-                'TooLong',
-                [$name, $length, $this->maximum]
-            );
+                    'Name %s is %s characters long; keep it to %s or fewer',
+                    $stackPtr,
+                    'TooLong',
+                    [$name, $length, $this->maximum]
+                );
         }
     }
 
@@ -263,8 +263,8 @@ class LongVariableSniff implements Sniff
     private function splitToList(string $value): array
     {
         return array_filter(
-            array_map('trim', explode(',', $value)),
-            static fn (string $entry): bool => $entry !== ''
-        );
+                array_map('trim', explode(',', $value)),
+                static fn (string $entry): bool => $entry !== ''
+            );
     }
 }

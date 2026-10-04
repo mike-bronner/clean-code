@@ -193,10 +193,10 @@ function cacheCountsDelta(array $before, array $after): array
 function analyzeFixture(string $sniffCode, string $fixture, ?callable $configure = null): LocalFile
 {
     return analyzeWithSniffs(
-        [$sniffCode],
-        fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
-        $configure
-    );
+            [$sniffCode],
+            fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
+            $configure
+        );
 }
 
 function analyzeProjectFixture(
@@ -243,10 +243,10 @@ function analyzeFixtureWithRulesetProperties(
     }
 
     $file = new LocalFile(
-        fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
-        $ruleset,
-        $config
-    );
+            fixturePath(sniffFixtureDirectory($sniffCode), $fixture),
+            $ruleset,
+            $config
+        );
     $file->process();
 
     return $file;
@@ -355,10 +355,10 @@ function installedPhpcsRun(string $standard, string $path, array $extraArguments
     }
 
     $arguments = array_merge(
-        [PHP_BINARY, $binary, '--standard=' . $standard],
-        $extraArguments,
-        ['--report=json', '--no-cache', $path]
-    );
+            [PHP_BINARY, $binary, '--standard=' . $standard],
+            $extraArguments,
+            ['--report=json', '--no-cache', $path]
+        );
     [$stdout, $stderr, $status] = runOutsidePackage(implode(' ', array_map('escapeshellarg', $arguments)));
 
     $decoded = json_decode($stdout, true);
@@ -384,8 +384,8 @@ function installedStandardNames(): array
     }
 
     [$stdout, $stderr, $status] = runOutsidePackage(
-        implode(' ', array_map('escapeshellarg', [PHP_BINARY, $binary, '-i']))
-    );
+            implode(' ', array_map('escapeshellarg', [PHP_BINARY, $binary, '-i']))
+        );
 
     if ($status !== 0 || preg_match('/^The installed coding standards are (.+?)\.?\s*$/', $stdout, $matches) !== 1) {
         throw new RuntimeException("phpcs -i listed no standards; stdout: {$stdout} stderr: {$stderr}");
@@ -673,10 +673,10 @@ function stageThrowawayPhpcsInstall(): string
     }
 
     $entries = new RecursiveCallbackFilterIterator(
-        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
-        static fn (SplFileInfo $entry, string $key, RecursiveDirectoryIterator $directory): bool
-            => in_array($directory->getSubPathname(), ['tests', 'CodeSniffer.conf'], true) === false
-    );
+            new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+            static fn (SplFileInfo $entry, string $key, RecursiveDirectoryIterator $directory): bool
+                => in_array($directory->getSubPathname(), ['tests', 'CodeSniffer.conf'], true) === false
+        );
     $offset = strlen($source) + 1;
 
     foreach (new RecursiveIteratorIterator($entries, RecursiveIteratorIterator::SELF_FIRST) as $entry) {
@@ -695,10 +695,12 @@ function stageThrowawayPhpcsInstall(): string
         }
     }
 
+    $autoload = var_export(cleanCodeRoot() . '/vendor/autoload.php', true);
+
     file_put_contents(
-        $vendor . '/autoload.php',
-        '<?php' . "\n\n" . 'return require ' . var_export(cleanCodeRoot() . '/vendor/autoload.php', true) . ';' . "\n"
-    );
+            $vendor . '/autoload.php',
+            '<?php' . "\n\n" . 'return require ' . $autoload . ';' . "\n"
+        );
 
     return $install . '/bin/phpcs';
 }
@@ -962,10 +964,10 @@ function measuredNPathComplexities(LocalFile $file): array
 
     foreach (violationMessages($file) as $message) {
         $matched = preg_match(
-            '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
-            $message,
-            $matches
-        );
+                '/The (?:function|method) ([A-Za-z_0-9]+)\(\) has an NPath complexity of (\d+)/',
+                $message,
+                $matches
+            );
 
         if ($matched === 1) {
             $measured[$matches[1]] = (int) $matches[2];
@@ -978,9 +980,9 @@ function measuredNPathComplexities(LocalFile $file): array
 function parameterDeclarationFile(string $source): File
 {
     return analyzeStdinSource(
-        ['CleanCode.Metrics.TooManyFields'],
-        "<?php\n\ndeclare(strict_types=1);\n\n" . $source . "\n"
-    );
+            ['CleanCode.Metrics.TooManyFields'],
+            "<?php\n\ndeclare(strict_types=1);\n\n" . $source . "\n"
+        );
 }
 
 function parameterDeclarationPointer(File $file, string $name, int $occurrence = 1): int

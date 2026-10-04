@@ -63,12 +63,12 @@ class CouplingBetweenObjectsSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The %s has a coupling between objects value of %s.'
-                . ' Consider to reduce the number of dependencies under %s.',
-            $stackPtr,
-            'Found',
-            [$this->describe($phpcsFile, $stackPtr), $count, $maximum]
-        );
+                'The %s has a coupling between objects value of %s.'
+                    . ' Consider to reduce the number of dependencies under %s.',
+                $stackPtr,
+                'Found',
+                [$this->describe($phpcsFile, $stackPtr), $count, $maximum]
+            );
     }
 
     private function collectDependencies(File $phpcsFile, int $stackPtr): array

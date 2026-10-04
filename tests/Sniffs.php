@@ -5,6 +5,7 @@ declare(strict_types=1);
 const SWEPT_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Arrays.DuplicatedArrayKey',
+    'CleanCode.Classes.ClassDeclaration',
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.Classes.DisallowTypeIntrospection',
     'CleanCode.Classes.ExcessiveClassLength',
@@ -65,6 +66,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.WhiteSpace.BlankLines',
     'CleanCode.WhiteSpace.MultiLineStatementIndent',
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',
+    'CleanCode.WhiteSpace.ScopeClosingBrace',
     'Generic.CodeAnalysis.AssignmentInCondition',
     'Generic.ControlStructures.InlineControlStructure',
     'Generic.Files.LineLength',
@@ -113,6 +115,7 @@ const SWEPT_WARNING_SNIFFS = [
 
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
+    'CleanCode.Classes.ClassDeclaration',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',
@@ -132,6 +135,7 @@ const AUTOFIXABLE_SNIFFS = [
     'CleanCode.WhiteSpace.BlankLines',
     'CleanCode.WhiteSpace.MultiLineStatementIndent',
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',
+    'CleanCode.WhiteSpace.ScopeClosingBrace',
     'Generic.ControlStructures.InlineControlStructure',
     'SlevomatCodingStandard.Classes.RequireConstructorPropertyPromotion',
     'SlevomatCodingStandard.Exceptions.ReferenceThrowableOnly',

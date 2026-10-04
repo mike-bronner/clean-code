@@ -36,9 +36,9 @@ if (
 
 // Under-indented call arguments.
 doSomething(
-    $first,
-    $second
-);
+        $first,
+        $second
+    );
 
 // Un-indented concatenation continuation.
 $message = 'first part'
@@ -47,16 +47,16 @@ $message = 'first part'
 // Concatenation inside a call, indented as a sibling argument instead of a
 // continuation of the argument above it.
 report(
-    'a message long enough to run '
-        . 'onto a second line',
-    $context
-);
+        'a message long enough to run '
+            . 'onto a second line',
+        $context
+    );
 
 // Arithmetic continuation indented as a sibling operand.
 $total = calculate(
-    $first
-        + $second
-);
+        $first
+            + $second
+    );
 
 // Over-indented ternary branches.
 $label = $isActive
@@ -72,40 +72,40 @@ function combineParts(): string
 
 // A nested chain continuation at the wrong depth.
 run(
-    $builder
-        ->prepare()
-        ->execute()
-);
+        $builder
+            ->prepare()
+            ->execute()
+    );
 
 // A misaligned closing paren.
 doSomething(
-    $first,
-    $second
-);
+        $first,
+        $second
+    );
 
 // A misindented nested array inside a multi-line call.
 processData(
-    $input,
-    [
-        'flag' => true,
-        'mode' => 'strict',
-    ],
-);
+        $input,
+        [
+            'flag' => true,
+            'mode' => 'strict',
+        ],
+    );
 
 // An under-indented heredoc opener inside a multi-line call: the opener is
 // code, even though the body it introduces is not.
 run(
-    <<<SQL
+        <<<SQL
 SELECT *
 SQL,
-);
+    );
 
 // The same for a nowdoc.
 run(
-    <<<'TXT'
+        <<<'TXT'
 raw content
 TXT,
-);
+    );
 
 // An under-indented parameter after an attribute.
 #[Route('/away')]
@@ -127,9 +127,9 @@ function home(
 
 // A comment does not exempt the line after it.
 doSomething(
-    // a comment
-    $wronglyIndented,
-);
+        // a comment
+        $wronglyIndented,
+    );
 
 // An under-indented multi-line match subject.
 $secondLabel = match (
@@ -142,17 +142,17 @@ $secondLabel = match (
 // continuation of the line its `fn` sits on. The two anchors differ here, so
 // this fails unless T_FN_ARROW is read as a trailing operator.
 $incremented = array_map(
-    fn (int $value): int =>
-        $value + 1,
-    $numbers
-);
+        fn (int $value): int =>
+            $value + 1,
+        $numbers
+    );
 
 // The same arrow leading its line, at the sibling depth instead.
 $doubled = array_map(
-    fn ($value)
-        => $value * 2,
-    $numbers
-);
+        fn ($value)
+            => $value * 2,
+        $numbers
+    );
 
 // An arrow function at statement level with an un-indented body. Only the
 // `fn` exception in findStatementEnd() keeps the body inside the statement;
@@ -162,42 +162,42 @@ $callback = fn ($item) =>
 
 // An anonymous class body is skipped, but the argument after it is not.
 $adapted = array_map(
-    new class {
-        public function map($item)
-        {
-            return $item * 2;
-        }
-    },
-    $items
-);
+        new class {
+            public function map($item)
+            {
+                return $item * 2;
+            }
+        },
+        $items
+    );
 
 // Only the *tail* lines of a multi-line string are content: the opening
 // fragment is the argument, and an under-indented one still reports.
 report(
-    "a message that runs
+        "a message that runs
 across two lines",
-    $context
-);
+        $context
+    );
 
 // The other two chain operators at the sibling depth instead of hanging below
 // the receiver's own line.
 run(
-    $user
-        ?->getProfile()
-);
+        $user
+            ?->getProfile()
+    );
 
 run(
-    SomeFactory
-        ::make('first')
-);
+        SomeFactory
+            ::make('first')
+    );
 
 // A nested index access anchored on the call around it instead of on its own
 // bracket.
 processData(
-    $data[
-        $key
-    ]
-);
+        $data[
+            $key
+        ]
+    );
 
 // The keyword boolean operators are siblings of the first condition, so one
 // level deeper than it is wrong for them too.
@@ -213,25 +213,25 @@ if (
 // `instanceof` indented as a sibling argument instead of a continuation of
 // the argument above it.
 check(
-    $subject
-        instanceof Probe,
-    $context
-);
+        $subject
+            instanceof Probe,
+        $context
+    );
 
 // An under-indented backtick opener: the opener is code, even though the body
 // it introduces is not.
 run(
-    `echo one
+        `echo one
 echo two`,
-);
+    );
 
 // Only the tail lines of an interpolated string are content: the opening
 // fragment is the argument, and an under-indented one still reports.
 report(
-    "a message that runs {$user->name}
+        "a message that runs {$user->name}
 across two lines",
-    $context
-);
+        $context
+    );
 
 // An under-indented member of an attribute group nested in a parameter list.
 function decorated(
@@ -245,8 +245,8 @@ function decorated(
 
 // A comment does not exempt the line it shares with code either.
 doSomething(
-    /* explains the flag */ $flag,
-);
+        /* explains the flag */ $flag,
+    );
 
 // Neither line of a comment that runs onto the line below reports here: a
 // comment line is never measured, and the code sharing the comment's tail line
@@ -254,27 +254,27 @@ doSomething(
 doSomething(
   /* explains the flag
      across two lines */ $first,
-);
+    );
 
 // A doc comment splits per physical line the same way, and reads the same.
 doSomething(
   /** explains the flag
    * across two lines */ $second,
-);
+    );
 
 // A whole one-line comment sitting below another opens and closes its own, so
 // the code after it is the line's own and still reports.
 doSomething(
 // a note that ends on its own line
-    /* explains the flag */ $third,
-);
+        /* explains the flag */ $third,
+    );
 
 // A null-coalescing continuation indented as a sibling argument instead.
 report(
-    $override
-        ?? $fallback,
-    $context
-);
+        $override
+            ?? $fallback,
+        $context
+    );
 
 // A wrapped key's leading `=>` at the sibling depth instead of the key's.
 $routes = [
@@ -285,11 +285,11 @@ $routes = [
 // A continuation below a line that opens inside a comment, at the sibling
 // depth instead of the comment's own.
 report(
-    /* explains the message
-       across two lines */ 'a message long enough to run '
-        . 'onto a second line',
-    $context
-);
+        /* explains the message
+           across two lines */ 'a message long enough to run '
+            . 'onto a second line',
+        $context
+    );
 
 // A statement starting on such a line, with its argument a level short of the
 // indent the comment's line sets.
@@ -297,8 +297,8 @@ function annotated(): void
 {
     /* explains the call
        across two lines */ report(
-        $context
-    );
+            $context
+        );
 }
 
 // A `||` operand a level deeper than the first condition, which is its sibling
@@ -313,19 +313,19 @@ if (
 // Ternary branches indented as sibling arguments instead of continuations of
 // the operand above them.
 report(
-    $isActive
-        ? 'active'
-        : 'inactive',
-    $context
-);
+        $isActive
+            ? 'active'
+            : 'inactive',
+        $context
+    );
 
 // An argument of a nested call anchored on the statement's line instead of on
 // the call that opens it.
 outer(
-    inner(
-        $value
-    )
-);
+        inner(
+                $value
+            )
+    );
 
 // A grouped `use` whose closing brace is indented as though it were one of the
 // names it closes over, rather than matching the line the group opens on.

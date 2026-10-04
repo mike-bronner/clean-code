@@ -189,12 +189,12 @@ class NoLogicSniff implements Sniff
                 && $this->isParentConstructorCall($phpcsFile, $statementStart, $statementEnd) === false
             ) {
                 $phpcsFile->addError(
-                    'Constructors must contain no logic, only property assignments; move this'
-                        . ' statement '
-                        . 'into a named constructor, factory, or collaborator',
-                    $statementStart,
-                    'LogicFound'
-                );
+                        'Constructors must contain no logic, only property assignments; move this'
+                            . ' statement '
+                            . 'into a named constructor, factory, or collaborator',
+                        $statementStart,
+                        'LogicFound'
+                    );
             }
 
             $statementStart = $phpcsFile->findNext(Tokens::$emptyTokens, ($statementEnd + 1), $closer, true);
@@ -435,11 +435,11 @@ class NoLogicSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
 
         $after = $phpcsFile->findNext(
-            Tokens::$emptyTokens,
-            ($tokens[$open]['parenthesis_closer'] + 1),
-            ($end + 1),
-            true
-        );
+                Tokens::$emptyTokens,
+                ($tokens[$open]['parenthesis_closer'] + 1),
+                ($end + 1),
+                true
+            );
 
         return $after === false || $tokens[$after]['code'] === T_SEMICOLON;
     }

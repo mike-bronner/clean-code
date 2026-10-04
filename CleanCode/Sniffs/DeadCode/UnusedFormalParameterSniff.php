@@ -146,13 +146,13 @@ class UnusedFormalParameterSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The %s never reads its parameter %s; remove it from the signature, or mark the '
-                . 'method as an override with #[\\Override] or @inheritdoc if the signature is '
-                . 'imposed from outside (see resources/boost/guidelines/no-dead-code.md)',
-            $parameter['token'],
-            'Found',
-            [$this->describe($phpcsFile, $stackPtr), $parameter['name']]
-        );
+                'The %s never reads its parameter %s; remove it from the signature, or mark the '
+                    . 'method as an override with #[\\Override] or @inheritdoc if the signature is '
+                    . 'imposed from outside (see resources/boost/guidelines/no-dead-code.md)',
+                $parameter['token'],
+                'Found',
+                [$this->describe($phpcsFile, $stackPtr), $parameter['name']]
+            );
     }
 
     private function isPromotedProperty(array $parameter): bool
@@ -396,10 +396,10 @@ class UnusedFormalParameterSniff implements Sniff
             }
 
             $queue = array_merge(
-                $queue,
-                $this->inheritedNames($phpcsFile, $pointer),
-                $this->traitNames($phpcsFile, $pointer)
-            );
+                    $queue,
+                    $this->inheritedNames($phpcsFile, $pointer),
+                    $this->traitNames($phpcsFile, $pointer)
+                );
         }
 
         return false;
@@ -408,10 +408,10 @@ class UnusedFormalParameterSniff implements Sniff
     private function inheritedNames(File $phpcsFile, int $classPtr): array
     {
         return $this->qualifiedNames(
-            $phpcsFile,
-            $classPtr,
-            $this->declaredAncestorNames($phpcsFile, $classPtr)
-        );
+                $phpcsFile,
+                $classPtr,
+                $this->declaredAncestorNames($phpcsFile, $classPtr)
+            );
     }
 
     private function declaredAncestorNames(File $phpcsFile, int $classPtr): array
@@ -441,10 +441,10 @@ class UnusedFormalParameterSniff implements Sniff
         $this->countCacheRead('traitNames', $classPtr, 'builds');
 
         $this->traitNames[$classPtr] = $this->qualifiedNames(
-            $phpcsFile,
-            $classPtr,
-            $this->usedTraitNames($phpcsFile, $classPtr)
-        );
+                $phpcsFile,
+                $classPtr,
+                $this->usedTraitNames($phpcsFile, $classPtr)
+            );
 
         return $this->traitNames[$classPtr];
     }
@@ -455,10 +455,10 @@ class UnusedFormalParameterSniff implements Sniff
         $namespace = $this->declarationNamespace[$classPtr] ?? '';
 
         return array_map(
-            static fn (string $name): string => $namespace . '\\'
-                . strtolower(substr((string) strrchr("\\{$name}", '\\'), 1)),
-            $names
-        );
+                static fn (string $name): string => $namespace . '\\'
+                    . strtolower(substr((string) strrchr("\\{$name}", '\\'), 1)),
+                $names
+            );
     }
 
     private function usedTraitNames(File $phpcsFile, int $classPtr): array
@@ -485,9 +485,9 @@ class UnusedFormalParameterSniff implements Sniff
                 && $this->enclosingClass($phpcsFile, $pointer) === $classPtr
             ) {
                 $names = array_merge(
-                    $names,
-                    $this->segmentNames($phpcsFile, $pointer + 1, $end, [T_COMMA])
-                );
+                        $names,
+                        $this->segmentNames($phpcsFile, $pointer + 1, $end, [T_COMMA])
+                    );
             }
 
             $pointer = $phpcsFile->findNext(T_USE, ($end === false ? $pointer : $end) + 1, $closer);

@@ -41,11 +41,11 @@ class InferredReturnTypeSniff implements Sniff
     {
         $name = (new Declarations())->name($phpcsFile, $stackPtr) ?? 'Closure';
         $fix = $phpcsFile->addFixableError(
-            "%s has no return type hint; \"%s\" follows from its own declaration",
-            $stackPtr,
-            'Inferable',
-            [$name, $type]
-        );
+                "%s has no return type hint; \"%s\" follows from its own declaration",
+                $stackPtr,
+                'Inferable',
+                [$name, $type]
+            );
 
         if ($fix === false) {
             return;

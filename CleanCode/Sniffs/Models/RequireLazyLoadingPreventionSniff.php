@@ -41,23 +41,23 @@ class RequireLazyLoadingPreventionSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            '%s does not enable Laravel\'s lazy-loading safety check; call '
-                . 'Model::preventLazyLoading() (or Model::shouldBeStrict()) so a missing '
-                . 'eager load fails loudly instead of running silent N+1 queries '
-                . '(see resources/boost/guidelines/models-eager-loading.md)',
-            $stackPtr,
-            'Missing',
-            [$name]
-        );
+                '%s does not enable Laravel\'s lazy-loading safety check; call '
+                    . 'Model::preventLazyLoading() (or Model::shouldBeStrict()) so a missing '
+                    . 'eager load fails loudly instead of running silent N+1 queries '
+                    . '(see resources/boost/guidelines/models-eager-loading.md)',
+                $stackPtr,
+                'Missing',
+                [$name]
+            );
     }
 
     private function isWatchedProvider(string $name): bool
     {
         return in_array(
-            strtolower($name),
-            array_map('strtolower', $this->serviceProviderClasses),
-            true
-        );
+                strtolower($name),
+                array_map('strtolower', $this->serviceProviderClasses),
+                true
+            );
     }
 
     private function hasPreventionCall(File $phpcsFile, int $classPtr): bool

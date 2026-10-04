@@ -23,6 +23,19 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         T_COMMA, T_SEMICOLON,
     ];
 
+    private const DATA_TOKENS = [
+        T_CONSTANT_ENCAPSED_STRING, T_DOUBLE_QUOTED_STRING,
+        T_LNUMBER, T_DNUMBER, T_TRUE, T_FALSE, T_NULL,
+        T_START_HEREDOC, T_HEREDOC, T_END_HEREDOC,
+        T_START_NOWDOC, T_NOWDOC, T_END_NOWDOC,
+        T_STRING, T_SELF, T_STATIC, T_PARENT,
+        T_DOUBLE_COLON, T_OBJECT_OPERATOR, T_DOUBLE_ARROW, T_STRING_CONCAT,
+    ];
+
+    private const STATEMENT_BOUNDARIES = [
+        T_OPEN_TAG, T_SEMICOLON, T_COLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET,
+    ];
+
     public $minimumLines = 5;
 
     public function register(): array
@@ -38,7 +51,7 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
         $tokens = $phpcsFile->getTokens();
         $minimumLines = max(1, (int) $this->minimumLines);
-        [$lineShapes, $anchors] = $this->summarizeCodeLines($tokens);
+        [$lineShapes, $anchors] = $this->summarizeCodeLines($phpcsFile);
 
         foreach ($this->findRepeatedBlocks($lineShapes, $minimumLines) as $block) {
             foreach ($block['starts'] as $position => $start) {
@@ -78,10 +91,14 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         return 'the blocks starting on lines ' . implode(', ', $lines) . ' and ' . $last;
     }
 
-    private function summarizeCodeLines(array $tokens): array
+    private function summarizeCodeLines(File $phpcsFile): array
     {
+        $tokens = $phpcsFile->getTokens();
         $ignored = Tokens::$emptyTokens + array_fill_keys(self::NON_CODE_TOKENS, true);
-        $delimiters = array_fill_keys(self::DELIMITER_TOKENS, true);
+        $dataOnly = array_fill_keys(
+            [...self::DELIMITER_TOKENS, ...self::DATA_TOKENS, ...NameTokens::QUALIFIED],
+            true
+        );
         $summaries = [];
         $line = null;
 
@@ -92,12 +109,16 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
             if ($token['line'] !== $line) {
                 $line = $token['line'];
-                $summaries[$line] = ['anchor' => $pointer, 'shape' => '', 'code' => false];
+                $summaries[$line] = [
+                    'anchor' => $pointer,
+                    'shape' => '',
+                    'code' => $this->opensStatement($phpcsFile, $pointer),
+                ];
             }
 
             $summaries[$line]['shape'] .= $this->shapeOf($token);
             $summaries[$line]['code'] = $summaries[$line]['code']
-                || isset($delimiters[$token['code']]) === false;
+                || isset($dataOnly[$token['code']]) === false;
         }
 
         $shapes = [];
@@ -114,6 +135,15 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
         }
 
         return [$lineShapes, $anchors];
+    }
+
+    private function opensStatement(File $phpcsFile, int $pointer): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($pointer - 1), null, true);
+
+        return in_array($tokens[$previous]['code'], self::STATEMENT_BOUNDARIES, true)
+            && in_array($tokens[$pointer]['code'], self::DELIMITER_TOKENS, true) === false;
     }
 
     private function shapeOf(array $token): string

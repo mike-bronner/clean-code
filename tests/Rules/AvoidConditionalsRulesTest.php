@@ -6,8 +6,8 @@ const USELESS_IF_CONDITION
     = 'SlevomatCodingStandard.ControlStructures.UselessIfConditionWithReturn.UselessIfCondition';
 
 $booleanReturnFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
-    fixturePath('_rulesets/AvoidConditionals', $fixture)
-);
+        fixturePath('_rulesets/AvoidConditionals', $fixture)
+    );
 
 it('wires the useless-if-condition sniff into the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

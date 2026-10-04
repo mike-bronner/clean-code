@@ -103,11 +103,11 @@ class DuplicatedArrayKeySniff implements Sniff
 
         if (isset($seen[$key]) === true) {
             $phpcsFile->addError(
-                'Duplicate array key %s overrides the entry on line %d; remove one of them',
-                $keyPtrs[0],
-                'Found',
-                [$this->describeKey($key), $seen[$key]]
-            );
+                    'Duplicate array key %s overrides the entry on line %d; remove one of them',
+                    $keyPtrs[0],
+                    'Found',
+                    [$this->describeKey($key), $seen[$key]]
+                );
 
             return;
         }

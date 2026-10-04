@@ -51,11 +51,11 @@ class DisallowRepositoryClassesSniff implements Sniff
 
         if ($this->hasRepositoryName($name) === true) {
             $phpcsFile->addWarning(
-                '%s %s names itself a repository: ' . self::REMEDY,
-                $stackPtr,
-                'Found',
-                [$keyword, $name]
-            );
+                    '%s %s names itself a repository: ' . self::REMEDY,
+                    $stackPtr,
+                    'Found',
+                    [$keyword, $name]
+                );
 
             return;
         }
@@ -67,11 +67,11 @@ class DisallowRepositoryClassesSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            '%s %s is declared in the %s namespace: ' . self::REMEDY,
-            $stackPtr,
-            'Found',
-            [$keyword, $name, $namespace]
-        );
+                '%s %s is declared in the %s namespace: ' . self::REMEDY,
+                $stackPtr,
+                'Found',
+                [$keyword, $name, $namespace]
+            );
     }
 
     private function hasRepositoryName(string $name): bool

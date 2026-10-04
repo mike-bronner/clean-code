@@ -93,11 +93,11 @@ class NoNullArgumentsSniff implements Sniff
 
         if ($this->isDispatchProvable($phpcsFile, $callee, $opener) === false) {
             $phpcsFile->addError(
-                self::MESSAGE . self::LATE_BOUND_CALL,
-                $stackPtr,
-                self::CODE,
-                [$name, $name]
-            );
+                    self::MESSAGE . self::LATE_BOUND_CALL,
+                    $stackPtr,
+                    self::CODE,
+                    [$name, $name]
+                );
 
             return;
         }
@@ -106,11 +106,11 @@ class NoNullArgumentsSniff implements Sniff
 
         if ($names === null) {
             $phpcsFile->addError(
-                self::MESSAGE . self::UNNAMEABLE_ARGUMENT,
-                $stackPtr,
-                self::CODE,
-                [$name, $name]
-            );
+                    self::MESSAGE . self::UNNAMEABLE_ARGUMENT,
+                    $stackPtr,
+                    self::CODE,
+                    [$name, $name]
+                );
 
             return;
         }

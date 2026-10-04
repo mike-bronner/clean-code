@@ -107,11 +107,11 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Do not branch on `instanceof`; declare the type in the parameter or property, '
-                . 'or move the behaviour onto the object',
-            $stackPtr,
-            'InstanceOf'
-        );
+                'Do not branch on `instanceof`; declare the type in the parameter or property, '
+                    . 'or move the behaviour onto the object',
+                $stackPtr,
+                'InstanceOf'
+            );
     }
 
     private function processIntrospectionFunction(File $phpcsFile, int $stackPtr): void
@@ -132,12 +132,12 @@ class DisallowTypeIntrospectionSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Do not branch on %s; declare the type in the parameter or property, '
-                . 'or move the behaviour onto the object',
-            $stackPtr,
-            'IntrospectionFunction',
-            ["{$name}()"]
-        );
+                'Do not branch on %s; declare the type in the parameter or property, '
+                    . 'or move the behaviour onto the object',
+                $stackPtr,
+                'IntrospectionFunction',
+                ["{$name}()"]
+            );
     }
 
     private function isGlobalCallAccountingForShadowing(File $phpcsFile, int $stackPtr): bool
@@ -162,10 +162,10 @@ class DisallowTypeIntrospectionSniff implements Sniff
         $this->shadowedNames ??= $this->buildShadowedNames($phpcsFile);
 
         return in_array(
-            strtolower($tokens[$stackPtr]['content']),
-            $this->shadowedNames,
-            true
-        ) === false;
+                strtolower($tokens[$stackPtr]['content']),
+                $this->shadowedNames,
+                true
+            ) === false;
     }
 
     private function isFirstClassCallable(File $phpcsFile, int $stackPtr): bool

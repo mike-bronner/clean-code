@@ -106,13 +106,13 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The class %s has %s children.'
-                . ' Consider to rebalance this class hierarchy to keep number of children under'
-                . ' %s.',
-            $stackPtr,
-            'Found',
-            [$name, $children, $minimum]
-        );
+                'The class %s has %s children.'
+                    . ' Consider to rebalance this class hierarchy to keep number of children under'
+                    . ' %s.',
+                $stackPtr,
+                'Found',
+                [$name, $children, $minimum]
+            );
     }
 
     private function reportOrdinalIndex(File $phpcsFile, int $stackPtr): void
@@ -126,11 +126,11 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Ordinal index: %s builds, %s reads over this file.',
-            $stackPtr,
-            'OrdinalIndex',
-            [$this->ordinalCounts['builds'], $this->ordinalCounts['reads']]
-        );
+                'Ordinal index: %s builds, %s reads over this file.',
+                $stackPtr,
+                'OrdinalIndex',
+                [$this->ordinalCounts['builds'], $this->ordinalCounts['reads']]
+            );
 
         $this->ordinalCounts = ['builds' => 0, 'reads' => 0];
     }
@@ -273,9 +273,9 @@ class NumberOfChildrenSniff implements Sniff
         }
 
         return array_merge(
-            $files,
-            $this->listedPaths(new FileList($phpcsFile->config, $phpcsFile->ruleset))
-        );
+                $files,
+                $this->listedPaths(new FileList($phpcsFile->config, $phpcsFile->ruleset))
+            );
     }
 
     private function listedPaths(FileList $listed): array

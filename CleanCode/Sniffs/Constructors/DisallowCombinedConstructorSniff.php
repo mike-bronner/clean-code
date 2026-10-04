@@ -393,14 +393,14 @@ class DisallowCombinedConstructorSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Reading the constructor\'s own argument list with %s() overloads __construct()'
-                . ' into several constructors; give each construction scenario its own named'
-                . ' constructor delegating to one primary constructor'
-                . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
-            $pointer,
-            'ArgumentCount',
-            [$functionCalls->calleeName($phpcsFile, $pointer)]
-        );
+                'Reading the constructor\'s own argument list with %s() overloads __construct()'
+                    . ' into several constructors; give each construction scenario its own named'
+                    . ' constructor delegating to one primary constructor'
+                    . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
+                $pointer,
+                'ArgumentCount',
+                [$functionCalls->calleeName($phpcsFile, $pointer)]
+            );
     }
 
     private function reportModeSwitch(File $phpcsFile, int $pointer, int $closer, array $parameters): void
@@ -427,28 +427,28 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         if ($typeTested) {
             $phpcsFile->addWarning(
-                'Branching on the runtime type of %s combines several constructors into'
-                    . ' __construct(); give each accepted type its own named constructor'
-                    . ' delegating to one primary constructor'
-                    . ' (see resources/boost/guidelines/'
-                    . 'constructors-primary-named-constructors.md)',
-                $pointer,
-                'TypeSwitch',
-                [$name]
-            );
+                    'Branching on the runtime type of %s combines several constructors into'
+                        . ' __construct(); give each accepted type its own named constructor'
+                        . ' delegating to one primary constructor'
+                        . ' (see resources/boost/guidelines/'
+                        . 'constructors-primary-named-constructors.md)',
+                    $pointer,
+                    'TypeSwitch',
+                    [$name]
+                );
 
             return;
         }
 
         $phpcsFile->addWarning(
-            'Branching on the mode flag %s combines several constructors into __construct();'
-                . ' give each mode its own named constructor delegating to one primary'
-                . ' constructor'
-                . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
-            $pointer,
-            'ModeFlag',
-            [$name]
-        );
+                'Branching on the mode flag %s combines several constructors into __construct();'
+                    . ' give each mode its own named constructor delegating to one primary'
+                    . ' constructor'
+                    . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
+                $pointer,
+                'ModeFlag',
+                [$name]
+            );
     }
 
     private function isTypeTested(File $phpcsFile, int $pointer): bool

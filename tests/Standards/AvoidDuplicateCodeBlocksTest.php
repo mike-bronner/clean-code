@@ -191,3 +191,60 @@ it('leaves its own source alone', function (): void {
     expect($file->numTokens)->toBeGreaterThan(0)
         ->and(warningTuples($file))->toBe([]);
 });
+
+it('leaves a run of literal data out of the comparison', function (string $fixture): void {
+    expect(warningTuples(analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, $fixture)))->toBe([]);
+})->with([
+    'flat literal arrays' => 'literal-arrays.php',
+    'relation key lists' => 'relation-keys.php',
+    'literal-only call chains' => 'literal-call-chain.php',
+    'heredoc, nowdoc and multi-line string bodies' => 'heredoc.php',
+]);
+
+it('treats every literal, name and string-body token as data', function (): void {
+    $file = analyzeFixture(
+        AVOID_DUPLICATE_CODE_BLOCKS,
+        'data-kinds.php',
+        static function (object $sniff): void {
+            $sniff->minimumLines = '1';
+        }
+    );
+
+    expect(warningTuples($file))->toBe([]);
+});
+
+it('still reports logic that literal lines sit between', function (): void {
+    $file = analyzeFixture(AVOID_DUPLICATE_CODE_BLOCKS, 'mixed-logic.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 16, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 31, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+    ])
+        ->and($file->getWarnings()[16][5][0]['message'])
+        ->toContain('through line 26, is near-identical to the block starting on line 31')
+        ->and($file->getWarnings()[31][5][0]['message'])
+        ->toContain('through line 43, is near-identical to the block starting on line 16');
+});
+
+it('still compares a call that opens a statement', function (): void {
+    $file = analyzeFixture(
+        AVOID_DUPLICATE_CODE_BLOCKS,
+        'statement-calls.php',
+        static function (object $sniff): void {
+            $sniff->minimumLines = '1';
+        }
+    );
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 1, 'column' => 7, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 2, 'column' => 7, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 19, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 24, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 30, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 33, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 41, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 45, 'column' => 5, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 52, 'column' => 13, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+        ['line' => 55, 'column' => 13, 'source' => AVOID_DUPLICATE_CODE_BLOCKS . '.Found'],
+    ]);
+});

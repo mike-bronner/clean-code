@@ -14,11 +14,11 @@ class OperatorLineBreakSniff implements Sniff
     public function register(): array
     {
         return array_merge(
-            array_values(Tokens::$assignmentTokens),
-            array_values(Tokens::$comparisonTokens),
-            array_values(Tokens::$booleanOperators),
-            [T_STRING_CONCAT]
-        );
+                array_values(Tokens::$assignmentTokens),
+                array_values(Tokens::$comparisonTokens),
+                array_values(Tokens::$booleanOperators),
+                [T_STRING_CONCAT]
+            );
     }
 
     public function process(File $phpcsFile, int $stackPtr): void
@@ -40,11 +40,11 @@ class OperatorLineBreakSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            "A \"%s\" operator must not end a line; place it at the start of the continuation line instead",
-            $stackPtr,
-            'OperatorAtLineEnd',
-            [$tokens[$stackPtr]['content']]
-        );
+                "A \"%s\" operator must not end a line; place it at the start of the continuation line instead",
+                $stackPtr,
+                'OperatorAtLineEnd',
+                [$tokens[$stackPtr]['content']]
+            );
 
         if ($fix === false) {
             return;

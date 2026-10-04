@@ -11,6 +11,11 @@ All code style must adhere to the following PHP standards:
   files and lines, declare statements, namespace and import formatting,
   classes, properties, methods, control structures, operators, and closures.
 
+One departure from PSR-12 follows PER Coding Style 2.0: a class, interface,
+trait or enum with an empty body may write it as `{}` on the declaration line,
+one space after the declaration. A body that holds anything, a comment
+included, keeps both braces on their own lines.
+
 ## Compliant
 
 ```php
@@ -29,6 +34,16 @@ class Invoice
 }
 ```
 
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Billing;
+
+class LegacyInvoice extends Invoice {}
+```
+
 ## Non-compliant
 
 ```php
@@ -37,12 +52,15 @@ namespace App\Billing;
 class invoice {
     function Total() { return $this->subtotal; }
 }
+class Draft extends invoice { /* not used yet */ }
 ```
 
 ## Enforcement
 
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
+| `CleanCode.Classes.ClassDeclaration` | yes |
+| `CleanCode.WhiteSpace.ScopeClosingBrace` | yes |
 | `Generic.ControlStructures.InlineControlStructure` | yes |
 | `Generic.Files.ByteOrderMark` | no |
 | `Generic.Files.LineEndings` | yes |
@@ -62,7 +80,6 @@ class invoice {
 | `PSR1.Classes.ClassDeclaration` | no |
 | `PSR1.Files.SideEffects` | no |
 | `PSR1.Methods.CamelCapsMethodName` | no |
-| `PSR2.Classes.ClassDeclaration` | yes |
 | `PSR2.Classes.PropertyDeclaration` | yes |
 | `PSR2.ControlStructures.ElseIfDeclaration` | yes |
 | `PSR2.ControlStructures.SwitchDeclaration` | yes |
@@ -99,6 +116,5 @@ class invoice {
 | `Squiz.Scope.MethodScope` | no |
 | `Squiz.WhiteSpace.CastSpacing` | yes |
 | `Squiz.WhiteSpace.ControlStructureSpacing` | yes |
-| `Squiz.WhiteSpace.ScopeClosingBrace` | yes |
 | `Squiz.WhiteSpace.ScopeKeywordSpacing` | yes |
 | `Squiz.WhiteSpace.SuperfluousWhitespace` | yes |

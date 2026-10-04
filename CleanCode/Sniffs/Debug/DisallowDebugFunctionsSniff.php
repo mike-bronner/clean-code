@@ -46,10 +46,10 @@ class DisallowDebugFunctionsSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Debug function %s() must not be committed',
-            $stackPtr,
-            'Found',
-            [$name]
-        );
+                'Debug function %s() must not be committed',
+                $stackPtr,
+                'Found',
+                [$name]
+            );
     }
 }

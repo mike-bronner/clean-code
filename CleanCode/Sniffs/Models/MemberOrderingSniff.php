@@ -102,12 +102,12 @@ class MemberOrderingSniff implements Sniff
 
             if (count($names) > 1) {
                 $phpcsFile->addError(
-                    'Each trait needs its own use statement; this one declares %d '
-                        . '(see resources/boost/guidelines/models-organization.md)',
-                    $ptr,
-                    'MultipleTraitsPerLine',
-                    [count($names)]
-                );
+                        'Each trait needs its own use statement; this one declares %d '
+                            . '(see resources/boost/guidelines/models-organization.md)',
+                        $ptr,
+                        'MultipleTraitsPerLine',
+                        [count($names)]
+                    );
             }
 
             [$namePtr, $name] = $names[0];
@@ -117,12 +117,12 @@ class MemberOrderingSniff implements Sniff
                 && strcasecmp($name, $previousName) < 0
             ) {
                 $phpcsFile->addError(
-                    'Trait %s is out of alphabetical order; it belongs before %s '
-                        . '(see resources/boost/guidelines/models-organization.md)',
-                    $namePtr,
-                    'TraitOrder',
-                    [$name, $previousName]
-                );
+                        'Trait %s is out of alphabetical order; it belongs before %s '
+                            . '(see resources/boost/guidelines/models-organization.md)',
+                        $namePtr,
+                        'TraitOrder',
+                        [$name, $previousName]
+                    );
             }
 
             $previousName = $name;
@@ -206,13 +206,13 @@ class MemberOrderingSniff implements Sniff
                 && $rank < $previousRank
             ) {
                 $phpcsFile->addError(
-                    'Property $%s is %s and follows a %s property; list properties '
-                        . 'public, then protected, then private '
-                        . '(see resources/boost/guidelines/models-organization.md)',
-                    $ptr,
-                    'PropertyGroupOrder',
-                    [$name, $scope, array_search($previousRank, self::VISIBILITY_RANKS, true)]
-                );
+                        'Property $%s is %s and follows a %s property; list properties '
+                            . 'public, then protected, then private '
+                            . '(see resources/boost/guidelines/models-organization.md)',
+                        $ptr,
+                        'PropertyGroupOrder',
+                        [$name, $scope, array_search($previousRank, self::VISIBILITY_RANKS, true)]
+                    );
             }
 
             if (
@@ -221,12 +221,12 @@ class MemberOrderingSniff implements Sniff
                 && strcasecmp($name, $previousName) < 0
             ) {
                 $phpcsFile->addError(
-                    'Property $%s is out of alphabetical order; it belongs before $%s '
-                        . '(see resources/boost/guidelines/models-organization.md)',
-                    $ptr,
-                    'PropertyOrder',
-                    [$name, $previousName]
-                );
+                        'Property $%s is out of alphabetical order; it belongs before $%s '
+                            . '(see resources/boost/guidelines/models-organization.md)',
+                        $ptr,
+                        'PropertyOrder',
+                        [$name, $previousName]
+                    );
             }
 
             $previousName = $name;
@@ -238,9 +238,9 @@ class MemberOrderingSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $boundary = $phpcsFile->findPrevious(
-            [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
-            ($variablePtr - 1)
-        );
+                [T_SEMICOLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET],
+                ($variablePtr - 1)
+            );
 
         if ($boundary === false) {
             return false;
@@ -294,12 +294,12 @@ class MemberOrderingSniff implements Sniff
                 && strcasecmp($name, $previousName) < 0
             ) {
                 $phpcsFile->addError(
-                    '%s %s() is out of alphabetical order; it belongs before %s() '
-                        . '(see resources/boost/guidelines/models-organization.md)',
-                    $namePtr,
-                    $category,
-                    [$this->categoryLabel($category), $name, $previousName]
-                );
+                        '%s %s() is out of alphabetical order; it belongs before %s() '
+                            . '(see resources/boost/guidelines/models-organization.md)',
+                        $namePtr,
+                        $category,
+                        [$this->categoryLabel($category), $name, $previousName]
+                    );
             }
 
             $previousNames[$category] = $name;

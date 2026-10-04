@@ -188,10 +188,10 @@ class ManualModelResolutionSniff implements Sniff
     {
         $classPtr = $this->innermostConditionPointer($phpcsFile, $functionPtr, self::CLASS_SCOPES);
         $enclosingPtr = $this->innermostConditionPointer(
-            $phpcsFile,
-            $functionPtr,
-            self::FUNCTION_SCOPES
-        );
+                $phpcsFile,
+                $functionPtr,
+                self::FUNCTION_SCOPES
+            );
 
         return match ($classPtr) {
             null => false,
@@ -205,9 +205,9 @@ class ManualModelResolutionSniff implements Sniff
 
         foreach ($types as $type) {
             $innermost = max(
-                $innermost,
-                $this->conditionPointer($phpcsFile, $stackPtr, $type) ?? self::NO_POINTER
-            );
+                    $innermost,
+                    $this->conditionPointer($phpcsFile, $stackPtr, $type) ?? self::NO_POINTER
+                );
         }
 
         return match ($innermost) {

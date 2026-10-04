@@ -39,7 +39,7 @@
         }
     },
     "scripts": {
-        "lint": "phpcs --standard=PSR12 --extensions=php --ignore=*/fixtures/* CleanCode tests",
+        "lint": "phpcs --standard=phpcs.lint.xml",
         "lint:self": "phpcs --standard=phpcs.self.xml",
         "test": "pest"
     }

@@ -13,9 +13,9 @@ const PROCEDURAL_STATEMENT = PROCEDURAL . '.ProceduralStatement';
 const PROCEDURAL_DECLARATIONS = PROCEDURAL . '.MultipleDeclarations';
 
 $sourceRun = static fn (string $fixture, string $subdirectory = 'src') => analyzeWithSniffs(
-    [PROCEDURAL],
-    stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', $fixture), $subdirectory)
-);
+        [PROCEDURAL],
+        stageFixtureOutsideTests(fixturePath('NoProceduralCodeSniff', $fixture), $subdirectory)
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

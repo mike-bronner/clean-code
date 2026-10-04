@@ -36,20 +36,20 @@ class HtmlAttributeQuotesSniff implements Sniff
 
         if ($fixed === null) {
             $phpcsFile->addError(
-                'HTML attributes must use double quotes, not apostrophes; the value contains a'
-                    . ' double quote or a backslash, so convert this attribute manually',
-                $stackPtr,
-                'Apostrophe'
-            );
+                    'HTML attributes must use double quotes, not apostrophes; the value contains a'
+                        . ' double quote or a backslash, so convert this attribute manually',
+                    $stackPtr,
+                    'Apostrophe'
+                );
 
             return;
         }
 
         $fix = $phpcsFile->addFixableError(
-            'HTML attributes must use double quotes, not apostrophes',
-            $stackPtr,
-            'Apostrophe'
-        );
+                'HTML attributes must use double quotes, not apostrophes',
+                $stackPtr,
+                'Apostrophe'
+            );
 
         if ($fix === false) {
             return;
@@ -76,9 +76,9 @@ class HtmlAttributeQuotesSniff implements Sniff
         $unsafe = false;
 
         $rewritten = preg_replace_callback(
-            (new Markup())->tagSpanPattern(),
-            function (array $match) use ($apostrophe, $quote, &$unsafe): string {
-                $span = preg_replace_callback(
+                (new Markup())->tagSpanPattern(),
+                function (array $match) use ($apostrophe, $quote, &$unsafe): string {
+                    $span = preg_replace_callback(
                     $this->attributePattern($apostrophe),
                     function (array $attr) use ($quote, &$unsafe): string {
                         if ($this->isSafeToConvert($attr[2]) === false) {
@@ -90,18 +90,18 @@ class HtmlAttributeQuotesSniff implements Sniff
                         return "{$attr[1]}={$quote}{$attr[2]}{$quote}";
                     },
                     $match[0]
-                );
+                    );
 
-                if ($span === null) {
-                    $unsafe = true;
+                    if ($span === null) {
+                        $unsafe = true;
 
-                    return $match[0];
-                }
+                        return $match[0];
+                    }
 
-                return $span;
-            },
-            $content
-        );
+                    return $span;
+                },
+                $content
+            );
 
         return $unsafe ? null : $rewritten;
     }

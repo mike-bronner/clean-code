@@ -92,15 +92,15 @@ class UnitTestExternalConcernsSniff implements Sniff
             }
 
             $phpcsFile->addWarning(
-                'A unit test concerns only the class under test: %s stands the database up,'
-                    . ' which belongs in a %s test',
-                $namePtr,
-                'DatabaseTrait',
-                [
-                    $this->trailingSegment($name),
-                    $this->suiteSibling(),
-                ]
-            );
+                    'A unit test concerns only the class under test: %s stands the database up,'
+                        . ' which belongs in a %s test',
+                    $namePtr,
+                    'DatabaseTrait',
+                    [
+                        $this->trailingSegment($name),
+                        $this->suiteSibling(),
+                    ]
+                );
         }
     }
 
@@ -132,15 +132,15 @@ class UnitTestExternalConcernsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'A unit test concerns only the class under test: %s::fake() doubles out an external'
-                . ' subsystem, which belongs in a %s test',
-            $stackPtr,
-            'FacadeFake',
-            [
-                $facade,
-                $this->suiteSibling(),
-            ]
-        );
+                'A unit test concerns only the class under test: %s::fake() doubles out an external'
+                    . ' subsystem, which belongs in a %s test',
+                $stackPtr,
+                'FacadeFake',
+                [
+                    $facade,
+                    $this->suiteSibling(),
+                ]
+            );
     }
 
     private function processHttpRequest(File $phpcsFile, int $stackPtr): void
@@ -185,16 +185,16 @@ class UnitTestExternalConcernsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'A unit test concerns only the class under test: $this->%s() dispatches through the'
-                . ' HTTP'
-                . ' kernel, which belongs in a %s test',
-            $methodPtr,
-            'HttpRequest',
-            [
-                $method,
-                $this->suiteSibling(),
-            ]
-        );
+                'A unit test concerns only the class under test: $this->%s() dispatches through the'
+                    . ' HTTP'
+                    . ' kernel, which belongs in a %s test',
+                $methodPtr,
+                'HttpRequest',
+                [
+                    $method,
+                    $this->suiteSibling(),
+                ]
+            );
     }
 
     private function usedNames(File $phpcsFile, int $stackPtr): array
@@ -345,11 +345,11 @@ class UnitTestExternalConcernsSniff implements Sniff
     private function splitPath(string $path): array
     {
         return array_values(
-            array_filter(
-                explode('/', str_replace('\\', '/', $path)),
-                static fn (string $segment): bool => $segment !== ''
-            )
-        );
+                array_filter(
+                        explode('/', str_replace('\\', '/', $path)),
+                        static fn (string $segment): bool => $segment !== ''
+                    )
+            );
     }
 
     private function trailingSegment(string $name): string

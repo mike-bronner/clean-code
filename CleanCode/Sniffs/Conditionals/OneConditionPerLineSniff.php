@@ -35,21 +35,21 @@ class OneConditionPerLineSniff implements Sniff
         $regionEnd = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($boundaryEnd - 1), $boundaryStart, true);
 
         $operators = (new ConditionOperatorOwnership())->findTopLevelTokens(
-            $phpcsFile,
-            $regionStart,
-            $regionEnd,
-            array_keys(Tokens::$booleanOperators)
-        );
+                $phpcsFile,
+                $regionStart,
+                $regionEnd,
+                array_keys(Tokens::$booleanOperators)
+            );
 
         if ($operators === []) {
             $this->processSingleCondition(
-                $phpcsFile,
-                $stackPtr,
-                $boundaryStart,
-                $boundaryEnd,
-                $regionStart,
-                $regionEnd
-            );
+                    $phpcsFile,
+                    $stackPtr,
+                    $boundaryStart,
+                    $boundaryEnd,
+                    $regionStart,
+                    $regionEnd
+                );
 
             return;
         }
@@ -130,11 +130,11 @@ class OneConditionPerLineSniff implements Sniff
 
         if ($tokens[$regionStart]['line'] === $tokens[$regionEnd]['line']) {
             $fix = $phpcsFile->addFixableError(
-                "Each condition of a multi-condition \"%s\" must be on its own line",
-                $stackPtr,
-                'MultipleConditionsOnOneLine',
-                [strtolower($tokens[$stackPtr]['content'])]
-            );
+                    "Each condition of a multi-condition \"%s\" must be on its own line",
+                    $stackPtr,
+                    'MultipleConditionsOnOneLine',
+                    [strtolower($tokens[$stackPtr]['content'])]
+                );
 
             if ($fix === true) {
                 $phpcsFile->fixer
@@ -159,11 +159,11 @@ class OneConditionPerLineSniff implements Sniff
             }
 
             $fix = $phpcsFile->addFixableError(
-                "Boolean operator \"%s\" must lead its condition line, not trail the previous one",
-                $operator,
-                'BooleanOperatorNotLeading',
-                [$tokens[$operator]['content']]
-            );
+                    "Boolean operator \"%s\" must lead its condition line, not trail the previous one",
+                    $operator,
+                    'BooleanOperatorNotLeading',
+                    [$tokens[$operator]['content']]
+                );
 
             if ($fix === false) {
                 continue;

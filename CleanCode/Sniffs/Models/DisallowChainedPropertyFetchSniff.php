@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Models;
 
+use MikeBronner\CleanCode\Helpers\AttributeCasts;
+use MikeBronner\CleanCode\Helpers\Declarations;
 use MikeBronner\CleanCode\Helpers\TokenStreams;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -56,6 +58,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
         'T_PIPE',
     ];
 
+    private const LEGACY_ACCESSOR = '/^get[A-Z].*Attribute$/';
+
     private ?string $rootsKey = null;
 
     private array $roots = [];
@@ -68,7 +72,9 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     private int $walkSteps = 0;
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private TokenStreams $tokenStreams = new TokenStreams(),
+        private AttributeCasts $attributeCasts = new AttributeCasts(),
+        private Declarations $declarations = new Declarations()
     ) {
     }
 
@@ -131,6 +137,10 @@ class DisallowChainedPropertyFetchSniff implements Sniff
             return;
         }
 
+        if ($this->isInsideAccessor($phpcsFile, $stackPtr) === true) {
+            return;
+        }
+
         $phpcsFile->addError(
             'Chained property fetch %s; expose the value as an accessor attribute on the '
                 . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
@@ -144,6 +154,35 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                     . $tokens[$memberPtr]['content'],
             ]
         );
+    }
+
+    private function isInsideAccessor(File $phpcsFile, int $stackPtr): bool
+    {
+        $methodPtr = $this->enclosingMethod($phpcsFile, $stackPtr);
+
+        if ($methodPtr === false) {
+            return false;
+        }
+
+        $declarations = $this->declarations;
+        $attributeCasts = $this->attributeCasts;
+        $name = (string) $declarations->name($phpcsFile, $methodPtr);
+
+        return preg_match(self::LEGACY_ACCESSOR, $name) === 1
+            || $attributeCasts->isReturnedBy($phpcsFile, $methodPtr) === true;
+    }
+
+    private function enclosingMethod(File $phpcsFile, int $stackPtr): int|false
+    {
+        $functionPtr = $phpcsFile->getCondition($stackPtr, T_FUNCTION, false);
+
+        if ($functionPtr === false) {
+            return false;
+        }
+
+        $ownerCode = end($phpcsFile->getTokens()[$functionPtr]['conditions']);
+
+        return isset(Tokens::$ooScopeTokens[$ownerCode]) === true ? $functionPtr : false;
     }
 
     private function propertyNameAfter(File $phpcsFile, int $operatorPtr): int|false

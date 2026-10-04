@@ -130,16 +130,16 @@ it('lists every name its sniff checks', function (string $slug, Closure $names):
     'debug functions' => [
         'design-developmentcodefragment',
         static fn (): array => array_map(
-            static fn (string $function): string => "{$function}()",
-            (new ReflectionClassConstant(DisallowDebugFunctionsSniff::class, 'DEBUG_FUNCTIONS'))->getValue()
-        ),
+                static fn (string $function): string => "{$function}()",
+                (new ReflectionClassConstant(DisallowDebugFunctionsSniff::class, 'DEBUG_FUNCTIONS'))->getValue()
+            ),
     ],
     'assignment conditions' => [
         'cleancode-ifstatementassignment',
         static fn (): array => array_map(
-            static fn (int|string $token): string => strtolower(substr(token_name((int) $token), 2)),
-            (new AssignmentInConditionSniff())->register()
-        ),
+                static fn (int|string $token): string => strtolower(substr(token_name((int) $token), 2)),
+                (new AssignmentInConditionSniff())->register()
+            ),
     ],
 ]);
 

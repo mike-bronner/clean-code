@@ -53,11 +53,11 @@ final class ConditionOperatorOwnership
         }
 
         return $this->findTopLevelTokens(
-            $phpcsFile,
-            ($regionStart + 1),
-            ($regionEnd - 1),
-            array_keys(Tokens::$booleanOperators)
-        ) === [];
+                $phpcsFile,
+                ($regionStart + 1),
+                ($regionEnd - 1),
+                array_keys(Tokens::$booleanOperators)
+            ) === [];
     }
 
     public function checkedRegion(File $phpcsFile, int $stackPtr): ?array

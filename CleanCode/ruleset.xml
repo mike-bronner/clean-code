@@ -25,6 +25,8 @@
     <rule ref="PSR12">
         <exclude name="PSR12.Operators.OperatorSpacing"/>
         <exclude name="PSR2.Methods.FunctionCallSignature.Indent"/>
+        <exclude name="PSR2.Classes.ClassDeclaration"/>
+        <exclude name="Squiz.WhiteSpace.ScopeClosingBrace"/>
     </rule>
 
     <!-- Type Hints -->

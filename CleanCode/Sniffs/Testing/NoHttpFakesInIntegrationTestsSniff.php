@@ -74,13 +74,13 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
 
         if ($this->isHttpFake($phpcsFile, $stackPtr, $member) === true) {
             $phpcsFile->addWarning(
-                'Http::%s() doubles out the external dependency this integration test exists to'
-                    . ' exercise; keep the fake in the feature-test twin instead'
-                    . ' (see resources/boost/guidelines/testing-test-suites.md)',
-                $memberPtr,
-                'FakedHttpClient',
-                [$member]
-            );
+                    'Http::%s() doubles out the external dependency this integration test exists to'
+                        . ' exercise; keep the fake in the feature-test twin instead'
+                        . ' (see resources/boost/guidelines/testing-test-suites.md)',
+                    $memberPtr,
+                    'FakedHttpClient',
+                    [$member]
+                );
 
             return;
         }
@@ -96,13 +96,13 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Mocking %s doubles out the external dependency this integration test exists to'
-                . ' exercise; keep the double in the feature-test twin instead'
-                . ' (see resources/boost/guidelines/testing-test-suites.md)',
-            $memberPtr,
-            'MockedHttpClient',
-            [$mocked]
-        );
+                'Mocking %s doubles out the external dependency this integration test exists to'
+                    . ' exercise; keep the double in the feature-test twin instead'
+                    . ' (see resources/boost/guidelines/testing-test-suites.md)',
+                $memberPtr,
+                'MockedHttpClient',
+                [$mocked]
+            );
     }
 
     private function isIntegrationTest(string $path): bool

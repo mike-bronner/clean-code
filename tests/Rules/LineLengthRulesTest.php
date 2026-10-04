@@ -7,8 +7,8 @@ const LINE_LENGTH_WARNING = 'Generic.Files.LineLength.TooLong';
 const LINE_LENGTH_ERROR = 'Generic.Files.LineLength.MaxExceeded';
 
 $lineLengthFixture = static fn (string $fixture) => analyzeWithMasterRuleset(
-    fixturePath('LineLengthSniff', $fixture)
-);
+        fixturePath('LineLengthSniff', $fixture)
+    );
 
 it('raises no line-length violations on the compliant fixture', function () use ($lineLengthFixture): void {
     $file = $lineLengthFixture('passing.php');

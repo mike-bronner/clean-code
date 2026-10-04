@@ -38,14 +38,14 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            '%s() stubs out an inherited method with a single throw; a subtype that refuses'
-                . ' behaviour its supertype promises breaks Liskov Substitution. Split the'
-                . ' hierarchy, or segregate the interface so this method is never promised,'
-                . ' instead of throwing (see resources/boost/guidelines/pattern-solid.md)',
-            $stackPtr,
-            'RefusedBequest',
-            [$method]
-        );
+                '%s() stubs out an inherited method with a single throw; a subtype that refuses'
+                    . ' behaviour its supertype promises breaks Liskov Substitution. Split the'
+                    . ' hierarchy, or segregate the interface so this method is never promised,'
+                    . ' instead of throwing (see resources/boost/guidelines/pattern-solid.md)',
+                $stackPtr,
+                'RefusedBequest',
+                [$method]
+            );
     }
 
     private function declaresHierarchy(File $phpcsFile, array $conditions): bool
@@ -65,11 +65,11 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $closerPtr = $tokens[$stackPtr]['scope_closer'];
         $firstPtr = $phpcsFile->findNext(
-            Tokens::$emptyTokens,
-            ($tokens[$stackPtr]['scope_opener'] + 1),
-            $closerPtr,
-            true
-        );
+                Tokens::$emptyTokens,
+                ($tokens[$stackPtr]['scope_opener'] + 1),
+                $closerPtr,
+                true
+            );
 
         if (
             $firstPtr === false

@@ -13,38 +13,38 @@ const NON_RESOURCE_ROUTES_WARNING = NON_RESOURCE_ROUTES . '.Found';
 const NON_RESOURCE_ROUTES_FIXTURES = 'DisallowNonResourceRoutesSniff';
 
 $routePath = static fn (string $fixture): string => stageFixtureOutsideTests(
-    fixturePath(NON_RESOURCE_ROUTES_FIXTURES, $fixture),
-    'routes'
-);
+        fixturePath(NON_RESOURCE_ROUTES_FIXTURES, $fixture),
+        'routes'
+    );
 
 $routeRun = static fn (string $fixture): LocalFile => analyzeWithSniffs(
-    [NON_RESOURCE_ROUTES],
-    $routePath($fixture)
-);
+        [NON_RESOURCE_ROUTES],
+        $routePath($fixture)
+    );
 
 $expectedWarnings = static fn (): array => array_map(
-    static fn (array $position): array => [
-        'line' => $position[0],
-        'column' => $position[1],
-        'source' => NON_RESOURCE_ROUTES_WARNING,
-    ],
-    [
-        [3, 8],
-        [4, 8],
-        [5, 8],
-        [6, 8],
-        [7, 8],
-        [8, 8],
-        [9, 8],
-        [10, 8],
-        [12, 8],
-        [13, 8],
-        [15, 9],
-        [16, 35],
-        [18, 8],
-        [21, 12],
-    ]
-);
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => NON_RESOURCE_ROUTES_WARNING,
+        ],
+        [
+            [3, 8],
+            [4, 8],
+            [5, 8],
+            [6, 8],
+            [7, 8],
+            [8, 8],
+            [9, 8],
+            [10, 8],
+            [12, 8],
+            [13, 8],
+            [15, 9],
+            [16, 35],
+            [18, 8],
+            [21, 12],
+        ]
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

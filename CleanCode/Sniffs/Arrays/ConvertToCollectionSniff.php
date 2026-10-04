@@ -57,11 +57,11 @@ class ConvertToCollectionSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            '%s() manipulates a native array; use collect()->%s() instead',
-            $stackPtr,
-            'Found',
-            [$name, $replacements[$function]]
-        );
+                '%s() manipulates a native array; use collect()->%s() instead',
+                $stackPtr,
+                'Found',
+                [$name, $replacements[$function]]
+            );
     }
 
     private function replacements(): array

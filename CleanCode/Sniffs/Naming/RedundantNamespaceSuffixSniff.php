@@ -50,13 +50,13 @@ class RedundantNamespaceSuffixSniff implements Sniff
             }
 
             $phpcsFile->addError(
-                "%s %s repeats its own %s namespace segment: drop the redundant \"%s\" suffix and"
-                    . ' alias the import at the call sites that read better with it (see'
-                    . ' resources/boost/guidelines/classes-class-naming.md)',
-                $stackPtr,
-                'Found',
-                [self::DECLARATION_KEYWORDS[$phpcsFile->getTokens()[$stackPtr]['code']], $name, $segment, $suffix]
-            );
+                    "%s %s repeats its own %s namespace segment: drop the redundant \"%s\" suffix and"
+                        . ' alias the import at the call sites that read better with it (see'
+                        . ' resources/boost/guidelines/classes-class-naming.md)',
+                    $stackPtr,
+                    'Found',
+                    [self::DECLARATION_KEYWORDS[$phpcsFile->getTokens()[$stackPtr]['code']], $name, $segment, $suffix]
+                );
 
             return;
         }
@@ -104,9 +104,9 @@ class RedundantNamespaceSuffixSniff implements Sniff
         $candidates = [$segment, ...$this->singularForms($segment)];
 
         $candidates = array_unique(array_filter(
-            $candidates,
-            static fn (string $candidate): bool => $candidate !== ''
-        ));
+                $candidates,
+                static fn (string $candidate): bool => $candidate !== ''
+            ));
 
         usort($candidates, static fn (string $first, string $second): int => strlen($second) <=> strlen($first));
 

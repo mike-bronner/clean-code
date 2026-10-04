@@ -86,7 +86,15 @@ class MultiLineStatementIndentSniff implements Sniff
         T_FN_ARROW,
     ];
 
+    private const CALLEE_ENDS = [
+        T_VARIABLE,
+        T_CLOSE_PARENTHESIS,
+        T_CLOSE_SQUARE_BRACKET,
+    ];
+
     public int $indent = 4;
+
+    private array $callIndents = [];
 
     private array $commentOpeners = [];
 
@@ -113,6 +121,7 @@ class MultiLineStatementIndentSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $this->mapLines($phpcsFile);
+        $this->callIndents = [];
         $i = $stackPtr;
 
         while ($i < $phpcsFile->numTokens) {
@@ -269,9 +278,10 @@ class MultiLineStatementIndentSniff implements Sniff
                 $this->checkLine($phpcsFile, $i, $stack, $exprStart, $baseIndent, $continuation);
             }
 
-            $this->beginExpression($stack, $exprStart, $i);
+            $expression = $this->beginExpression($stack, $exprStart, $i);
 
             if (in_array($code, self::BRACKET_OPENERS, true) === true) {
+                $this->indentCall($phpcsFile, $i, $expression);
                 $stack[] = ['opener' => $i, 'exprStart' => null];
                 continue;
             }
@@ -318,30 +328,30 @@ class MultiLineStatementIndentSniff implements Sniff
 
         if ($closedOpener !== null) {
             $this->reportIndent(
-                $phpcsFile,
-                $lineStart,
-                $this->lineIndent($phpcsFile, $closedOpener),
-                $actual,
-                'CloseBracketIndent',
-                'Closing bracket of a multi-line statement not indented correctly;'
-                    . ' expected %s spaces but found %s'
-            );
+                    $phpcsFile,
+                    $lineStart,
+                    $this->anchorIndent($phpcsFile, $closedOpener),
+                    $actual,
+                    'CloseBracketIndent',
+                    'Closing bracket of a multi-line statement not indented correctly;'
+                        . ' expected %s spaces but found %s'
+                );
 
             return;
         }
 
         $anchor = $this->continuationAnchor($phpcsFile, $ptr, $stack, $exprStart, $continuation);
-        $anchorIndent = $anchor === null ? $baseIndent : $this->lineIndent($phpcsFile, $anchor);
+        $anchorIndent = $anchor === null ? $baseIndent : $this->anchorIndent($phpcsFile, $anchor);
 
         $this->reportIndent(
-            $phpcsFile,
-            $lineStart,
-            $anchorIndent + $this->indent,
-            $actual,
-            'IncorrectIndent',
-            'Line in multi-line statement not indented correctly;'
-                . ' expected %s spaces but found %s'
-        );
+                $phpcsFile,
+                $lineStart,
+                $anchorIndent + $this->indent,
+                $actual,
+                'IncorrectIndent',
+                'Line in multi-line statement not indented correctly;'
+                    . ' expected %s spaces but found %s'
+            );
     }
 
     private function continuationAnchor(
@@ -397,15 +407,13 @@ class MultiLineStatementIndentSniff implements Sniff
             ->replaceToken($lineStart - 1, $padding);
     }
 
-    private function beginExpression(array &$stack, ?int &$exprStart, int $pointer): void
+    private function beginExpression(array &$stack, ?int &$exprStart, int $pointer): int
     {
         if ($stack === []) {
-            $exprStart ??= $pointer;
-
-            return;
+            return $exprStart ??= $pointer;
         }
 
-        $stack[count($stack) - 1]['exprStart'] ??= $pointer;
+        return $stack[count($stack) - 1]['exprStart'] ??= $pointer;
     }
 
     private function endExpression(array &$stack, ?int &$exprStart): void
@@ -584,6 +592,33 @@ class MultiLineStatementIndentSniff implements Sniff
 
             $opener ??= $i;
         }
+    }
+
+    private function indentCall(File $phpcsFile, int $opener, int $exprStart): void
+    {
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$opener]['parenthesis_closer'] ?? $opener;
+
+        if (
+            $tokens[$closer]['line'] === $tokens[$opener]['line']
+            || isset($tokens[$opener]['parenthesis_owner']) === true
+        ) {
+            return;
+        }
+
+        $previous = $phpcsFile->findPrevious(Tokens::EMPTY_TOKENS, $opener - 1, null, true);
+        $callee = $tokens[$previous]['code'];
+        $isCall = isset(Tokens::FUNCTION_NAME_TOKENS[$callee]) === true
+            || in_array($callee, self::CALLEE_ENDS, true) === true;
+
+        if ($isCall === true) {
+            $this->callIndents[$opener] = $this->lineIndent($phpcsFile, $exprStart) + $this->indent;
+        }
+    }
+
+    private function anchorIndent(File $phpcsFile, int $anchor): int
+    {
+        return $this->callIndents[$anchor] ?? $this->lineIndent($phpcsFile, $anchor);
     }
 
     private function lineIndent(File $phpcsFile, int $ptr): int

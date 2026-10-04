@@ -39,15 +39,15 @@ class TooManyInterfaceMethodsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Interface %s declares %s method signatures, more than the maximum of %s. A '
-                . 'wide interface forces implementers to depend on signatures they do not '
-                . 'use, so split it into narrower interfaces along the lines its clients '
-                . 'actually use (Interface Segregation, see resources/boost/guidelines/'
-                . 'pattern-solid.md)',
-            $stackPtr,
-            'MaxExceeded',
-            [$name, $declared, $this->maxMethods]
-        );
+                'Interface %s declares %s method signatures, more than the maximum of %s. A '
+                    . 'wide interface forces implementers to depend on signatures they do not '
+                    . 'use, so split it into narrower interfaces along the lines its clients '
+                    . 'actually use (Interface Segregation, see resources/boost/guidelines/'
+                    . 'pattern-solid.md)',
+                $stackPtr,
+                'MaxExceeded',
+                [$name, $declared, $this->maxMethods]
+            );
     }
 
     private function countMethods(File $phpcsFile, int $opener, int $closer): int

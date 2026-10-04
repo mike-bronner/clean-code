@@ -65,15 +65,15 @@ class DisallowNonResourceRoutesSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Route::%s() registers a route with an HTTP verb; the standard asks for resource '
-                . 'routes pointing at RESTful controllers (Route::resource(),'
-                . ' Route::apiResource()), '
-                . 'with an invokable-controller special-action route as a rare exception '
-                . '(see resources/boost/guidelines/routes-conventions-do-do-not.md)',
-            $verbPtr,
-            'Found',
-            [$tokens[$verbPtr]['content']]
-        );
+                'Route::%s() registers a route with an HTTP verb; the standard asks for resource '
+                    . 'routes pointing at RESTful controllers (Route::resource(),'
+                    . ' Route::apiResource()), '
+                    . 'with an invokable-controller special-action route as a rare exception '
+                    . '(see resources/boost/guidelines/routes-conventions-do-do-not.md)',
+                $verbPtr,
+                'Found',
+                [$tokens[$verbPtr]['content']]
+            );
     }
 
     private function isRouteFile(string $path): bool

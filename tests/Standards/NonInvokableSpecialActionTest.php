@@ -11,14 +11,14 @@ const SPECIAL_ACTION = 'CleanCode.Routes.NonInvokableSpecialAction';
 const SPECIAL_ACTION_FOUND = SPECIAL_ACTION . '.Found';
 
 $routeRun = static fn (string $fixture, string $subdirectory = 'routes') => analyzeWithSniffs(
-    [SPECIAL_ACTION],
-    stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', $fixture), $subdirectory)
-);
+        [SPECIAL_ACTION],
+        stageFixtureOutsideTests(fixturePath('NonInvokableSpecialActionSniff', $fixture), $subdirectory)
+    );
 
 $routeSource = static fn (string $source) => analyzeWithSniffs(
-    [SPECIAL_ACTION],
-    stageProjectOutsideTests(['routes/web.php' => "<?php\n\n" . $source . "\n"])
-);
+        [SPECIAL_ACTION],
+        stageProjectOutsideTests(['routes/web.php' => "<?php\n\n" . $source . "\n"])
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

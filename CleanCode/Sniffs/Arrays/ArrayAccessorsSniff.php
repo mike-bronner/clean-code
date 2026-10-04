@@ -133,32 +133,32 @@ class ArrayAccessorsSniff implements Sniff
             || $this->isByReferenceArgument($phpcsFile, $rootPtr) === true
         ) {
             $phpcsFile->addError(
+                    self::MESSAGES['DirectArrayAccess'],
+                    $rootPtr,
+                    'DirectArrayAccess',
+                    [$variable, $variable]
+                );
+
+            return;
+        }
+
+        $fix = $phpcsFile->addFixableError(
                 self::MESSAGES['DirectArrayAccess'],
                 $rootPtr,
                 'DirectArrayAccess',
                 [$variable, $variable]
             );
 
-            return;
-        }
-
-        $fix = $phpcsFile->addFixableError(
-            self::MESSAGES['DirectArrayAccess'],
-            $rootPtr,
-            'DirectArrayAccess',
-            [$variable, $variable]
-        );
-
         if ($fix === true) {
             $targetStartPtr = $this->targetStart($phpcsFile, $rootPtr);
 
             $this->replaceWithDataGet(
-                $phpcsFile,
-                $targetStartPtr,
-                $path['end'],
-                $this->chainRootName($phpcsFile, $targetStartPtr, $read['subjectEnd']),
-                $path['segments']
-            );
+                    $phpcsFile,
+                    $targetStartPtr,
+                    $path['end'],
+                    $this->chainRootName($phpcsFile, $targetStartPtr, $read['subjectEnd']),
+                    $path['segments']
+                );
         }
     }
 

@@ -33,12 +33,12 @@ class ExcessivePublicCountSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The %s has %s public methods and attributes.'
-                . ' Consider reducing the number of public items to less than %s',
-            $stackPtr,
-            'Found',
-            [$this->describe($phpcsFile, $stackPtr), $count, $minimum]
-        );
+                'The %s has %s public methods and attributes.'
+                    . ' Consider reducing the number of public items to less than %s',
+                $stackPtr,
+                'Found',
+                [$this->describe($phpcsFile, $stackPtr), $count, $minimum]
+            );
     }
 
     private function countPublicMembers(File $phpcsFile, int $stackPtr): int

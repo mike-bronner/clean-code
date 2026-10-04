@@ -43,8 +43,8 @@ class TestSuiteNamespaceSniff implements Sniff
         }
 
         $namespaceTail = $this->segmentsBelowTestRoot(
-            $this->namespaceSegments($phpcsFile, $stackPtr)
-        );
+                $this->namespaceSegments($phpcsFile, $stackPtr)
+            );
 
         if ($namespaceTail === null) {
             return;
@@ -59,31 +59,31 @@ class TestSuiteNamespaceSniff implements Sniff
 
         if ($pathSuite !== null) {
             $phpcsFile->addWarning(
-                'A test class under the %s suite directory must declare a matching %s namespace'
-                    . ' segment directly below its %s namespace root',
-                $stackPtr,
-                'NamespaceMismatch',
-                [
-                    $pathSuite,
-                    $pathSuite,
-                    $this->testRoot,
-                ]
-            );
+                    'A test class under the %s suite directory must declare a matching %s namespace'
+                        . ' segment directly below its %s namespace root',
+                    $stackPtr,
+                    'NamespaceMismatch',
+                    [
+                        $pathSuite,
+                        $pathSuite,
+                        $this->testRoot,
+                    ]
+                );
 
             return;
         }
 
         $phpcsFile->addWarning(
-            'A test class declared in the %s suite namespace must live under a matching %s'
-                . ' directory directly below %s/',
-            $stackPtr,
-            'DirectoryMismatch',
-            [
-                $namespaceSuite,
-                $namespaceSuite,
-                $this->testRoot,
-            ]
-        );
+                'A test class declared in the %s suite namespace must live under a matching %s'
+                    . ' directory directly below %s/',
+                $stackPtr,
+                'DirectoryMismatch',
+                [
+                    $namespaceSuite,
+                    $namespaceSuite,
+                    $this->testRoot,
+                ]
+            );
     }
 
     private function isTestClass(File $phpcsFile, int $stackPtr): bool

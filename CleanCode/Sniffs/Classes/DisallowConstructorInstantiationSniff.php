@@ -136,11 +136,11 @@ class DisallowConstructorInstantiationSniff implements Sniff
     private function reportInstantiation(File $phpcsFile, int $newPtr): void
     {
         $phpcsFile->addWarning(
-            'Constructing a collaborator inside __construct() hard-wires it; inject it as a'
-                . ' constructor parameter so it can be resolved through IoC'
-                . ' (see resources/boost/guidelines/dependency-injection.md)',
-            $newPtr,
-            'Found'
-        );
+                'Constructing a collaborator inside __construct() hard-wires it; inject it as a'
+                    . ' constructor parameter so it can be resolved through IoC'
+                    . ' (see resources/boost/guidelines/dependency-injection.md)',
+                $newPtr,
+                'Found'
+            );
     }
 }

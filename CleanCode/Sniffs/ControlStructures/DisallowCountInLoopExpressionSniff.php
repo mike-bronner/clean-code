@@ -69,11 +69,11 @@ class DisallowCountInLoopExpressionSniff implements Sniff
             }
 
             $phpcsFile->addError(
-                '%s() must not be called in a loop condition; assign its result to a variable before the loop',
-                $i,
-                'Found',
-                [$functionCalls->calleeName($phpcsFile, $i)]
-            );
+                    '%s() must not be called in a loop condition; assign its result to a variable before the loop',
+                    $i,
+                    'Found',
+                    [$functionCalls->calleeName($phpcsFile, $i)]
+                );
         }
     }
 

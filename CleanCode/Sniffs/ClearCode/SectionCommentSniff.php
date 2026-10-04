@@ -114,14 +114,14 @@ class SectionCommentSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Section-labelling comment (%s): extract the block it introduces into a method named'
-                . ' after it'
-                . ' (see resources/boost/guidelines/'
-                . 'clear-code-encapsulate-each-concept-in-a-method.md)',
-            $stackPtr,
-            'Found',
-            [trim($comment['content'])]
-        );
+                'Section-labelling comment (%s): extract the block it introduces into a method named'
+                    . ' after it'
+                    . ' (see resources/boost/guidelines/'
+                    . 'clear-code-encapsulate-each-concept-in-a-method.md)',
+                $stackPtr,
+                'Found',
+                [trim($comment['content'])]
+            );
     }
 
     private function isSelfContainedSingleLine(string $content): bool

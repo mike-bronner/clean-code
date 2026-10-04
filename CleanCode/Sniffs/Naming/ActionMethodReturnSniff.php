@@ -195,9 +195,9 @@ class ActionMethodReturnSniff implements Sniff
 
         while ($pointer !== false) {
             $returns = $this->withExpression(
-                $returns,
-                $this->ownReturnedExpression($phpcsFile, $stackPtr, $pointer, $closer)
-            );
+                    $returns,
+                    $this->ownReturnedExpression($phpcsFile, $stackPtr, $pointer, $closer)
+                );
             $pointer = $phpcsFile->findNext(T_RETURN, ($pointer + 1), $closer);
         }
 
@@ -211,8 +211,8 @@ class ActionMethodReturnSniff implements Sniff
         int $closer
     ): ?int {
         $expression = $this->orNull(
-            $phpcsFile->findNext(Tokens::$emptyTokens, ($returnPtr + 1), $closer, true)
-        );
+                $phpcsFile->findNext(Tokens::$emptyTokens, ($returnPtr + 1), $closer, true)
+            );
 
         return match (true) {
             $this->owningCallable($phpcsFile, $returnPtr) !== $stackPtr => null,
@@ -259,8 +259,8 @@ class ActionMethodReturnSniff implements Sniff
     {
         $first = $this->orNull($phpcsFile->findNext(Tokens::$emptyTokens, $start, $end, true));
         $last = $this->orNull(
-            $phpcsFile->findPrevious(Tokens::$emptyTokens, ($end - 1), $start, true)
-        );
+                $phpcsFile->findPrevious(Tokens::$emptyTokens, ($end - 1), $start, true)
+            );
 
         return match (true) {
             $first === null => false,

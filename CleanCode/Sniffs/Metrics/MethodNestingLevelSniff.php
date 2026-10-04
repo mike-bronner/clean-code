@@ -81,11 +81,11 @@ class MethodNestingLevelSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Method nesting level (%s) exceeds the maximum of %s; refactor to reduce nesting',
-            $stackPtr,
-            'MaxExceeded',
-            [$level, self::MAX_NESTING_LEVEL]
-        );
+                'Method nesting level (%s) exceeds the maximum of %s; refactor to reduce nesting',
+                $stackPtr,
+                'MaxExceeded',
+                [$level, self::MAX_NESTING_LEVEL]
+            );
     }
 
     private function arrowFunctionDepth(File $phpcsFile, int $stackPtr, array $conditions): int

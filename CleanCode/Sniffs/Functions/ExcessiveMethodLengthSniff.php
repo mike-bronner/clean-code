@@ -45,18 +45,18 @@ class ExcessiveMethodLengthSniff implements Sniff
         $name = (new Declarations())->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
-            'The %s %s() has %s lines of code, and the threshold is %s; a declaration '
-                . 'this long is doing several jobs, so extract each one into its own '
-                . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
-            $start,
-            'Found',
-            [
-                $this->describe($phpcsFile, $stackPtr),
-                $name ?? 'anonymous',
-                $length,
-                $minimum,
-            ]
-        );
+                'The %s %s() has %s lines of code, and the threshold is %s; a declaration '
+                    . 'this long is doing several jobs, so extract each one into its own '
+                    . 'method (see resources/boost/guidelines/codesize-excessivemethodlength.md)',
+                $start,
+                'Found',
+                [
+                    $this->describe($phpcsFile, $stackPtr),
+                    $name ?? 'anonymous',
+                    $length,
+                    $minimum,
+                ]
+            );
     }
 
     private function normalizedMinimum(): int
@@ -107,9 +107,9 @@ class ExcessiveMethodLengthSniff implements Sniff
         $afterParameters = $tokens[$stackPtr]['parenthesis_closer'] ?? $stackPtr;
 
         $terminator = $phpcsFile->findNext(
-            [T_SEMICOLON, T_OPEN_CURLY_BRACKET],
-            $afterParameters + 1
-        );
+                [T_SEMICOLON, T_OPEN_CURLY_BRACKET],
+                $afterParameters + 1
+            );
 
         if (
             $terminator === false

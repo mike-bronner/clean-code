@@ -9,9 +9,9 @@ dataset('shipped error sniffs', shippedSmokeSniffs(SWEPT_SNIFFS));
 dataset('shipped warning sniffs', shippedSmokeSniffs(SWEPT_WARNING_SNIFFS));
 
 dataset('every shipped sniff', array_merge(
-    shippedSmokeSniffs(SWEPT_SNIFFS),
-    shippedSmokeSniffs(SWEPT_WARNING_SNIFFS)
-));
+        shippedSmokeSniffs(SWEPT_SNIFFS),
+        shippedSmokeSniffs(SWEPT_WARNING_SNIFFS)
+    ));
 
 dataset('shipped smoke exclusions', SHIPPED_SMOKE_EXCLUSIONS);
 

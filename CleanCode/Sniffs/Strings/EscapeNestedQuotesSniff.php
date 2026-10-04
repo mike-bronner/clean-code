@@ -34,11 +34,11 @@ class EscapeNestedQuotesSniff implements Sniff
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Use a double-quoted string with escaped inner quotes instead of switching to single'
-                . ' quotes to avoid escaping',
-            $stackPtr,
-            'UnescapedQuote'
-        );
+                'Use a double-quoted string with escaped inner quotes instead of switching to single'
+                    . ' quotes to avoid escaping',
+                $stackPtr,
+                'UnescapedQuote'
+            );
 
         if ($fix === false) {
             return;

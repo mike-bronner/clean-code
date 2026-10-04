@@ -96,12 +96,12 @@ class NoProceduralCodeSniff implements Sniff
             }
 
             $phpcsFile->addError(
-                'Top-level %s is procedural code; a source file declares exactly one class,'
-                    . ' interface, trait, or enum and nothing else',
-                $pointer,
-                'ProceduralStatement',
-                [$this->constructLabel($phpcsFile, $pointer)]
-            );
+                    'Top-level %s is procedural code; a source file declares exactly one class,'
+                        . ' interface, trait, or enum and nothing else',
+                    $pointer,
+                    'ProceduralStatement',
+                    [$this->constructLabel($phpcsFile, $pointer)]
+                );
 
             $pointer = ($this->endOfStatement($phpcsFile, $pointer) + 1);
         }
@@ -115,15 +115,15 @@ class NoProceduralCodeSniff implements Sniff
 
         foreach (array_slice($declarations, 1) as $pointer) {
             $phpcsFile->addError(
-                'A source file declares exactly one class, interface, trait, or enum;'
-                    . ' %s %s is an additional declaration',
-                $pointer,
-                'MultipleDeclarations',
-                [
-                    strtolower($tokens[$pointer]['content']),
-                    (string) (new Declarations())->name($phpcsFile, $pointer),
-                ]
-            );
+                    'A source file declares exactly one class, interface, trait, or enum;'
+                        . ' %s %s is an additional declaration',
+                    $pointer,
+                    'MultipleDeclarations',
+                    [
+                        strtolower($tokens[$pointer]['content']),
+                        (string) (new Declarations())->name($phpcsFile, $pointer),
+                    ]
+                );
         }
     }
 

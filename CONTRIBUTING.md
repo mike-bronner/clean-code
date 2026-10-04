@@ -229,6 +229,14 @@ name now arrives in, `T_NAME_QUALIFIED`, `T_NAME_FULLY_QUALIFIED` and
 `T_NAME_RELATIVE`, and reads the last segment of one. A sniff that reads a
 class or function name accepts those tokens beside `T_STRING`.
 
+`AttributeCasts::isReturnedBy()` answers "does this method return Eloquent's
+`Illuminate\Database\Eloquent\Casts\Attribute`?". It resolves the return type
+through the file's `use` imports, aliases and group imports included, so a
+different class named `Attribute` does not count.
+`CleanCode.Models.ModelMagicMethodLocation` asks it to find a modern accessor in
+a class body, and `CleanCode.Models.DisallowChainedPropertyFetch` asks it to
+find the accessor a chain may live in.
+
 `tests/Helpers/` and `tests/Helpers.php` are different things, and the names are
 the only thing they share: the directory is a suite covering the shared classes
 under `CleanCode/Helpers/`, the file holds the Pest helper functions every suite

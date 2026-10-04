@@ -108,18 +108,18 @@ class NPathComplexitySniff implements Sniff
         $measured = $npath === self::CEILING ? ('at least ' . self::CEILING) : (string) $npath;
 
         $phpcsFile->addError(
-            'The %s %s() has an NPath complexity of %s, at or above the '
-                . 'configured minimum of %s; break it into smaller pieces (see '
-                . 'resources/boost/guidelines/codesize-npathcomplexity.md)',
-            $stackPtr,
-            'MinimumExceeded',
-            [
-                $this->callableKind($phpcsFile, $stackPtr),
-                (string) (new Declarations())->name($phpcsFile, $stackPtr),
-                $measured,
-                $minimum,
-            ]
-        );
+                'The %s %s() has an NPath complexity of %s, at or above the '
+                    . 'configured minimum of %s; break it into smaller pieces (see '
+                    . 'resources/boost/guidelines/codesize-npathcomplexity.md)',
+                $stackPtr,
+                'MinimumExceeded',
+                [
+                    $this->callableKind($phpcsFile, $stackPtr),
+                    (string) (new Declarations())->name($phpcsFile, $stackPtr),
+                    $measured,
+                    $minimum,
+                ]
+            );
     }
 
     private function callableKind(File $phpcsFile, int $functionPtr): string
@@ -173,9 +173,9 @@ class NPathComplexitySniff implements Sniff
 
         while ($ptr < $end) {
             $npath = $this->multiply(
-                $npath,
-                $this->statementComplexity($phpcsFile, $tokens, $ptr, $end)
-            );
+                    $npath,
+                    $this->statementComplexity($phpcsFile, $tokens, $ptr, $end)
+                );
         }
 
         return $npath;
@@ -383,9 +383,9 @@ class NPathComplexitySniff implements Sniff
             $bodyEnd = $labels[($index + 1)] ?? $closer;
             $bodyPtr = ($this->labelBodyStart($phpcsFile, $tokens, $label, $bodyEnd) + 1);
             $npath = $this->add(
-                $npath,
-                $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $bodyEnd)
-            );
+                    $npath,
+                    $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $bodyEnd)
+                );
         }
 
         $ptr = ($closer + 1);
@@ -569,11 +569,11 @@ class NPathComplexitySniff implements Sniff
         $start = $this->expressionStart($tokens, $thenPtr);
         $condPtr = $start;
         $condition = $this->expressionComplexity(
-            $phpcsFile,
-            $tokens,
-            $condPtr,
-            $this->conditionNodeEnd($tokens, $start, $thenPtr)
-        );
+                $phpcsFile,
+                $tokens,
+                $condPtr,
+                $this->conditionNodeEnd($tokens, $start, $thenPtr)
+            );
 
         $elsePtr = $this->ternaryElse($phpcsFile, $tokens, $thenPtr, $end);
 
@@ -806,9 +806,9 @@ class NPathComplexitySniff implements Sniff
 
             if ($code === T_INLINE_THEN) {
                 $sum = $this->add(
-                    $sum,
-                    $this->ternaryComplexity($phpcsFile, $tokens, $ptr, $end)
-                );
+                        $sum,
+                        $this->ternaryComplexity($phpcsFile, $tokens, $ptr, $end)
+                    );
 
                 continue;
             }
@@ -861,9 +861,9 @@ class NPathComplexitySniff implements Sniff
 
         $stop = $this->statementEnd($tokens, $body, $end);
         $npath = $this->multiply(
-            $npath,
-            $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $stop)
-        );
+                $npath,
+                $this->blockComplexity($phpcsFile, $tokens, $bodyPtr, $stop)
+            );
         $ptr = $stop;
 
         return $npath;

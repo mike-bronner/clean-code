@@ -84,13 +84,13 @@ class NoCustomActionsSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            'Public method %s() is not a RESTful resource action; a controller should be '
-                . 'RESTful or invokable, so extract the custom action into its own controller '
-                . '(see resources/boost/guidelines/controllers-no-business-logic.md)',
-            $actionPtr,
-            'Found',
-            [$method]
-        );
+                'Public method %s() is not a RESTful resource action; a controller should be '
+                    . 'RESTful or invokable, so extract the custom action into its own controller '
+                    . '(see resources/boost/guidelines/controllers-no-business-logic.md)',
+                $actionPtr,
+                'Found',
+                [$method]
+            );
     }
 
     private function isAllowed(string $method): bool

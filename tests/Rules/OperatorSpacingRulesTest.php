@@ -15,10 +15,10 @@ const BOUNDARY_EXCLUSIONS = [
 ];
 
 $spacingFixture = static fn (string $fixture) => analyzeRulesetFixture(
-    [SQUIZ_OPERATOR_SPACING, SQUIZ_CONCAT_SPACING],
-    'OperatorSpacing',
-    $fixture
-);
+        [SQUIZ_OPERATOR_SPACING, SQUIZ_CONCAT_SPACING],
+        'OperatorSpacing',
+        $fixture
+    );
 
 it('registers the configured spacing sniffs in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

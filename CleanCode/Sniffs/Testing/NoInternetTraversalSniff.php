@@ -229,11 +229,11 @@ class NoInternetTraversalSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $afterPtr = $phpcsFile->findNext(
-            Tokens::$emptyTokens,
-            ($endPtr + 1),
-            ($closePtr + 1),
-            true
-        );
+                Tokens::$emptyTokens,
+                ($endPtr + 1),
+                ($closePtr + 1),
+                true
+            );
 
         return $afterPtr === $closePtr
             || ($afterPtr !== false && $tokens[$afterPtr]['code'] === T_COMMA);
@@ -349,12 +349,12 @@ class NoInternetTraversalSniff implements Sniff
     private function report(File $phpcsFile, int $stackPtr, string $primitive): void
     {
         $phpcsFile->addWarning(
-            '%s traverses the internet; a feature test must not, so fake the third-party API'
-                . ' through the Http facade instead (see resources/boost/guidelines/'
-                . 'testing-test-suites.md)',
-            $stackPtr,
-            'Found',
-            [$primitive]
-        );
+                '%s traverses the internet; a feature test must not, so fake the third-party API'
+                    . ' through the Http facade instead (see resources/boost/guidelines/'
+                    . 'testing-test-suites.md)',
+                $stackPtr,
+                'Found',
+                [$primitive]
+            );
     }
 }

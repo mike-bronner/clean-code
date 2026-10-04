@@ -65,11 +65,11 @@ class DisallowNestedTernarySniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Nested ternary conditions are not allowed; assign intermediate results to variables'
-                . ' or refactor to methods',
-            $stackPtr,
-            'NestedTernary'
-        );
+                'Nested ternary conditions are not allowed; assign intermediate results to variables'
+                    . ' or refactor to methods',
+                $stackPtr,
+                'NestedTernary'
+            );
     }
 
     private function segmentHasNestingTernary(File $phpcsFile, int $stackPtr, int $direction): bool

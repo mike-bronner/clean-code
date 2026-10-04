@@ -11,10 +11,10 @@ const MULTIPLE_USES_PER_LINE = 'SlevomatCodingStandard.Namespaces.MultipleUsesPe
 const SORTED_USES_SNIFFS = [SORTED_USES, DISALLOW_GROUP_USE, MULTIPLE_USES_PER_LINE];
 
 $analyzeSortedUses = static fn (string $fixture): LocalFile => analyzeRulesetFixture(
-    SORTED_USES_SNIFFS,
-    'SortedUses',
-    $fixture
-);
+        SORTED_USES_SNIFFS,
+        'SortedUses',
+        $fixture
+    );
 
 it('registers all three sniffs in the master ruleset', function (string $sniff): void {
     [, $ruleset] = buildRuleset();

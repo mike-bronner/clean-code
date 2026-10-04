@@ -45,15 +45,15 @@ class ExcessiveClassLengthSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The class %s has %s lines of code. Current threshold is %s. Avoid really long classes.',
-            $declarationPtr,
-            'TooLong',
-            [
-                (new Declarations())->name($phpcsFile, $stackPtr),
-                $length,
-                $this->minimum,
-            ]
-        );
+                'The class %s has %s lines of code. Current threshold is %s. Avoid really long classes.',
+                $declarationPtr,
+                'TooLong',
+                [
+                    (new Declarations())->name($phpcsFile, $stackPtr),
+                    $length,
+                    $this->minimum,
+                ]
+            );
     }
 
     private function declarationStart(File $phpcsFile, int $stackPtr): int

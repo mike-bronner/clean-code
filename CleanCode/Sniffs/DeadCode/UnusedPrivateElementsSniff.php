@@ -58,22 +58,22 @@ class UnusedPrivateElementsSniff implements Sniff
         foreach ($properties as $name => $declarationPtr) {
             if (isset($usedProperties[$name]) === false) {
                 $phpcsFile->addError(
-                    'Unused private property $%s must be removed — dead code answers no questions',
-                    $declarationPtr,
-                    'UnusedProperty',
-                    [ltrim($tokens[$declarationPtr]['content'], '$')]
-                );
+                        'Unused private property $%s must be removed — dead code answers no questions',
+                        $declarationPtr,
+                        'UnusedProperty',
+                        [ltrim($tokens[$declarationPtr]['content'], '$')]
+                    );
             }
         }
 
         foreach ($methods as $name => $declarationPtr) {
             if (isset($usedMethods[$name]) === false) {
                 $phpcsFile->addError(
-                    'Unused private method %s() must be removed — dead code answers no questions',
-                    $declarationPtr,
-                    'UnusedMethod',
-                    [$tokens[$declarationPtr]['content']]
-                );
+                        'Unused private method %s() must be removed — dead code answers no questions',
+                        $declarationPtr,
+                        'UnusedMethod',
+                        [$tokens[$declarationPtr]['content']]
+                    );
             }
         }
     }
@@ -184,10 +184,10 @@ class UnusedPrivateElementsSniff implements Sniff
 
             if (in_array($code, self::STRING_TOKENS, true) === true) {
                 $matched = preg_match_all(
-                    '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/',
-                    $tokens[$i]['content'],
-                    $matches
-                );
+                        '/[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*/',
+                        $tokens[$i]['content'],
+                        $matches
+                    );
 
                 if ($matched === false) {
                     continue;

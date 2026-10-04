@@ -9,10 +9,10 @@ const PERSISTENCE = 'CleanCode.Models.DisallowExternalPersistenceCalls';
 const PERSISTENCE_WARNING = PERSISTENCE . '.Found';
 
 $stagedRun = static fn (string $fixture, ?callable $configure = null) => analyzeWithSniffs(
-    [PERSISTENCE],
-    stageFixtureOutsideTests(fixturePath('DisallowExternalPersistenceCallsSniff', $fixture)),
-    $configure
-);
+        [PERSISTENCE],
+        stageFixtureOutsideTests(fixturePath('DisallowExternalPersistenceCallsSniff', $fixture)),
+        $configure
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

@@ -13,6 +13,8 @@ const CHAINED_FAILING_LINES = [
     36, 41,
 ];
 
+const CHAINED_ACCESSOR_LOOKALIKE_LINES = [15, 21, 26, 31, 36, 41, 50, 62, 71, 80];
+
 const CHAINED_PRECEDER_LINES = [
     11, 16, 19, 20, 22, 24, 28, 29, 30, 31, 32, 33, 34, 36, 38, 42, 43, 44, 45,
     46, 47, 48, 49, 52, 56, 61, 66, 71, 76, 82, 83, 84, 85, 91, 92, 93, 94, 95,
@@ -118,6 +120,37 @@ it('names the first completing pair and the accessor remedy', function () use ($
         ->and($messages[7][0])->not->toContain('address->city')
         ->and($messages[3][0])->toContain('getAuthorNameAttribute()')
         ->and($messages[3][0])->toContain('accessor attribute on the first model');
+});
+
+it('reports no chain inside an attribute accessor declared in a trait', function () use ($stagedRun): void {
+    $file = $stagedRun('accessors-in-trait.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('reports no chain inside an attribute accessor declared in a model', function () use ($stagedRun): void {
+    $file = $stagedRun('accessors-in-model.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('leaves an accessor trait clean through the whole master ruleset', function (): void {
+    $file = analyzeWithMasterRuleset(
+        stageFixtureOutsideTests(fixturePath('DisallowChainedPropertyFetchSniff', 'accessors-in-trait.php'))
+    );
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('reports a chain in every method that is not an attribute accessor', function () use ($stagedRun): void {
+    $file = $stagedRun('accessor-lookalikes.php');
+
+    expect($file->getWarnings())->toBe([])
+        ->and(violationSourcesByLine($file->getErrors()))
+        ->toBe(array_fill_keys(CHAINED_ACCESSOR_LOOKALIKE_LINES, [CHAINED_ERROR]));
 });
 
 it('reports a chain behind every admitted grouping-parenthesis preceder', function () use ($stagedRun): void {

@@ -1,16 +1,16 @@
 <?php
 
-class Book
+class BookCard
 {
-    public function getAuthorNameAttribute(): string
+    public function authorName(): string
     {
-        // phpcs:ignore CleanCode.Models.DisallowChainedPropertyFetch -- accessor body: the one place this traversal belongs
-        return $this->author->name
+        // phpcs:ignore CleanCode.Models.DisallowChainedPropertyFetch -- the card reads a value object, not an Eloquent relation
+        return $this->book->author->name
             ?? "";
     }
 
-    public function getAuthorCityAttribute(): string
+    public function authorCity(): string
     {
-        return $this->author->city;
+        return $this->book->author->city;
     }
 }

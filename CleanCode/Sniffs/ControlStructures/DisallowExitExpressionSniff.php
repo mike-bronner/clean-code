@@ -23,11 +23,11 @@ class DisallowExitExpressionSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Exit expression %s must not appear inside a function or method; '
-                . 'relocate it to a startup script that returns an error code',
-            $stackPtr,
-            'Found',
-            [ltrim($tokens[$stackPtr]['content'], '\\')]
-        );
+                'Exit expression %s must not appear inside a function or method; '
+                    . 'relocate it to a startup script that returns an error code',
+                $stackPtr,
+                'Found',
+                [ltrim($tokens[$stackPtr]['content'], '\\')]
+            );
     }
 }

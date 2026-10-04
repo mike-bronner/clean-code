@@ -122,13 +122,13 @@ class BlankLinesSniff implements Sniff
                 $run = $this->collectRun($blankLines, $startLine, $direction, $limit);
                 $handledLines += $run;
                 $this->addBlankLinesError(
-                    $phpcsFile,
-                    $firstTokenOnLine,
-                    min(array_keys($run)),
-                    array_keys($run),
-                    $message,
-                    $code
-                );
+                        $phpcsFile,
+                        $firstTokenOnLine,
+                        min(array_keys($run)),
+                        array_keys($run),
+                        $message,
+                        $code
+                    );
             }
         }
 
@@ -178,14 +178,14 @@ class BlankLinesSniff implements Sniff
         }
 
         $this->addBlankLinesError(
-            $phpcsFile,
-            $firstTokenOnLine,
-            $runStart + 1,
-            range($runStart + 1, $runEnd),
-            'Expected at most one consecutive blank line; found %s',
-            'ConsecutiveBlankLines',
-            ($runEnd - $runStart) + 1
-        );
+                $phpcsFile,
+                $firstTokenOnLine,
+                $runStart + 1,
+                range($runStart + 1, $runEnd),
+                'Expected at most one consecutive blank line; found %s',
+                'ConsecutiveBlankLines',
+                ($runEnd - $runStart) + 1
+            );
     }
 
     private function collectRun(array $blankLines, int $start, int $direction, int $limit): array
@@ -217,11 +217,11 @@ class BlankLinesSniff implements Sniff
         ?int $foundCount = null
     ): void {
         $fix = $phpcsFile->addFixableError(
-            $message,
-            $firstTokenOnLine[$reportLine],
-            $code,
-            [$foundCount ?? count($linesToRemove)]
-        );
+                $message,
+                $firstTokenOnLine[$reportLine],
+                $code,
+                [$foundCount ?? count($linesToRemove)]
+            );
 
         if ($fix === false) {
             return;

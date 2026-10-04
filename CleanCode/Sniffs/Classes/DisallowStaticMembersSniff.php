@@ -66,18 +66,18 @@ class DisallowStaticMembersSniff implements Sniff
 
         $openParen = $phpcsFile->findNext([T_OPEN_PARENTHESIS], ($functionPtr + 1), null);
         $namePtr = $phpcsFile->findNext(
-            [T_STRING],
-            ($functionPtr + 1),
-            ($openParen === false ? null : $openParen)
-        );
+                [T_STRING],
+                ($functionPtr + 1),
+                ($openParen === false ? null : $openParen)
+            );
         $name = ($namePtr === false ? 'method' : $tokens[$namePtr]['content']) . '()';
 
         $phpcsFile->addError(
-            'Static method %s is not allowed; a class should be instantiated, not called statically',
-            $staticPtr,
-            'StaticMethod',
-            [$name]
-        );
+                'Static method %s is not allowed; a class should be instantiated, not called statically',
+                $staticPtr,
+                'StaticMethod',
+                [$name]
+            );
     }
 
     private function reportStaticProperty(File $phpcsFile, int $staticPtr, int $declaratorPtr): void
@@ -86,30 +86,30 @@ class DisallowStaticMembersSniff implements Sniff
 
         $boundary = $phpcsFile->findNext([T_SEMICOLON, T_OPEN_CURLY_BRACKET], $declaratorPtr, null);
         $propertyPtr = $phpcsFile->findNext(
-            [T_VARIABLE],
-            $declaratorPtr,
-            ($boundary === false ? null : $boundary)
-        );
+                [T_VARIABLE],
+                $declaratorPtr,
+                ($boundary === false ? null : $boundary)
+            );
 
         if ($propertyPtr === false) {
             return;
         }
 
         $inheritedStatic = (new InheritedMembers())->redeclaresStaticProperty(
-            $phpcsFile,
-            $declaratorPtr,
-            $tokens[$propertyPtr]['content']
-        );
+                $phpcsFile,
+                $declaratorPtr,
+                $tokens[$propertyPtr]['content']
+            );
 
         if ($inheritedStatic === true) {
             return;
         }
 
         $phpcsFile->addError(
-            'Static property %s is not allowed; a class should be instantiated, not accessed statically',
-            $staticPtr,
-            'StaticProperty',
-            [$tokens[$propertyPtr]['content']]
-        );
+                'Static property %s is not allowed; a class should be instantiated, not accessed statically',
+                $staticPtr,
+                'StaticProperty',
+                [$tokens[$propertyPtr]['content']]
+            );
     }
 }

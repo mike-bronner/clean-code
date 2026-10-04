@@ -54,6 +54,9 @@ it('says nothing about a file whose companion exists or that is exempt', functio
     'an enum' => 'src/Status.php',
     'an abstract class' => 'src/BaseModel.php',
     'a readonly abstract class' => 'src/ReadonlyBase.php',
+    'a companion in the Feature suite' => 'src/Models/Book.php',
+    'a companion in the Unit suite' => 'src/Models/Chapter.php',
+    'a companion in a suite, with no source subdirectory' => 'src/Split.php',
 ]);
 
 it('warns on a concrete class whose companion is absent', function (string $fixture, int $line): void {
@@ -65,7 +68,7 @@ it('warns on a concrete class whose companion is absent', function (string $fixt
 })->with([
     'no test anywhere' => ['src/Untested.php', 10],
     'a same-named test at the wrong level' => ['src/Nested/Orphan.php', 14],
-    'a test below the configured test root' => ['src/Split.php', 14],
+    'a test two folders below the test root' => ['src/Models/Verse.php', 12],
     'framework scaffolding, not yet excluded' => ['src/Migrations/CreateUsersTable.php', 13],
     'a class under app/' => ['app/Legacy.php', 12],
     'a project with no test directory at all' => ['standalone/src/Lonely.php', 14],
@@ -154,6 +157,7 @@ it('scopes itself out of a directory not named in the source list', function ():
 it('finds a companion in a split suite through a wildcard test root', function (): void {
     $file = analyzeFixture(REQUIRE_TEST_FILE, 'src/Split.php', function ($sniff): void {
         $sniff->testDirectory = 'tests/*';
+        $sniff->testPathTemplate = '{path}/{name}Test.php';
     });
 
     expect($file->getWarnings())->toBe([]);
@@ -165,6 +169,44 @@ it('resolves the companion through the configured path template', function (): v
     });
 
     expect($file->getWarnings())->toBe([]);
+});
+
+it('looks only where a single custom template points', function (string $fixture, int $line): void {
+    $file = analyzeFixture(REQUIRE_TEST_FILE, $fixture, function ($sniff): void {
+        $sniff->testPathTemplate = '{path}/{name}Test.php';
+    });
+
+    expect(warningTuples($file))->toBe([
+        ['line' => $line, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ]);
+})->with([
+    'a companion in a suite, with no source subdirectory' => ['src/Split.php', 13],
+    'a companion in the Feature suite' => ['src/Models/Book.php', 12],
+    'a companion in the Unit suite' => ['src/Models/Chapter.php', 12],
+]);
+
+it('keeps a template set from a ruleset as the only one', function (): void {
+    $file = analyzeFixtureWithRulesetProperties(
+        REQUIRE_TEST_FILE,
+        'src/Models/Book.php',
+        ['testPathTemplate' => '{path}/{name}Test.php']
+    );
+    $expectedPath = fixturePath(sniffFixtureDirectory(REQUIRE_TEST_FILE), 'tests/Models/BookTest.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 12, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ])
+        ->and(violationMessagesByLine($file->getWarnings())[12][0])
+        ->toContain("matching {$expectedPath} (");
+});
+
+it('names every default candidate in the message', function (): void {
+    $message = violationMessagesByLine(analyzeFixture(REQUIRE_TEST_FILE, 'src/Untested.php')->getWarnings())[10][0];
+    $directory = sniffFixtureDirectory(REQUIRE_TEST_FILE);
+
+    expect($message)->toContain(
+        fixturePath($directory, 'tests/UntestedTest.php') . ' or ' . fixturePath($directory, 'tests/*/UntestedTest.php')
+    );
 });
 
 it('honours an exclude pattern configured from a ruleset', function (array $patterns, array $expected): void {

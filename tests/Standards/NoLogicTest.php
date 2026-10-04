@@ -405,10 +405,10 @@ it('probes every member of every hand-enumerated token list', function (
     expect($members)->not->toBe([])
         ->and(array_values(array_diff($members, $probed)))->toBe([]);
 })->with(array_map(
-    static fn (string $enumeration, string $probeSet): array => [$enumeration, $probeSet],
-    array_keys(NO_LOGIC_ENUMERATIONS),
-    array_values(NO_LOGIC_ENUMERATIONS)
-));
+        static fn (string $enumeration, string $probeSet): array => [$enumeration, $probeSet],
+        array_keys(NO_LOGIC_ENUMERATIONS),
+        array_values(NO_LOGIC_ENUMERATIONS)
+    ));
 
 $groupCloserProbeSource = static function (): string {
     return "<?php\nclass CloserProbe { private array \$items; private \$other;\n"

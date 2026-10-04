@@ -109,14 +109,14 @@ class MappingArrayCandidateSniff implements Sniff
         }
 
         $phpcsFile->addWarning(
-            "Mapping-array candidate: %d branches all compare \"%s\" against a scalar literal and"
-                . " do"
-                . ' nothing but produce a value. Prefer a mapping array or match where one'
-                . ' applies.',
-            $stackPtr,
-            'IfChain',
-            [count($clauses), $subject]
-        );
+                "Mapping-array candidate: %d branches all compare \"%s\" against a scalar literal and"
+                    . " do"
+                    . ' nothing but produce a value. Prefer a mapping array or match where one'
+                    . ' applies.',
+                $stackPtr,
+                'IfChain',
+                [count($clauses), $subject]
+            );
     }
 
     private function isChainHead(File $phpcsFile, int $stackPtr): bool
@@ -199,10 +199,10 @@ class MappingArrayCandidateSniff implements Sniff
         }
 
         $condition = $this->significantTokens(
-            $phpcsFile,
-            $tokens[$clausePtr]['parenthesis_opener'] + 1,
-            $tokens[$clausePtr]['parenthesis_closer'] - 1
-        );
+                $phpcsFile,
+                $tokens[$clausePtr]['parenthesis_opener'] + 1,
+                $tokens[$clausePtr]['parenthesis_closer'] - 1
+            );
 
         $operators = [];
 
@@ -395,9 +395,9 @@ class MappingArrayCandidateSniff implements Sniff
     private function sharedSubject(array $clauses): ?string
     {
         $subjects = array_unique(array_filter(
-            array_column($clauses, 'subject'),
-            static fn (?string $subject): bool => $subject !== null
-        ));
+                array_column($clauses, 'subject'),
+                static fn (?string $subject): bool => $subject !== null
+            ));
 
         return count($subjects) === 1 ? (string) reset($subjects) : null;
     }

@@ -101,9 +101,9 @@ class SuperglobalsSniff implements Sniff
     private function interpolationPattern(): string
     {
         $names = array_map(
-            static fn (string $superglobal): string => preg_quote(ltrim($superglobal, '$'), '/'),
-            self::SUPERGLOBALS
-        );
+                static fn (string $superglobal): string => preg_quote(ltrim($superglobal, '$'), '/'),
+                self::SUPERGLOBALS
+            );
 
         return '/(?<!\\\\)(?:\\\\\\\\)*\K\$\{?(?P<name>' . implode('|', $names) . ')\b/';
     }
@@ -111,10 +111,10 @@ class SuperglobalsSniff implements Sniff
     private function report(File $phpcsFile, int $stackPtr, string $name): void
     {
         $phpcsFile->addError(
-            'Superglobal %s must not be accessed directly; inject the framework request abstraction instead',
-            $stackPtr,
-            self::CODE,
-            [$name]
-        );
+                'Superglobal %s must not be accessed directly; inject the framework request abstraction instead',
+                $stackPtr,
+                self::CODE,
+                [$name]
+            );
     }
 }

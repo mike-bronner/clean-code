@@ -586,9 +586,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         $before = $this->pastReferenceMarker(
-            $phpcsFile,
-            $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true)
-        );
+                $phpcsFile,
+                $phpcsFile->findPrevious(Tokens::$emptyTokens, ($callee - 1), null, true)
+            );
 
         if (
             $before !== false
@@ -701,9 +701,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         foreach ($members as $member) {
             $isCollection = $this->isCollectionClass(
-                $this->shortName($member),
-                str_contains($member, '\\') === false
-            );
+                    $this->shortName($member),
+                    str_contains($member, '\\') === false
+                );
 
             if (
                 $isIntersection === true
@@ -761,13 +761,13 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             }
 
             $this->report(
-                $phpcsFile,
-                $ptr,
-                $opener,
-                $function,
-                $collectionArgument,
-                $this->isFixable($phpcsFile, $function, $arguments, $collectionArgument, $variables)
-            );
+                    $phpcsFile,
+                    $ptr,
+                    $opener,
+                    $function,
+                    $collectionArgument,
+                    $this->isFixable($phpcsFile, $function, $arguments, $collectionArgument, $variables)
+                );
         }
     }
 
@@ -896,9 +896,9 @@ class OnlyUseCollectionMethodsSniff implements Sniff
         }
 
         $expression = trim($phpcsFile->getTokensAsString(
-            $collectionArgument[0],
-            (($collectionArgument[1] - $collectionArgument[0]) + 1)
-        ));
+                $collectionArgument[0],
+                (($collectionArgument[1] - $collectionArgument[0]) + 1)
+            ));
         $closer = $tokens[$opener]['parenthesis_closer'];
 
         $phpcsFile->fixer

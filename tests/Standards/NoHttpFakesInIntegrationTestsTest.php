@@ -15,39 +15,39 @@ const NO_HTTP_FAKES_MOCK = NO_HTTP_FAKES . '.MockedHttpClient';
 const NO_HTTP_FAKES_FIXTURES = 'NoHttpFakesInIntegrationTestsSniff';
 
 $integrationPath = static fn (string $fixture): string => stageFixtureOutsideTests(
-    fixturePath(NO_HTTP_FAKES_FIXTURES, $fixture),
-    'tests/Integration'
-);
+        fixturePath(NO_HTTP_FAKES_FIXTURES, $fixture),
+        'tests/Integration'
+    );
 
 $integrationRun = static fn (string $fixture): LocalFile => analyzeWithSniffs(
-    [NO_HTTP_FAKES],
-    $integrationPath($fixture)
-);
+        [NO_HTTP_FAKES],
+        $integrationPath($fixture)
+    );
 
 $expectedWarnings = static fn (): array => array_map(
-    static fn (array $position): array => [
-        'line' => $position[0],
-        'column' => $position[1],
-        'source' => $position[2],
-    ],
-    [
-        [3, 7, NO_HTTP_FAKES_FAKE],
-        [4, 7, NO_HTTP_FAKES_FAKE],
-        [5, 7, NO_HTTP_FAKES_FAKE],
-        [6, 8, NO_HTTP_FAKES_FAKE],
-        [7, 34, NO_HTTP_FAKES_FAKE],
-        [8, 7, NO_HTTP_FAKES_FAKE],
-        [9, 7, NO_HTTP_FAKES_FAKE],
-        [10, 7, NO_HTTP_FAKES_FAKE],
-        [12, 8, NO_HTTP_FAKES_MOCK],
-        [13, 8, NO_HTTP_FAKES_MOCK],
-        [14, 9, NO_HTTP_FAKES_MOCK],
-        [15, 10, NO_HTTP_FAKES_MOCK],
-        [16, 10, NO_HTTP_FAKES_MOCK],
-        [17, 8, NO_HTTP_FAKES_MOCK],
-        [18, 8, NO_HTTP_FAKES_MOCK],
-    ]
-);
+        static fn (array $position): array => [
+            'line' => $position[0],
+            'column' => $position[1],
+            'source' => $position[2],
+        ],
+        [
+            [3, 7, NO_HTTP_FAKES_FAKE],
+            [4, 7, NO_HTTP_FAKES_FAKE],
+            [5, 7, NO_HTTP_FAKES_FAKE],
+            [6, 8, NO_HTTP_FAKES_FAKE],
+            [7, 34, NO_HTTP_FAKES_FAKE],
+            [8, 7, NO_HTTP_FAKES_FAKE],
+            [9, 7, NO_HTTP_FAKES_FAKE],
+            [10, 7, NO_HTTP_FAKES_FAKE],
+            [12, 8, NO_HTTP_FAKES_MOCK],
+            [13, 8, NO_HTTP_FAKES_MOCK],
+            [14, 9, NO_HTTP_FAKES_MOCK],
+            [15, 10, NO_HTTP_FAKES_MOCK],
+            [16, 10, NO_HTTP_FAKES_MOCK],
+            [17, 8, NO_HTTP_FAKES_MOCK],
+            [18, 8, NO_HTTP_FAKES_MOCK],
+        ]
+    );
 
 it('is registered in the master ruleset', function (): void {
     [, $ruleset] = buildRuleset();

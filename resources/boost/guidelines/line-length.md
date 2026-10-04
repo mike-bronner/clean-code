@@ -7,10 +7,10 @@
 
 ```php
 $invoice = $this->invoices->createFor(
-    customer: $customer,
-    items: $items,
-    dueAt: $dueAt,
-);
+        customer: $customer,
+        items: $items,
+        dueAt: $dueAt,
+    );
 ```
 
 ## Non-compliant

@@ -22,8 +22,8 @@ it('still reports both lines the excluded code measured', function (): void {
         function misindented(string $first, string $second): void
         {
             report(
-                    $first,
-                $second,
+                        $first,
+                    $second,
               );
         }
 
@@ -52,8 +52,8 @@ it('converges on a statement that starts where a comment closes', function (): v
         {
             /* explains the call
                across two lines */ report(
-                $context
-            );
+                    $context
+                );
 
             $sum = 1  +  2;
         }

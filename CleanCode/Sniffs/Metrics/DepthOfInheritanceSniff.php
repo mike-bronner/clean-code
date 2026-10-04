@@ -49,10 +49,10 @@ class DepthOfInheritanceSniff implements Sniff
         }
 
         $depth = $this->depthOf(
-            $declaration,
-            $this->currentFile($phpcsFile)['index'],
-            $this->filesetIndex($phpcsFile)
-        );
+                $declaration,
+                $this->currentFile($phpcsFile)['index'],
+                $this->filesetIndex($phpcsFile)
+            );
 
         if (
             $depth === null
@@ -62,15 +62,15 @@ class DepthOfInheritanceSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'The class %s has %s parents. Current threshold is %s. Reduce the depth of this class hierarchy.',
-            $this->declarationStart($phpcsFile, $stackPtr),
-            'TooDeep',
-            [
-                (new Declarations())->name($phpcsFile, $stackPtr),
-                $depth,
-                $this->minimum,
-            ]
-        );
+                'The class %s has %s parents. Current threshold is %s. Reduce the depth of this class hierarchy.',
+                $this->declarationStart($phpcsFile, $stackPtr),
+                'TooDeep',
+                [
+                    (new Declarations())->name($phpcsFile, $stackPtr),
+                    $depth,
+                    $this->minimum,
+                ]
+            );
     }
 
     private function depthOf(array $declaration, array $file, array $fileset): ?int
@@ -572,15 +572,15 @@ class DepthOfInheritanceSniff implements Sniff
     private function isNameToken(int $code): bool
     {
         return in_array(
-            $code,
-            [
-                T_STRING,
-                T_NAME_QUALIFIED,
-                T_NAME_FULLY_QUALIFIED,
-                T_NAME_RELATIVE,
-            ],
-            true
-        );
+                $code,
+                [
+                    T_STRING,
+                    T_NAME_QUALIFIED,
+                    T_NAME_FULLY_QUALIFIED,
+                    T_NAME_RELATIVE,
+                ],
+                true
+            );
     }
 
     private function declarationStart(File $phpcsFile, int $stackPtr): int

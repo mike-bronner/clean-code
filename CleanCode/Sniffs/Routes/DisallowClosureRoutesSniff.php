@@ -65,11 +65,11 @@ class DisallowClosureRoutesSniff implements Sniff
         }
 
         $this->reportClosureArguments(
-            $phpcsFile,
-            $opener,
-            $tokens[$opener]['parenthesis_closer'],
-            $tokens[$stackPtr]['content']
-        );
+                $phpcsFile,
+                $opener,
+                $tokens[$opener]['parenthesis_closer'],
+                $tokens[$stackPtr]['content']
+            );
     }
 
     private function resolvesToRouteFacade(File $phpcsFile, int $namePtr): bool
@@ -102,11 +102,11 @@ class DisallowClosureRoutesSniff implements Sniff
         }
 
         $callName = $phpcsFile->findPrevious(
-            Tokens::$emptyTokens,
-            ($tokens[$closer]['parenthesis_opener'] - 1),
-            null,
-            true
-        );
+                Tokens::$emptyTokens,
+                ($tokens[$closer]['parenthesis_opener'] - 1),
+                null,
+                true
+            );
 
         if (
             $callName === false
@@ -122,11 +122,11 @@ class DisallowClosureRoutesSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
         $classPtr = $phpcsFile->findPrevious(
-            Tokens::$emptyTokens,
-            ($doubleColonPtr - 1),
-            null,
-            true
-        );
+                Tokens::$emptyTokens,
+                ($doubleColonPtr - 1),
+                null,
+                true
+            );
 
         if (
             $classPtr === false
@@ -156,12 +156,12 @@ class DisallowClosureRoutesSniff implements Sniff
 
             if ($isClosure === true) {
                 $phpcsFile->addError(
-                    'Route::%s() must not take a closure action; a closure cannot be serialized by'
-                        . ' route:cache — point the route at a controller instead',
-                    $action,
-                    'ClosureAction',
-                    [$method]
-                );
+                        'Route::%s() must not take a closure action; a closure cannot be serialized by'
+                            . ' route:cache — point the route at a controller instead',
+                        $action,
+                        'ClosureAction',
+                        [$method]
+                    );
             }
 
             $comma = $this->nextArgumentSeparator($phpcsFile, $argument, $closer);

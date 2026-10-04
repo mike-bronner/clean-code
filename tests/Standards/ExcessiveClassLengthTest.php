@@ -27,26 +27,26 @@ it('produces no violations on the compliant fixture', function (): void {
 });
 
 it(
-    'leaves interfaces, traits, enums, and anonymous classes alone whatever their length',
-    function () use ($excessiveClassLength): void {
-        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(10));
+        'leaves interfaces, traits, enums, and anonymous classes alone whatever their length',
+        function () use ($excessiveClassLength): void {
+            $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(10));
 
-        expect($file->getErrors())->toBe([]);
-    }
-);
+            expect($file->getErrors())->toBe([]);
+        }
+    );
 
 it(
-    'reports the one real class in the compliant fixture with PHPMD\'s own count',
-    function () use ($excessiveClassLength): void {
-        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(1));
+        'reports the one real class in the compliant fixture with PHPMD\'s own count',
+        function () use ($excessiveClassLength): void {
+            $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'passing.php', $excessiveClassLength(1));
 
-        expect(violationTuples($file))->toBe([
+            expect(violationTuples($file))->toBe([
             ['line' => 59, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ])->and(violationMessagesByLine($file->getErrors()))->toBe([
+            ])->and(violationMessagesByLine($file->getErrors()))->toBe([
             59 => ['The class Invoice has 9 lines of code. Current threshold is 1. Avoid really long classes.'],
-        ]);
-    }
-);
+            ]);
+        }
+    );
 
 it('flags a class of exactly the shipped 1000-line threshold', function (): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'failing.php');
@@ -68,23 +68,23 @@ it('treats the threshold as inclusive', function () use ($excessiveClassLength):
 });
 
 it(
-    'reports at the declaration modifier, not the class keyword or the attribute above it',
-    function () use ($excessiveClassLength): void {
-        $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1));
+        'reports at the declaration modifier, not the class keyword or the attribute above it',
+        function () use ($excessiveClassLength): void {
+            $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'declaration-start.php', $excessiveClassLength(1));
 
-        expect(violationTuples($file))->toBe([
+            expect(violationTuples($file))->toBe([
             ['line' => 16, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ['line' => 21, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ['line' => 28, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
             ['line' => 35, 'column' => 1, 'source' => EXCESSIVE_CLASS_LENGTH_TOO_LONG],
-        ])->and(violationMessagesByLine($file->getErrors()))->toBe([
+            ])->and(violationMessagesByLine($file->getErrors()))->toBe([
             16 => ['The class Alpha has 4 lines of code. Current threshold is 1. Avoid really long classes.'],
             21 => ['The class Beta has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
             28 => ['The class Gamma has 6 lines of code. Current threshold is 1. Avoid really long classes.'],
             35 => ['The class Delta has 5 lines of code. Current threshold is 1. Avoid really long classes.'],
-        ]);
-    }
-);
+            ]);
+        }
+    );
 
 it('counts comment and blank lines when ignoreWhitespace is off', function () use ($excessiveClassLength): void {
     $file = analyzeFixture(EXCESSIVE_CLASS_LENGTH, 'whitespace.php', $excessiveClassLength(1));

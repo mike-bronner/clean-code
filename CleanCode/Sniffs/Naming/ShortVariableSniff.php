@@ -164,10 +164,10 @@ class ShortVariableSniff implements Sniff
         }
 
         return in_array(
-            $tokens[$tokens[$pointer]['scope_condition']]['code'],
-            self::CLASS_LIKE_TOKENS,
-            true
-        );
+                $tokens[$tokens[$pointer]['scope_condition']]['code'],
+                self::CLASS_LIKE_TOKENS,
+                true
+            );
     }
 
     private function interpolatedNames(array $token): array
@@ -177,10 +177,10 @@ class ShortVariableSniff implements Sniff
         }
 
         $matched = preg_match_all(
-            '/(?<!\\\\)\$\{?([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/',
-            (string) $token['content'],
-            $matches
-        );
+                '/(?<!\\\\)\$\{?([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)/',
+                (string) $token['content'],
+                $matches
+            );
 
         if ($matched === false) {
             return [];
@@ -217,11 +217,11 @@ class ShortVariableSniff implements Sniff
             }
 
             $phpcsFile->addError(
-                'Avoid variables with short names like %s. Configured minimum length is %s.',
-                $occurrence['pointer'],
-                'TooShort',
-                ["\${$name}", $minimum]
-            );
+                    'Avoid variables with short names like %s. Configured minimum length is %s.',
+                    $occurrence['pointer'],
+                    'TooShort',
+                    ["\${$name}", $minimum]
+                );
         }
     }
 

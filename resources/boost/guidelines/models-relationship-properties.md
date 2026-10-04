@@ -20,6 +20,12 @@ The accessor keeps callers coupled to one model instead of two — consumers of
 place to provide a safe default when the relationship does not exist, rather
 than every call site guarding against `null`.
 
+The accessor is where the chain belongs, so the sniff does not report a chain
+inside one. An accessor is a `get<Name>Attribute()` method, or a method that
+returns `Illuminate\Database\Eloquent\Casts\Attribute`, including the
+closures it passes to `Attribute::make()`. The accessor can be declared in the
+model or in a trait the model uses. Everywhere else, a chain is reported.
+
 ## Compliant
 
 ```php

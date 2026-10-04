@@ -168,11 +168,11 @@ class ModelNamingConventionsSniff implements Sniff
             }
 
             $this->reportBooleanProperty(
-                $phpcsFile,
-                $parameter['token'],
-                $parameter['type_hint'],
-                ltrim($parameter['name'], '$')
-            );
+                    $phpcsFile,
+                    $parameter['token'],
+                    $parameter['type_hint'],
+                    ltrim($parameter['name'], '$')
+                );
         }
     }
 
@@ -251,11 +251,11 @@ class ModelNamingConventionsSniff implements Sniff
             && str_contains(substr($name, strlen('find')), $model) === false
         ) {
             $phpcsFile->addError(
-                self::MESSAGE_FIND_MODEL_NAME,
-                $stackPtr,
-                'FindModelName',
-                [$name, $model, $model]
-            );
+                    self::MESSAGE_FIND_MODEL_NAME,
+                    $stackPtr,
+                    'FindModelName',
+                    [$name, $model, $model]
+                );
         }
     }
 
@@ -331,9 +331,9 @@ class ModelNamingConventionsSniff implements Sniff
         }
 
         $parts = array_values(array_filter(
-            array_map('trim', explode('|', $type)),
-            static fn (string $part): bool => $part !== '' && strtolower($part) !== 'null'
-        ));
+                array_map('trim', explode('|', $type)),
+                static fn (string $part): bool => $part !== '' && strtolower($part) !== 'null'
+            ));
 
         return (count($parts) === 1) ? $parts[0] : '';
     }

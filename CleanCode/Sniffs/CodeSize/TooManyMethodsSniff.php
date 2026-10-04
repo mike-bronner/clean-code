@@ -23,12 +23,12 @@ class TooManyMethodsSniff implements Sniff
     {
         if ($this->hasUsableIgnorePattern() === false) {
             $phpcsFile->addError(
-                'The ignorepattern property is not a valid regular expression: %s. '
-                    . 'No method can be excluded from the count until it is corrected',
-                $stackPtr,
-                'InvalidIgnorePattern',
-                [$this->ignorepattern]
-            );
+                    'The ignorepattern property is not a valid regular expression: %s. '
+                        . 'No method can be excluded from the count until it is corrected',
+                    $stackPtr,
+                    'InvalidIgnorePattern',
+                    [$this->ignorepattern]
+                );
 
             return;
         }
@@ -53,13 +53,13 @@ class TooManyMethodsSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Class %s declares %s counted methods, more than the maximum of %s. Methods '
-                . 'matching %s are not counted. Split it into smaller classes '
-                . '(see resources/boost/guidelines/pattern-solid.md)',
-            $stackPtr,
-            'MaxExceeded',
-            [$name, $counted, $this->maxmethods, $this->ignorepattern]
-        );
+                'Class %s declares %s counted methods, more than the maximum of %s. Methods '
+                    . 'matching %s are not counted. Split it into smaller classes '
+                    . '(see resources/boost/guidelines/pattern-solid.md)',
+                $stackPtr,
+                'MaxExceeded',
+                [$name, $counted, $this->maxmethods, $this->ignorepattern]
+            );
     }
 
     private function hasUsableIgnorePattern(): bool

@@ -42,11 +42,11 @@ class ShortMethodNameSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            'Avoid using short method names like %s(). The configured minimum method name length is %s.',
-            $namePtr,
-            'TooShort',
-            [$name, $minimum]
-        );
+                'Avoid using short method names like %s(). The configured minimum method name length is %s.',
+                $namePtr,
+                'TooShort',
+                [$name, $minimum]
+            );
     }
 
     private function namePointer(File $phpcsFile, int $stackPtr): ?int
@@ -61,11 +61,11 @@ class ShortMethodNameSniff implements Sniff
         $skipped[T_BITWISE_AND] = T_BITWISE_AND;
 
         $namePtr = $phpcsFile->findNext(
-            $skipped,
-            ($stackPtr + 1),
-            $tokens[$stackPtr]['parenthesis_opener'],
-            true
-        );
+                $skipped,
+                ($stackPtr + 1),
+                $tokens[$stackPtr]['parenthesis_opener'],
+                true
+            );
 
         return $namePtr === false ? null : $namePtr;
     }

@@ -56,13 +56,13 @@ class BooleanGetMethodNameSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            "The %s() method returns a boolean, so it should be named \"is...()\" or "
-                . "\"has...()\" — a getter hands back a value, a question answers yes or no "
-                . '(see resources/boost/guidelines/naming-booleangetmethodname.md)',
-            $phpcsFile->findNext(T_STRING, $stackPtr),
-            'Found',
-            [$name]
-        );
+                "The %s() method returns a boolean, so it should be named \"is...()\" or "
+                    . "\"has...()\" — a getter hands back a value, a question answers yes or no "
+                    . '(see resources/boost/guidelines/naming-booleangetmethodname.md)',
+                $phpcsFile->findNext(T_STRING, $stackPtr),
+                'Found',
+                [$name]
+            );
     }
 
     private function isMethod(File $phpcsFile, int $stackPtr): bool
@@ -127,10 +127,10 @@ class BooleanGetMethodNameSniff implements Sniff
             }
 
             $next = $phpcsFile->findNext(
-                [T_DOC_COMMENT_STRING, T_DOC_COMMENT_TAG],
-                $tag + 1,
-                $commentEnd
-            );
+                    [T_DOC_COMMENT_STRING, T_DOC_COMMENT_TAG],
+                    $tag + 1,
+                    $commentEnd
+                );
 
             if (
                 $next === false
@@ -177,8 +177,8 @@ class BooleanGetMethodNameSniff implements Sniff
         $members = array_values(array_diff(explode('|', $normalized), ['null', '']));
 
         return array_map(
-            static fn (string $member): string => $member === 'boolean' ? 'bool' : $member,
-            $members
-        ) === ['bool'];
+                static fn (string $member): string => $member === 'boolean' ? 'bool' : $member,
+                $members
+            ) === ['bool'];
     }
 }

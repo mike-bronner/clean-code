@@ -75,20 +75,20 @@ class RequireStringInterpolationSniff implements Sniff
 
         if ($replacement === null) {
             $phpcsFile->addError(
-                'Use string interpolation instead of concatenation; this expression is too complex'
-                    . ' to auto-fix — convert it to an interpolated string with {...} manually',
-                $stackPtr,
-                'ComplexConcatenation'
-            );
+                    'Use string interpolation instead of concatenation; this expression is too complex'
+                        . ' to auto-fix — convert it to an interpolated string with {...} manually',
+                    $stackPtr,
+                    'ComplexConcatenation'
+                );
 
             return;
         }
 
         $fix = $phpcsFile->addFixableError(
-            'Use string interpolation instead of concatenating a string literal with a variable',
-            $stackPtr,
-            'Concatenation'
-        );
+                'Use string interpolation instead of concatenating a string literal with a variable',
+                $stackPtr,
+                'Concatenation'
+            );
 
         if ($fix === false) {
             return;

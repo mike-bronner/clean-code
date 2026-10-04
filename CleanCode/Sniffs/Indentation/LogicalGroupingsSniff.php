@@ -277,9 +277,9 @@ class LogicalGroupingsSniff implements Sniff
             $line = $tokens[$i]['line'];
             $isContinuation = $line <= $spannedThroughLine;
             $spannedThroughLine = max(
-                $spannedThroughLine,
-                $line + substr_count($tokens[$i]['content'], "\n")
-            );
+                    $spannedThroughLine,
+                    $line + substr_count($tokens[$i]['content'], "\n")
+                );
 
             if (
                 $line !== $previousLine

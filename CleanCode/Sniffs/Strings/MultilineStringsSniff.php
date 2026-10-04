@@ -177,11 +177,11 @@ class MultilineStringsSniff implements Sniff
         }
 
         $phpcsFile->addError(
-            self::MESSAGE_CONCATENATION,
-            $firstString,
-            'Concatenation',
-            [$lines, $this->maximumLines]
-        );
+                self::MESSAGE_CONCATENATION,
+                $firstString,
+                'Concatenation',
+                [$lines, $this->maximumLines]
+            );
     }
 
     private function collectFragments(array $tokens, int $start): array

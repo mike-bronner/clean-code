@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Models;
 
+use MikeBronner\CleanCode\Helpers\AttributeCasts;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
 
 class ModelMagicMethodLocationSniff implements Sniff
 {
-    private const ATTRIBUTE_CAST = 'illuminate\database\eloquent\casts\attribute';
-
     private const SCOPE_ATTRIBUTE = 'scope';
 
     private const ATTRIBUTES = 'Attributes';
@@ -22,8 +21,6 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private const SCOPE_PATTERN = '/^scope[A-Z]/';
 
-    private const IMPORT_KEYWORDS = ['function', 'const'];
-
     private const NAME_TOKENS = [
         T_STRING,
         T_NS_SEPARATOR,
@@ -32,8 +29,6 @@ class ModelMagicMethodLocationSniff implements Sniff
     ];
 
     private const NAME_STARTERS = [T_ATTRIBUTE, T_COMMA];
-
-    private const MEMBER_ENDS = [T_COMMA, T_CLOSE_USE_GROUP, T_SEMICOLON];
 
     private const NESTED_SCOPES = [T_ANON_CLASS, T_CLOSURE, T_FN, T_FUNCTION];
 
@@ -45,6 +40,11 @@ class ModelMagicMethodLocationSniff implements Sniff
         (see resources/boost/guidelines/models-structure-attributes-queries-traits.md)
         MESSAGE;
 
+    public function __construct(
+        private AttributeCasts $attributeCasts = new AttributeCasts()
+    ) {
+    }
+
     public function register(): array
     {
         return [T_CLASS];
@@ -52,19 +52,17 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        $imports = $this->readImports($phpcsFile);
-
         $bodyPtr = ($stackPtr + 1);
 
         foreach ($this->pointersOfType($phpcsFile, T_FUNCTION, $bodyPtr, null) as $functionPtr) {
-            $this->inspect($phpcsFile, $functionPtr, $stackPtr, $imports);
+            $this->inspect($phpcsFile, $functionPtr, $stackPtr);
         }
     }
 
-    private function inspect(File $phpcsFile, int $functionPtr, int $classPtr, array $imports): void
+    private function inspect(File $phpcsFile, int $functionPtr, int $classPtr): void
     {
         $name = $this->declarationName($phpcsFile, $functionPtr);
-        $destination = $this->destinationTrait($phpcsFile, $functionPtr, $name, $imports);
+        $destination = $this->destinationTrait($phpcsFile, $functionPtr, $name);
 
         $code = match ($destination) {
             self::ATTRIBUTES => 'AttributeMethod',
@@ -101,14 +99,14 @@ class ModelMagicMethodLocationSniff implements Sniff
     private function destinationTrait(
         File $phpcsFile,
         int $functionPtr,
-        ?string $name,
-        array $imports
+        ?string $name
     ): ?string {
+        $attributeCasts = $this->attributeCasts;
+
         return match (true) {
             $name === null => null,
             preg_match(self::ACCESSOR_PATTERN, $name) === 1 => self::ATTRIBUTES,
-            $this->hasAttributeCastReturn($phpcsFile, $functionPtr, $imports) === true
-                => self::ATTRIBUTES,
+            $attributeCasts->isReturnedBy($phpcsFile, $functionPtr) === true => self::ATTRIBUTES,
             preg_match(self::SCOPE_PATTERN, $name) === 1 => self::QUERIES,
             $this->hasScopeAttribute($phpcsFile, $functionPtr) === true => self::QUERIES,
             default => null,
@@ -129,42 +127,6 @@ class ModelMagicMethodLocationSniff implements Sniff
             $this->isToken($phpcsFile, $namePtr, T_STRING) === false => null,
             $this->isToken($phpcsFile, $openPtr, T_OPEN_PARENTHESIS) === false => null,
             default => $this->contentOf($phpcsFile, (int) $namePtr),
-        };
-    }
-
-    private function hasAttributeCastReturn(File $phpcsFile, int $functionPtr, array $imports): bool
-    {
-        $returnType = $phpcsFile->getMethodProperties($functionPtr)['return_type'];
-        $found = false;
-
-        foreach (explode('|', str_replace('&', '|', $returnType)) as $member) {
-            $name = trim($member, "? \t\n\r\0\x0B()");
-            $found = match (true) {
-                $found === true => true,
-                $name === '' => false,
-                default => $this->resolve($name, $imports) === self::ATTRIBUTE_CAST,
-            };
-        }
-
-        return $found;
-    }
-
-    private function resolve(string $name, array $imports): string
-    {
-        $segments = explode('\\', $name);
-        $head = strtolower((string) array_shift($segments));
-        $resolved = strtolower($name);
-
-        foreach ($imports as $alias => $fullyQualified) {
-            $resolved = match ($alias) {
-                $head => strtolower(implode('\\', array_merge([$fullyQualified], $segments))),
-                default => $resolved,
-            };
-        }
-
-        return match (str_starts_with($name, '\\')) {
-            true => strtolower(ltrim($name, '\\')),
-            default => $resolved,
         };
     }
 
@@ -235,99 +197,6 @@ class ModelMagicMethodLocationSniff implements Sniff
         $segments = explode('\\', $name);
 
         return strtolower((string) end($segments));
-    }
-
-    private function readImports(File $phpcsFile): array
-    {
-        $imports = [];
-
-        foreach ($this->pointersOfType($phpcsFile, T_USE, 0, null) as $usePtr) {
-            $imports += $this->readFileLevelImport($phpcsFile, $usePtr);
-        }
-
-        return $imports;
-    }
-
-    private function readFileLevelImport(File $phpcsFile, int $usePtr): array
-    {
-        $firstPtr = $this->nextSignificant($phpcsFile, $usePtr);
-
-        return match (true) {
-            $phpcsFile->hasCondition($usePtr, Tokens::$scopeOpeners) === true => [],
-            $this->isToken($phpcsFile, $firstPtr, self::NAME_TOKENS) === false => [],
-            $this->isImportKeyword($phpcsFile, (int) $firstPtr) === true => [],
-            default => $this->readImportBody($phpcsFile, (int) $firstPtr),
-        };
-    }
-
-    private function readImportBody(File $phpcsFile, int $firstPtr): array
-    {
-        [$prefix, $endPtr] = $this->readName($phpcsFile, $firstPtr);
-        $groupPtr = $this->nextSignificant($phpcsFile, $endPtr);
-        $memberPtr = $this->nextSignificant($phpcsFile, $groupPtr);
-
-        return match ($this->isToken($phpcsFile, $groupPtr, T_OPEN_USE_GROUP)) {
-            true => $this->readMembers($phpcsFile, $memberPtr, $prefix),
-            default => $this->readMembers($phpcsFile, $firstPtr, ''),
-        };
-    }
-
-    private function readMembers(File $phpcsFile, ?int $startPtr, string $prefix): array
-    {
-        $imports = [];
-        $ptr = $startPtr;
-
-        while ($ptr !== null) {
-            $imports += $this->readMember($phpcsFile, $ptr, $prefix);
-            $ptr = $this->nextMemberPointer($phpcsFile, $ptr);
-        }
-
-        return $imports;
-    }
-
-    private function readMember(File $phpcsFile, int $startPtr, string $prefix): array
-    {
-        [$name, $endPtr] = $this->readName($phpcsFile, $startPtr);
-        $fullyQualified = ltrim($prefix . $name, '\\');
-        $alias = $this->aliasOf($phpcsFile, $endPtr, $fullyQualified);
-
-        return match (true) {
-            $this->isImportKeyword($phpcsFile, $startPtr) === true => [],
-            $alias === '' => [],
-            default => [$alias => $fullyQualified],
-        };
-    }
-
-    private function aliasOf(File $phpcsFile, int $endPtr, string $fullyQualified): string
-    {
-        $asPtr = $this->nextSignificant($phpcsFile, $endPtr);
-        $aliasPtr = $this->nextSignificant($phpcsFile, $asPtr);
-        $bound = $this->shortName($fullyQualified);
-
-        return match (true) {
-            $this->isToken($phpcsFile, $asPtr, T_AS) === false => $bound,
-            $this->isToken($phpcsFile, $aliasPtr, T_STRING) === false => $bound,
-            default => strtolower($this->contentOf($phpcsFile, (int) $aliasPtr)),
-        };
-    }
-
-    private function nextMemberPointer(File $phpcsFile, int $startPtr): ?int
-    {
-        $endPtr = $this->orNull($phpcsFile->findNext(self::MEMBER_ENDS, ($startPtr + 1)));
-
-        return match ($this->isToken($phpcsFile, $endPtr, T_COMMA)) {
-            false => null,
-            default => $this->nextSignificant($phpcsFile, $endPtr),
-        };
-    }
-
-    private function isImportKeyword(File $phpcsFile, int $stackPtr): bool
-    {
-        return in_array(
-            strtolower($this->contentOf($phpcsFile, $stackPtr)),
-            self::IMPORT_KEYWORDS,
-            true
-        );
     }
 
     private function readName(File $phpcsFile, int $startPtr): array
