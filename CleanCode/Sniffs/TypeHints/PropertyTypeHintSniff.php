@@ -12,7 +12,7 @@ class PropertyTypeHintSniff extends SlevomatPropertyTypeHint
 {
     public function process(File $phpcsFile, int $pointer): void
     {
-        if ((new InheritedMembers())->isCodeSnifferClass($phpcsFile, $pointer) === true) {
+        if ((new InheritedMembers)->isCodeSnifferClass($phpcsFile, $pointer) === true) {
             return;
         }
 

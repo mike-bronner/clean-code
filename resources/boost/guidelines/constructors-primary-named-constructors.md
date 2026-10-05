@@ -25,7 +25,7 @@ public static function fromDollars(float $dollars): self
 ```php
 public static function fromDollars(float $dollars): self
 {
-    $money = new self();
+    $money = new self;
     $money->cents = (int) round($dollars * 100);
 
     return $money;

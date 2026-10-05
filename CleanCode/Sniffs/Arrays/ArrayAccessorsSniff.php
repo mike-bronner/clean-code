@@ -77,7 +77,7 @@ class ArrayAccessorsSniff implements Sniff
     private array $existenceCheckOpeners = [];
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 

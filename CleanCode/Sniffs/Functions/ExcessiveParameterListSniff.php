@@ -71,7 +71,7 @@ class ExcessiveParameterListSniff implements Sniff
             }
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return "{$subject} {$name}()";
     }

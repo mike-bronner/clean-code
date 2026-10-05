@@ -72,9 +72,9 @@ class DisallowChainedPropertyFetchSniff implements Sniff
     private int $walkSteps = 0;
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams(),
-        private AttributeCasts $attributeCasts = new AttributeCasts(),
-        private Declarations $declarations = new Declarations()
+        private TokenStreams $tokenStreams = new TokenStreams,
+        private AttributeCasts $attributeCasts = new AttributeCasts,
+        private Declarations $declarations = new Declarations
     ) {
     }
 

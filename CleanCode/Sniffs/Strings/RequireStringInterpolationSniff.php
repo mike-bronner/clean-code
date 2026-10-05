@@ -149,7 +149,7 @@ class RequireStringInterpolationSniff implements Sniff
             $code = $tokens[$pointer]['code'];
 
             if (in_array($code, self::STRING_LITERALS, true) === true) {
-                if ((new StringLiteral())->isComplete($tokens[$pointer]['content']) === false) {
+                if ((new StringLiteral)->isComplete($tokens[$pointer]['content']) === false) {
                     return true;
                 }
 
@@ -247,7 +247,7 @@ class RequireStringInterpolationSniff implements Sniff
 
         $content = $tokens[$pointer]['content'];
 
-        if ((new StringLiteral())->prefix($content) !== '') {
+        if ((new StringLiteral)->prefix($content) !== '') {
             return null;
         }
 
@@ -267,8 +267,8 @@ class RequireStringInterpolationSniff implements Sniff
 
     private function literalInnerAsDoubleQuoted(string $content): ?string
     {
-        $delimiter = (new StringLiteral())->delimiter($content);
-        $inner = (new StringLiteral())->inner($content);
+        $delimiter = (new StringLiteral)->delimiter($content);
+        $inner = (new StringLiteral)->inner($content);
 
         if ($delimiter === "\"") {
             return $this->escapeTrailingDollar($inner);

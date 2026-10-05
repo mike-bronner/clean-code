@@ -36,7 +36,7 @@ class TooManyMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$stackPtr]['scope_opener'] ?? null;
         $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $opener === null
@@ -84,7 +84,7 @@ class TooManyMethodsSniff implements Sniff
                 continue;
             }
 
-            $name = (new Declarations())->name($phpcsFile, $ptr);
+            $name = (new Declarations)->name($phpcsFile, $ptr);
 
             if (
                 $name === null

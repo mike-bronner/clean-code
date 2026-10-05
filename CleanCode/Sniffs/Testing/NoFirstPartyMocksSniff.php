@@ -62,7 +62,7 @@ class NoFirstPartyMocksSniff implements Sniff
     ];
 
     public function __construct(
-        private PathPatterns $pathPatterns = new PathPatterns()
+        private PathPatterns $pathPatterns = new PathPatterns
     ) {
     }
 
@@ -222,7 +222,7 @@ class NoFirstPartyMocksSniff implements Sniff
             return $this->parentName($phpcsFile, $classPtr);
         }
 
-        $declared = (new Declarations())->name($phpcsFile, $classPtr);
+        $declared = (new Declarations)->name($phpcsFile, $classPtr);
 
         if ($declared === null) {
             return null;

@@ -42,7 +42,7 @@ class ExcessiveMethodLengthSniff implements Sniff
             return;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
                 'The %s %s() has %s lines of code, and the threshold is %s; a declaration '

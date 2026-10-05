@@ -191,7 +191,7 @@ class ModelNamingConventionsSniff implements Sniff
 
     private function processMethod(File $phpcsFile, int $stackPtr, string $namespace, array $imports): void
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

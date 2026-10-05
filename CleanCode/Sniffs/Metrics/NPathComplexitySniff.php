@@ -115,7 +115,7 @@ class NPathComplexitySniff implements Sniff
                 'MinimumExceeded',
                 [
                     $this->callableKind($phpcsFile, $stackPtr),
-                    (string) (new Declarations())->name($phpcsFile, $stackPtr),
+                    (string) (new Declarations)->name($phpcsFile, $stackPtr),
                     $measured,
                     $minimum,
                 ]

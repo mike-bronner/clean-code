@@ -99,7 +99,7 @@ class ExcessivePublicCountSniff implements Sniff
 
         $kind = $tokens[$stackPtr]['code'] === T_TRAIT ? 'trait' : 'class';
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return "{$kind} {$name}";
     }

@@ -34,7 +34,7 @@ class LogicalGroupingsSniff implements Sniff
     ];
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 

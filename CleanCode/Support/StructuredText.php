@@ -44,7 +44,7 @@ class StructuredText
 
     public function isMarkup(string $text): bool
     {
-        return (new Markup())->containsHtmlElement($text) === true
+        return (new Markup)->containsHtmlElement($text) === true
             || preg_match($this->xmlPattern(), $text) === 1;
     }
 

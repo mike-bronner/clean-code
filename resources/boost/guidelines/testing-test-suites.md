@@ -17,7 +17,7 @@ namespace Tests\Feature;
 it('charges the card', function (): void {
     Http::fake(['api.stripe.com/*' => Http::response(['paid' => true])]);
 
-    expect((new Checkout())->charge())->toBeTrue();
+    expect((new Checkout)->charge())->toBeTrue();
 });
 ```
 

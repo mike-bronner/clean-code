@@ -24,7 +24,7 @@ final class TokenStreams
 
     private function identity(File $phpcsFile): int
     {
-        $this->identities ??= new WeakMap();
+        $this->identities ??= new WeakMap;
 
         return $this->identities[$phpcsFile] ??= ++$this->lastIdentity;
     }

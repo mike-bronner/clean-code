@@ -31,7 +31,7 @@ class NoCustomActionsSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        $className = (new Declarations())->name($phpcsFile, $stackPtr);
+        $className = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $className === null
@@ -74,7 +74,7 @@ class NoCustomActionsSniff implements Sniff
 
     private function reportCustomAction(File $phpcsFile, int $actionPtr): void
     {
-        $method = (new Declarations())->name($phpcsFile, $actionPtr);
+        $method = (new Declarations)->name($phpcsFile, $actionPtr);
 
         if (
             $method === null

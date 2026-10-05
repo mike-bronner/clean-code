@@ -28,7 +28,7 @@ class InferredReturnTypeSniff implements Sniff
             return;
         }
 
-        $type = (new ReturnTypeInference())->infer($phpcsFile, $stackPtr);
+        $type = (new ReturnTypeInference)->infer($phpcsFile, $stackPtr);
 
         if ($type === null) {
             return;
@@ -39,7 +39,7 @@ class InferredReturnTypeSniff implements Sniff
 
     private function report(File $phpcsFile, int $stackPtr, string $type): void
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr) ?? 'Closure';
+        $name = (new Declarations)->name($phpcsFile, $stackPtr) ?? 'Closure';
         $fix = $phpcsFile->addFixableError(
                 "%s has no return type hint; \"%s\" follows from its own declaration",
                 $stackPtr,
@@ -76,7 +76,7 @@ class InferredReturnTypeSniff implements Sniff
 
     private function isMagicMethod(File $phpcsFile, int $stackPtr): bool
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return $name !== null
             && str_starts_with(strtolower($name), '__');

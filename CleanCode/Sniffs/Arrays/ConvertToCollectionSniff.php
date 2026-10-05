@@ -20,7 +20,7 @@ class ConvertToCollectionSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls()
+        private FunctionCalls $functionCalls = new FunctionCalls
     ) {
     }
 

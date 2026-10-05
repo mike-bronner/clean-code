@@ -22,7 +22,7 @@ class TooManyInterfaceMethodsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $opener = $tokens[$stackPtr]['scope_opener'] ?? null;
         $closer = $tokens[$stackPtr]['scope_closer'] ?? null;
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $opener === null

@@ -57,7 +57,7 @@ class ActionMethodReturnSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (string) (new Declarations)->name($phpcsFile, $stackPtr);
         $prefix = $this->matchedPrefix($name);
 
         match (true) {
@@ -182,7 +182,7 @@ class ActionMethodReturnSniff implements Sniff
 
         return match ($classPtr) {
             self::NO_POINTER => null,
-            default => (new Declarations())->name($phpcsFile, $classPtr),
+            default => (new Declarations)->name($phpcsFile, $classPtr),
         };
     }
 

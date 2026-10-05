@@ -14,7 +14,7 @@ use App\Billing\Invoice;
 
 public function make(): Invoice
 {
-    return new Invoice();
+    return new Invoice;
 }
 ```
 
@@ -23,7 +23,7 @@ public function make(): Invoice
 ```php
 public function make(): \App\Billing\Invoice
 {
-    return new \App\Billing\Invoice();
+    return new \App\Billing\Invoice;
 }
 ```
 

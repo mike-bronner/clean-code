@@ -373,7 +373,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             return null;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null
@@ -516,7 +516,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             $ptr !== false
             && isset(self::NAME_TOKENS[$tokens[$ptr]['code']]) === true
         ) {
-            $name .= (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]);
+            $name .= (new NameTokens)->withoutNamespaceKeyword($tokens[$ptr]);
             $end = $ptr;
             $ptr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ptr + 1), null, true);
         }
@@ -533,7 +533,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             $ptr !== false
             && isset(self::NAME_TOKENS[$tokens[$ptr]['code']]) === true
         ) {
-            $name = (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]) . $name;
+            $name = (new NameTokens)->withoutNamespaceKeyword($tokens[$ptr]) . $name;
             $ptr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ptr - 1), null, true);
         }
 
@@ -546,7 +546,7 @@ class CouplingBetweenObjectsSniff implements Sniff
             return 'anonymous class';
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return "class {$name}";
     }

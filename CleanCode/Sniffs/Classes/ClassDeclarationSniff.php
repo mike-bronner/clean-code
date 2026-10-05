@@ -12,7 +12,7 @@ class ClassDeclarationSniff extends PsrDeclaration
 {
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ((new EmptyClassBody())->isInline($phpcsFile, $stackPtr) === true) {
+        if ((new EmptyClassBody)->isInline($phpcsFile, $stackPtr) === true) {
             $this->processEmptyBody($phpcsFile, $stackPtr);
             $this->processOpen($phpcsFile, $stackPtr);
             $this->processClose($phpcsFile, $stackPtr);

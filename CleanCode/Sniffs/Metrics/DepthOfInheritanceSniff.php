@@ -66,7 +66,7 @@ class DepthOfInheritanceSniff implements Sniff
                 $this->declarationStart($phpcsFile, $stackPtr),
                 'TooDeep',
                 [
-                    (new Declarations())->name($phpcsFile, $stackPtr),
+                    (new Declarations)->name($phpcsFile, $stackPtr),
                     $depth,
                     $this->minimum,
                 ]
@@ -110,7 +110,7 @@ class DepthOfInheritanceSniff implements Sniff
 
     private function declarationOf(File $phpcsFile, int $stackPtr): ?array
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

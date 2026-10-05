@@ -155,7 +155,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
     private array $arrowFunctions = [];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls()
+        private FunctionCalls $functionCalls = new FunctionCalls
     ) {
     }
 
@@ -285,7 +285,7 @@ class OnlyUseCollectionMethodsSniff implements Sniff
             }
 
             if (in_array($tokens[$ptr]['code'], self::CLASS_NAME_TOKENS, true) === true) {
-                $imported = (new NameTokens())->lastSegment($tokens[$ptr]['content']);
+                $imported = (new NameTokens)->lastSegment($tokens[$ptr]['content']);
 
                 continue;
             }

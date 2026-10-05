@@ -164,9 +164,9 @@ class MultilineStringsSniff implements Sniff
     private function reportChain(File $phpcsFile, int $firstString): void
     {
         $tokens = $phpcsFile->getTokens();
-        $value = (new StringLiteral())->concatenated($tokens, $firstString);
+        $value = (new StringLiteral)->concatenated($tokens, $firstString);
 
-        if ((new StructuredText())->isStructured($value) === true) {
+        if ((new StructuredText)->isStructured($value) === true) {
             return;
         }
 
@@ -210,7 +210,7 @@ class MultilineStringsSniff implements Sniff
 
     private function docStringParts(string $raw, string $prefix, string $inner): array
     {
-        $literal = new StringLiteral();
+        $literal = new StringLiteral;
         $opener = "{$prefix}<<<" . self::MARKER;
 
         if ($literal->delimiter($raw) === "'") {
@@ -224,8 +224,8 @@ class MultilineStringsSniff implements Sniff
 
     private function buildDocString(File $phpcsFile, string $raw): ?string
     {
-        $prefix = (new StringLiteral())->prefix($raw);
-        $inner = (new StringLiteral())->inner($raw);
+        $prefix = (new StringLiteral)->prefix($raw);
+        $inner = (new StringLiteral)->inner($raw);
 
         [$body, $opener] = $this->docStringParts($raw, $prefix, $inner);
 

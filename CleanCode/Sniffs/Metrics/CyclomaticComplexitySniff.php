@@ -23,7 +23,7 @@ class CyclomaticComplexitySniff implements Sniff
     public function process(File $phpcsFile, int $stackPtr): void
     {
         $threshold = $this->threshold();
-        $complexity = (new CyclomaticComplexity())->forDeclaration($phpcsFile, $stackPtr);
+        $complexity = (new CyclomaticComplexity)->forDeclaration($phpcsFile, $stackPtr);
 
         if ($complexity < $threshold) {
             return;
@@ -71,7 +71,7 @@ class CyclomaticComplexitySniff implements Sniff
             }
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return "{$subject} {$name}()";
     }

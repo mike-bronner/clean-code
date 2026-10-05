@@ -7,7 +7,7 @@
 ```php
 use App\Models\Invoice;
 
-$invoice = new Invoice();
+$invoice = new Invoice;
 ```
 
 ## Non-compliant
@@ -16,7 +16,7 @@ $invoice = new Invoice();
 use App\Models\Invoice;
 use App\Models\User;
 
-$invoice = new Invoice();
+$invoice = new Invoice;
 ```
 
 ## Enforcement

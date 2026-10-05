@@ -12,7 +12,7 @@ class ParameterTypeHintSniff extends SlevomatParameterTypeHint
 {
     public function process(File $phpcsFile, int $functionPointer): void
     {
-        if ((new InheritedMembers())->overridesUntypedParameter($phpcsFile, $functionPointer) === true) {
+        if ((new InheritedMembers)->overridesUntypedParameter($phpcsFile, $functionPointer) === true) {
             return;
         }
 

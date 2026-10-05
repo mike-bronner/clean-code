@@ -150,7 +150,7 @@ class NonInvokableSpecialActionSniff implements Sniff
             return null;
         }
 
-        $receiver = (new NameTokens())->lastSegment($tokens[$receiverPtr]['content']);
+        $receiver = (new NameTokens)->lastSegment($tokens[$receiverPtr]['content']);
 
         if ($receiver !== self::ROUTE_FACADE) {
             return null;

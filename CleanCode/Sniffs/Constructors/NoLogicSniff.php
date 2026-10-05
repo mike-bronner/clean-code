@@ -151,7 +151,7 @@ class NoLogicSniff implements Sniff
     {
         $tokens = $phpcsFile->getTokens();
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

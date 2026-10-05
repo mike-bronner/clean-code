@@ -127,7 +127,7 @@ class DisallowCombinedConstructorSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls()
+        private FunctionCalls $functionCalls = new FunctionCalls
     ) {
     }
 
@@ -151,7 +151,7 @@ class DisallowCombinedConstructorSniff implements Sniff
     public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

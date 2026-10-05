@@ -34,7 +34,7 @@ class ReturnTypeInference
             return null;
         }
 
-        $inherited = (new InheritedMembers())->declaredReturnType($phpcsFile, $functionPtr);
+        $inherited = (new InheritedMembers)->declaredReturnType($phpcsFile, $functionPtr);
 
         if ($inherited !== null) {
             return $inherited;

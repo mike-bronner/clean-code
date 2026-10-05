@@ -79,8 +79,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
     private ?array $ternaryDecisions = null;
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls(),
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private FunctionCalls $functionCalls = new FunctionCalls,
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 
@@ -213,7 +213,7 @@ class DisallowTypeIntrospectionSniff implements Sniff
             }
         }
 
-        $name = (new Declarations())->name($phpcsFile, $functionPtr);
+        $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
         return $name === null ? null : strtolower($name);
     }

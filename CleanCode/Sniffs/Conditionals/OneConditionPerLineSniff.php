@@ -18,7 +18,7 @@ class OneConditionPerLineSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        $region = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $stackPtr);
+        $region = (new ConditionOperatorOwnership)->checkedRegion($phpcsFile, $stackPtr);
 
         if ($region === null) {
             return;
@@ -34,7 +34,7 @@ class OneConditionPerLineSniff implements Sniff
 
         $regionEnd = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($boundaryEnd - 1), $boundaryStart, true);
 
-        $operators = (new ConditionOperatorOwnership())->findTopLevelTokens(
+        $operators = (new ConditionOperatorOwnership)->findTopLevelTokens(
                 $phpcsFile,
                 $regionStart,
                 $regionEnd,

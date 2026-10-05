@@ -19,7 +19,7 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
     public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $method = (new Declarations())->name($phpcsFile, $stackPtr);
+        $method = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if ($method === null) {
             return;

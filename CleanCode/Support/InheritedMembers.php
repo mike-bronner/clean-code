@@ -16,7 +16,7 @@ class InheritedMembers
 
     public function overridesUntypedParameter(File $phpcsFile, int $functionPtr): bool
     {
-        $name = (new Declarations())->name($phpcsFile, $functionPtr);
+        $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return false;
@@ -42,7 +42,7 @@ class InheritedMembers
 
     public function overridesStaticMethod(File $phpcsFile, int $functionPtr): bool
     {
-        $name = (new Declarations())->name($phpcsFile, $functionPtr);
+        $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return false;
@@ -90,7 +90,7 @@ class InheritedMembers
 
     public function declaredReturnType(File $phpcsFile, int $functionPtr): ?string
     {
-        $name = (new Declarations())->name($phpcsFile, $functionPtr);
+        $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
         if ($name === null) {
             return null;

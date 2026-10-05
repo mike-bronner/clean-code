@@ -121,7 +121,7 @@ class NoProceduralCodeSniff implements Sniff
                     'MultipleDeclarations',
                     [
                         strtolower($tokens[$pointer]['content']),
-                        (string) (new Declarations())->name($phpcsFile, $pointer),
+                        (string) (new Declarations)->name($phpcsFile, $pointer),
                     ]
                 );
         }

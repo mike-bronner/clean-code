@@ -9,6 +9,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Classes.DisallowStaticMembers',
     'CleanCode.Classes.DisallowTypeIntrospection',
     'CleanCode.Classes.ExcessiveClassLength',
+    'CleanCode.Classes.NewWithoutParentheses',
     'CleanCode.Classes.TooManyPublicMethods',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.CodeSize.TooManyMethods',
@@ -116,6 +117,7 @@ const SWEPT_WARNING_SNIFFS = [
 const AUTOFIXABLE_SNIFFS = [
     'CleanCode.Arrays.ArrayAccessors',
     'CleanCode.Classes.ClassDeclaration',
+    'CleanCode.Classes.NewWithoutParentheses',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Collections.OnlyUseCollectionMethods',
     'CleanCode.Conditionals.DisallowElse',

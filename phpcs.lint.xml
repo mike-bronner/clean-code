@@ -2,7 +2,7 @@
 <ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          name="CleanCodeLint"
          xsi:noNamespaceSchemaLocation="vendor/squizlabs/php_codesniffer/phpcs.xsd">
-    <description>PSR-12 over the package's sniff and test code, fixtures excluded. Run with `composer lint`. The call-argument indent is left to CleanCode.WhiteSpace.MultiLineStatementIndent, which `composer lint:self` and the own-source test apply, exactly as CleanCode/ruleset.xml does.</description>
+    <description>PSR-12 over the package's sniff and test code, fixtures excluded. Run with `composer lint`. The call-argument indent is left to CleanCode.WhiteSpace.MultiLineStatementIndent, which `composer lint:self` and the own-source test apply, exactly as CleanCode/ruleset.xml does. Class instantiation is left to CleanCode.Classes.NewWithoutParentheses the same way, because PSR-12 demands the empty parentheses that CleanCode forbids.</description>
 
     <file>CleanCode</file>
     <file>tests</file>
@@ -10,6 +10,7 @@
     <arg name="extensions" value="php"/>
 
     <rule ref="PSR12">
+        <exclude name="PSR12.Classes.ClassInstantiation"/>
         <exclude name="PSR2.Methods.FunctionCallSignature.Indent"/>
     </rule>
 </ruleset>

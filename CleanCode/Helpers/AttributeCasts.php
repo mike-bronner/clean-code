@@ -29,7 +29,7 @@ final class AttributeCasts
     private array $importCounts = ['builds' => 0, 'hits' => 0];
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 
