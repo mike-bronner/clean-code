@@ -24,7 +24,12 @@ class InferredReturnTypeSniff implements Sniff
     // phpcs:ignore SlevomatCodingStandard.TypeHints.ParameterTypeHint -- interface-mandated, see CONTRIBUTING.md
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ($this->isSkippable($phpcsFile, $stackPtr) === true) {
+        $closer = $this->signatureCloser($phpcsFile, $stackPtr);
+
+        if (
+            $closer === null
+            || $this->isSkippable($phpcsFile, $stackPtr, $closer) === true
+        ) {
             return;
         }
 
@@ -34,10 +39,10 @@ class InferredReturnTypeSniff implements Sniff
             return;
         }
 
-        $this->report($phpcsFile, $stackPtr, $type);
+        $this->report($phpcsFile, $stackPtr, $closer, $type);
     }
 
-    private function report(File $phpcsFile, int $stackPtr, string $type): void
+    private function report(File $phpcsFile, int $stackPtr, int $closer, string $type): void
     {
         $name = (new Declarations)->name($phpcsFile, $stackPtr) ?? 'Closure';
         $fix = $phpcsFile->addFixableError(
@@ -51,23 +56,17 @@ class InferredReturnTypeSniff implements Sniff
             return;
         }
 
-        $closer = $this->parameterListCloser($phpcsFile, $stackPtr);
-
-        if ($closer === null) {
-            return;
-        }
-
         $phpcsFile->fixer
             ->addContent($closer, ": {$type}");
     }
 
-    private function isSkippable(File $phpcsFile, int $stackPtr): bool
+    private function isSkippable(File $phpcsFile, int $stackPtr, int $closer): bool
     {
         if ($this->isMagicMethod($phpcsFile, $stackPtr) === true) {
             return true;
         }
 
-        if ($this->hasReturnType($phpcsFile, $stackPtr) === true) {
+        if ($this->hasReturnType($phpcsFile, $closer) === true) {
             return true;
         }
 
@@ -82,22 +81,41 @@ class InferredReturnTypeSniff implements Sniff
             && str_starts_with(strtolower($name), '__');
     }
 
-    private function hasReturnType(File $phpcsFile, int $stackPtr): bool
+    private function hasReturnType(File $phpcsFile, int $closer): bool
     {
-        $closer = $this->parameterListCloser($phpcsFile, $stackPtr);
-
-        if ($closer === null) {
-            return false;
-        }
-
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($closer + 1), null, true);
 
         return $next !== false
             && $phpcsFile->getTokens()[$next]['code'] === T_COLON;
     }
 
-    private function parameterListCloser(File $phpcsFile, int $stackPtr): ?int
+    private function signatureCloser(File $phpcsFile, int $stackPtr): ?int
     {
-        return $phpcsFile->getTokens()[$stackPtr]['parenthesis_closer'] ?? null;
+        $tokens = $phpcsFile->getTokens();
+        $closer = $tokens[$stackPtr]['parenthesis_closer'] ?? null;
+
+        if ($closer === null) {
+            return null;
+        }
+
+        $use = $phpcsFile->findNext(Tokens::$emptyTokens, ($closer + 1), null, true);
+
+        if (
+            $use === false
+            || $tokens[$use]['code'] !== T_USE
+        ) {
+            return $closer;
+        }
+
+        $opener = $phpcsFile->findNext(Tokens::$emptyTokens, ($use + 1), null, true);
+
+        if (
+            $opener === false
+            || $tokens[$opener]['code'] !== T_OPEN_PARENTHESIS
+        ) {
+            return null;
+        }
+
+        return $tokens[$opener]['parenthesis_closer'] ?? null;
     }
 }
