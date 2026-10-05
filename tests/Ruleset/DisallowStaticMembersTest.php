@@ -63,3 +63,21 @@ it('reports violations that are not auto-fixable', function (string $fixture): v
     expect($flags)->not->toBeEmpty()
         ->and($flags)->each->toBeFalse();
 })->with(['failing.php', 'containers.php', 'inherited-static.php']);
+
+it('skips every static a Nova-shaped vendor parent declares or reads, through an app base class', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'vendor-resource.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 27, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+    ])->and($file->getWarnings())->toBe([]);
+});
+
+it('reports as before when an ancestor cannot be resolved or declares the property private', function (): void {
+    $file = analyzeFixture(DISALLOW_STATIC_MEMBERS, 'unresolvable-ancestor.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 13, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+        ['line' => 19, 'column' => 12, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+        ['line' => 26, 'column' => 13, 'source' => DISALLOW_STATIC_MEMBERS . '.StaticProperty'],
+    ])->and($file->getWarnings())->toBe([]);
+});

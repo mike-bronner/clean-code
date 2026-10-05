@@ -20,6 +20,10 @@ class RedundantNamespaceSuffixSniff implements Sniff
 
     private const APPLICATION_ROOT = 'app';
 
+    private const PROVIDERS_NAMESPACE = 'app\\providers';
+
+    private const SERVICE_PROVIDER_SUFFIX = 'ServiceProvider';
+
     private const IRREGULAR_PLURALS = [
         'analyses' => 'analysis',
         'children' => 'child',
@@ -38,7 +42,10 @@ class RedundantNamespaceSuffixSniff implements Sniff
     {
         $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
-        if ($name === null) {
+        if (
+            $name === null
+            || $this->isServiceProvider($phpcsFile, $stackPtr, $name) === true
+        ) {
             return;
         }
 
@@ -60,6 +67,16 @@ class RedundantNamespaceSuffixSniff implements Sniff
 
             return;
         }
+    }
+
+    private function isServiceProvider(File $phpcsFile, int $stackPtr, string $name): bool
+    {
+        $namespace = (string) NamespaceHelper::findCurrentNamespaceName($phpcsFile, $stackPtr);
+
+        return $phpcsFile->getTokens()[$stackPtr]['code'] === T_CLASS
+            && strtolower($namespace) === self::PROVIDERS_NAMESPACE
+            && strlen($name) > strlen(self::SERVICE_PROVIDER_SUFFIX)
+            && str_ends_with($name, self::SERVICE_PROVIDER_SUFFIX);
     }
 
     private function segmentsBelowApplicationRoot(File $phpcsFile, int $stackPtr): array

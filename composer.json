@@ -29,7 +29,8 @@
     "autoload-dev": {
         "psr-4": {
             "MikeBronner\\CleanCode\\Tests\\": "tests/",
-            "MikeBronner\\CleanCode\\Tools\\": "tools/"
+            "MikeBronner\\CleanCode\\Tools\\": "tools/",
+            "MikeBronner\\CleanCode\\Tests\\Ancestors\\": "tests/fixtures/_ancestors/"
         }
     },
     "config": {

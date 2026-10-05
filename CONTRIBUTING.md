@@ -314,6 +314,17 @@ beside them, for the two things only the real file type can assert:
   `.php` fixture carries a trailing open tag instead, because that suppression
   deliberately does not cover `.php`.
 
+A sniff that reads an ancestor through reflection needs that ancestor to
+load the way a consumer's vendor parent loads, through Composer. A fixture
+class never autoloads, so the sniff would take its unresolvable-ancestor path
+instead of the one under test. Such ancestors live in
+`tests/fixtures/_ancestors/`, which `composer.json` maps under `autoload-dev`
+as `MikeBronner\CleanCode\Tests\Ancestors\`. The fixtures of
+`CleanCode.TypeHints.PropertyTypeHint` and
+`CleanCode.Classes.DisallowStaticMembers` extend them. A real vendor class still
+serves where one has the shape a test needs, as `inherited-static.php` does with
+`PHP_CodeSniffer\Util\Common`.
+
 A standard implemented by **several** sniffs at once (TypeHints, the operator
 spacing pair, the naming casing conventions) has no single owning sniff, so its
 fixtures live in `tests/fixtures/_rulesets/<Standard>/` under the same names.

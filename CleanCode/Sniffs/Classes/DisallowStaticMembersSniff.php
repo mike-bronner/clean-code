@@ -21,6 +21,11 @@ class DisallowStaticMembersSniff implements Sniff
         T_VAR,
     ];
 
+    public function __construct(
+        private InheritedMembers $inheritedMembers = new InheritedMembers
+    ) {
+    }
+
     public function register(): array
     {
         return [T_STATIC];
@@ -48,7 +53,7 @@ class DisallowStaticMembersSniff implements Sniff
         }
 
         if ($tokens[$declaratorPtr]['code'] === T_FUNCTION) {
-            if ((new InheritedMembers)->overridesStaticMethod($phpcsFile, $declaratorPtr) === true) {
+            if ($this->inheritedMembers->overridesStaticMethod($phpcsFile, $declaratorPtr) === true) {
                 return;
             }
 
@@ -95,13 +100,12 @@ class DisallowStaticMembersSniff implements Sniff
             return;
         }
 
-        $inheritedStatic = (new InheritedMembers)->redeclaresStaticProperty(
-                $phpcsFile,
-                $declaratorPtr,
-                $tokens[$propertyPtr]['content']
-            );
+        $property = $tokens[$propertyPtr]['content'];
 
-        if ($inheritedStatic === true) {
+        if (
+            $this->inheritedMembers->redeclaresStaticProperty($phpcsFile, $declaratorPtr, $property) === true
+            || $this->inheritedMembers->fulfilsStaticRead($phpcsFile, $declaratorPtr, $property) === true
+        ) {
             return;
         }
 
@@ -109,7 +113,7 @@ class DisallowStaticMembersSniff implements Sniff
                 'Static property %s is not allowed; a class should be instantiated, not accessed statically',
                 $staticPtr,
                 'StaticProperty',
-                [$tokens[$propertyPtr]['content']]
+                [$property]
             );
     }
 }
