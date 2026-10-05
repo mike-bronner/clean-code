@@ -63,6 +63,27 @@ it('writes each proven type onto its signature', function (): void {
         ->toContain('public function unprovableExpression(int $flag)' . "\n");
 });
 
+it('skips a property whose nearest ancestor declaration is untyped, with no docblock', function (): void {
+    $file = analyzeFixture(CLEANCODE_PROPERTY_TYPE_HINT, 'inherited-untyped.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('still reports a property no untyped, non-private ancestor declares, and never crashes', function (): void {
+    $file = analyzeFixture(CLEANCODE_PROPERTY_TYPE_HINT, 'inherited-reported.php');
+    $missing = CLEANCODE_PROPERTY_TYPE_HINT . '.MissingAnyTypeHint';
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 15, 'column' => 12, 'source' => $missing],
+        ['line' => 22, 'column' => 19, 'source' => $missing],
+        ['line' => 28, 'column' => 15, 'source' => $missing],
+        ['line' => 35, 'column' => 15, 'source' => $missing],
+        ['line' => 41, 'column' => 12, 'source' => $missing],
+        ['line' => 47, 'column' => 12, 'source' => $missing],
+    ])->and($file->getWarnings())->toBe([]);
+}
+   
 it('reports a use-clause closure only when it declares no return type', function (): void {
     $file = analyzeFixture(INFERRED_RETURN_TYPE, 'use-clause.php');
     $errors = $file->getErrors();

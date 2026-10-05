@@ -151,3 +151,22 @@ it('reports the violation end to end through the installed package', function ()
     expect(installedSniffFixtureRun(REDUNDANT_NAMESPACE_SUFFIX, 'failing.php')['status'])->toBe(2)
         ->and(installedSniffFixtureRun(REDUNDANT_NAMESPACE_SUFFIX, 'passing.php')['status'])->toBe(0);
 });
+
+it('skips a *ServiceProvider class declared directly in App\Providers', function (): void {
+    $file = analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'service-providers.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('still reports every provider-shaped name the exemption does not cover', function (): void {
+    $file = analyzeFixture(REDUNDANT_NAMESPACE_SUFFIX, 'service-provider-lookalikes.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 7, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+        ['line' => 12, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+        ['line' => 17, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+        ['line' => 24, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+        ['line' => 31, 'column' => 5, 'source' => REDUNDANT_NAMESPACE_SUFFIX_FOUND],
+    ]);
+});

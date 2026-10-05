@@ -18,6 +18,13 @@ declaration it duplicates.
 **Takeaway:** name the class for what it *is*, not for the folder it is in;
 alias at the call site when the folder's word adds clarity there.
 
+**Exemption:** a class declared directly in `App\Providers` keeps a name that
+ends `ServiceProvider` after a non-empty prefix, such as `AppServiceProvider`.
+Laravel names its providers that way, and `bootstrap/providers.php` registers
+them under those names. The namespace comparison ignores case. A bare
+`ServiceProvider`, a `*Provider` without `Service`, an interface, and a class in
+a sub-namespace such as `App\Providers\Billing` still report.
+
 ## Compliant
 
 ```php

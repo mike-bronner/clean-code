@@ -131,3 +131,47 @@ it('reads a type that cannot be normalised as written', function (): void {
         ->and($degraded)->toBe($expected)
         ->and($diagnostics)->toBe([]);
 });
+
+it('skips a boolean get{Name}Attribute accessor on a model, in every return form', function (string $fixture): void {
+    $file = analyzeFixture(BOOLEAN_GET_METHOD_NAME, $fixture);
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with(['model-accessors.php', 'models-namespace-accessors.php']);
+
+it('still reports an accessor name off a model, and a getter that is not an accessor', function (): void {
+    $file = analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'accessor-lookalikes.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
+        ['line' => 21, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
+        ['line' => 27, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
+        ['line' => 33, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
+    ]);
+});
+
+it('leaves the legacy-accessor report to ModelNamingConventions on every skipped accessor', function (
+    string $fixture,
+    array $lines,
+): void {
+    $file = analyzeWithSniffs(
+            ['CleanCode.Naming.ModelNamingConventions'],
+            fixturePath('BooleanGetMethodNameSniff', $fixture)
+        );
+
+    expect(violationSourcesByLine($file->getErrors()))->toBe(array_fill_keys(
+            $lines,
+            ['CleanCode.Naming.ModelNamingConventions.LegacyAttributeAccessor']
+        ));
+})->with([
+    'imported, aliased and qualified parents' => ['model-accessors.php', [14, 19, 27, 35, 43]],
+    'a Models namespace segment' => ['models-namespace-accessors.php', [11]],
+]);
+
+it('still reports an accessor declared on a trait, which is not a model', function (): void {
+    $file = analyzeFixture(BOOLEAN_GET_METHOD_NAME, 'trait-accessor.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 21, 'source' => BOOLEAN_GET_METHOD_NAME_ERROR],
+    ]);
+});

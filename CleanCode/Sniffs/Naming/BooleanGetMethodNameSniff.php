@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
 use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\EloquentModels;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -27,6 +28,11 @@ class BooleanGetMethodNameSniff implements Sniff
         T_FUNCTION,
     ];
 
+    public function __construct(
+        private EloquentModels $eloquentModels = new EloquentModels
+    ) {
+    }
+
     public function register(): array
     {
         return [T_FUNCTION];
@@ -44,6 +50,10 @@ class BooleanGetMethodNameSniff implements Sniff
             $name === null
             || $this->isGetterName($name) === false
         ) {
+            return;
+        }
+
+        if ($this->isModelAccessor($phpcsFile, $stackPtr, $name) === true) {
             return;
         }
 
@@ -80,6 +90,21 @@ class BooleanGetMethodNameSniff implements Sniff
         }
 
         return false;
+    }
+
+    private function isModelAccessor(File $phpcsFile, int $stackPtr, string $name): bool
+    {
+        if (preg_match('/^get[A-Z]\w*Attribute$/', $name) !== 1) {
+            return false;
+        }
+
+        $conditions = $phpcsFile->getTokens()[$stackPtr]['conditions'] ?? [];
+        $classPtr = array_key_last($conditions);
+        $eloquentModels = $this->eloquentModels;
+
+        return $classPtr !== null
+            && $conditions[$classPtr] === T_CLASS
+            && $eloquentModels->isModel($phpcsFile, $classPtr);
     }
 
     private function isGetterName(string $name): bool

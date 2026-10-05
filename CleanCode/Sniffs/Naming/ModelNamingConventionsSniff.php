@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
 use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\EloquentModels;
 use PHP_CodeSniffer\Exceptions\RuntimeException;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -33,15 +34,6 @@ class ModelNamingConventionsSniff implements Sniff
         'did',
         'needs',
     ];
-
-    private const MODEL_BASE_CLASSES = [
-        'illuminate\database\eloquent\model',
-        'illuminate\foundation\auth\user',
-        'illuminate\database\eloquent\relations\pivot',
-        'illuminate\database\eloquent\relations\morphpivot',
-    ];
-
-    private const MODELS_SEGMENT = 'models';
 
     private const COLLECTION_TYPES = [
         'collection',
@@ -106,6 +98,11 @@ class ModelNamingConventionsSniff implements Sniff
     private const MESSAGE_LEGACY_ATTRIBUTE
         = "Model accessor \"%s()\" uses the legacy attribute style — use the new Attribute implementation instead";
 
+    public function __construct(
+        private EloquentModels $eloquentModels = new EloquentModels
+    ) {
+    }
+
     public function register(): array
     {
         return [T_CLASS];
@@ -122,7 +119,7 @@ class ModelNamingConventionsSniff implements Sniff
         $namespace = $this->currentNamespace($phpcsFile);
         $imports = $this->importMap($phpcsFile);
 
-        if ($this->isModel($phpcsFile, $stackPtr, $namespace, $imports) === false) {
+        if ($this->eloquentModels->isModel($phpcsFile, $stackPtr) === false) {
             return;
         }
 
@@ -259,23 +256,6 @@ class ModelNamingConventionsSniff implements Sniff
         }
     }
 
-    private function isModel(File $phpcsFile, int $classPtr, string $namespace, array $imports): bool
-    {
-        if ($this->hasModelsSegment($namespace)) {
-            return true;
-        }
-
-        $extends = $phpcsFile->findExtendedClassName($classPtr);
-
-        if ($extends === false) {
-            return false;
-        }
-
-        $base = strtolower($this->resolveType($extends, $namespace, $imports));
-
-        return in_array($base, self::MODEL_BASE_CLASSES, true);
-    }
-
     private function isModelType(string $type, string $resolved): bool
     {
         $lower = strtolower($type);
@@ -288,7 +268,9 @@ class ModelNamingConventionsSniff implements Sniff
             return false;
         }
 
-        return $this->hasModelsSegment($resolved);
+        $eloquentModels = $this->eloquentModels;
+
+        return $eloquentModels->hasModelsSegment($resolved);
     }
 
     private function resolveType(string $type, string $namespace, array $imports): string
@@ -306,17 +288,6 @@ class ModelNamingConventionsSniff implements Sniff
         }
 
         return ($namespace === '') ? $type : "{$namespace}\\{$type}";
-    }
-
-    private function hasModelsSegment(string $name): bool
-    {
-        foreach (explode('\\', $name) as $segment) {
-            if (strtolower($segment) === self::MODELS_SEGMENT) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function normalizeType(string $type): string
