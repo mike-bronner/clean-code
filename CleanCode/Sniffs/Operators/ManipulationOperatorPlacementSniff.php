@@ -90,7 +90,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ((new ConditionOperatorOwnership())->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
+        if ((new ConditionOperatorOwnership)->isDeferredToOneConditionPerLine($phpcsFile, $stackPtr) === true) {
             return;
         }
 
@@ -299,7 +299,7 @@ class ManipulationOperatorPlacementSniff implements Sniff
             return false;
         }
 
-        $dividers = (new ConditionOperatorOwnership())->checkedRegion($phpcsFile, $owner);
+        $dividers = (new ConditionOperatorOwnership)->checkedRegion($phpcsFile, $owner);
 
         return $dividers !== null && in_array($stackPtr, $dividers, true);
     }

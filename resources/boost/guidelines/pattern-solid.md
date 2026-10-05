@@ -45,8 +45,8 @@ public function charge(Invoice $invoice): void
 public function charge(Invoice $invoice): void
 {
     match ($invoice->gateway) {
-        'stripe' => (new StripeGateway())->charge($invoice),
-        'paypal' => (new PaypalGateway())->charge($invoice),
+        'stripe' => (new StripeGateway)->charge($invoice),
+        'paypal' => (new PaypalGateway)->charge($invoice),
     };
 }
 ```

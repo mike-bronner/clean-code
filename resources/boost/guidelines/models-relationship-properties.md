@@ -8,10 +8,9 @@ For example, instead of `$book->author->name`, create a model attribute
 `authorName` and call `$book->authorName`:
 
 ```php
-public function getAuthorNameAttribute(): string
+public function authorName(): Attribute
 {
-    return $this->author->name
-        ?? "";
+    return Attribute::make(get: fn (): string => $this->author->name ?? "");
 }
 ```
 
@@ -21,10 +20,11 @@ place to provide a safe default when the relationship does not exist, rather
 than every call site guarding against `null`.
 
 The accessor is where the chain belongs, so the sniff does not report a chain
-inside one. An accessor is a `get<Name>Attribute()` method, or a method that
-returns `Illuminate\Database\Eloquent\Casts\Attribute`, including the
-closures it passes to `Attribute::make()`. The accessor can be declared in the
-model or in a trait the model uses. Everywhere else, a chain is reported.
+inside one. An accessor is a method that returns
+`Illuminate\Database\Eloquent\Casts\Attribute`, as above, including the
+closures it passes to `Attribute::make()`. A legacy `get<Name>Attribute()`
+method also counts. The accessor can be declared in the model or in a trait
+the model uses. Everywhere else, a chain is reported.
 
 ## Compliant
 

@@ -92,7 +92,7 @@ class TestSuiteNamespaceSniff implements Sniff
             return false;
         }
 
-        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (string) (new Declarations)->name($phpcsFile, $stackPtr);
 
         return str_ends_with($name, $this->testClassSuffix)
             || $this->extendsTestBase($phpcsFile, $stackPtr);

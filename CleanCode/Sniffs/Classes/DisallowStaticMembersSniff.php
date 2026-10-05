@@ -48,7 +48,7 @@ class DisallowStaticMembersSniff implements Sniff
         }
 
         if ($tokens[$declaratorPtr]['code'] === T_FUNCTION) {
-            if ((new InheritedMembers())->overridesStaticMethod($phpcsFile, $declaratorPtr) === true) {
+            if ((new InheritedMembers)->overridesStaticMethod($phpcsFile, $declaratorPtr) === true) {
                 return;
             }
 
@@ -95,7 +95,7 @@ class DisallowStaticMembersSniff implements Sniff
             return;
         }
 
-        $inheritedStatic = (new InheritedMembers())->redeclaresStaticProperty(
+        $inheritedStatic = (new InheritedMembers)->redeclaresStaticProperty(
                 $phpcsFile,
                 $declaratorPtr,
                 $tokens[$propertyPtr]['content']

@@ -442,7 +442,7 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+            $declared = (string) (new Declarations)->name($phpcsFile, $pointer);
 
             if (strcasecmp($declared, $name) === 0) {
                 return $pointer;
@@ -466,7 +466,7 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+            $declared = (string) (new Declarations)->name($phpcsFile, $pointer);
 
             if (strcasecmp($declared, $name) === 0) {
                 return $pointer;
@@ -499,7 +499,7 @@ class NoNullArgumentsSniff implements Sniff
                 continue;
             }
 
-            $declared = (string) (new Declarations())->name($phpcsFile, $pointer);
+            $declared = (string) (new Declarations)->name($phpcsFile, $pointer);
 
             if (strcasecmp($declared, $name) === 0) {
                 return $pointer;

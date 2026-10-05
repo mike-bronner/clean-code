@@ -39,7 +39,7 @@ class DeclaredParametersSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls()
+        private FunctionCalls $functionCalls = new FunctionCalls
     ) {
     }
 
@@ -130,7 +130,7 @@ class DeclaredParametersSniff implements Sniff
             return false;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $functionPtr);
+        $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
         return $name !== null && in_array(strtolower($name), self::MAGIC_METHODS, true);
     }

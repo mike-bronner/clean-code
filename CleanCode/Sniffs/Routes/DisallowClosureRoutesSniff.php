@@ -135,7 +135,7 @@ class DisallowClosureRoutesSniff implements Sniff
             return false;
         }
 
-        $className = (new NameTokens())->lastSegment($tokens[$classPtr]['content']);
+        $className = (new NameTokens)->lastSegment($tokens[$classPtr]['content']);
 
         return strtolower($className) === 'route';
     }

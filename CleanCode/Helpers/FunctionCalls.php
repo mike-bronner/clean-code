@@ -31,7 +31,7 @@ final class FunctionCalls
 
     public function calleeName(File $phpcsFile, int $stackPtr): string
     {
-        return (new NameTokens())->lastSegment($phpcsFile->getTokens()[$stackPtr]['content']);
+        return (new NameTokens)->lastSegment($phpcsFile->getTokens()[$stackPtr]['content']);
     }
 
     public function isGlobalFunctionCall(File $phpcsFile, int $stackPtr): bool
@@ -135,7 +135,7 @@ final class FunctionCalls
     }
 
     public function __construct(
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 

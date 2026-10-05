@@ -41,7 +41,7 @@ class TooManyFieldsSniff implements Sniff
             return;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
                 'The class %s has %s fields; consider redesigning it to keep the number of fields under %s',
@@ -76,7 +76,7 @@ class TooManyFieldsSniff implements Sniff
         }
 
         if (empty($tokens[$variablePtr]['nested_parenthesis']) === false) {
-            return (new ParameterDeclaration())->isPromotedParameter($phpcsFile, $variablePtr);
+            return (new ParameterDeclaration)->isPromotedParameter($phpcsFile, $variablePtr);
         }
 
         return $this->isPropertyDeclaration($phpcsFile, $variablePtr);

@@ -38,7 +38,7 @@ class TooManyPublicMethodsSniff implements Sniff
             return;
         }
 
-        $name = (string) (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (string) (new Declarations)->name($phpcsFile, $stackPtr);
 
         $phpcsFile->addError(
                 'The class %s has %s public methods. Consider refactoring %s to keep the number of '
@@ -66,7 +66,7 @@ class TooManyPublicMethodsSniff implements Sniff
                 continue;
             }
 
-            if ($this->isIgnoredName((new Declarations())->name($phpcsFile, $pointer)) === true) {
+            if ($this->isIgnoredName((new Declarations)->name($phpcsFile, $pointer)) === true) {
                 continue;
             }
 

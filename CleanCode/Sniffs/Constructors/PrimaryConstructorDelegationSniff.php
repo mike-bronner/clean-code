@@ -24,7 +24,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
     public function process(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $method = (new Declarations())->name($phpcsFile, $stackPtr);
+        $method = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if ($method === null) {
             return;
@@ -42,7 +42,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
             return;
         }
 
-        $className = (new Declarations())->name($phpcsFile, $ownerPtr);
+        $className = (new Declarations)->name($phpcsFile, $ownerPtr);
 
         if ($this->returnsDeclaringClass($phpcsFile, $properties['return_type'], $className) === false) {
             return;
@@ -221,7 +221,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
         $name = $tokens[$pointer]['content'];
 
-        if (strtolower((new NameTokens())->lastSegment($name)) !== strtolower($className)) {
+        if (strtolower((new NameTokens)->lastSegment($name)) !== strtolower($className)) {
             return false;
         }
 

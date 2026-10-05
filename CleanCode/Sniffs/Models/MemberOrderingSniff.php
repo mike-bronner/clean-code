@@ -154,7 +154,7 @@ class MemberOrderingSniff implements Sniff
             }
 
             $currentPtr ??= $ptr;
-            $current .= (new NameTokens())->withoutNamespaceKeyword($tokens[$ptr]);
+            $current .= (new NameTokens)->withoutNamespaceKeyword($tokens[$ptr]);
         }
 
         $this->appendName($names, $current, $currentPtr);

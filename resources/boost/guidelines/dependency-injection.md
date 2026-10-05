@@ -18,7 +18,7 @@ public function __construct(
 ```php
 public function __construct()
 {
-    $this->mailer = new SmtpMailer();
+    $this->mailer = new SmtpMailer;
 }
 ```
 

@@ -16,6 +16,12 @@ trait or enum with an empty body may write it as `{}` on the declaration line,
 one space after the declaration. A body that holds anything, a comment
 included, keeps both braces on their own lines.
 
+A second departure reverses PSR-12's class instantiation rule: instantiate a
+class without empty parentheses, `new Invoice`, not `new Invoice()`. The
+parentheses stay when the new object is dereferenced in the same expression,
+as in `new Invoice()->total()`, because PHP 8.4 requires them there. Arguments
+and anonymous classes are not affected.
+
 ## Compliant
 
 ```php
@@ -44,6 +50,12 @@ namespace App\Billing;
 class LegacyInvoice extends Invoice {}
 ```
 
+```php
+$invoice = new Invoice;
+$draft = new Invoice($customer);
+$total = new Invoice()->total();
+```
+
 ## Non-compliant
 
 ```php
@@ -55,11 +67,16 @@ class invoice {
 class Draft extends invoice { /* not used yet */ }
 ```
 
+```php
+$invoice = new Invoice();
+```
+
 ## Enforcement
 
 | Sniff | Auto-fixable by `phpcbf` |
 |---|---|
 | `CleanCode.Classes.ClassDeclaration` | yes |
+| `CleanCode.Classes.NewWithoutParentheses` | yes |
 | `CleanCode.WhiteSpace.ScopeClosingBrace` | yes |
 | `Generic.ControlStructures.InlineControlStructure` | yes |
 | `Generic.Files.ByteOrderMark` | no |
@@ -89,7 +106,6 @@ class Draft extends invoice { /* not used yet */ }
 | `PSR2.Methods.FunctionClosingBrace` | yes |
 | `PSR2.Methods.MethodDeclaration` | yes |
 | `PSR12.Classes.AnonClassDeclaration` | yes |
-| `PSR12.Classes.ClassInstantiation` | yes |
 | `PSR12.Classes.ClosingBrace` | no |
 | `PSR12.Classes.OpeningBraceSpace` | yes |
 | `PSR12.ControlStructures.BooleanOperatorPlacement` | yes |

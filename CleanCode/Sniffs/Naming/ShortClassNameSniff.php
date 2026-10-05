@@ -21,7 +21,7 @@ class ShortClassNameSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

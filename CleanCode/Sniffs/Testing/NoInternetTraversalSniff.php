@@ -60,7 +60,7 @@ class NoInternetTraversalSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls()
+        private FunctionCalls $functionCalls = new FunctionCalls
     ) {
     }
 
@@ -194,7 +194,7 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         return $this->endsArgument($phpcsFile, $urlPtr, $closePtr) === true
-            ? (new StringLiteral())->inner($tokens[$urlPtr]['content'])
+            ? (new StringLiteral)->inner($tokens[$urlPtr]['content'])
             : null;
     }
 

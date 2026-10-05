@@ -70,8 +70,8 @@ class UnusedFormalParameterSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls(),
-        private TokenStreams $tokenStreams = new TokenStreams()
+        private FunctionCalls $functionCalls = new FunctionCalls,
+        private TokenStreams $tokenStreams = new TokenStreams
     ) {
     }
 
@@ -288,7 +288,7 @@ class UnusedFormalParameterSniff implements Sniff
             return false;
         }
 
-        $name = strtolower((string) (new Declarations())->name($phpcsFile, $stackPtr));
+        $name = strtolower((string) (new Declarations)->name($phpcsFile, $stackPtr));
 
         return in_array($name, self::FIXED_SIGNATURE_METHODS, true);
     }
@@ -373,7 +373,7 @@ class UnusedFormalParameterSniff implements Sniff
             return false;
         }
 
-        $name = strtolower((string) (new Declarations())->name($phpcsFile, $stackPtr));
+        $name = strtolower((string) (new Declarations)->name($phpcsFile, $stackPtr));
         $declarations = $this->declarationsByName($phpcsFile);
         $seen = [];
         $queue = $this->inheritedNames($phpcsFile, $classPtr);
@@ -506,7 +506,7 @@ class UnusedFormalParameterSniff implements Sniff
             $code = $tokens[$pointer]['code'];
 
             if (in_array($code, [T_STRING, ...NameTokens::QUALIFIED], true) === true) {
-                $segment = (new NameTokens())->lastSegment($tokens[$pointer]['content']);
+                $segment = (new NameTokens)->lastSegment($tokens[$pointer]['content']);
 
                 continue;
             }
@@ -562,7 +562,7 @@ class UnusedFormalParameterSniff implements Sniff
             return $this->namespaceName($phpcsFile, $pointer) ?? $namespace;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $pointer);
+        $name = (new Declarations)->name($phpcsFile, $pointer);
         $this->declarationNamespace[$pointer] = $namespace;
 
         if (
@@ -643,7 +643,7 @@ class UnusedFormalParameterSniff implements Sniff
         $pointer = $phpcsFile->findNext(T_FUNCTION, $opener + 1, $closer);
 
         while ($pointer !== false) {
-            $name = (new Declarations())->name($phpcsFile, $pointer);
+            $name = (new Declarations)->name($phpcsFile, $pointer);
 
             if (
                 $name !== null
@@ -691,7 +691,7 @@ class UnusedFormalParameterSniff implements Sniff
 
         $subject = $this->enclosingClass($phpcsFile, $stackPtr) === null ? 'function' : 'method';
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         return "{$subject} {$name}()";
     }

@@ -41,7 +41,7 @@ class ModelMagicMethodLocationSniff implements Sniff
         MESSAGE;
 
     public function __construct(
-        private AttributeCasts $attributeCasts = new AttributeCasts()
+        private AttributeCasts $attributeCasts = new AttributeCasts
     ) {
     }
 

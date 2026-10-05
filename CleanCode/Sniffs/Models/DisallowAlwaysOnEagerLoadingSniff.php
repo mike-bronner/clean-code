@@ -42,7 +42,7 @@ class DisallowAlwaysOnEagerLoadingSniff implements Sniff
                 continue;
             }
 
-            if ((new ParameterDeclaration())->isPlainParameter($phpcsFile, $ptr) === true) {
+            if ((new ParameterDeclaration)->isPlainParameter($phpcsFile, $ptr) === true) {
                 continue;
             }
 

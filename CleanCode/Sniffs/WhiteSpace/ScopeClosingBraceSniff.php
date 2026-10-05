@@ -12,7 +12,7 @@ class ScopeClosingBraceSniff extends SquizBrace
 {
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ((new EmptyClassBody())->isInline($phpcsFile, $stackPtr) === true) {
+        if ((new EmptyClassBody)->isInline($phpcsFile, $stackPtr) === true) {
             return;
         }
 

@@ -11,6 +11,7 @@ dataset('warning-reporting sniffs', SWEPT_WARNING_SNIFFS);
 dataset('autofixable sniffs', AUTOFIXABLE_SNIFFS);
 
 const TOTAL_FIXER_SNIFFS = [
+    'CleanCode.Classes.NewWithoutParentheses',
     'CleanCode.ClearCode.OneThoughtPerLine',
     'CleanCode.Indentation.LogicalGroupings',
     'CleanCode.Operators.BinaryOperatorSpacing',

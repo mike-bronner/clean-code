@@ -31,7 +31,7 @@ class RequireHeredocForStructuredTextSniff implements Sniff
             return;
         }
 
-        $text = (new StringLiteral())->concatenated($phpcsFile->getTokens(), $stackPtr);
+        $text = (new StringLiteral)->concatenated($phpcsFile->getTokens(), $stackPtr);
         $language = $this->languageOf($text);
 
         if ($language === null) {
@@ -43,7 +43,7 @@ class RequireHeredocForStructuredTextSniff implements Sniff
 
     private function languageOf(string $text): ?string
     {
-        $structured = new StructuredText();
+        $structured = new StructuredText;
 
         $languages = [
             'markup' => $structured->isMarkup($text),

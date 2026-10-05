@@ -49,7 +49,7 @@ class ExcessiveClassLengthSniff implements Sniff
                 $declarationPtr,
                 'TooLong',
                 [
-                    (new Declarations())->name($phpcsFile, $stackPtr),
+                    (new Declarations)->name($phpcsFile, $stackPtr),
                     $length,
                     $this->minimum,
                 ]

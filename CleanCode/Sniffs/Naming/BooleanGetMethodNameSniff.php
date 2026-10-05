@@ -38,7 +38,7 @@ class BooleanGetMethodNameSniff implements Sniff
             return;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name === null

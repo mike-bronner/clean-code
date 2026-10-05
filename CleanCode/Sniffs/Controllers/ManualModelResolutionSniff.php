@@ -66,9 +66,9 @@ class ManualModelResolutionSniff implements Sniff
                 $methodPtr,
                 'Found',
                 [
-                    (new NameTokens())->lastSegment($this->contentOf($phpcsFile, $receiverPtr)),
+                    (new NameTokens)->lastSegment($this->contentOf($phpcsFile, $receiverPtr)),
                     $this->contentOf($phpcsFile, (int) $argumentPtr),
-                    (new Declarations())->name($phpcsFile, $actionPtr),
+                    (new Declarations)->name($phpcsFile, $actionPtr),
                 ]
             ),
         };
@@ -164,7 +164,7 @@ class ManualModelResolutionSniff implements Sniff
 
     private function isControllerClass(File $phpcsFile, int $classPtr): bool
     {
-        $name = (string) (new Declarations())->name($phpcsFile, $classPtr);
+        $name = (string) (new Declarations)->name($phpcsFile, $classPtr);
 
         return str_ends_with($name, 'Controller');
     }
@@ -176,7 +176,7 @@ class ManualModelResolutionSniff implements Sniff
 
     private function isRoutable(File $phpcsFile, int $functionPtr): bool
     {
-        $name = strtolower((string) (new Declarations())->name($phpcsFile, $functionPtr));
+        $name = strtolower((string) (new Declarations)->name($phpcsFile, $functionPtr));
 
         return match (true) {
             $name === self::ROUTED_MAGIC_METHOD => true,

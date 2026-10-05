@@ -9,7 +9,8 @@
   mind; when writing code to satisfy tests, only think about the test (do not
   think about business logic).
 - As tests get more specific, code should become more generic; consider the
-  Transformation Priority Premise.
+  Transformation Priority Premise, and pick the highest-ranked transformation
+  that makes the test pass.
 - Never add code that won't be used; remove unused code.
 - Use cyclomatic complexity as a guide for the number of tests (≈1 test per
   complexity unit).

@@ -79,7 +79,7 @@ class NumberOfChildrenSniff implements Sniff
             return;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if ($name === null) {
             return;
@@ -164,7 +164,7 @@ class NumberOfChildrenSniff implements Sniff
         $pointer = $phpcsFile->findNext(T_CLASS, 0);
 
         while ($pointer !== false) {
-            $name = (new Declarations())->name($phpcsFile, $pointer);
+            $name = (new Declarations)->name($phpcsFile, $pointer);
 
             if ($name !== null) {
                 $slot = $tokens[$pointer]['line'] . '|' . strtolower($name);

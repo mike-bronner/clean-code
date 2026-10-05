@@ -76,7 +76,7 @@ class HtmlAttributeQuotesSniff implements Sniff
         $unsafe = false;
 
         $rewritten = preg_replace_callback(
-                (new Markup())->tagSpanPattern(),
+                (new Markup)->tagSpanPattern(),
                 function (array $match) use ($apostrophe, $quote, &$unsafe): string {
                     $span = preg_replace_callback(
                             $this->attributePattern($apostrophe),
@@ -113,7 +113,7 @@ class HtmlAttributeQuotesSniff implements Sniff
 
     private function tagSpans(string $content): array
     {
-        if (preg_match_all((new Markup())->tagSpanPattern(), $content, $matches) === false) {
+        if (preg_match_all((new Markup)->tagSpanPattern(), $content, $matches) === false) {
             return [];
         }
 
@@ -139,6 +139,6 @@ class HtmlAttributeQuotesSniff implements Sniff
             $opener--;
         }
 
-        return (new StringLiteral())->delimiter($tokens[$opener]['content']) ?? "\"";
+        return (new StringLiteral)->delimiter($tokens[$opener]['content']) ?? "\"";
     }
 }

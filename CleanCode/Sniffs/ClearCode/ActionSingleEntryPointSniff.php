@@ -31,7 +31,7 @@ class ActionSingleEntryPointSniff implements Sniff
         $extras = array_slice($this->entryPoints($phpcsFile, $stackPtr), 1);
 
         foreach ($extras as $methodPtr) {
-            $name = (string) (new Declarations())->name($phpcsFile, $methodPtr);
+            $name = (string) (new Declarations)->name($phpcsFile, $methodPtr);
 
             $phpcsFile->addWarning(
                     'Public method %s() is an additional entry point; an Action class exposes a'
@@ -48,7 +48,7 @@ class ActionSingleEntryPointSniff implements Sniff
 
     private function isActionClass(File $phpcsFile, int $stackPtr): bool
     {
-        $name = (new Declarations())->name($phpcsFile, $stackPtr);
+        $name = (new Declarations)->name($phpcsFile, $stackPtr);
 
         if (
             $name !== null
@@ -127,7 +127,7 @@ class ActionSingleEntryPointSniff implements Sniff
             return false;
         }
 
-        $name = (new Declarations())->name($phpcsFile, $methodPtr);
+        $name = (new Declarations)->name($phpcsFile, $methodPtr);
 
         return $name !== null && strtolower($name) !== self::CONSTRUCTOR;
     }

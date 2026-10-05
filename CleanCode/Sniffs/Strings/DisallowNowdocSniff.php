@@ -34,7 +34,7 @@ class DisallowNowdocSniff implements Sniff
     private function convert(File $phpcsFile, int $stackPtr): void
     {
         $tokens = $phpcsFile->getTokens();
-        $literal = new StringLiteral();
+        $literal = new StringLiteral;
 
         $phpcsFile->fixer
             ->beginChangeset();

@@ -75,7 +75,7 @@ class SectionCommentSniff implements Sniff
     ];
 
     public function __construct(
-        private PathPatterns $pathPatterns = new PathPatterns()
+        private PathPatterns $pathPatterns = new PathPatterns
     ) {
     }
 

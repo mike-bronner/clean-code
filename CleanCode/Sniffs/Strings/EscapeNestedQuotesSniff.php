@@ -21,13 +21,13 @@ class EscapeNestedQuotesSniff implements Sniff
         $content = $tokens[$stackPtr]['content'];
 
         if (
-            (new StringLiteral())->isComplete($content) === false
-            || (new StringLiteral())->delimiter($content) !== "'"
+            (new StringLiteral)->isComplete($content) === false
+            || (new StringLiteral)->delimiter($content) !== "'"
         ) {
             return;
         }
 
-        $inner = (new StringLiteral())->inner($content);
+        $inner = (new StringLiteral)->inner($content);
 
         if (strpos($inner, "\"") === false) {
             return;
@@ -44,7 +44,7 @@ class EscapeNestedQuotesSniff implements Sniff
             return;
         }
 
-        $literal = new StringLiteral();
+        $literal = new StringLiteral;
         $body = $literal->singleQuotedInnerAsDoubleQuoted($inner);
 
         $phpcsFile->fixer
