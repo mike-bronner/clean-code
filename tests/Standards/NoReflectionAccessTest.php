@@ -144,3 +144,14 @@ it('reports detection-only warnings', function (): void {
         ->and($file->getErrorCount())->toBe(0)
         ->and($file->getFixableCount())->toBe(0);
 });
+
+it('takes its test-file patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            REFLECTION_ACCESS,
+            'failing.php',
+            ['testFilePatterns' => ['*/production/*']]
+        );
+
+    expect(analyzeFixture(REFLECTION_ACCESS, 'failing.php')->getWarnings())->not->toBe([])
+        ->and($retuned->getWarnings())->toBe([]);
+});

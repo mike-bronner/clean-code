@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -24,6 +25,11 @@ class RequireTestFileSniff implements Sniff
     ];
 
     public array $excludePatterns = [];
+
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns
+    ) {
+    }
 
     public function register(): array
     {
@@ -75,22 +81,13 @@ class RequireTestFileSniff implements Sniff
             return true;
         }
 
-        if ($this->isExcluded($path) === true) {
+        $filename = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($filename, $this->excludePatterns) === true) {
             return true;
         }
 
         return $phpcsFile->getClassProperties($stackPtr)['is_abstract'] === true;
-    }
-
-    private function isExcluded(string $path): bool
-    {
-        foreach ($this->excludePatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $path) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function sourceRootIndex(array $segments): ?int

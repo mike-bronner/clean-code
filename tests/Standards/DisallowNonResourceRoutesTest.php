@@ -136,3 +136,14 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
 });
+
+it('takes its route-file patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            NON_RESOURCE_ROUTES,
+            'failing.php',
+            ['routeFilePatterns' => ['*/DisallowNonResourceRoutesSniff/*']]
+        );
+
+    expect(analyzeFixture(NON_RESOURCE_ROUTES, 'failing.php')->getWarnings())->toBe([])
+        ->and($retuned->getWarnings())->not->toBe([]);
+});

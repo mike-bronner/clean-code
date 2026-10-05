@@ -278,3 +278,14 @@ it('survives an escaped action whose literal cannot be evaluated', function (
         true,
     ],
 ]);
+
+it('takes its route-file patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            SPECIAL_ACTION,
+            'failing.php',
+            ['routeFilePatterns' => ['*/NonInvokableSpecialActionSniff/*']]
+        );
+
+    expect(analyzeFixture(SPECIAL_ACTION, 'failing.php')->getWarnings())->toBe([])
+        ->and($retuned->getWarnings())->not->toBe([]);
+});
