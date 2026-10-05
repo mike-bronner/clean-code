@@ -7,71 +7,56 @@ namespace MikeBronner\CleanCode\Tests\Fixtures;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Flat lists of literals hold no logic, however long they run. The casts and
- * fillable lists share one shape per line, and so does every entry of the tag
- * list, so a comparison by token type alone matched each list against the
- * other and against itself. Lines made only of literals, names, and array
- * punctuation are left out of the comparison, so none of this is reported.
+ * A list of literals is compared like any other code. The rules and messages
+ * maps are the same seven entries, word for word, and hold more than seventy
+ * tokens, so the pair is reported at the default thresholds. The property names
+ * are variables, so they do not break the match.
+ *
+ * The labels and hints maps differ in one literal, on the middle entry. Each
+ * side of it is four lines long, too short to match on its own, so that pair
+ * is not reported.
  */
 class LiteralArrays extends Model
 {
-    protected $casts = [
-        "bookName" => "string",
-        "canBeDeleted" => "boolean",
-        "canShowDetails" => "boolean",
-        "chapterNumber" => "integer",
-        "createdAt" => "datetime",
-        "description" => "string",
-        "icon" => "string",
-        "model" => Model::class,
-        "reference" => "string",
-        "title" => "string",
-        "type" => "string",
-        "updatedAt" => "datetime",
+    protected $rules = [
+        "bookName" => ["type" => "string", "nullable" => false],
+        "chapterNumber" => ["type" => "integer", "nullable" => false],
+        "verseNumber" => ["type" => "integer", "nullable" => false],
+        "reference" => ["type" => "string", "nullable" => true],
+        "createdAt" => ["type" => "datetime", "nullable" => true],
+        "updatedAt" => ["type" => "datetime", "nullable" => true],
+        "deletedAt" => ["type" => "datetime", "nullable" => true],
     ];
 
-    protected $fillable = [
-        "bookName",
-        "canBeDeleted",
-        "canShowDetails",
-        "chapterNumber",
-        "createdAt",
-        "description",
-        "icon",
-        "model",
-        "reference",
-        "title",
-        "type",
-        "updatedAt",
+    protected $messages = [
+        "bookName" => ["type" => "string", "nullable" => false],
+        "chapterNumber" => ["type" => "integer", "nullable" => false],
+        "verseNumber" => ["type" => "integer", "nullable" => false],
+        "reference" => ["type" => "string", "nullable" => true],
+        "createdAt" => ["type" => "datetime", "nullable" => true],
+        "updatedAt" => ["type" => "datetime", "nullable" => true],
+        "deletedAt" => ["type" => "datetime", "nullable" => true],
     ];
 
-    public function stripBlocks(string $text): string
-    {
-        $blockElements = [
-            "</address>",
-            "</article>",
-            "</aside>",
-            "</blockquote>",
-            "</div>",
-            "</fieldset>",
-            "</figure>",
-            "</footer>",
-            "</form>",
-            "</h1>",
-            "</h2>",
-            "</h3>",
-            "</h4>",
-            "</header>",
-            "</li>",
-            "</main>",
-            "</nav>",
-            "</ol>",
-            "</p>",
-            "</pre>",
-            "</section>",
-            "<br>",
-        ];
+    protected $table = "verses";
 
-        return str_replace($blockElements, "\n", $text);
-    }
+    protected $labels = [
+        "title" => ["width" => 12, "align" => "left"],
+        "summary" => ["width" => 40, "align" => "left"],
+        "author" => ["width" => 20, "align" => "left"],
+        "status" => ["width" => 8, "align" => "center"],
+        "views" => ["width" => 6, "align" => "right"],
+        "rating" => ["width" => 6, "align" => "right"],
+        "updated" => ["width" => 10, "align" => "right"],
+    ];
+
+    protected $hints = [
+        "title" => ["width" => 12, "align" => "left"],
+        "summary" => ["width" => 40, "align" => "left"],
+        "author" => ["width" => 20, "align" => "left"],
+        "status" => ["width" => 9, "align" => "center"],
+        "views" => ["width" => 6, "align" => "right"],
+        "rating" => ["width" => 6, "align" => "right"],
+        "updated" => ["width" => 10, "align" => "right"],
+    ];
 }

@@ -11,12 +11,13 @@ class ReportBuilder
      * duplicated *body*, so a whole-declaration comparison would see nothing:
      * the duplication is a run of lines in the middle of one method.
      *
-     * The copy is near-identical rather than identical — the accumulator, the
-     * loop variable, and the array keys were all renamed, and the multiplier
-     * changed. Dropping token content from the comparison is what still lets
-     * these two match.
+     * The copy renames the accumulator, the source list, and the loop
+     * variables, and nothing else. Every key, literal, and call is the same, so
+     * the two blocks match token for token once variable names are set aside.
+     * Each block is long enough to clear both defaults: five lines, seventy
+     * tokens.
      */
-    public function build(array $rows): array
+    public function build(array $rows, array $refunds): array
     {
         $paid = [];
 
@@ -25,46 +26,58 @@ class ReportBuilder
             $paid[] = [
                 'id' => $row['id'],
                 'cents' => $amount,
+                'tax' => $amount * 0.2,
+                'currency' => strtoupper($row['currency']),
+                'settled' => $row['status'] === 'settled',
+                'note' => trim($row['note'] ?? ''),
             ];
         }
 
-        $due = [];
+        $returned = [];
 
-        foreach ($rows as $entry) {
-            $value = $entry['balance'] * 1000;
-            $due[] = [
-                'key' => $entry['ref'],
-                'units' => $value,
+        foreach ($refunds as $refund) {
+            $value = $refund['total'] * 100;
+            $returned[] = [
+                'id' => $refund['id'],
+                'cents' => $value,
+                'tax' => $value * 0.2,
+                'currency' => strtoupper($refund['currency']),
+                'settled' => $refund['status'] === 'settled',
+                'note' => trim($refund['note'] ?? ''),
             ];
         }
 
-        return [$paid, $due];
+        return [$paid, $returned];
     }
 }
 
 class InvoiceGateway
 {
     /**
-     * The whole-body case the block comparison still covers: two method bodies
-     * of the same shape, differing only in the names of the methods they call,
-     * the class they instantiate, and their literals.
+     * The whole-body case: two method bodies that match token for token apart
+     * from their variable names. The method names differ, so each block starts
+     * at the opening brace of its body rather than at the signature.
      */
     public function charge(int $customer): string
     {
-        $client = new StripeClient($customer);
-        $reference = $client->authorize('usd');
-        $client->capture($reference);
+        $client = new StripeClient($customer, $this->secret);
+        $client->setTimeout($this->timeout);
+        $reference = $client->authorize('usd', $this->amount);
+        $client->capture($reference, ['idempotent' => true]);
         $this->log('charged', $reference);
+        $this->events->dispatch(new Charged($reference));
 
         return $reference;
     }
 
-    public function refund(int $account): string
+    public function recharge(int $account): string
     {
-        $gateway = new PaypalClient($account);
-        $receipt = $gateway->reverse('eur');
-        $gateway->settle($receipt);
-        $this->log('refunded', $receipt);
+        $gateway = new StripeClient($account, $this->secret);
+        $gateway->setTimeout($this->timeout);
+        $receipt = $gateway->authorize('usd', $this->amount);
+        $gateway->capture($receipt, ['idempotent' => true]);
+        $this->log('charged', $receipt);
+        $this->events->dispatch(new Charged($receipt));
 
         return $receipt;
     }

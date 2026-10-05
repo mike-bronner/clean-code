@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Pattern;
 
-use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -15,28 +14,14 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
     private const OPEN_TAGS = [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO];
 
-    private const DELIMITER_TOKENS = [
-        T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET,
-        T_OPEN_PARENTHESIS, T_CLOSE_PARENTHESIS,
-        T_OPEN_SQUARE_BRACKET, T_CLOSE_SQUARE_BRACKET,
-        T_OPEN_SHORT_ARRAY, T_CLOSE_SHORT_ARRAY,
-        T_COMMA, T_SEMICOLON,
-    ];
+    private const INTERPOLATING_TOKENS = [T_DOUBLE_QUOTED_STRING, T_HEREDOC];
 
-    private const DATA_TOKENS = [
-        T_CONSTANT_ENCAPSED_STRING, T_DOUBLE_QUOTED_STRING,
-        T_LNUMBER, T_DNUMBER, T_TRUE, T_FALSE, T_NULL,
-        T_START_HEREDOC, T_HEREDOC, T_END_HEREDOC,
-        T_START_NOWDOC, T_NOWDOC, T_END_NOWDOC,
-        T_STRING, T_SELF, T_STATIC, T_PARENT,
-        T_DOUBLE_COLON, T_OBJECT_OPERATOR, T_DOUBLE_ARROW, T_STRING_CONCAT,
-    ];
-
-    private const STATEMENT_BOUNDARIES = [
-        T_OPEN_TAG, T_SEMICOLON, T_COLON, T_OPEN_CURLY_BRACKET, T_CLOSE_CURLY_BRACKET,
-    ];
+    private const INTERPOLATED_VARIABLE = '/(?<!\\\\)((?:\\\\\\\\)*)'
+        . '\$[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*/';
 
     public $minimumLines = 5;
+
+    public $minimumTokens = 70;
 
     public function register(): array
     {
@@ -51,17 +36,25 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
         $tokens = $phpcsFile->getTokens();
         $minimumLines = max(1, (int) $this->minimumLines);
-        [$lineShapes, $anchors] = $this->summarizeCodeLines($phpcsFile);
+        [$lineShapes, $anchors, $lineTokens] = $this->summarizeCodeLines($phpcsFile);
 
         foreach ($this->findRepeatedBlocks($lineShapes, $minimumLines) as $block) {
+            $blockTokens = array_sum(
+                    array_slice($lineTokens, $block['starts'][0], $block['length'])
+                );
+
+            if ($blockTokens < (int) $this->minimumTokens) {
+                continue;
+            }
+
             foreach ($block['starts'] as $position => $start) {
                 $others = $block['starts'];
                 unset($others[$position]);
 
                 $phpcsFile->addWarning(
-                        'This block of code, through line %d, is near-identical to %s, ignoring'
-                            . ' variable, literal, and identifier names. Extract the shared logic'
-                            . ' once the duplication has earned an abstraction (see'
+                        'This block of code, through line %d, repeats %s token for token, apart'
+                            . ' from variable names. Extract the shared logic once the duplication'
+                            . ' has earned an abstraction (see'
                             . ' resources/boost/guidelines/pattern-dont-repeat-yourself-dry.md).',
                         $anchors[$start],
                         'Found',
@@ -93,77 +86,46 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
 
     private function summarizeCodeLines(File $phpcsFile): array
     {
-        $tokens = $phpcsFile->getTokens();
         $ignored = Tokens::$emptyTokens + array_fill_keys(self::NON_CODE_TOKENS, true);
-        $dataOnly = array_fill_keys(
-                [...self::DELIMITER_TOKENS, ...self::DATA_TOKENS, ...NameTokens::QUALIFIED],
-                true
-            );
         $summaries = [];
-        $line = null;
 
-        foreach ($tokens as $pointer => $token) {
+        foreach ($phpcsFile->getTokens() as $pointer => $token) {
             if (isset($ignored[$token['code']]) === true) {
                 continue;
             }
 
-            if ($token['line'] !== $line) {
-                $line = $token['line'];
-                $summaries[$line] = [
-                    'anchor' => $pointer,
-                    'shape' => '',
-                    'code' => $this->opensStatement($phpcsFile, $pointer),
-                ];
-            }
-
-            $summaries[$line]['shape'] .= $this->shapeOf($token);
-            $summaries[$line]['code'] = $summaries[$line]['code']
-                || isset($dataOnly[$token['code']]) === false;
+            $summaries[$token['line']] ??= ['anchor' => $pointer, 'shape' => '', 'tokens' => 0];
+            $summaries[$token['line']]['shape'] .= $this->signatureOf($token);
+            $summaries[$token['line']]['tokens']++;
         }
 
         $shapes = [];
         $lineShapes = [];
-        $anchors = [];
 
         foreach ($summaries as $summary) {
-            if ($summary['code'] === false) {
-                continue;
-            }
-
             $lineShapes[] = $shapes[$summary['shape']] ??= count($shapes);
-            $anchors[] = $summary['anchor'];
         }
 
-        return [$lineShapes, $anchors];
+        return [
+            $lineShapes,
+            array_column($summaries, 'anchor'),
+            array_column($summaries, 'tokens'),
+        ];
     }
 
-    private function opensStatement(File $phpcsFile, int $pointer): bool
+    private function signatureOf(array $token): string
     {
-        $tokens = $phpcsFile->getTokens();
-        $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($pointer - 1), null, true);
+        $content = match (true) {
+            $token['code'] === T_VARIABLE => '$',
+            in_array($token['code'], self::INTERPOLATING_TOKENS, true) => preg_replace(
+                    self::INTERPOLATED_VARIABLE,
+                    '$1$',
+                    $token['content']
+                ),
+            default => $token['content'],
+        };
 
-        return in_array($tokens[$previous]['code'], self::STATEMENT_BOUNDARIES, true)
-            && in_array($tokens[$pointer]['code'], self::DELIMITER_TOKENS, true) === false;
-    }
-
-    private function shapeOf(array $token): string
-    {
-        if (in_array($token['code'], NameTokens::QUALIFIED, true) === false) {
-            return "{$token['code']},";
-        }
-
-        $shape = '';
-
-        foreach (explode('\\', $token['content']) as $index => $segment) {
-            $separator = $index === 0 ? '' : T_NS_SEPARATOR . ',';
-            $shape .= $separator . match (true) {
-                $segment === '' => '',
-                $index === 0 && $token['code'] === T_NAME_RELATIVE => T_NAMESPACE . ',',
-                default => T_STRING . ',',
-            };
-        }
-
-        return $shape;
+        return $token['code'] . ':' . strlen($content) . ':' . $content;
     }
 
     private function findRepeatedBlocks(array $lineShapes, int $minimumLines): array

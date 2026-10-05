@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-// PHP_CodeSniffer 4 reads each qualified name as one token. The sniff still
-// compares the separator and segment shape each name had, so only the first and
-// the last block repeat. A relative name keeps its `namespace` keyword apart
-// from a qualified name, and a rooted name keeps its leading separator.
+// PHP_CodeSniffer 4 reads each qualified name as one token, and the sniff
+// compares that token's content as written. Only the first and the last block
+// repeat, apart from their variable names. A relative name keeps its
+// `namespace` keyword apart from a qualified name, and a rooted name keeps its
+// leading separator.
 
 $a = namespace\Alpha::make();
 $b = namespace\Alpha::make($a);
@@ -25,8 +26,8 @@ $m = \Sub\Alpha::make($k, $l);
 $n = \Sub\Alpha::make($k, $l, $m);
 $o = \Sub\Alpha::make($k, $l, $m, $n);
 
-$p = namespace\Bravo::make();
-$q = namespace\Bravo::make($p);
-$r = namespace\Bravo::make($p, $q);
-$s = namespace\Bravo::make($p, $q, $r);
-$t = namespace\Bravo::make($p, $q, $r, $s);
+$p = namespace\Alpha::make();
+$q = namespace\Alpha::make($p);
+$r = namespace\Alpha::make($p, $q);
+$s = namespace\Alpha::make($p, $q, $r);
+$t = namespace\Alpha::make($p, $q, $r, $s);

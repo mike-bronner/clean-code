@@ -47,7 +47,6 @@ class NotOperatorSpacingSniff implements Sniff
             $delimiter === null
             || isset(self::OPENING_DELIMITERS[$delimiter['code']]) === false
         ) {
-            // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
             return;
         }
 
@@ -89,7 +88,6 @@ class NotOperatorSpacingSniff implements Sniff
         }
 
         if ($next['content'] === ' ') {
-            // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
             return;
         }
 

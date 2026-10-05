@@ -5,106 +5,94 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Tests\Fixtures;
 
 /**
- * Every pair below is a near miss: the sniff walks all of it and stays silent
- * because each pair breaks the match before it reaches the five-line default.
+ * Every pair below is a near miss: the sniff walks all of it and stays silent,
+ * because each pair breaks the match before it reaches both defaults of five
+ * lines and seventy tokens.
  *
- * The comparison drops token *content*, not token *types*, so the four shapes
- * here — a swapped operator, an extra argument, a different loop keyword, and
- * a genuinely short duplicate — are all differences it still sees.
+ * Only variable names are set aside. A literal, a method name, or a class name
+ * is compared as written, so a copy that changes any one of them is not a
+ * repeat.
  */
 class NearMisses
 {
     /**
-     * Two identical bodies, but only three lines of code each once the braces
-     * are set aside. Below the threshold, so no comparison happens.
+     * Four bodies of nine lines, braces included, well over seventy tokens
+     * each. They differ only on the middle line: the shipping speed literal,
+     * the method called, and the class instantiated. The lines either side of
+     * it are four long, too short to match on their own, so the middle line
+     * decides every pair.
      */
-    private function begin(): void
+    public function ship(Order $order): string
     {
-        $this->connect();
-        $this->prepare();
+        $carrier = $this->carriers->for($order->region, $order->weight);
+        $label = $carrier->label($order->address, $this->sender);
+        $tracking = $carrier->book($label, $order->reference);
+        $order->markShipped(new Shipment($tracking, 'standard'));
+        $this->notifier->send($order->customer, new Shipped($tracking));
+        $this->metrics->increment('orders.shipped');
+
+        return $tracking;
     }
 
-    private function finish(): void
+    public function shipExpress(Order $parcel): string
     {
-        $this->flush();
-        $this->close();
+        $carrier = $this->carriers->for($parcel->region, $parcel->weight);
+        $label = $carrier->label($parcel->address, $this->sender);
+        $tracking = $carrier->book($label, $parcel->reference);
+        $parcel->markShipped(new Shipment($tracking, 'express'));
+        $this->notifier->send($parcel->customer, new Shipped($tracking));
+        $this->metrics->increment('orders.shipped');
+
+        return $tracking;
+    }
+
+    public function dispatch(Order $consignment): string
+    {
+        $carrier = $this->carriers->for($consignment->region, $consignment->weight);
+        $label = $carrier->label($consignment->address, $this->sender);
+        $tracking = $carrier->book($label, $consignment->reference);
+        $consignment->markDispatched(new Shipment($tracking, 'standard'));
+        $this->notifier->send($consignment->customer, new Shipped($tracking));
+        $this->metrics->increment('orders.shipped');
+
+        return $tracking;
+    }
+
+    public function deliver(Order $package): string
+    {
+        $carrier = $this->carriers->for($package->region, $package->weight);
+        $label = $carrier->label($package->address, $this->sender);
+        $tracking = $carrier->book($label, $package->reference);
+        $package->markShipped(new Delivery($tracking, 'standard'));
+        $this->notifier->send($package->customer, new Shipped($tracking));
+        $this->metrics->increment('orders.shipped');
+
+        return $tracking;
     }
 
     /**
-     * The operator is the only difference, and it is a difference the sniff
-     * keeps: `+` is T_PLUS and `-` is T_MINUS, two token types, not two
-     * spellings of one. Four matching lines lead up to it and one follows.
+     * Two bodies that match token for token apart from their variable names,
+     * over seven lines. They hold too few tokens to reach the seventy-token
+     * default, so the repeat is not reported.
      */
-    private function totalCredits(array $rows): int
+    private function openLedger(): Ledger
     {
-        $total = 0;
-        $step = 1;
+        $ledger = $this->ledgers->open();
+        $ledger->lock();
+        $ledger->rewind();
+        $this->audit($ledger);
 
-        foreach ($rows as $row) {
-            $total = $total + ($row['amount'] * $step);
-        }
-
-        return $total;
+        return $ledger;
     }
 
-    private function totalDebits(array $rows): int
+    private function openJournal(): Ledger
     {
-        $total = 0;
-        $step = 1;
+        $journal = $this->ledgers->open();
+        $journal->lock();
+        $journal->rewind();
+        $this->audit($journal);
 
-        foreach ($rows as $row) {
-            $total = $total - ($row['amount'] * $step);
-        }
-
-        return $total;
-    }
-
-    /**
-     * One extra argument. Punctuation counts towards a kept line's shape, so
-     * the added comma and value make the two calls different lines.
-     */
-    private function notifyOwner(Order $order): void
-    {
-        $mailer = $this->mailer();
-        $message = $mailer->compose($order);
-        $mailer->send($message);
-        $this->audit($order);
-    }
-
-    private function notifyBuyer(Order $order): void
-    {
-        $mailer = $this->mailer();
-        $message = $mailer->compose($order);
-        $mailer->send($message, true);
-        $this->audit($order);
-    }
-
-    /**
-     * Same intent, different construct: a `foreach` and a `while` are not a
-     * renaming of each other.
-     */
-    private function collectActive(array $rows): array
-    {
-        $found = [];
-        $cursor = 0;
-
-        foreach ($rows as $row) {
-            $found[] = $row;
-        }
-
-        return $found;
-    }
-
-    private function collectPending(array $rows): array
-    {
-        $found = [];
-        $cursor = 0;
-
-        while ($cursor < 3) {
-            $found[] = $rows[$cursor];
-        }
-
-        return $found;
+        return $journal;
     }
 
     /**

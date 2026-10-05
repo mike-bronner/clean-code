@@ -6,7 +6,8 @@ declare(strict_types=1);
  * Three lines of code, so nothing is compared at the five-line default: the
  * file is shorter than one window. It exists for the threshold's lower end,
  * where a configured zero or a mistyped value both floor to one and the third
- * line becomes a one-line repeat of the first.
+ * line, which differs from the first only in its variable name, becomes a
+ * one-line repeat of it.
  *
  * Deliberately free of declarations. At a threshold of one every repeated line
  * shape is a report, and a class would add its own matching braces and
@@ -15,4 +16,4 @@ declare(strict_types=1);
 
 $alpha = 1;
 $bravo = 'two';
-$gamma = 3;
+$gamma = 1;

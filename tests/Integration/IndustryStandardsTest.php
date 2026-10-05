@@ -6,8 +6,6 @@ const UNDEFINED = 'VariableAnalysis.CodeAnalysis.VariableAnalysis.UndefinedVaria
 
 const SHORT_NAME = 'CleanCode.Naming.ShortVariable.TooShort';
 
-const DUPLICATE_BLOCK = 'CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found';
-
 const INLINE_FQN = 'SlevomatCodingStandard.Namespaces.ReferenceUsedNamesOnly.ReferenceViaFullyQualifiedName';
 
 const INLINE_FQN_NO_NAMESPACE = INLINE_FQN . 'WithoutNamespace';
@@ -127,14 +125,10 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
             6 => [INLINE_FQN_NO_NAMESPACE],
-            7 => [DUPLICATE_BLOCK],
             13 => [INLINE_FQN_NO_NAMESPACE],
-            14 => [DUPLICATE_BLOCK],
             20 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
-            21 => [DUPLICATE_BLOCK],
             27 => [INLINE_FQN_NO_NAMESPACE],
             34 => [INLINE_FQN],
-            35 => [DUPLICATE_BLOCK],
             41 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             49 => [INLINE_FQN_NO_NAMESPACE],
             51 => [INLINE_FQN_NO_NAMESPACE],
@@ -150,16 +144,13 @@ it('keeps custom-standard-shaped code PSR12-clean', function (string $path, arra
         fixturePath('RequireNonCapturingCatchSniff', 'autofixed.php'),
         [
             1 => ['PSR1.Files.SideEffects.FoundWithSymbols'],
-            4 => [DUPLICATE_BLOCK],
             6 => [INLINE_FQN_NO_NAMESPACE],
             13 => [INLINE_FQN_NO_NAMESPACE],
-            18 => [DUPLICATE_BLOCK],
             20 => [INLINE_FQN_NO_NAMESPACE],
             27 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             34 => [INLINE_FQN_NO_NAMESPACE, INLINE_FQN_NO_NAMESPACE],
             42 => [INLINE_FQN_NO_NAMESPACE],
             45 => [INLINE_FQN_NO_NAMESPACE],
-            51 => [DUPLICATE_BLOCK],
             53 => [INLINE_FQN_NO_NAMESPACE],
             61 => [INLINE_FQN_NO_NAMESPACE],
             69 => [INLINE_FQN_NO_NAMESPACE],

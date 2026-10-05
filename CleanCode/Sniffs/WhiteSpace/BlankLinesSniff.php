@@ -132,7 +132,6 @@ class BlankLinesSniff implements Sniff
             }
         }
 
-        // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
         return $handledLines;
     }
 
@@ -203,7 +202,6 @@ class BlankLinesSniff implements Sniff
             $run[$line] = true;
         }
 
-        // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
         return $run;
     }
 

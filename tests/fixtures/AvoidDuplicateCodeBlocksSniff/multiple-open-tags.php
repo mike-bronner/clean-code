@@ -27,8 +27,8 @@ $label = 'order';
 <p>Details</p>
 <?php
 
-$invoice = fetchInvoice();
+$invoice = fetchOrder();
 $sum = $invoice->total();
-$vat = $sum * 0.5;
+$vat = $sum * 0.2;
 $due = $sum - $vat;
-$name = 'invoice';
+$name = 'order';

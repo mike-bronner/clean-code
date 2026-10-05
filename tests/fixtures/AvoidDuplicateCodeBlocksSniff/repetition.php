@@ -11,8 +11,8 @@ namespace MikeBronner\CleanCode\Tests\Fixtures;
  * before any of it is a copy of any other part of it.
  *
  * seedCounters() holds nine such lines and is silent. seedLabels() holds twelve,
- * of a different shape — integer and string literals are different token types
- * — and both the first five and the five standing clear of them are reported.
+ * of a different shape — every line there appends a string, not an integer —
+ * and both the first five and the five standing clear of them are reported.
  *
  * Twelve rather than ten, so the report's extent pins the second half of the
  * same rule: a matched block grows only as far as it can without reaching back
@@ -26,30 +26,30 @@ class Repetition
 {
     private function seedCounters(): void
     {
-        $this->first = 1;
-        $this->second = 2;
-        $this->third = 3;
-        $this->fourth = 4;
-        $this->fifth = 5;
-        $this->sixth = 6;
-        $this->seventh = 7;
-        $this->eighth = 8;
-        $this->ninth = 9;
+        $first[] = 1;
+        $second[] = 1;
+        $third[] = 1;
+        $fourth[] = 1;
+        $fifth[] = 1;
+        $sixth[] = 1;
+        $seventh[] = 1;
+        $eighth[] = 1;
+        $ninth[] = 1;
     }
 
     private function seedLabels(): void
     {
-        $this->alpha = 'a';
-        $this->bravo = 'b';
-        $this->charlie = 'c';
-        $this->delta = 'd';
-        $this->echoed = 'e';
-        $this->foxtrot = 'f';
-        $this->golf = 'g';
-        $this->hotel = 'h';
-        $this->india = 'i';
-        $this->juliett = 'j';
-        $this->kilo = 'k';
-        $this->lima = 'l';
+        $alpha[] = 'label';
+        $bravo[] = 'label';
+        $charlie[] = 'label';
+        $delta[] = 'label';
+        $echoed[] = 'label';
+        $foxtrot[] = 'label';
+        $golf[] = 'label';
+        $hotel[] = 'label';
+        $india[] = 'label';
+        $juliett[] = 'label';
+        $kilo[] = 'label';
+        $lima[] = 'label';
     }
 }

@@ -9,9 +9,10 @@ namespace MikeBronner\CleanCode\Tests\Fixtures;
  * copy" and "the block it repeats" are the whole story; three blocks are what
  * separate reporting a *relationship* from reporting each *location*.
  *
- * All three methods are six code lines of the same shape, renamed throughout —
- * different method names, variables, array keys, and multipliers. Each is
- * therefore reported on its own first line, naming the other two.
+ * All three method bodies are seven lines, braces included, that match token
+ * for token apart from their variable names. The method names differ, so each
+ * block starts at the opening brace of its body. Each is reported there,
+ * naming the other two.
  *
  * Pairing blocks off instead would report two of the three: the first would
  * stay silent because nothing precedes it, and the second and third would each
@@ -33,8 +34,8 @@ class ThreeCopies
     {
         $invoices = [];
         $size = count($lines);
-        $invoices['sum'] = $size * 3;
-        $invoices['head'] = $lines[0];
+        $invoices['total'] = $size * 2;
+        $invoices['first'] = $lines[0];
 
         return $invoices;
     }
@@ -43,8 +44,8 @@ class ThreeCopies
     {
         $receipts = [];
         $length = count($entries);
-        $receipts['net'] = $length * 4;
-        $receipts['lead'] = $entries[0];
+        $receipts['total'] = $length * 2;
+        $receipts['first'] = $entries[0];
 
         return $receipts;
     }

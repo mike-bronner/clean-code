@@ -5,72 +5,68 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Tests\Fixtures;
 
 /**
- * PHP_CodeSniffer gives every line of a heredoc, nowdoc, or multi-line quoted
- * string its own token, all of one type. A comparison by token type alone
- * therefore matched any long enough string body against itself. A string body
- * is text, not logic, so none of these lines are compared.
+ * PHP_CodeSniffer gives every line of a heredoc its own token, and the sniff
+ * compares each line like any other. countOrphans() and countStrays() run the
+ * same query, word for word, apart from the variable they interpolate, so the
+ * pair is reported.
+ *
+ * countDangling() and countDetached() differ in one word, on the middle line
+ * of the method. Each side of it is four lines long, too short to match on its
+ * own, so that pair is not reported.
+ *
+ * Each line of a heredoc body is a single token, so no query here reaches the
+ * default token minimum. The test lowers it.
  */
 class Heredoc
 {
-    public function countMismatched(string $table, string $foreignKey): int
+    public function countOrphans(string $table): int
     {
         return $this->selectOne(<<<SQL
-            SELECT COUNT(*) AS mismatched
-            FROM {$table} AS anchored
-            WHERE anchored.{$foreignKey} IS NOT NULL
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM verses AS anchor_verse
-                    JOIN chapters AS anchor_chapter
-                        ON anchor_chapter.id = anchor_verse.chapter_id
-                    JOIN books AS anchor_book
-                        ON anchor_book.id = anchor_chapter.book_id
-                    JOIN versions AS anchor_version
-                        ON anchor_version.id = anchor_book.version_id
-                    WHERE anchor_verse.id = anchored.{$foreignKey}
-                        AND anchor_book.name = anchored.book_name
-                        AND anchor_verse.number = anchored.verse_number
-                )
-            SQL);
-    }
-
-    public function countOrphans(): int
-    {
-        return $this->selectOne(<<<'SQL'
             SELECT COUNT(*) AS orphans
-            FROM verses
+            FROM {$table}
             WHERE chapter_id IS NOT NULL
                 AND NOT EXISTS (
                     SELECT 1
                     FROM chapters
-                    JOIN books
-                        ON books.id = chapters.book_id
-                    JOIN versions
-                        ON versions.id = books.version_id
-                    WHERE chapters.id = verses.chapter_id
-                        AND books.name IS NOT NULL
-                        AND versions.id IS NOT NULL
+                    WHERE chapters.id = {$table}.chapter_id
                 )
             SQL);
     }
 
-    public function countDangling(string $table): int
+    public function countStrays(string $source): int
     {
-        return $this->selectOne("
-            SELECT COUNT(*) AS dangling
-            FROM {$table}
-            WHERE verse_id IS NOT NULL
+        return $this->selectOne(<<<SQL
+            SELECT COUNT(*) AS orphans
+            FROM {$source}
+            WHERE chapter_id IS NOT NULL
                 AND NOT EXISTS (
                     SELECT 1
-                    FROM verses
-                    JOIN chapters
-                        ON chapters.id = verses.chapter_id
-                    JOIN books
-                        ON books.id = chapters.book_id
-                    WHERE verses.id = {$table}.verse_id
-                        AND books.name IS NOT NULL
+                    FROM chapters
+                    WHERE chapters.id = {$source}.chapter_id
                 )
-        ");
+            SQL);
+    }
+
+    public function countDangling(): int
+    {
+        return $this->selectOne(<<<'SQL'
+            SELECT COUNT(*) AS dangling
+            FROM verses
+            WHERE book_id IS NOT NULL
+            ORDER BY id
+            LIMIT 1
+            SQL);
+    }
+
+    public function countDetached(): int
+    {
+        return $this->selectOne(<<<'SQL'
+            SELECT COUNT(*) AS dangling
+            FROM verses
+            WHERE book_id IS NULL
+            ORDER BY id
+            LIMIT 1
+            SQL);
     }
 
     private function selectOne(string $sql): int

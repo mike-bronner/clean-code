@@ -7,9 +7,9 @@ namespace MikeBronner\CleanCode\Tests\Fixtures;
 /**
  * Two methods that build the same array from different models. Literal entries
  * sit between the lines that read the model, and the second method carries
- * two more of them. Literal-only lines are left out of the comparison, so they
- * neither pad a match nor break one: the five lines that hold logic still
- * repeat, and both blocks are reported.
+ * two more of them. A line of literals is compared like any other, so the
+ * differing entries break the run: no five lines in a row repeat, and neither
+ * method is reported, even with no token minimum.
  */
 class MixedLogic
 {

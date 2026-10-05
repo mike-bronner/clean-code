@@ -57,7 +57,6 @@ class OneConditionPerLineSniff implements Sniff
         $this->processMultiCondition($phpcsFile, $stackPtr, $regionStart, $regionEnd, $operators);
     }
 
-    // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processSingleCondition(
         File $phpcsFile,
         int $stackPtr,
@@ -117,7 +116,6 @@ class OneConditionPerLineSniff implements Sniff
             ->endChangeset();
     }
 
-    // phpcs:ignore CleanCode.Pattern.AvoidDuplicateCodeBlocks.Found
     private function processMultiCondition(
         File $phpcsFile,
         int $stackPtr,

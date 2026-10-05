@@ -8,9 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Three relations built from the same call, each passing lists of model
- * classes and column names. Only the first line of each relation holds code;
- * everything after it is a class name, a string, or array punctuation, so the
- * three relations are not reported as copies of each other.
+ * classes and column names. apparatusEntries() and mergedEntries() pass the
+ * same lists, word for word, over more than seventy tokens, so the pair is
+ * reported at the default thresholds: a list of names and strings is compared
+ * like any other code. concordances() shares shorter runs with both, and none
+ * of them reaches the token minimum.
  */
 class RelationKeys extends Model
 {
@@ -24,6 +26,7 @@ class RelationKeys extends Model
                 Chapter::class,
                 Book::class,
                 Version::class,
+                Testament::class,
             ],
             [
                 "id",
@@ -75,11 +78,12 @@ class RelationKeys extends Model
         return $this->hasManyDeep(
             Entry::class,
             [
-                self::class . " as merged_owner",
-                self::class . " as merged_verse",
+                self::class . " as owner",
+                self::class . " as grouped",
                 Chapter::class,
                 Book::class,
                 Version::class,
+                Testament::class,
             ],
             [
                 "id",
@@ -91,7 +95,7 @@ class RelationKeys extends Model
             [
                 "id",
                 "chapter_id",
-                "chapter_id",
+                "book_id",
                 "version_id",
                 "abbreviation",
             ],
