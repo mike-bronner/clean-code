@@ -7,6 +7,8 @@
   `Queries` traits and stay lean (relationships, `$appends`, `$fillable`).
 - Benefits: centralized maintenance, centralized caching/optimization, reduced
   technical and visual debt, and adoption of better DRY patterns.
+- Cache inside the query trait methods: relationship references are then
+  cached as well, for example when you loop over a relationship collection.
 
 ## Compliant
 
