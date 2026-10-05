@@ -118,7 +118,8 @@ it('names the first completing pair and the accessor remedy', function () use ($
         ->and($messages[9][0])->toContain('c->d')
         ->and($messages[7][0])->toContain('author->address')
         ->and($messages[7][0])->not->toContain('address->city')
-        ->and($messages[3][0])->toContain('getAuthorNameAttribute()')
+        ->and($messages[3][0])->toContain('authorName(): Attribute returning Attribute::make()')
+        ->and($messages[3][0])->not->toContain('getAuthorNameAttribute()')
         ->and($messages[3][0])->toContain('accessor attribute on the first model');
 });
 
@@ -371,8 +372,9 @@ it('keeps its root record from answering another STDIN analysis', function (): v
         ->and(violationMessagesByLine($second->getErrors()))->toBe([
             3 => [
                 'Chained property fetch author->name; expose the value as an accessor '
-                    . 'attribute on the first model instead (e.g. getAuthorNameAttribute() so '
-                    . 'callers read $book->authorName rather than $book->author->name) '
+                    . 'attribute on the first model instead (e.g. authorName(): Attribute '
+                    . 'returning Attribute::make() so callers read $book->authorName rather '
+                    . 'than $book->author->name) '
                     . '(see resources/boost/guidelines/models-relationship-properties.md)',
             ],
         ])
