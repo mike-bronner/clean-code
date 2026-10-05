@@ -176,3 +176,14 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
 });
+
+it('takes its integration-test patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            NO_HTTP_FAKES,
+            'failing.php',
+            ['integrationPatterns' => ['*/NoHttpFakesInIntegrationTestsSniff/*']]
+        );
+
+    expect(analyzeFixture(NO_HTTP_FAKES, 'failing.php')->getWarnings())->toBe([])
+        ->and($retuned->getWarnings())->not->toBe([]);
+});

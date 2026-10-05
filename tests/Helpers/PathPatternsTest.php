@@ -34,3 +34,22 @@ it('normalises backslashes in the path and in the pattern', function (): void {
     expect($pathPatterns->matchesAny('C:\\project\\tests\\UserTest.php', ['*/tests/*']))->toBeTrue()
         ->and($pathPatterns->matchesAny('/project/tests/User.php', ['*\\tests\\*']))->toBeTrue();
 });
+
+it('reads a backslash in a pattern as a separator, never as an escape', function (): void {
+    $pathPatterns = new PathPatterns();
+
+    expect($pathPatterns->matchesAny('/project/tests/User.php', ['/project/tests\\*']))->toBeTrue()
+        ->and($pathPatterns->matchesAny('/project/tests*', ['/project/tests\\*']))->toBeFalse();
+});
+
+it('lets a star match across a separator', function (): void {
+    $pathPatterns = new PathPatterns();
+
+    expect($pathPatterns->matchesAny('/project/tests/Unit/UserTest.php', ['/project/*Test.php']))->toBeTrue();
+});
+
+it('does not match a non-empty path against an empty pattern', function (): void {
+    $pathPatterns = new PathPatterns();
+
+    expect($pathPatterns->matchesAny('/project/src/User.php', ['']))->toBeFalse();
+});

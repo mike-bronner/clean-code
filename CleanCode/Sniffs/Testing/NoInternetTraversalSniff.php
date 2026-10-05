@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
@@ -60,7 +61,8 @@ class NoInternetTraversalSniff implements Sniff
     ];
 
     public function __construct(
-        private FunctionCalls $functionCalls = new FunctionCalls
+        private FunctionCalls $functionCalls = new FunctionCalls,
+        private PathPatterns $pathPatterns = new PathPatterns
     ) {
     }
 
@@ -74,7 +76,9 @@ class NoInternetTraversalSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ($this->isFeatureTest($phpcsFile->getFilename()) === false) {
+        $path = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($path, $this->featureTestPatterns) === false) {
             return;
         }
 
@@ -87,19 +91,6 @@ class NoInternetTraversalSniff implements Sniff
         }
 
         $this->processCall($phpcsFile, $stackPtr);
-    }
-
-    private function isFeatureTest(string $path): bool
-    {
-        $normalized = str_replace('\\', '/', $path);
-
-        foreach ($this->featureTestPatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $normalized) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function processCall(File $phpcsFile, int $stackPtr): void

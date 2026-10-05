@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Routes;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -34,6 +35,11 @@ class DisallowNonResourceRoutesSniff implements Sniff
         T_NAME_RELATIVE,
     ];
 
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns
+    ) {
+    }
+
     public function register(): array
     {
         return [T_DOUBLE_COLON];
@@ -41,7 +47,9 @@ class DisallowNonResourceRoutesSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ($this->isRouteFile($phpcsFile->getFilename()) === false) {
+        $path = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($path, $this->routeFilePatterns) === false) {
             return;
         }
 
@@ -74,19 +82,6 @@ class DisallowNonResourceRoutesSniff implements Sniff
                 'Found',
                 [$tokens[$verbPtr]['content']]
             );
-    }
-
-    private function isRouteFile(string $path): bool
-    {
-        $normalized = str_replace('\\', '/', $path);
-
-        foreach ($this->routeFilePatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $normalized) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function isRouteFacade(File $phpcsFile, int $stackPtr): bool
