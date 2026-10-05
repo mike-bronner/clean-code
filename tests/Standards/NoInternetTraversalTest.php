@@ -251,3 +251,14 @@ it('reports the violation end to end through the installed package', function ()
         ->and($passing['messages'])->toBe([])
         ->and($passing['status'])->toBe(0);
 });
+
+it('takes its feature-test patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            NO_INTERNET_TRAVERSAL,
+            'failing.php',
+            ['featureTestPatterns' => ['*/NoInternetTraversalSniff/*']]
+        );
+
+    expect(analyzeFixture(NO_INTERNET_TRAVERSAL, 'failing.php')->getWarnings())->toBe([])
+        ->and($retuned->getWarnings())->not->toBe([]);
+});

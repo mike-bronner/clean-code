@@ -319,3 +319,14 @@ it('matches an import whose whitespace cannot be collapsed', function (): void {
         ->and($degraded)->toBe($expected)
         ->and($diagnostics)->toBe([]);
 });
+
+it('takes its test-file patterns from a consuming ruleset in XML', function (): void {
+    $retuned = analyzeWithConfiguredRuleset(
+            FIRST_PARTY_MOCKS,
+            'failing.php',
+            ['testFilePatterns' => ['*/production/*']]
+        );
+
+    expect(analyzeFixture(FIRST_PARTY_MOCKS, 'failing.php')->getWarnings())->not->toBe([])
+        ->and($retuned->getWarnings())->toBe([]);
+});

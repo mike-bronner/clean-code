@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -39,6 +40,11 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
         'Illuminate\Http\Client',
     ];
 
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns
+    ) {
+    }
+
     public function register(): array
     {
         return [
@@ -50,7 +56,9 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
 
     public function process(File $phpcsFile, int $stackPtr): void
     {
-        if ($this->isIntegrationTest($phpcsFile->getFilename()) === false) {
+        $path = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($path, $this->integrationPatterns) === false) {
             return;
         }
 
@@ -103,19 +111,6 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
                 'MockedHttpClient',
                 [$mocked]
             );
-    }
-
-    private function isIntegrationTest(string $path): bool
-    {
-        $normalized = str_replace('\\', '/', $path);
-
-        foreach ($this->integrationPatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $normalized) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function callOpener(File $phpcsFile, int $memberPtr): ?int

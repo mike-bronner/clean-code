@@ -82,4 +82,57 @@ it('still reports a property no untyped, non-private ancestor declares, and neve
         ['line' => 41, 'column' => 12, 'source' => $missing],
         ['line' => 47, 'column' => 12, 'source' => $missing],
     ])->and($file->getWarnings())->toBe([]);
+}
+   
+it('reports a use-clause closure only when it declares no return type', function (): void {
+    $file = analyzeFixture(INFERRED_RETURN_TYPE, 'use-clause.php');
+    $errors = $file->getErrors();
+    $warnings = $file->getWarnings();
+
+    expect(array_keys($errors))
+        ->toBe([17, 26, 36])
+        ->and($warnings)
+        ->toBe([]);
+});
+
+it('writes the type after the use list, and the result parses', function (): void {
+    $fixed = autofixedContents(analyzeFixture(INFERRED_RETURN_TYPE, 'use-clause.php'));
+    $expected = file_get_contents(fixturePath('InferredReturnTypeSniff', 'use-clause.fixed.php'));
+    $parse = static fn (): array => token_get_all($fixed, TOKEN_PARSE);
+
+    expect($fixed)
+        ->toBe($expected)
+        ->and($parse)
+        ->not
+        ->toThrow(ParseError::class);
+});
+
+it('leaves an already-fixed use-clause closure alone on a second pass', function (): void {
+    $file = analyzeFixture(INFERRED_RETURN_TYPE, 'use-clause.fixed.php');
+    $errors = $file->getErrors();
+    $warnings = $file->getWarnings();
+
+    expect($errors)
+        ->toBe([])
+        ->and($warnings)
+        ->toBe([]);
+});
+
+it('stays silent when the use list has no closing parenthesis to anchor on', function (): void {
+    $file = analyzeStdinSource([INFERRED_RETURN_TYPE], <<<PHP
+        <?php
+        \$handler = function () use {
+            return true;
+        };
+        PHP);
+    $errors = $file->getErrors();
+    $warnings = $file->getWarnings();
+    $fixable = $file->getFixableCount();
+
+    expect($errors)
+        ->toBe([])
+        ->and($warnings)
+        ->toBe([])
+        ->and($fixable)
+        ->toBe(0);
 });

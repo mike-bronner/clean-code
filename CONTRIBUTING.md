@@ -62,7 +62,7 @@ and `tests/fixtures/UnusedPrivateElementsSniff/`.
 ```
 CleanCode/
 ├── ruleset.xml                            # the CleanCode standard, entire — rules get wired in here
-├── Helpers/<Name>.php                     # token-stream decisions shared by several sniffs
+├── Helpers/<Name>.php                     # decisions shared by several sniffs, about the tokens or the path
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
@@ -204,8 +204,9 @@ this repo — this file wins.
 
 ### The shared helpers
 
-`CleanCode/Helpers/` holds the decisions more than one sniff has to make about
-the token stream. `FunctionCalls::isGlobalFunctionCall()` is the first:
+`CleanCode/Helpers/` holds the decisions more than one sniff has to make. Most
+are about the token stream, and one is about the file's path.
+`FunctionCalls::isGlobalFunctionCall()` is a token-stream helper:
 "is this `T_STRING` a call to PHP's own global function, or a same-named method,
 declaration, class, attribute, or imported symbol?".
 
@@ -217,9 +218,16 @@ once is fixed everywhere.
 
 One helper answers a question about the file's path instead:
 `PathPatterns::matchesAny()`, "does this path match any of these `fnmatch`
-patterns?". A sniff scoped to test files by a `testFilePatterns` property asks
-it, and keeps the property and its defaults for itself. It reads strings, so it
-has no fixtures, and `tests/Helpers/PathPatternsTest.php` tests it directly.
+patterns?". Any sniff that matches a file path against `fnmatch` patterns routes
+through it, not only a sniff scoped to test files. That covers test-file,
+feature-test, integration-test and route-file patterns, and exclude lists too.
+The sniff keeps its pattern property and its defaults, and passes that property
+to the helper as it is. The helper reads every backslash, in the path and in
+each pattern, as a forward slash, so the sniff normalises neither. Before the
+helper, seven sniffs each carried their own copy of the pattern loop, and the
+copies drifted: they did not all normalise the path in the same place. It reads
+strings, so it has no fixtures, and `tests/Helpers/PathPatternsTest.php` tests
+it directly.
 
 Two helpers answer what PHP_CodeSniffer 4 changed. `Declarations::name()` gives a
 declaration's name, and `null` for a closure, an anonymous class, or a
@@ -244,8 +252,10 @@ here calls. One test in the directory covers the file instead —
 `RemoveStagedDirectoryTest.php`, over the staging teardown that runs after every
 test (#380). It is the only one.
 
-A helper carries its own fixtures under `tests/fixtures/<Name>/` and its own
-tests under `tests/Helpers/<Name>Test.php`, driven by `parseFixture()` — it
+Every helper has its own tests under `tests/Helpers/<Name>Test.php`. A helper
+that has fixtures keeps them under `tests/fixtures/<Name>/`, and its tests drive
+them through `parseFixture()`. Not every helper needs fixtures: `PathPatterns`
+reads only strings, so its test calls it directly. `parseFixture()`
 tokenises a fixture without running a sniff, which is what lets a test read the
 helper's verdict for every shape rather than only the ones some sniff's own name
 list would let through. A helper directory holds no sniff, so the contract sweep

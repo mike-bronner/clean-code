@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 
@@ -11,19 +12,30 @@ class RequireTestFileSniff implements Sniff
 {
     private const UNKNOWN_PATH = 'STDIN';
 
+    private const DEFAULT_TEST_DIRECTORY = 'tests';
+
+    private const PACKAGE_TEMPLATE = '{path}/{name}Test.php';
+
+    private const DEFAULT_TEMPLATES = [
+        self::PACKAGE_TEMPLATE,
+        '*/{path}/{name}Test.php',
+    ];
+
     public array $sourceDirectories = [
         'app',
         'src',
     ];
 
-    public string $testDirectory = 'tests';
+    public string $testDirectory = self::DEFAULT_TEST_DIRECTORY;
 
-    public array|string $testPathTemplate = [
-        '{path}/{name}Test.php',
-        '*/{path}/{name}Test.php',
-    ];
+    public array|string $testPathTemplate = self::DEFAULT_TEMPLATES;
 
     public array $excludePatterns = [];
+
+    public function __construct(
+        private PathPatterns $pathPatterns = new PathPatterns
+    ) {
+    }
 
     public function register(): array
     {
@@ -47,7 +59,7 @@ class RequireTestFileSniff implements Sniff
 
         $patterns = array_map(
                 fn (string $template): string => $this->testPattern($segments, $sourceIndex, $template),
-                (array) $this->testPathTemplate
+                $this->templates()
             );
 
         if ($this->hasMatch($patterns) === true) {
@@ -75,22 +87,13 @@ class RequireTestFileSniff implements Sniff
             return true;
         }
 
-        if ($this->isExcluded($path) === true) {
+        $filename = $phpcsFile->getFilename();
+
+        if ($this->pathPatterns->matchesAny($filename, $this->excludePatterns) === true) {
             return true;
         }
 
         return $phpcsFile->getClassProperties($stackPtr)['is_abstract'] === true;
-    }
-
-    private function isExcluded(string $path): bool
-    {
-        foreach ($this->excludePatterns as $pattern) {
-            if (fnmatch(str_replace('\\', '/', $pattern), $path) === true) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function sourceRootIndex(array $segments): ?int
@@ -98,6 +101,15 @@ class RequireTestFileSniff implements Sniff
         $matches = array_keys(array_intersect($segments, $this->sourceDirectories));
 
         return $matches === [] ? null : (int) end($matches);
+    }
+
+    private function templates(): array
+    {
+        return match (true) {
+            $this->testPathTemplate !== self::DEFAULT_TEMPLATES => (array) $this->testPathTemplate,
+            $this->testDirectory !== self::DEFAULT_TEST_DIRECTORY => [self::PACKAGE_TEMPLATE],
+            default => self::DEFAULT_TEMPLATES,
+        };
     }
 
     private function testPattern(array $segments, int $sourceIndex, string $template): string
