@@ -82,8 +82,8 @@ it('still reports a property no untyped, non-private ancestor declares, and neve
         ['line' => 41, 'column' => 12, 'source' => $missing],
         ['line' => 47, 'column' => 12, 'source' => $missing],
     ])->and($file->getWarnings())->toBe([]);
-}
-   
+});
+
 it('reports a use-clause closure only when it declares no return type', function (): void {
     $file = analyzeFixture(INFERRED_RETURN_TYPE, 'use-clause.php');
     $errors = $file->getErrors();
