@@ -143,7 +143,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
         $phpcsFile->addError(
                 'Chained property fetch %s; expose the value as an accessor attribute on the '
-                    . 'first model instead (e.g. getAuthorNameAttribute() so callers read '
+                    . 'first model instead (e.g. authorName(): Attribute returning '
+                    . 'Attribute::make() so callers read '
                     . '$book->authorName rather than $book->author->name) '
                     . '(see resources/boost/guidelines/models-relationship-properties.md)',
                 $memberPtr,
