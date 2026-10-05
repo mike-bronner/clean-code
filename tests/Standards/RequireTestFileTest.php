@@ -146,6 +146,63 @@ it('does not let a glob metacharacter match a directory that is not the companio
     ]],
 ]);
 
+it('finds a companion one suite folder below the test root by default', function (array $files): void {
+    $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with([
+    'an app class with a Unit test' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Unit/Providers/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'an app class with a Feature test' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Feature/Providers/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'an app class with a test in a suite not named Unit or Feature' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Integration/Providers/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'a src class with a Unit test' => [[
+        'src/Foo/Bar.php' => STAGED_CLASS,
+        'tests/Unit/Foo/BarTest.php' => STAGED_COMPANION,
+    ]],
+    'a bracket group in a file name, with a Unit test' => [[
+        'src/Odd[Name].php' => STAGED_CLASS,
+        'tests/Unit/Odd[Name]Test.php' => STAGED_COMPANION,
+    ]],
+]);
+
+it('warns when the only suite test is not at the mirrored path', function (array $files): void {
+    $file = analyzeWithSniffs([REQUIRE_TEST_FILE], stageProjectOutsideTests($files));
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 5, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ]);
+})->with([
+    'a test at the wrong level' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Unit/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'a test one level too deep' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Unit/Providers/Extra/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'a test with an extra level above the mirrored path' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Unit/Extra/Providers/AppServiceProviderTest.php' => STAGED_COMPANION,
+    ]],
+    'a test with the wrong name' => [[
+        'app/Providers/AppServiceProvider.php' => STAGED_CLASS,
+        'tests/Unit/Providers/OtherTest.php' => STAGED_COMPANION,
+    ]],
+    'an asterisk in a file name spanning a different suite test' => [[
+        'src/Od*d.php' => STAGED_CLASS,
+        'tests/Unit/OdadTest.php' => STAGED_COMPANION,
+    ]],
+]);
+
 it('scopes itself out of a directory not named in the source list', function (): void {
     $file = analyzeFixture(REQUIRE_TEST_FILE, 'app/Legacy.php', function ($sniff): void {
         $sniff->sourceDirectories = ['src'];
@@ -198,6 +255,46 @@ it('keeps a template set from a ruleset as the only one', function (): void {
     ])
         ->and(violationMessagesByLine($file->getWarnings())[12][0])
         ->toContain("matching {$expectedPath} (");
+});
+
+it('keeps a custom template from a ruleset away from the suite folders', function (): void {
+    $file = analyzeFixtureWithRulesetProperties(
+            REQUIRE_TEST_FILE,
+            'src/Split.php',
+            ['testPathTemplate' => '{name}Test.php']
+        );
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 13, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ]);
+});
+
+it('looks only in a custom test directory set from a ruleset', function (): void {
+    $file = analyzeFixtureWithRulesetProperties(
+            REQUIRE_TEST_FILE,
+            'src/Models/Verse.php',
+            ['testDirectory' => 'tests/Feature']
+        );
+    $expectedPath = fixturePath(sniffFixtureDirectory(REQUIRE_TEST_FILE), 'tests/Feature/Models/VerseTest.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 12, 'column' => 1, 'source' => REQUIRE_TEST_FILE_MISSING],
+    ])
+        ->and(violationMessagesByLine($file->getWarnings())[12][0])
+        ->toContain("matching {$expectedPath} (");
+});
+
+it('keeps a custom template when the test directory is custom too', function (): void {
+    $file = analyzeFixtureWithRulesetProperties(
+            REQUIRE_TEST_FILE,
+            'src/Models/Verse.php',
+            [
+                'testDirectory' => 'tests/Feature',
+                'testPathTemplate' => '*/{path}/{name}Test.php',
+            ]
+        );
+
+    expect($file->getWarnings())->toBe([]);
 });
 
 it('names every default candidate in the message', function (): void {
