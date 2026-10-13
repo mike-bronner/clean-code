@@ -47,7 +47,7 @@ class ActionMethodReturnSniff implements Sniff
     private const MESSAGE = <<<MESSAGE
         The %s() method starts with the action verb "%s", so it commands rather than
         answers and should not return a value — return nothing, or rename it for what
-        it hands back (see resources/boost/guidelines/methods-naming.md)
+        it hands back (see resources/boost/skills/clean-code/references/methods-naming.md)
         MESSAGE;
 
     public function register(): array

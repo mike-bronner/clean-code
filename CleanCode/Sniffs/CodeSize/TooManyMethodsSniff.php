@@ -55,7 +55,7 @@ class TooManyMethodsSniff implements Sniff
         $phpcsFile->addError(
                 'Class %s declares %s counted methods, more than the maximum of %s. Methods '
                     . 'matching %s are not counted. Split it into smaller classes '
-                    . '(see resources/boost/guidelines/pattern-solid.md)',
+                    . '(see resources/boost/skills/clean-code/references/pattern-solid.md)',
                 $stackPtr,
                 'MaxExceeded',
                 [$name, $counted, $this->maxmethods, $this->ignorepattern]

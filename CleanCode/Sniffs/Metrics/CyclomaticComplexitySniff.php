@@ -32,7 +32,8 @@ class CyclomaticComplexitySniff implements Sniff
         $phpcsFile->addError(
                 'The %s has a cyclomatic complexity of %s, reaching the report level of %s; '
                     . 'break it into smaller declarations '
-                    . '(see resources/boost/guidelines/codesize-cyclomaticcomplexity.md)',
+                    . '(see resources/boost/skills/clean-code/references/'
+                    . 'codesize-cyclomaticcomplexity.md)',
                 $stackPtr,
                 'Found',
                 [$this->describe($phpcsFile, $stackPtr), $complexity, $threshold]

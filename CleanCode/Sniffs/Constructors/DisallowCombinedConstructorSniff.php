@@ -396,7 +396,8 @@ class DisallowCombinedConstructorSniff implements Sniff
                 'Reading the constructor\'s own argument list with %s() overloads __construct()'
                     . ' into several constructors; give each construction scenario its own named'
                     . ' constructor delegating to one primary constructor'
-                    . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
+                    . ' (see resources/boost/skills/clean-code/references/'
+                    . 'constructors-primary-named-constructors.md)',
                 $pointer,
                 'ArgumentCount',
                 [$functionCalls->calleeName($phpcsFile, $pointer)]
@@ -430,7 +431,7 @@ class DisallowCombinedConstructorSniff implements Sniff
                     'Branching on the runtime type of %s combines several constructors into'
                         . ' __construct(); give each accepted type its own named constructor'
                         . ' delegating to one primary constructor'
-                        . ' (see resources/boost/guidelines/'
+                        . ' (see resources/boost/skills/clean-code/references/'
                         . 'constructors-primary-named-constructors.md)',
                     $pointer,
                     'TypeSwitch',
@@ -444,7 +445,8 @@ class DisallowCombinedConstructorSniff implements Sniff
                 'Branching on the mode flag %s combines several constructors into __construct();'
                     . ' give each mode its own named constructor delegating to one primary'
                     . ' constructor'
-                    . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
+                    . ' (see resources/boost/skills/clean-code/references/'
+                    . 'constructors-primary-named-constructors.md)',
                 $pointer,
                 'ModeFlag',
                 [$name]

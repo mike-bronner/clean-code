@@ -341,7 +341,8 @@ class NoInternetTraversalSniff implements Sniff
     {
         $phpcsFile->addWarning(
                 '%s traverses the internet; a feature test must not, so fake the third-party API'
-                    . ' through the Http facade instead (see resources/boost/guidelines/'
+                    . ' through the Http facade instead (see '
+                    . 'resources/boost/skills/clean-code/references/'
                     . 'testing-test-suites.md)',
                 $stackPtr,
                 'Found',

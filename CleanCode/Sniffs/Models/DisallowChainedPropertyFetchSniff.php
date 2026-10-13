@@ -146,7 +146,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
                     . 'first model instead (e.g. authorName(): Attribute returning '
                     . 'Attribute::make() so callers read '
                     . '$book->authorName rather than $book->author->name) '
-                    . '(see resources/boost/guidelines/models-relationship-properties.md)',
+                    . '(see resources/boost/skills/clean-code/references/'
+                    . 'models-relationship-properties.md)',
                 $memberPtr,
                 'Found',
                 [

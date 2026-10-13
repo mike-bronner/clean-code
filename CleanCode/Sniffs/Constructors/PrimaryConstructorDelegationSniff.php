@@ -60,7 +60,8 @@ class PrimaryConstructorDelegationSniff implements Sniff
                 '%s() returns an instance without routing through the primary constructor; build it'
                     . ' with new self(...) / new static(...), or delegate to another static method of'
                     . ' the class, so initialization stays in one place'
-                    . ' (see resources/boost/guidelines/constructors-primary-named-constructors.md)',
+                    . ' (see resources/boost/skills/clean-code/references/'
+                    . 'constructors-primary-named-constructors.md)',
                 $stackPtr,
                 'Missing',
                 [$method]

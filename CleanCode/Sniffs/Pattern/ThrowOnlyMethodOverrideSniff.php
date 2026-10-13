@@ -41,7 +41,8 @@ class ThrowOnlyMethodOverrideSniff implements Sniff
                 '%s() stubs out an inherited method with a single throw; a subtype that refuses'
                     . ' behaviour its supertype promises breaks Liskov Substitution. Split the'
                     . ' hierarchy, or segregate the interface so this method is never promised,'
-                    . ' instead of throwing (see resources/boost/guidelines/pattern-solid.md)',
+                    . ' instead of throwing (see resources/boost/skills/clean-code/references/'
+                    . 'pattern-solid.md)',
                 $stackPtr,
                 'RefusedBequest',
                 [$method]

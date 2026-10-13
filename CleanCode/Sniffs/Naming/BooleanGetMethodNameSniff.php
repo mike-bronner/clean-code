@@ -68,7 +68,8 @@ class BooleanGetMethodNameSniff implements Sniff
         $phpcsFile->addError(
                 "The %s() method returns a boolean, so it should be named \"is...()\" or "
                     . "\"has...()\" — a getter hands back a value, a question answers yes or no "
-                    . '(see resources/boost/guidelines/naming-booleangetmethodname.md)',
+                    . '(see resources/boost/skills/clean-code/references/'
+                    . 'naming-booleangetmethodname.md)',
                 $phpcsFile->findNext(T_STRING, $stackPtr),
                 'Found',
                 [$name]

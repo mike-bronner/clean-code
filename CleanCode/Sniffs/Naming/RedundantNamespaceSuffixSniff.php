@@ -59,7 +59,7 @@ class RedundantNamespaceSuffixSniff implements Sniff
             $phpcsFile->addError(
                     "%s %s repeats its own %s namespace segment: drop the redundant \"%s\" suffix and"
                         . ' alias the import at the call sites that read better with it (see'
-                        . ' resources/boost/guidelines/classes-class-naming.md)',
+                        . ' resources/boost/skills/clean-code/references/classes-class-naming.md)',
                     $stackPtr,
                     'Found',
                     [self::DECLARATION_KEYWORDS[$phpcsFile->getTokens()[$stackPtr]['code']], $name, $segment, $suffix]

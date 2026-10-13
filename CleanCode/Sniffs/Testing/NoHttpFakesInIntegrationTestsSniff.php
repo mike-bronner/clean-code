@@ -84,7 +84,8 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
             $phpcsFile->addWarning(
                     'Http::%s() doubles out the external dependency this integration test exists to'
                         . ' exercise; keep the fake in the feature-test twin instead'
-                        . ' (see resources/boost/guidelines/testing-test-suites.md)',
+                        . ' (see resources/boost/skills/clean-code/references/'
+                        . 'testing-test-suites.md)',
                     $memberPtr,
                     'FakedHttpClient',
                     [$member]
@@ -106,7 +107,7 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
         $phpcsFile->addWarning(
                 'Mocking %s doubles out the external dependency this integration test exists to'
                     . ' exercise; keep the double in the feature-test twin instead'
-                    . ' (see resources/boost/guidelines/testing-test-suites.md)',
+                    . ' (see resources/boost/skills/clean-code/references/testing-test-suites.md)',
                 $memberPtr,
                 'MockedHttpClient',
                 [$mocked]

@@ -77,7 +77,8 @@ class DisallowNonResourceRoutesSniff implements Sniff
                     . 'routes pointing at RESTful controllers (Route::resource(),'
                     . ' Route::apiResource()), '
                     . 'with an invokable-controller special-action route as a rare exception '
-                    . '(see resources/boost/guidelines/routes-conventions-do-do-not.md)',
+                    . '(see resources/boost/skills/clean-code/references/'
+                    . 'routes-conventions-do-do-not.md)',
                 $verbPtr,
                 'Found',
                 [$tokens[$verbPtr]['content']]

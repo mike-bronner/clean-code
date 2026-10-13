@@ -55,7 +55,8 @@ class AvoidDuplicateCodeBlocksSniff implements Sniff
                         'This block of code, through line %d, repeats %s token for token, apart'
                             . ' from variable names. Extract the shared logic once the duplication'
                             . ' has earned an abstraction (see'
-                            . ' resources/boost/guidelines/pattern-dont-repeat-yourself-dry.md).',
+                            . ' resources/boost/skills/clean-code/references/'
+                            . 'pattern-dont-repeat-yourself-dry.md).',
                         $anchors[$start],
                         'Found',
                         [
