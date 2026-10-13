@@ -116,7 +116,7 @@ class SectionCommentSniff implements Sniff
         $phpcsFile->addWarning(
                 'Section-labelling comment (%s): extract the block it introduces into a method named'
                     . ' after it'
-                    . ' (see resources/boost/guidelines/'
+                    . ' (see resources/boost/skills/clean-code/references/'
                     . 'clear-code-encapsulate-each-concept-in-a-method.md)',
                 $stackPtr,
                 'Found',

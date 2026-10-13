@@ -100,7 +100,7 @@ it('reports the measured complexity and the report level', function (): void {
         ->toBe(
             'The method atExactlyTheReportLevel() has a cyclomatic complexity of 10, reaching '
                 . 'the report level of 10; break it into smaller declarations '
-                . '(see resources/boost/guidelines/codesize-cyclomaticcomplexity.md)'
+                . '(see resources/boost/skills/clean-code/references/codesize-cyclomaticcomplexity.md)'
         )
         ->and($errors[93][12][0]['message'])
         ->toContain('The method booleanOperatorChain() has a cyclomatic complexity of 12,')

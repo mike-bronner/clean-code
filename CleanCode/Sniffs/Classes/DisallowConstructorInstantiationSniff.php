@@ -138,7 +138,7 @@ class DisallowConstructorInstantiationSniff implements Sniff
         $phpcsFile->addWarning(
                 'Constructing a collaborator inside __construct() hard-wires it; inject it as a'
                     . ' constructor parameter so it can be resolved through IoC'
-                    . ' (see resources/boost/guidelines/dependency-injection.md)',
+                    . ' (see resources/boost/skills/clean-code/references/dependency-injection.md)',
                 $newPtr,
                 'Found'
             );

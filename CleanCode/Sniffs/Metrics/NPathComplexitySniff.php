@@ -110,7 +110,7 @@ class NPathComplexitySniff implements Sniff
         $phpcsFile->addError(
                 'The %s %s() has an NPath complexity of %s, at or above the '
                     . 'configured minimum of %s; break it into smaller pieces (see '
-                    . 'resources/boost/guidelines/codesize-npathcomplexity.md)',
+                    . 'resources/boost/skills/clean-code/references/codesize-npathcomplexity.md)',
                 $stackPtr,
                 'MinimumExceeded',
                 [

@@ -103,7 +103,8 @@ class MemberOrderingSniff implements Sniff
             if (count($names) > 1) {
                 $phpcsFile->addError(
                         'Each trait needs its own use statement; this one declares %d '
-                            . '(see resources/boost/guidelines/models-organization.md)',
+                            . '(see resources/boost/skills/clean-code/references/'
+                            . 'models-organization.md)',
                         $ptr,
                         'MultipleTraitsPerLine',
                         [count($names)]
@@ -118,7 +119,8 @@ class MemberOrderingSniff implements Sniff
             ) {
                 $phpcsFile->addError(
                         'Trait %s is out of alphabetical order; it belongs before %s '
-                            . '(see resources/boost/guidelines/models-organization.md)',
+                            . '(see resources/boost/skills/clean-code/references/'
+                            . 'models-organization.md)',
                         $namePtr,
                         'TraitOrder',
                         [$name, $previousName]
@@ -208,7 +210,8 @@ class MemberOrderingSniff implements Sniff
                 $phpcsFile->addError(
                         'Property $%s is %s and follows a %s property; list properties '
                             . 'public, then protected, then private '
-                            . '(see resources/boost/guidelines/models-organization.md)',
+                            . '(see resources/boost/skills/clean-code/references/'
+                            . 'models-organization.md)',
                         $ptr,
                         'PropertyGroupOrder',
                         [$name, $scope, array_search($previousRank, self::VISIBILITY_RANKS, true)]
@@ -222,7 +225,8 @@ class MemberOrderingSniff implements Sniff
             ) {
                 $phpcsFile->addError(
                         'Property $%s is out of alphabetical order; it belongs before $%s '
-                            . '(see resources/boost/guidelines/models-organization.md)',
+                            . '(see resources/boost/skills/clean-code/references/'
+                            . 'models-organization.md)',
                         $ptr,
                         'PropertyOrder',
                         [$name, $previousName]
@@ -295,7 +299,8 @@ class MemberOrderingSniff implements Sniff
             ) {
                 $phpcsFile->addError(
                         '%s %s() is out of alphabetical order; it belongs before %s() '
-                            . '(see resources/boost/guidelines/models-organization.md)',
+                            . '(see resources/boost/skills/clean-code/references/'
+                            . 'models-organization.md)',
                         $namePtr,
                         $category,
                         [$this->categoryLabel($category), $name, $previousName]

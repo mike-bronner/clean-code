@@ -5,7 +5,7 @@ behaviour — persistence methods, attribute/query traits — is realised throug
 the Models standards rather than dedicated repository classes.
 
 The model-side conventions are defined by
-the `models-persistence-methods-repository-pattern` guideline
+the [Models: Persistence Methods](models-persistence-methods-repository-pattern.md) reference
 ([#37](https://github.com/mike-bronner/clean-code/issues/37)), which asks for
 descriptive persistence methods on the model itself, organised into single-use
 traits; this entry cross-references that standard rather than restating it.

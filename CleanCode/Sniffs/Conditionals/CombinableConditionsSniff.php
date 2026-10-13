@@ -337,7 +337,8 @@ class CombinableConditionsSniff implements Sniff
                     'ChainBranches',
                     'This branch of an if/elseif chain has the same body as %s.'
                         . " Combine the conditions with \"||\""
-                        . ' (see resources/boost/guidelines/conditionals-combine-where-possible.md).',
+                        . ' (see resources/boost/skills/clean-code/references/'
+                        . 'conditionals-combine-where-possible.md).',
                     ['the adjacent branch on line ', 'the adjacent branches on lines ']
                 );
         }
@@ -355,7 +356,8 @@ class CombinableConditionsSniff implements Sniff
                 'AdjacentIfs',
                 "This \"if\" has the same exiting body as %s."
                     . " Combine the conditions with \"||\""
-                    . ' (see resources/boost/guidelines/conditionals-combine-where-possible.md).',
+                    . ' (see resources/boost/skills/clean-code/references/'
+                    . 'conditionals-combine-where-possible.md).',
                 ["the adjacent \"if\" on line ", "the adjacent \"if\" statements on lines "]
             );
     }

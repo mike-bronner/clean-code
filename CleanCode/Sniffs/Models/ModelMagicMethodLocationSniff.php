@@ -36,8 +36,8 @@ class ModelMagicMethodLocationSniff implements Sniff
 
     private const MESSAGE = <<<MESSAGE
         Model method %s() is declared in the class body; extract it to the model's %s trait
-        (e.g. App\\Concerns\\%s\\Book) so the model stays lean
-        (see resources/boost/guidelines/models-structure-attributes-queries-traits.md)
+        (e.g. App\\Concerns\\%s\\Book) so the model stays lean (see
+        resources/boost/skills/clean-code/references/models-structure-attributes-queries-traits.md)
         MESSAGE;
 
     public function __construct(

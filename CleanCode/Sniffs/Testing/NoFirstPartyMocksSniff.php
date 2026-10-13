@@ -107,7 +107,7 @@ class NoFirstPartyMocksSniff implements Sniff
 
         $phpcsFile->addWarning(
                 'Mocking %s, a first-party class; mock only interfaces you do not control'
-                    . ' (see resources/boost/guidelines/testing-guidelines.md)',
+                    . ' (see resources/boost/skills/clean-code/references/testing-guidelines.md)',
                 $argumentPtr,
                 'Found',
                 [$resolved]

@@ -64,7 +64,8 @@ class DisallowMagicNumbersSniff implements Sniff
 
         $phpcsFile->addWarning(
                 'Magic number %s is not searchable; name it with a constant '
-                    . '(see resources/boost/guidelines/naming-semantic-naming-principles.md)',
+                    . '(see resources/boost/skills/clean-code/references/'
+                    . 'naming-semantic-naming-principles.md)',
                 $stackPtr,
                 'Found',
                 [$literal]

@@ -66,7 +66,11 @@ CleanCode/
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
-resources/boost/guidelines/                # one Boost guideline per standard, and per PHPMD rule no standard states
+resources/boost/
+├── guidelines/clean-code.md               # the one always-on Boost guideline: points the agent at the skill
+└── skills/clean-code/
+    ├── SKILL.md                           # the Boost skill: name, description, and an index of every reference
+    └── references/<slug>.md               # one reference per standard, and per PHPMD rule no standard states
 tests/
 ├── bootstrap.php                          # PHPCS test constants + ConfigDouble autoloading; loads Sniffs.php
 ├── Sniffs.php                             # the sniff enumerations more than one suite reads
@@ -520,17 +524,24 @@ in and what applies the `<properties>` configured there.
    through `CleanCode/ruleset.xml`, and that they still fire without the excludes.
    Otherwise a fixture that trips nothing looks exactly like a working exclude
    list. `tests/Ruleset/UndefinedVariableTest.php` is the template.
-6. **Write the guideline** under `resources/boost/guidelines/<slug>.md` and
-   link it from the README's standards list. A guideline opens with a `# `
+6. **Write the reference** under
+   `resources/boost/skills/clean-code/references/<slug>.md`, link it from the
+   section of `resources/boost/skills/clean-code/SKILL.md` it belongs to, and
+   link it from the README's standards list. A reference opens with a `# `
    title and the rule, then carries `## Compliant` and `## Non-compliant`
    examples and a `## Enforcement` table. That table names every sniff code
    that enforces the rule and says whether `phpcbf` can fix it. A standard no
    sniff checks says it is enforced by code review only. A rule that replicates
-   a **PHPMD** rule goes in the guideline that already states it. When no
-   guideline does, it gets its own, named `<ruleset>-<rulename>.md`, linked
+   a **PHPMD** rule goes in the reference that already states it. When no
+   reference does, it gets its own, named `<ruleset>-<rulename>.md`, linked
    from the README's "PHPMD rule coverage" list.
-   `tests/Contract/BoostGuidelinesTest.php` fails when a loaded sniff appears
-   in no guideline's table, or when a table claims the wrong fixability.
+   `tests/Contract/BoostSkillTest.php` fails when a loaded sniff appears in no
+   reference's table, when a table claims the wrong fixability, when
+   `SKILL.md` does not link a reference, or when a sniff message names a
+   reference that does not exist. Do not add a second file to
+   `resources/boost/guidelines/`: Boost writes every guideline into the
+   consuming project's `AGENTS.md`, so the one guideline stays short and every
+   rule lives in the skill.
 
 ## Writing the tests
 
@@ -542,7 +553,7 @@ exists.
 
 Test impact analysis (`--tia`) links a test to the PHP it executes, so it
 cannot see a file a test only reads: a fixture, `CleanCode/ruleset.xml`, or a
-guideline. `tests/Pest.php` therefore re-runs the whole suite when a file
+skill reference. `tests/Pest.php` therefore re-runs the whole suite when a file
 outside the graph changes. `phpunit.xml.dist` excludes the fixture directories
 from the source scope, so a fixture that a test executes falls under the same
 rule. Code that runs in a `phpcs` or `phpcbf` subprocess is not tracked
@@ -647,8 +658,8 @@ code-specific suppression stops matching the moment the docblock goes.
 **No code carries a comment.** No PHP file under `CleanCode/` or `tests/` has a
 comment or a docblock, and `CleanCode/ruleset.xml`, `phpcs.self.xml` and
 `phpunit.xml.dist` carry only one-line group labels such as
-`<!-- Conditionals -->`. The reasoning lives in the Boost guidelines
-in `resources/boost/guidelines/`, and in the issues and commits that made each decision. A comment beside the code repeats
+`<!-- Conditionals -->`. The reasoning lives in the Boost skill
+references in `resources/boost/skills/clean-code/references/`, and in the issues and commits that made each decision. A comment beside the code repeats
 that reasoning, and nothing tests it, so it drifts in silence:
 `CleanCode/ruleset.xml` shipped three false claims that way.
 

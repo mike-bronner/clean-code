@@ -37,7 +37,7 @@ class ActionSingleEntryPointSniff implements Sniff
                     'Public method %s() is an additional entry point; an Action class exposes a'
                         . ' single public entry point, so move %s() into an Action class of its own'
                         . ' (see'
-                        . ' resources/boost/guidelines/'
+                        . ' resources/boost/skills/clean-code/references/'
                         . 'clear-code-encapsulate-related-methods-in-a-class.md)',
                     $methodPtr,
                     'Found',

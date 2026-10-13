@@ -44,7 +44,7 @@ class RequireLazyLoadingPreventionSniff implements Sniff
                 '%s does not enable Laravel\'s lazy-loading safety check; call '
                     . 'Model::preventLazyLoading() (or Model::shouldBeStrict()) so a missing '
                     . 'eager load fails loudly instead of running silent N+1 queries '
-                    . '(see resources/boost/guidelines/models-eager-loading.md)',
+                    . '(see resources/boost/skills/clean-code/references/models-eager-loading.md)',
                 $stackPtr,
                 'Missing',
                 [$name]

@@ -375,7 +375,7 @@ it('keeps its root record from answering another STDIN analysis', function (): v
                     . 'attribute on the first model instead (e.g. authorName(): Attribute '
                     . 'returning Attribute::make() so callers read $book->authorName rather '
                     . 'than $book->author->name) '
-                    . '(see resources/boost/guidelines/models-relationship-properties.md)',
+                    . '(see resources/boost/skills/clean-code/references/models-relationship-properties.md)',
             ],
         ])
         ->and(tuplesFromMessages($third->getErrors()))->toBe([]);
