@@ -171,7 +171,7 @@ class MultilineStringsSniff implements Sniff
             return;
         }
 
-        $breaks = preg_match_all('/' . (new LineBreaks)->in($value) . '/', $value);
+        $breaks = preg_match_all('/' . (new LineBreaks)->patternFor($value) . '/', $value);
 
         if ($breaks === false) {
             return;

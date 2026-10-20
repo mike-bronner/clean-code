@@ -72,10 +72,15 @@ it('never reads a byte inside a UTF-8 character as a line break', function (): v
 
 it('classifies text that is not valid UTF-8 byte by byte, without a PHP diagnostic of its own', function (): void {
     [$file, $diagnostics] = withPhpDiagnostics(
-        static fn (): object => analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'invalid-utf8.php')
-    );
+            static fn (): object => analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'invalid-utf8.php')
+        );
+    $expected = [
+        'line' => 5,
+        'column' => 13,
+        'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString',
+    ];
 
     expect(violationTuples($file))
-        ->toBe([['line' => 5, 'column' => 13, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString']])
+        ->toBe([$expected])
         ->and(diagnosticsBesideTheTokenizer($diagnostics))->toBe([]);
 });

@@ -63,6 +63,7 @@ and `tests/fixtures/UnusedPrivateElementsSniff/`.
 CleanCode/
 ├── ruleset.xml                            # the CleanCode standard, entire — rules get wired in here
 ├── Helpers/<Name>.php                     # decisions shared by several sniffs, about the tokens or the path
+├── Overrides/<Standard>/Sniffs/<Category>/<Name>Sniff.php  # a third-party sniff, subclassed under its own code
 ├── Sniffs/
 │   └── <Category>/<Name>Sniff.php         # one sniff per file
 └── Tests/                                 # one legacy AbstractSniffUnitTest file — uncollected, do not extend
@@ -205,6 +206,25 @@ Neither is in the tree the merge landed, and neither is a pattern to copy.
 issue's acceptance criteria carry an older fixture or harness convention —
 several still quote a `Fixtures/<SniffClassName>/` layout that exists nowhere in
 this repo — this file wins.
+
+### Overriding a third-party sniff
+
+When a third-party sniff reports false positives that the standard itself
+causes, and the upstream sniff has no option for them, subclass it under
+`CleanCode/Overrides/`. The path repeats the upstream sniff's own shape,
+`<Standard>/Sniffs/<Category>/<Name>Sniff.php`, because PHP_CodeSniffer reads a
+sniff's code from that shape. The subclass therefore reports the upstream codes,
+and a consumer's excludes and ignore comments keep working. `CleanCode/ruleset.xml`
+refers to the subclass file by its relative path, in place of the upstream
+code, and keeps the upstream rule's `<type>`, `<exclude>`s and `<properties>`.
+Nothing scans `Overrides/` automatically: only `CleanCode/Sniffs/` registers
+itself.
+
+`VariableAnalysis/Sniffs/CodeAnalysis/VariableAnalysisSniff.php` is the one
+override (#397). It lets a by-reference argument passed by name define its
+variable, and lets a nested arrow function read the arrow functions around it.
+`tests/Ruleset/UndefinedVariableTest.php` asserts that the ruleset registers the
+subclass, and that the upstream sniff alone still reports both cases.
 
 ### The shared helpers
 

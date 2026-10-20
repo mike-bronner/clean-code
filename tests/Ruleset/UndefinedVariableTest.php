@@ -128,3 +128,55 @@ it('raises every excluded code without the master rulesets excludes', function (
         expect($raised)->toContain($code);
     }
 });
+
+it('registers the CleanCode subclass under the upstream sniff code', function (): void {
+    [, $ruleset] = buildRuleset();
+
+    expect($ruleset->sniffCodes[VARIABLE_ANALYSIS_SNIFF])
+        ->toBe(MikeBronner\CleanCode\Overrides\VariableAnalysis\Sniffs\CodeAnalysis\VariableAnalysisSniff::class)
+        ->and(is_subclass_of(
+                $ruleset->sniffCodes[VARIABLE_ANALYSIS_SNIFF],
+                VariableAnalysis\Sniffs\CodeAnalysis\VariableAnalysisSniff::class
+            ))->toBeTrue();
+});
+
+it('keeps the failing fixture at the same lines and columns', function (): void {
+    expect(violationTuples(analyzeFixture(VARIABLE_ANALYSIS_SNIFF, 'failing.php')))->toBe([
+        ['line' => 17, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 22, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 27, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 32, 'column' => 15, 'source' => UNDEFINED_UNSET_VARIABLE],
+    ]);
+});
+
+it('treats a by-reference argument passed by name as a definition', function (string $fixture): void {
+    $file = analyzeFixture(VARIABLE_ANALYSIS_SNIFF, $fixture);
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with(['named-by-reference.php', 'nested-arrow-functions.php']);
+
+it('still reports every variable that nothing defines', function (): void {
+    [$file, $diagnostics] = withPhpDiagnostics(
+            static fn (): object => analyzeFixture(VARIABLE_ANALYSIS_SNIFF, 'still-undefined.php')
+        );
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 13, 'column' => 55, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 18, 'column' => 19, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 26, 'column' => 29, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 33, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 38, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 43, 'column' => 54, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 45, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 50, 'column' => 51, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 52, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 57, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 62, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
+    ])
+        ->and($diagnostics)->toBe([]);
+});
+
+it('reports both cases through the upstream sniff alone', function (string $fixture) use ($analyzeUnconfigured): void {
+    expect(allViolationSourcesByLine($analyzeUnconfigured($fixture)))->not->toBe([]);
+})->with(['named-by-reference.php', 'nested-arrow-functions.php']);

@@ -27,6 +27,16 @@ exactly the wrapping this rule used to flag.
 
 The threshold is configurable through the `maximumLines` property.
 
+A line break is LF, CRLF, a lone CR, a vertical tab, a form feed, or NEL
+(U+0085). The line and paragraph separators U+2028 and U+2029 are not line
+breaks here, because an editor does not show them as a new line. In valid UTF-8
+text, NEL counts only as its own two-byte encoding, so a letter whose UTF-8
+bytes include `0x85`, such as Greek `υ`, is never mistaken for NEL. Text that is not valid UTF-8 is read byte
+by byte instead, and there a lone `0x85` byte counts as NEL. The same rule
+decides where a line starts when
+`CleanCode.Strings.RequireHeredocForStructuredText` looks for markdown, an INI
+section, or a setting line.
+
 ```php
 $string = <<<HTML
     <div>

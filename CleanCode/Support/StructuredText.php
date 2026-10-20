@@ -95,7 +95,7 @@ class StructuredText
 
     private function lineMatches(string $pattern, string $text): int
     {
-        $count = preg_match_all(sprintf($pattern, (new LineBreaks)->in($text)), $text);
+        $count = preg_match_all(sprintf($pattern, (new LineBreaks)->patternFor($text)), $text);
 
         return $count === false ? 0 : $count;
     }

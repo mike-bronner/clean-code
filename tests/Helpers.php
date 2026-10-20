@@ -1126,9 +1126,9 @@ function withPhpDiagnostics(Closure $body): array
 function diagnosticsBesideTheTokenizer(array $diagnostics): array
 {
     return array_values(array_filter(
-        $diagnostics,
-        static fn (string $message): bool => str_starts_with($message, 'iconv_strlen(): ') === false
-    ));
+            $diagnostics,
+            static fn (string $message): bool => str_starts_with($message, 'iconv_strlen(): ') === false
+        ));
 }
 
 function isTypeHintsSource(string $source): bool

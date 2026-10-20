@@ -10,7 +10,7 @@ class LineBreaks
 
     private const BYTES = '\R';
 
-    public function in(string $text): string
+    public function patternFor(string $text): string
     {
         return preg_match('//u', $text) === 1 ? self::UTF8 : self::BYTES;
     }
