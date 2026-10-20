@@ -59,3 +59,23 @@ it('still flags a real element in that position', function (): void {
     expect(violationSourcesByLine($file->getErrors()))
         ->toBe([3 => [REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString']]);
 });
+
+it('never reads a byte inside a UTF-8 character as a line break', function (): void {
+    $file = analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'utf8-line-breaks.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 12, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+        ['line' => 13, 'column' => 22, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+        ['line' => 14, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+    ]);
+});
+
+it('classifies text that is not valid UTF-8 byte by byte, without a PHP diagnostic of its own', function (): void {
+    [$file, $diagnostics] = withPhpDiagnostics(
+        static fn (): object => analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'invalid-utf8.php')
+    );
+
+    expect(violationTuples($file))
+        ->toBe([['line' => 5, 'column' => 13, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString']])
+        ->and(diagnosticsBesideTheTokenizer($diagnostics))->toBe([]);
+});

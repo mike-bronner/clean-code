@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Strings;
 
+use MikeBronner\CleanCode\Support\LineBreaks;
 use MikeBronner\CleanCode\Support\StringLiteral;
 use MikeBronner\CleanCode\Support\StructuredText;
 use PHP_CodeSniffer\Files\File;
@@ -170,7 +171,13 @@ class MultilineStringsSniff implements Sniff
             return;
         }
 
-        $lines = preg_match_all('/\R/', $value) + 1;
+        $breaks = preg_match_all('/' . (new LineBreaks)->in($value) . '/', $value);
+
+        if ($breaks === false) {
+            return;
+        }
+
+        $lines = $breaks + 1;
 
         if ($lines <= $this->maximumLines) {
             return;

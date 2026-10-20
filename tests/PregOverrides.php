@@ -171,6 +171,15 @@ namespace MikeBronner\CleanCode\Sniffs\Routes {
 namespace MikeBronner\CleanCode\Sniffs\Strings {
     use function MikeBronner\CleanCode\Tests\pregArmed;
 
+    function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
+    {
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
+
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+    }
+
     function preg_replace_callback($pattern, $callback, $subject, $limit = -1, &$count = null, $flags = 0)
     {
         return pregArmed('preg_replace_callback', $pattern)

@@ -19,7 +19,7 @@ class StructuredText
         'WITH',
     ];
 
-    private const MARKDOWN_LINE = '/(?:^|\R)\s*(?:#{1,6}\s|[-*+]\s+\S|\|\s|>\s|```)/';
+    private const MARKDOWN_LINE = '/(?:^|%1$s)\s*(?:#{1,6}\s|[-*+]\s+\S|\|\s|>\s|```)/';
 
     private const XML_MARKERS = [
         '\?xml\b',
@@ -27,9 +27,9 @@ class StructuredText
         '!\[CDATA\[',
     ];
 
-    private const INI_SECTION = '/(?:^|\R)\s*\[[\w.\- ]+\]\s*(?:\R|$)/';
+    private const INI_SECTION = '/(?:^|%1$s)\s*\[[\w.\- ]+\]\s*(?:%1$s|$)/';
 
-    private const SETTING_LINE = '/(?:^|\R)[ \t]*[\w.\-]+[ \t]*[:=][ \t]*\S.*/';
+    private const SETTING_LINE = '/(?:^|%1$s)[ \t]*[\w.\-]+[ \t]*[:=][ \t]*\S.*/';
 
     private const SQL_CLAUSES = '/\b(FROM|INTO|SET|VALUES|WHERE|TABLE|JOIN|INDEX|VIEW|DATABASE|COLUMN)\b/i';
 
@@ -68,7 +68,7 @@ class StructuredText
 
         if (
             str_starts_with($trimmed, '---') === true
-            && preg_match(self::SETTING_LINE, $trimmed) === 1
+            && $this->lineMatches(self::SETTING_LINE, $trimmed) >= 1
         ) {
             return true;
         }
@@ -79,9 +79,9 @@ class StructuredText
 
     public function isConfig(string $text): bool
     {
-        $settings = preg_match_all(self::SETTING_LINE, $text);
+        $settings = $this->lineMatches(self::SETTING_LINE, $text);
 
-        if (preg_match(self::INI_SECTION, $text) === 1) {
+        if ($this->lineMatches(self::INI_SECTION, $text) >= 1) {
             return $settings >= 1;
         }
 
@@ -90,6 +90,13 @@ class StructuredText
 
     public function isMarkdown(string $text): bool
     {
-        return preg_match(self::MARKDOWN_LINE, $text) === 1;
+        return $this->lineMatches(self::MARKDOWN_LINE, $text) >= 1;
+    }
+
+    private function lineMatches(string $pattern, string $text): int
+    {
+        $count = preg_match_all(sprintf($pattern, (new LineBreaks)->in($text)), $text);
+
+        return $count === false ? 0 : $count;
     }
 }
