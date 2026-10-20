@@ -195,6 +195,19 @@ namespace MikeBronner\CleanCode\Sniffs\Strings {
     }
 }
 
+namespace MikeBronner\CleanCode\Support {
+    use function MikeBronner\CleanCode\Tests\pregArmed;
+
+    function preg_match_all($pattern, $subject, &$matches = null, $flags = PREG_PATTERN_ORDER, $offset = 0)
+    {
+        if (pregArmed('preg_match_all', $pattern)) {
+            return false;
+        }
+
+        return \preg_match_all($pattern, $subject, $matches, $flags, $offset);
+    }
+}
+
 namespace MikeBronner\CleanCode\Sniffs\Testing {
     use function MikeBronner\CleanCode\Tests\pregArmed;
 
