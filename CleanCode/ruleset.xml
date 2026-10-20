@@ -158,7 +158,7 @@
             <property name="error" value="true"/>
         </properties>
     </rule>
-    <rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
+    <rule ref="./Overrides/VariableAnalysis/Sniffs/CodeAnalysis/VariableAnalysisSniff.php">
         <type>error</type>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.VariableRedeclaration"/>
         <exclude name="VariableAnalysis.CodeAnalysis.VariableAnalysis.SelfOutsideClass"/>

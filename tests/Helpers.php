@@ -1123,6 +1123,14 @@ function withPhpDiagnostics(Closure $body): array
     return [$result, $diagnostics];
 }
 
+function diagnosticsBesideTheTokenizer(array $diagnostics): array
+{
+    return array_values(array_filter(
+            $diagnostics,
+            static fn (string $message): bool => str_starts_with($message, 'iconv_strlen(): ') === false
+        ));
+}
+
 function isTypeHintsSource(string $source): bool
 {
     return str_starts_with($source, 'CleanCode.TypeHints.')

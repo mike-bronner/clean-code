@@ -117,3 +117,62 @@ it('rewrites nothing when a string body cannot be split into lines', function ()
     expect($fixed)->toBe(file_get_contents($path))
         ->and($diagnostics)->toBe([]);
 });
+
+$concatenationMessage = static fn (int $lines): string => "This text is {$lines} lines long, more than the 3"
+    . ' allowed; a block that long reads as the block it is in a HEREDOC';
+
+it('stays silent at the limit on υ, Ņ and invisible U+2005 spaces, all holding byte 0x85', function (): void {
+    expect(violationTuples(analyzeFixture(MULTILINE_STRINGS, 'utf8-at-limit.php')))->toBe([]);
+});
+
+it('reports UTF-8 text one line over the limit once, with its count', function () use ($concatenationMessage): void {
+    $file = analyzeFixture(MULTILINE_STRINGS, 'utf8-over-limit.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 3, 'column' => 10, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 8, 'column' => 10, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 13, 'column' => 10, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+    ])
+        ->and(violationMessages($file))->toBe(array_fill(0, 3, $concatenationMessage(4)));
+});
+
+it('counts LF, CRLF, CR and NEL as breaks, but not U+2028 or U+2029', function () use ($concatenationMessage): void {
+    $file = analyzeFixture(MULTILINE_STRINGS, 'line-break-kinds.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 3, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 4, 'column' => 9, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 5, 'column' => 7, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+        ['line' => 7, 'column' => 8, 'source' => MULTILINE_STRINGS . '.Concatenation'],
+    ])
+        ->and(violationMessages($file))->toBe(array_fill(0, 4, $concatenationMessage(4)));
+});
+
+it('counts raw Latin-1 bytes byte by byte, silently', function () use ($concatenationMessage): void {
+    [$file, $diagnostics] = withPhpDiagnostics(
+            static fn (): object => analyzeFixture(MULTILINE_STRINGS, 'invalid-utf8.php')
+        );
+
+    expect(violationTuples($file))
+        ->toBe([['line' => 3, 'column' => 9, 'source' => MULTILINE_STRINGS . '.Concatenation']])
+        ->and(violationMessages($file))->toBe([$concatenationMessage(5)])
+        ->and(diagnosticsBesideTheTokenizer($diagnostics))->toBe([]);
+});
+
+it('reports nothing, and no diagnostic, when no count can be made', function (): void {
+    [$file, $diagnostics] = withPhpDiagnostics(static function (): object {
+        return PregFailure::during(
+                'preg_match_all',
+                static fn (): object => analyzeFixture(
+                        MULTILINE_STRINGS,
+                        'utf8-over-limit.php',
+                        static function (object $sniff): void {
+                            $sniff->maximumLines = 0;
+                        }
+                    )
+            );
+    });
+
+    expect(violationTuples($file))->toBe([])
+        ->and($diagnostics)->toBe([]);
+});
