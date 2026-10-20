@@ -214,11 +214,11 @@ causes, and the upstream sniff has no option for them, subclass it under
 `CleanCode/Overrides/`. The path repeats the upstream sniff's own shape,
 `<Standard>/Sniffs/<Category>/<Name>Sniff.php`, because PHP_CodeSniffer reads a
 sniff's code from that shape. The subclass therefore reports the upstream codes,
-and a consumer's excludes and ignore comments keep working. `CleanCode/ruleset.xml`
-refers to the subclass file by its relative path, in place of the upstream
-code, and keeps the upstream rule's `<type>`, `<exclude>`s and `<properties>`.
-Nothing scans `Overrides/` automatically: only `CleanCode/Sniffs/` registers
-itself.
+and a consumer's excludes and ignore comments keep working.
+`CleanCode/ruleset.xml` refers to the subclass file by its relative path, in
+place of the upstream code, and keeps the upstream rule's `<type>`, `<exclude>`s
+and `<properties>`. Nothing scans `Overrides/` automatically: only
+`CleanCode/Sniffs/` registers itself.
 
 `VariableAnalysis/Sniffs/CodeAnalysis/VariableAnalysisSniff.php` is the one
 override (#397). It lets a by-reference argument passed by name define its
