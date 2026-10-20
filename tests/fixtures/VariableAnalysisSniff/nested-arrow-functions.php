@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App;
 
-// An arrow function captures every variable of the scope around it, and that
-// scope can itself be an arrow function.
 class NestedArrowFunctions
 {
     public function twoLevels(array $items): callable

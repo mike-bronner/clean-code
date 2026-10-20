@@ -162,17 +162,17 @@ it('still reports every variable that nothing defines', function (): void {
         );
 
     expect(violationTuples($file))->toBe([
-        ['line' => 13, 'column' => 55, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 18, 'column' => 19, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 26, 'column' => 29, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 33, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 38, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 43, 'column' => 54, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 45, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 50, 'column' => 51, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 52, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 57, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
-        ['line' => 62, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 11, 'column' => 55, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 16, 'column' => 19, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 24, 'column' => 29, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 31, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 36, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 41, 'column' => 54, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 43, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 48, 'column' => 51, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 50, 'column' => 16, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 55, 'column' => 71, 'source' => UNDEFINED_VARIABLE],
+        ['line' => 60, 'column' => 48, 'source' => UNDEFINED_VARIABLE],
     ])
         ->and($diagnostics)->toBe([]);
 });

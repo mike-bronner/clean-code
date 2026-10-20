@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App;
 
-// Named arguments and nested arrow functions still report a variable that
-// nothing defines.
 class StillUndefined
 {
     public function namedByValue(string $pattern): int

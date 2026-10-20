@@ -64,18 +64,18 @@ it('never reads a byte inside a UTF-8 character as a line break', function (): v
     $file = analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'utf8-line-breaks.php');
 
     expect(violationTuples($file))->toBe([
-        ['line' => 12, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
-        ['line' => 13, 'column' => 22, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
-        ['line' => 14, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+        ['line' => 7, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+        ['line' => 8, 'column' => 22, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
+        ['line' => 9, 'column' => 20, 'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString'],
     ]);
 });
 
-it('classifies text that is not valid UTF-8 byte by byte, without a PHP diagnostic of its own', function (): void {
+it('classifies raw Latin-1 bytes byte by byte, without a PHP diagnostic of its own', function (): void {
     [$file, $diagnostics] = withPhpDiagnostics(
             static fn (): object => analyzeFixture(REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT, 'invalid-utf8.php')
         );
     $expected = [
-        'line' => 5,
+        'line' => 3,
         'column' => 13,
         'source' => REQUIRE_HEREDOC_FOR_STRUCTURED_TEXT . '.StructuredTextInString',
     ];

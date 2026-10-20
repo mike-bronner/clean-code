@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App;
 
-// A by-reference argument passed by name defines its variable, exactly as the
-// same argument passed by position does.
 class NamedByReference
 {
     public function pregMatchLast(string $pattern, string $line): array
