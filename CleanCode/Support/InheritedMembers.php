@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Support;
 
+use MikeBronner\CleanCode\Helpers\ClassNames;
 use MikeBronner\CleanCode\Helpers\Declarations;
 use PHP_CodeSniffer\Files\File;
 use PhpToken;
 use ReflectionClass;
 use ReflectionProperty;
 use SlevomatCodingStandard\Helpers\ClassHelper;
-use SlevomatCodingStandard\Helpers\NamespaceHelper;
 use Throwable;
 
 class InheritedMembers
@@ -190,7 +190,7 @@ class InheritedMembers
         }
 
         $lineage = [];
-        $ancestor = $this->reflect(ltrim(NamespaceHelper::resolveClassName($phpcsFile, $extended, $classPtr), '\\'));
+        $ancestor = $this->reflect(ltrim((new ClassNames)->resolve($phpcsFile, $extended, $classPtr), '\\'));
 
         while ($ancestor !== null) {
             $lineage[] = $ancestor;
@@ -263,7 +263,7 @@ class InheritedMembers
 
         return array_map(
                 static fn (string $name): string => ltrim(
-                        NamespaceHelper::resolveClassName($phpcsFile, $name, $classPtr),
+                        (new ClassNames)->resolve($phpcsFile, $name, $classPtr),
                         '\\'
                     ),
                 $names

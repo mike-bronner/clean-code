@@ -64,6 +64,23 @@ it('flags every action method that returns a value in the failing fixture', func
     ]);
 });
 
+it('exempts only the public store() and update() actions of a controller', function (): void {
+    $file = analyzeFixture(ACTION_METHOD_RETURN, 'controllers.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 21, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 26, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 31, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 46, 'column' => 24, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 51, 'column' => 22, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 93, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 98, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 106, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 116, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 126, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+    ]);
+});
+
 it('is answered by no nearby vendor standard', function (): void {
     $candidates = [
         'PEAR.NamingConventions.ValidFunctionName',

@@ -32,7 +32,7 @@ final class EloquentModels
             return false;
         }
 
-        $base = ltrim(NamespaceHelper::resolveClassName($phpcsFile, $extends, $classPtr), '\\');
+        $base = ltrim((new ClassNames)->resolve($phpcsFile, $extends, $classPtr), '\\');
 
         return in_array(strtolower($base), self::BASE_CLASSES, true);
     }

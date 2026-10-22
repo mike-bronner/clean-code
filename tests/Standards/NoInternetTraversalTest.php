@@ -234,6 +234,13 @@ it('sees a qualified class name as one fully qualified name token', function ():
         ->and($codes)->not->toContain('T_NS_SEPARATOR');
 });
 
+it('resolves a client class only through the imports of its own namespace block', function () use ($featureRun): void {
+    expect(violationSourcesByLine($featureRun('namespace-blocks.php')->getWarnings()))->toBe([
+        8 => [NO_INTERNET_TRAVERSAL_WARNING],
+        17 => [NO_INTERNET_TRAVERSAL_WARNING],
+    ]);
+});
+
 it('reports the violation end to end through the installed package', function () use (
     $featurePath
 ): void {

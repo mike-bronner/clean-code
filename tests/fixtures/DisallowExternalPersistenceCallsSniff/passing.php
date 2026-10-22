@@ -5,9 +5,10 @@ $this->update(['name' => $name]);
 $this?->delete();
 $this->delete(...);
 
-User::create(['name' => $name]);
 static::create(['name' => $name]);
 parent::update(['name' => $name]);
+self::create(['name' => $name]);
+$this::create(['name' => $name]);
 
 $user->saveQuietly();
 $user->updateOrFail();
@@ -19,6 +20,16 @@ $pending = $order->update;
 $user->{$method}();
 $user->{'save'}();
 $user->$method();
+
+static::query()->where('version', 'RP')->update(['version' => 'NRP']);
+self::where('expired', true)->delete();
+parent::query()->create(['name' => $name]);
+$this->notes()->update(['read' => true]);
+$this?->notes()?->latest()->delete();
+static::query()
+    ->where('version', 'RP')
+    // a comment inside the chain
+    ->update(['version' => 'NRP']);
 
 class Agent
 {

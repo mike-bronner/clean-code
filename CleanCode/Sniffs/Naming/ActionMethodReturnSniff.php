@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
 use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\NameTokens;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
+use SlevomatCodingStandard\Helpers\NamespaceHelper;
 
 class ActionMethodReturnSniff implements Sniff
 {
@@ -44,6 +46,15 @@ class ActionMethodReturnSniff implements Sniff
 
     private const NO_POINTER = -1;
 
+    private const CONTROLLER_ACTIONS = [
+        'store',
+        'update',
+    ];
+
+    private const CONTROLLER_NAME = 'controller';
+
+    private const CONTROLLER_NAMESPACE = '\\http\\controllers\\';
+
     private const MESSAGE = <<<MESSAGE
         The %s() method starts with the action verb "%s", so it commands rather than
         answers and should not return a value — return nothing, or rename it for what
@@ -64,6 +75,7 @@ class ActionMethodReturnSniff implements Sniff
             $this->isMethod($phpcsFile, $stackPtr) === false => null,
             $prefix === null => null,
             $this->returnsValue($phpcsFile, $stackPtr) === false => null,
+            $this->isControllerAction($phpcsFile, $stackPtr, $name) => null,
             default => $phpcsFile->addWarning(
                 $this->message(),
                 $phpcsFile->findNext(T_STRING, $stackPtr),
@@ -79,6 +91,27 @@ class ActionMethodReturnSniff implements Sniff
         $callablePtr = $this->innermostCondition($phpcsFile, $stackPtr, self::CALLABLE_TOKENS);
 
         return $classPtr > $callablePtr;
+    }
+
+    private function isControllerAction(File $phpcsFile, int $stackPtr, string $name): bool
+    {
+        return in_array($name, self::CONTROLLER_ACTIONS, true)
+            && $phpcsFile->getMethodProperties($stackPtr)['scope'] === 'public'
+            && $this->isController(
+                $phpcsFile,
+                $this->innermostCondition($phpcsFile, $stackPtr, self::CLASS_LIKE_TOKENS)
+            );
+    }
+
+    private function isController(File $phpcsFile, int $classPtr): bool
+    {
+        $className = strtolower((string) (new Declarations)->name($phpcsFile, $classPtr));
+        $namespace = (string) NamespaceHelper::findCurrentNamespaceName($phpcsFile, $classPtr);
+        $parent = strtolower((string) $phpcsFile->findExtendedClassName($classPtr));
+
+        return str_ends_with($className, self::CONTROLLER_NAME)
+            || str_contains(strtolower("\\{$namespace}\\"), self::CONTROLLER_NAMESPACE)
+            || (new NameTokens)->lastSegment($parent) === self::CONTROLLER_NAME;
     }
 
     private function matchedPrefix(string $name): ?string

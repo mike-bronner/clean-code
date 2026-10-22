@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Testing;
 
+use MikeBronner\CleanCode\Helpers\ClassNames;
 use MikeBronner\CleanCode\Helpers\FunctionCalls;
 use MikeBronner\CleanCode\Helpers\PathPatterns;
 use MikeBronner\CleanCode\Support\StringLiteral;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
-use SlevomatCodingStandard\Helpers\NamespaceHelper;
 
 class NoInternetTraversalSniff implements Sniff
 {
@@ -312,7 +312,7 @@ class NoInternetTraversalSniff implements Sniff
             return;
         }
 
-        $resolved = ltrim(NamespaceHelper::resolveClassName($phpcsFile, $written, $namePtr), '\\');
+        $resolved = ltrim((new ClassNames)->resolve($phpcsFile, $written, $namePtr), '\\');
 
         if (in_array(strtolower($resolved), self::NETWORK_CLIENTS, true) === false) {
             return;

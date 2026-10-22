@@ -23,3 +23,17 @@ class UserController
         $user->delete();
     }
 }
+
+User::query()->update(['active' => false]);
+App\Models\Order::create(['name' => $name]);
+DB::table('versions')->where('abbreviation', 'RP')->update(['abbreviation' => 'NRP']);
+$this->user->save();
+\App\Models\User::create(['name' => $name]);
+$owner = $this; notes()->update(['read' => true]);
+$user::create(['name' => $name]);
+static::$instance->save();
+$this->user->notes()->update(['read' => true]);
+$this->{$relation}()->delete();
+$this->notes[0]->delete();
+(new User())->save();
+$this->$relation()->delete();

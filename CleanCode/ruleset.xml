@@ -122,6 +122,9 @@
     <!-- Models -->
     <rule ref="CleanCode.Models.DisallowExternalPersistenceCalls">
         <exclude-pattern>*/tests/*</exclude-pattern>
+        <exclude-pattern>*/database/factories/*</exclude-pattern>
+        <exclude-pattern>*/database/migrations/*</exclude-pattern>
+        <exclude-pattern>*/database/seeders/*</exclude-pattern>
     </rule>
     <rule ref="CleanCode.Models.DisallowChainedPropertyFetch">
         <exclude-pattern>*/tests/*</exclude-pattern>
