@@ -135,11 +135,33 @@ it('reads the model namespaces from a configurable list', function () use ($stag
     expect(violationSourcesByLine($file->getWarnings()))->toBe([
         20 => [PERSISTENCE_WARNING],
         25 => [PERSISTENCE_WARNING],
-        26 => [PERSISTENCE_WARNING],
         30 => [PERSISTENCE_WARNING],
         49 => [PERSISTENCE_WARNING],
         50 => [PERSISTENCE_WARNING],
     ]);
+});
+
+it('passes a write on a receiver whose stated class is not a model', function () use ($stagedRun): void {
+    $file = $stagedRun('stated-receivers.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($file->getWarnings()))->toBe([
+            21 => [PERSISTENCE_WARNING],
+            22 => [PERSISTENCE_WARNING],
+            45 => [PERSISTENCE_WARNING],
+        ]);
+});
+
+it('still flags a write on a model, the DB facade or a receiver of unknown type', function () use ($stagedRun): void {
+    $file = $stagedRun('model-receivers.php');
+    $warned = [
+        9, 10, 11, 12, 13, 14, 15, 16, 17, 20, 22, 28, 33, 39, 44, 49, 54, 59, 64, 70,
+        76, 81, 86, 91, 96, 101, 106, 122, 127, 134, 138,
+    ];
+
+    expect($file->getErrors())->toBe([])
+        ->and(violationSourcesByLine($file->getWarnings()))
+        ->toBe(array_fill_keys($warned, [PERSISTENCE_WARNING]));
 });
 
 it('ships App\\Models as the default model namespace', function (): void {

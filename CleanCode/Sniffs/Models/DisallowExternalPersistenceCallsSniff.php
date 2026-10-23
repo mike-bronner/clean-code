@@ -30,6 +30,49 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
         T_NAME_FULLY_QUALIFIED,
     ];
 
+    private const FUNCTION_TOKENS = [
+        T_CLOSURE,
+        T_FN,
+        T_FUNCTION,
+    ];
+
+    private const UNREAD_RECEIVER_PRECEDERS = [
+        T_DOLLAR,
+        T_DOUBLE_COLON,
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_OBJECT_OPERATOR,
+    ];
+
+    private const MEMBER_READ_OPERATORS = [
+        T_NULLSAFE_OBJECT_OPERATOR,
+        T_OBJECT_OPERATOR,
+    ];
+
+    private const QUERY_BUILDER_FACADES = [
+        'db',
+        'illuminate\\support\\facades\\db',
+    ];
+
+    private const NON_CLASS_TYPES = [
+        'array',
+        'bool',
+        'callable',
+        'false',
+        'float',
+        'int',
+        'iterable',
+        'mixed',
+        'never',
+        'null',
+        'object',
+        'parent',
+        'self',
+        'static',
+        'string',
+        'true',
+        'void',
+    ];
+
     public array $persistenceMethods = [
         'create',
         'delete',
@@ -77,7 +120,7 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
 
         $phpcsFile->addWarning(
                 'Generic Eloquent CRUD method %s() called on a chain not rooted at '
-                    . '$this, static, self or parent; '
+                    . '$this, static, self, parent or a class the file states is not a model; '
                     . 'persistence belongs inside the model behind a descriptive method '
                     . '(see resources/boost/skills/clean-code/references/'
                     . 'models-persistence-methods-repository-pattern.md)',
@@ -100,17 +143,37 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
             return $this->isOutsideModelClass($phpcsFile, $receiverPtr);
         }
 
-        return $this->isRootedInOwnClass($phpcsFile, $operatorPtr);
+        return $this->isRootedOutsideModels($phpcsFile, $operatorPtr);
     }
 
     private function isOutsideModelClass(File $phpcsFile, int $namePtr): bool
     {
         $written = $phpcsFile->getTokens()[$namePtr]['content'];
-        $resolved = (new ClassNames)->resolve($phpcsFile, $written, $namePtr);
-        $className = strtolower(ltrim($resolved, '\\'));
+        $className = $this->resolvedClassName($phpcsFile, $written, $namePtr);
 
-        return $className === $this->enclosingClassName($phpcsFile, $namePtr)
+        return $this->isOwnOrNonModelClass($phpcsFile, $className, $namePtr);
+    }
+
+    private function resolvedClassName(File $phpcsFile, string $written, int $stackPtr): string
+    {
+        return strtolower(ltrim((new ClassNames)->resolve($phpcsFile, $written, $stackPtr), '\\'));
+    }
+
+    private function isOwnOrNonModelClass(File $phpcsFile, string $className, int $stackPtr): bool
+    {
+        return $className === $this->enclosingClassName($phpcsFile, $stackPtr)
             || $this->isInModelNamespace($className) === false;
+    }
+
+    private function isStatedNonModelClass(File $phpcsFile, string $written, int $stackPtr): bool
+    {
+        $className = $this->resolvedClassName($phpcsFile, $written, $stackPtr);
+        $isStated = str_contains($written, '\\')
+            || $className !== strtolower($written);
+
+        return $isStated
+            && in_array($className, self::QUERY_BUILDER_FACADES, true) === false
+            && $this->isOwnOrNonModelClass($phpcsFile, $className, $stackPtr);
     }
 
     private function isInModelNamespace(string $className): bool
@@ -146,7 +209,7 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
         return strtolower(ltrim("{$namespace}\\{$className}", '\\'));
     }
 
-    private function isRootedInOwnClass(File $phpcsFile, int $operatorPtr): bool
+    private function isRootedOutsideModels(File $phpcsFile, int $operatorPtr): bool
     {
         $tokens = $phpcsFile->getTokens();
         $receiverPtr = $this->previousCodePtr($phpcsFile, $operatorPtr);
@@ -164,8 +227,104 @@ class DisallowExternalPersistenceCallsSniff implements Sniff
             $receiverPtr = $this->previousCodePtr($phpcsFile, $operatorPtr);
         }
 
-        return $receiverPtr !== false
-            && $this->isOwnClassReference($tokens[$receiverPtr]);
+        return match (true) {
+            $receiverPtr === false => false,
+            $this->isOwnClassReference($tokens[$receiverPtr]) => true,
+            default => $this->isNonModelParameter($phpcsFile, $receiverPtr)
+                || $this->isNonModelStaticRoot($phpcsFile, $operatorPtr, $receiverPtr),
+        };
+    }
+
+    private function isNonModelStaticRoot(File $phpcsFile, int $operatorPtr, int $receiverPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $receiver = $tokens[$receiverPtr];
+
+        return $tokens[$operatorPtr]['code'] === T_DOUBLE_COLON
+            && in_array($receiver['code'], self::CLASS_NAMES, true)
+            && $this->isStatedNonModelClass($phpcsFile, $receiver['content'], $receiverPtr);
+    }
+
+    private function isNonModelParameter(File $phpcsFile, int $variablePtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $variable = $tokens[$variablePtr]['content'];
+        $precederPtr = $this->previousCodePtr($phpcsFile, $variablePtr);
+        $functionPtr = $this->enclosingFunctionPtr($phpcsFile, $variablePtr);
+
+        if (
+            $functionPtr === false
+            || in_array($tokens[$precederPtr]['code'], self::UNREAD_RECEIVER_PRECEDERS, true)
+            || $this->isOnlyReadForMembers($phpcsFile, $functionPtr, $variable) === false
+        ) {
+            return false;
+        }
+
+        $parameters = array_filter(
+                $phpcsFile->getMethodParameters($functionPtr),
+                static fn (array $parameter): bool => $parameter['name'] === $variable
+            );
+
+        return $parameters !== []
+            && $this->isNonModelType($phpcsFile, reset($parameters));
+    }
+
+    private function enclosingFunctionPtr(File $phpcsFile, int $stackPtr): int|false
+    {
+        $tokens = $phpcsFile->getTokens();
+        $functionPtr = $phpcsFile->findPrevious(self::FUNCTION_TOKENS, ($stackPtr - 1));
+
+        while (
+            $functionPtr !== false
+            && ($tokens[$functionPtr]['scope_closer'] ?? 0) < $stackPtr
+        ) {
+            $functionPtr = $phpcsFile->findPrevious(self::FUNCTION_TOKENS, ($functionPtr - 1));
+        }
+
+        return $functionPtr;
+    }
+
+    private function isOnlyReadForMembers(File $phpcsFile, int $functionPtr, string $variable): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $openerPtr = $tokens[$functionPtr]['scope_opener'];
+        $closerPtr = $tokens[$functionPtr]['scope_closer'];
+        $usePtr = $phpcsFile->findNext(T_VARIABLE, $openerPtr, $closerPtr, false, $variable);
+
+        while ($usePtr !== false) {
+            $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($usePtr + 1), null, true);
+            $nextCode = $tokens[$nextPtr]['code'] ?? null;
+
+            if (in_array($nextCode, self::MEMBER_READ_OPERATORS, true) === false) {
+                return false;
+            }
+
+            $usePtr = $phpcsFile->findNext(T_VARIABLE, ($usePtr + 1), $closerPtr, false, $variable);
+        }
+
+        return true;
+    }
+
+    private function isNonModelType(File $phpcsFile, array $parameter): bool
+    {
+        $types = preg_split('/[|&()]/', $parameter['type_hint'], -1, PREG_SPLIT_NO_EMPTY);
+        $typePtr = $parameter['token'];
+        $classTypes = array_filter(
+                $types,
+                fn (string $type): bool => $this->isNonModelClassType($phpcsFile, $type, $typePtr)
+            );
+
+        return $types !== []
+            && count($classTypes) === count($types)
+            && $parameter['nullable_type'] === false
+            && $parameter['variable_length'] === false
+            && strtolower($parameter['default'] ?? '') !== 'null';
+    }
+
+    private function isNonModelClassType(File $phpcsFile, string $type, int $stackPtr): bool
+    {
+        return in_array(strtolower($type), self::NON_CLASS_TYPES, true) === false
+            && $this->isStatedNonModelClass($phpcsFile, $type, $stackPtr);
     }
 
     private function methodCallOperator(File $phpcsFile, int $closerPtr): int|false
