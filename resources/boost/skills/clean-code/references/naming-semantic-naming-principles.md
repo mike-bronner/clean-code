@@ -29,6 +29,14 @@ From Robert Martin's *Clean Code* — a cluster of semantic naming rules:
 The sniffs report a variable, property, parameter, method or class name shorter
 than 3 characters.
 
+**Exemption:** a method named `up()` does not report when the class that
+declares it extends Laravel's `Illuminate\Database\Migrations\Migration`.
+Laravel calls a migration's `up()` and `down()` by name, so the class cannot
+rename them. This covers the anonymous class a migration file returns and a
+named class, whether the parent is imported or written in full. `up()` still
+reports in any other class, in a trait, and as a plain function. Other short
+names, such as `go()`, still report inside a migration.
+
 Takeaways: code should be self-documenting, clarify rather than obscure, have
 intention, and be consistent with expectations.
 

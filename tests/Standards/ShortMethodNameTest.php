@@ -220,3 +220,30 @@ it('reports anonymous-class methods that PHPMD cannot see', function (): void {
         ['line' => 39, 'column' => 29, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
     ]);
 });
+
+it('skips up() in the anonymous class a migration file returns', function (): void {
+    $file = analyzeFixture(SHORT_METHOD_NAME, 'migration.php');
+
+    expect($file->getErrors())->toBe([]);
+});
+
+it('skips up() in a named or anonymous class extending Migration by import or full name', function (): void {
+    $file = analyzeFixture(SHORT_METHOD_NAME, 'migration-classes.php');
+
+    expect($file->getErrors())->toBe([]);
+});
+
+it('still reports up() outside a Migration class and other short names inside one', function (): void {
+    $file = analyzeFixture(SHORT_METHOD_NAME, 'migration-lookalikes.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 10, 'column' => 10, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 16, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 23, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 30, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 37, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 43, 'column' => 18, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 50, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+        ['line' => 57, 'column' => 21, 'source' => SHORT_METHOD_NAME_TOO_SHORT],
+    ]);
+});

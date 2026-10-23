@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
+use MikeBronner\CleanCode\Helpers\ClassNames;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -11,6 +12,10 @@ use PHP_CodeSniffer\Util\Tokens;
 class ShortMethodNameSniff implements Sniff
 {
     public const DEFAULT_MINIMUM = 3;
+
+    private const MIGRATION_METHOD = 'up';
+
+    private const MIGRATION_CLASS = 'illuminate\\database\\migrations\\migration';
 
     public $minimum = self::DEFAULT_MINIMUM;
 
@@ -37,7 +42,10 @@ class ShortMethodNameSniff implements Sniff
             return;
         }
 
-        if (in_array($name, $this->exceptions(), true) === true) {
+        if (
+            in_array($name, $this->exceptions(), true) === true
+            || $this->isMigrationUp($phpcsFile, $stackPtr, $name) === true
+        ) {
             return;
         }
 
@@ -68,6 +76,18 @@ class ShortMethodNameSniff implements Sniff
             );
 
         return $namePtr === false ? null : $namePtr;
+    }
+
+    private function isMigrationUp(File $phpcsFile, int $stackPtr, string $name): bool
+    {
+        $classPtr = array_key_last($phpcsFile->getTokens()[$stackPtr]['conditions']);
+        $extends = $classPtr === null ? false : $phpcsFile->findExtendedClassName($classPtr);
+        $parent = is_string($extends) === true
+            ? (new ClassNames)->resolve($phpcsFile, $extends, $classPtr)
+            : '';
+
+        return $name === self::MIGRATION_METHOD
+            && strtolower(ltrim($parent, '\\')) === self::MIGRATION_CLASS;
     }
 
     private function minimum(): int
