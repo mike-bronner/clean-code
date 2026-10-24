@@ -2,24 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Compliant fixture for CleanCode.Conditionals.AvoidConditionals.
- *
- * There is no "compliant if" to show here: the sniff reports *every* if,
- * elseif, ternary and switch, so a conforming file is one that reached the
- * same behaviour without a branch. What this fixture therefore carries is the
- * two things that keep it discriminating:
- *
- *   1. The recommended replacements the standard points at — polymorphism,
- *      a mapping array, match, a null-default operator.
- *   2. The near-miss token shapes the sniff must stay silent on. Every one is
- *      punctuation PHP_CodeSniffer has, at some version, tokenized close to
- *      T_INLINE_THEN or T_IF: `??`, `??=`, `?->`, a `?string` nullable type
- *      hint, `match` arms, `case`/`default` inside a match, `catch`, and each
- *      loop form. A regression that widened register() to any of these would
- *      redden this file.
- */
-
 interface Formatter
 {
     public function format(string $value): string;
@@ -91,6 +73,15 @@ final class Report
     }
 
     public ?string $cachedName = null;
+
+    public function shout(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return strtoupper($value);
+    }
 
     /**
      * Iteration and error handling are other standards' territory.

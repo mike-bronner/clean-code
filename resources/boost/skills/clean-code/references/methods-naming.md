@@ -46,4 +46,11 @@ its namespace contains `Http\Controllers`, or it extends `Controller`. Every
 other action-verb method on a controller, such as `setFoo()`, still warns, and
 so does a `store()` or `update()` that is not public.
 
+The sniff does not warn on any public method of a policy either. Laravel calls
+every public method of a policy as an ability by name, such as `update()`,
+`delete()` or Nova's `attachTag()`, and an ability must return a `bool` or a
+`Response`. The sniff treats a class as a policy when a segment of its
+namespace is `Policies`, such as `App\Policies\Note`, or its name ends in
+`Policy`. A protected or private method of a policy still warns.
+
 Code review checks the parts of this standard that the sniffs cannot see.

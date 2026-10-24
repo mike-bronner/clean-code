@@ -70,3 +70,44 @@ it('reports a switch once, not once per case', function (): void {
 
     expect($switchWarnings)->toHaveCount(1);
 });
+
+it('exempts a single-exit guard clause that more code follows', function (): void {
+    $file = analyzeFixture(AVOID_CONDITIONALS, 'guards.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 37, 'column' => 28, 'source' => AVOID_CONDITIONALS . '.TernaryExpression'],
+        ['line' => 56, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 67, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 69, 'column' => 11, 'source' => AVOID_CONDITIONALS . '.ElseIfStatement'],
+        ['line' => 78, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 80, 'column' => 16, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 89, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 101, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 109, 'column' => 13, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 117, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 126, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 146, 'column' => 13, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 165, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 173, 'column' => 34, 'source' => AVOID_CONDITIONALS . '.TernaryExpression'],
+        ['line' => 175, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.SwitchStatement'],
+        ['line' => 185, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 203, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 237, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 249, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 259, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 260, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 270, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 271, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 274, 'column' => 7, 'source' => AVOID_CONDITIONALS . '.ElseIfStatement'],
+        ['line' => 281, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 282, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 285, 'column' => 12, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 292, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 293, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 304, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 329, 'column' => 5, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 333, 'column' => 7, 'source' => AVOID_CONDITIONALS . '.ElseIfStatement'],
+        ['line' => 347, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+        ['line' => 351, 'column' => 9, 'source' => AVOID_CONDITIONALS . '.IfStatement'],
+    ]);
+});

@@ -215,3 +215,17 @@ it('counts an unsplittable union type as a single member', function (): void {
         ->and(array_keys($degraded))->not->toContain(16)
         ->and($diagnostics)->toBe([]);
 });
+
+it('tells authors in its guideline to split the class rather than copy code', function (): void {
+    $guideline = (string) file_get_contents(
+            cleanCodeRoot() . '/resources/boost/skills/clean-code/references/pattern-solid.md'
+        );
+    $prose = (string) preg_replace('/\s+/', ' ', $guideline);
+
+    expect($prose)
+        ->toContain('Never copy or inline code to keep the coupling count down.')
+        ->toContain(
+            'A count that changes on a class the sniff already reports is not a new violation.'
+                . ' The fix is to split the class.'
+        );
+});

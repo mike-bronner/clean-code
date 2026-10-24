@@ -2,6 +2,13 @@
 
 Avoid conditionals where possible.
 
+A guard clause is the exception. The sniff does not report an `if` that has
+no `else` or `elseif`, whose body is one `return` (with or without a value) or
+one `throw`, and that more code follows in the same function or closure. An
+`if` that runs other code before it returns still reports, and so does an `if`
+that is the last statement of its function. Every `elseif`, ternary and
+`switch` still reports. A guard written without braces still reports.
+
 ## Compliant
 
 ```php

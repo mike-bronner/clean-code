@@ -81,6 +81,22 @@ it('exempts only the public store() and update() actions of a controller', funct
     ]);
 });
 
+it('exempts only the public abilities of a policy', function (): void {
+    $file = analyzeFixture(ACTION_METHOD_RETURN, 'policies.php');
+
+    expect(warningTuples($file))->toBe([
+        ['line' => 38, 'column' => 24, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 43, 'column' => 22, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 83, 'column' => 24, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 88, 'column' => 22, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 96, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 106, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 116, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 126, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+        ['line' => 131, 'column' => 21, 'source' => ACTION_METHOD_RETURN_WARNING],
+    ]);
+});
+
 it('is answered by no nearby vendor standard', function (): void {
     $candidates = [
         'PEAR.NamingConventions.ValidFunctionName',

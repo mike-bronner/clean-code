@@ -200,8 +200,8 @@ it('leaves the combinable conditional to no other sniff in the ruleset', functio
             COMBINABLE_CONDITIONS_CHAIN,
             'CleanCode.Conditionals.DisallowElse.ElseIfFound',
         ],
-        31 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_ADJACENT],
-        35 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement', COMBINABLE_CONDITIONS_ADJACENT],
+        31 => [COMBINABLE_CONDITIONS_ADJACENT],
+        35 => [COMBINABLE_CONDITIONS_ADJACENT],
     ]);
 });
 

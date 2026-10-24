@@ -24,10 +24,7 @@ it('reports every operator violation exactly once', function (): void {
             'CleanCode.Strings.RequireStringInterpolation.Concatenation',
             'Squiz.Strings.ConcatenationSpacing.PaddingFound',
         ],
-        11 => [
-            'CleanCode.Naming.DisallowMagicNumbers.Found',
-            'CleanCode.Operators.BinaryOperatorSpacing.SpacingBefore',
-        ],
+        11 => ['CleanCode.Operators.BinaryOperatorSpacing.SpacingBefore'],
         13 => ['CleanCode.Operators.OperatorLineBreak.OperatorAtLineEnd'],
         16 => ['CleanCode.Conditionals.AvoidConditionals.IfStatement'],
         17 => ['CleanCode.Conditionals.OneConditionPerLine.BooleanOperatorNotLeading'],

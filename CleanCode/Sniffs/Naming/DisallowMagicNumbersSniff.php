@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MikeBronner\CleanCode\Sniffs\Naming;
 
+use MikeBronner\CleanCode\Helpers\PathPatterns;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
 use PHP_CodeSniffer\Util\Tokens;
@@ -14,6 +15,12 @@ class DisallowMagicNumbersSniff implements Sniff
         '0',
         '1',
         '-1',
+    ];
+
+    public array $testFilePatterns = [
+        '*/tests/*',
+        '*/Tests/*',
+        '*Test.php',
     ];
 
     private const DECLARATIVE_PARENTHESES = [
@@ -58,18 +65,59 @@ class DisallowMagicNumbersSniff implements Sniff
 
         $literal = $this->signedLiteral($phpcsFile, $stackPtr);
 
-        if ($this->isIgnored($literal) === true) {
+        if (
+            $this->isIgnored($literal) === true
+            || $this->isNamedTestValue($phpcsFile, $stackPtr, $literal) === true
+        ) {
             return;
         }
 
         $phpcsFile->addWarning(
-                'Magic number %s is not searchable; name it with a constant '
+                'Magic number %s is not searchable; name it with a protected typed property '
                     . '(see resources/boost/skills/clean-code/references/'
                     . 'naming-semantic-naming-principles.md)',
                 $stackPtr,
                 'Found',
                 [$literal]
             );
+    }
+
+    protected function isNamedTestValue(File $phpcsFile, int $stackPtr, string $literal): bool
+    {
+        return (new PathPatterns)->matchesAny($phpcsFile->getFilename(), $this->testFilePatterns)
+            && $this->isWholeAssignedValue($phpcsFile, $stackPtr, $literal);
+    }
+
+    protected function isWholeAssignedValue(File $phpcsFile, int $stackPtr, string $literal): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($stackPtr - 1), null, true);
+        $operator = match (str_starts_with($literal, '-')) {
+            true => $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true),
+            false => $before,
+        };
+        $after = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
+
+        return $operator !== false
+            && $after !== false
+            && $tokens[$operator]['code'] === T_EQUAL
+            && $tokens[$after]['code'] === T_SEMICOLON
+            && $this->isNamedTarget($phpcsFile, $operator);
+    }
+
+    protected function isNamedTarget(File $phpcsFile, int $operator): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $name = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($operator - 1), null, true);
+        $arrow = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($name - 1), null, true);
+        $owner = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($arrow - 1), null, true);
+
+        return match ($tokens[$name]['code']) {
+            T_VARIABLE => true,
+            T_STRING => $tokens[$arrow]['code'] === T_OBJECT_OPERATOR
+                && $tokens[$owner]['code'] === T_VARIABLE,
+            default => false,
+        };
     }
 
     private function isDeclarationSite(File $phpcsFile, int $stackPtr): bool

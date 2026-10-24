@@ -25,6 +25,12 @@ The size sniffs report a class, trait or enum that:
 - is 1,000 lines long or more;
 - depends on 13 or more other classes.
 
+Never copy or inline code to keep the coupling count down. A function call
+does not count as a dependency, so a copy of a helper's logic scores as less
+coupled than the import it replaces, while the class still does the same work.
+A count that changes on a class the sniff already reports is not a new
+violation. The fix is to split the class.
+
 ## Compliant
 
 ```php

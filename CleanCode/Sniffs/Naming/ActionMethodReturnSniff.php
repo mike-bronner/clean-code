@@ -76,6 +76,7 @@ class ActionMethodReturnSniff implements Sniff
             $prefix === null => null,
             $this->returnsValue($phpcsFile, $stackPtr) === false => null,
             $this->isControllerAction($phpcsFile, $stackPtr, $name) => null,
+            $this->isPolicyAbility($phpcsFile, $stackPtr) => null,
             default => $phpcsFile->addWarning(
                 $this->message(),
                 $phpcsFile->findNext(T_STRING, $stackPtr),
@@ -112,6 +113,24 @@ class ActionMethodReturnSniff implements Sniff
         return str_ends_with($className, self::CONTROLLER_NAME)
             || str_contains(strtolower("\\{$namespace}\\"), self::CONTROLLER_NAMESPACE)
             || (new NameTokens)->lastSegment($parent) === self::CONTROLLER_NAME;
+    }
+
+    protected function isPolicyAbility(File $phpcsFile, int $stackPtr): bool
+    {
+        return $phpcsFile->getMethodProperties($stackPtr)['scope'] === 'public'
+            && $this->isPolicy(
+                $phpcsFile,
+                $this->innermostCondition($phpcsFile, $stackPtr, self::CLASS_LIKE_TOKENS)
+            );
+    }
+
+    protected function isPolicy(File $phpcsFile, int $classPtr): bool
+    {
+        $className = strtolower((string) (new Declarations)->name($phpcsFile, $classPtr));
+        $namespace = (string) NamespaceHelper::findCurrentNamespaceName($phpcsFile, $classPtr);
+
+        return str_ends_with($className, 'policy')
+            || in_array('policies', explode('\\', strtolower($namespace)), true);
     }
 
     private function matchedPrefix(string $name): ?string

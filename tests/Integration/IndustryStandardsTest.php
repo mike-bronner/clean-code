@@ -30,7 +30,7 @@ it('reports the expected violations', function (
     expect(violationCountsByLine($file->getErrors()))->toBe($expectedErrors, 'Errors in ' . $fixture)
         ->and(violationCountsByLine($file->getWarnings()))->toBe($expectedWarnings, 'Warnings in ' . $fixture);
 })->with([
-    'compliant class produces no errors' => ['compliant.php', [], [21 => 1, 25 => 2]],
+    'compliant class produces no errors' => ['compliant.php', [], [25 => 2]],
     'compliant abstract class produces no errors' => ['compliant-abstract.php', [], [13 => 1]],
     'side effects mixed with declarations' => ['side-effects.php', [], [1 => 1]],
     'inline HTML mixed with a class declaration' => ['mixed-html.php', [2 => 1], [1 => 1]],
@@ -46,7 +46,7 @@ it('reports the expected violations', function (
     'class outside a namespace' => ['no-namespace.php', [3 => 1], []],
     'missing member visibility' => ['visibility.php', [9 => 3, 11 => 2], [7 => 1]],
     'line exceeding the 120-character hard limit' => ['line-length.php', [7 => 1], []],
-    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], [10 => 1]],
+    'incorrect and tab indentation' => ['indentation.php', [9 => 1, 10 => 1], []],
     'braces not on their required lines' => ['braces.php', [5 => 1, 6 => 1], []],
     'malformed control structures' => ['control-structures.php', [9 => 3, 11 => 1, 12 => 1], [9 => 1]],
 ]);
