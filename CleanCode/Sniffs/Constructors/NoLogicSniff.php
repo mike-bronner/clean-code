@@ -441,7 +441,8 @@ class NoLogicSniff implements Sniff
                 true
             );
 
-        return $after === false || $tokens[$after]['code'] === T_SEMICOLON;
+        return $after === false
+            || $tokens[$after]['code'] === T_SEMICOLON;
     }
 
     private function isFirstClassCallable(File $phpcsFile, int $openerPtr): bool

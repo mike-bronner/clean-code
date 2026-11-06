@@ -64,6 +64,7 @@ class ClassDeclarationSniff extends PsrDeclaration
         $opener = $phpcsFile->getTokens()[$stackPtr]['scope_opener'];
         $declarationEnd = $phpcsFile->findPrevious(T_WHITESPACE, $opener - 1, null, true);
 
-        return $spaces > 0 && $declarationEnd === $phpcsFile->findNext(T_STRING, $stackPtr);
+        return $spaces > 0
+            && $declarationEnd === $phpcsFile->findNext(T_STRING, $stackPtr);
     }
 }

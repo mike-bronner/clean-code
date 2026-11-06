@@ -136,7 +136,8 @@ class NoHttpFakesInIntegrationTestsSniff implements Sniff
         }
 
         $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsisPtr + 1), null, true);
-        $isCallable = $afterPtr !== false && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
+        $isCallable = $afterPtr !== false
+            && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
 
         return $isCallable === true ? null : $openPtr;
     }

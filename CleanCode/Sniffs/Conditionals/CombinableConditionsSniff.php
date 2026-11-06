@@ -192,7 +192,8 @@ class CombinableConditionsSniff implements Sniff
 
             if ($tokens[$closer]['code'] === T_ENDIF) {
                 $semicolon = $phpcsFile->findNext(Tokens::$emptyTokens, ($closer + 1), null, true);
-                $ends = $semicolon !== false && $tokens[$semicolon]['code'] === T_SEMICOLON;
+                $ends = $semicolon !== false
+                    && $tokens[$semicolon]['code'] === T_SEMICOLON;
 
                 return $body + ['end' => $ends === true ? $semicolon : $closer, 'next' => null];
             }
@@ -273,7 +274,8 @@ class CombinableConditionsSniff implements Sniff
         $statement = max($phpcsFile->findStartOfStatement($last), $bodyStart);
         $statement = $phpcsFile->findNext(Tokens::$emptyTokens, $statement, $last, true);
 
-        return $statement !== false && in_array($tokens[$statement]['code'], self::EXIT_STATEMENTS, true);
+        return $statement !== false
+            && in_array($tokens[$statement]['code'], self::EXIT_STATEMENTS, true);
     }
 
     private function collectRun(File $phpcsFile, array $chain): array

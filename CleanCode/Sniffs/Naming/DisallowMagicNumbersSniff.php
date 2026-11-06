@@ -178,7 +178,8 @@ class DisallowMagicNumbersSniff implements Sniff
                 ($stackPtr - 1)
             );
 
-        return $statementStart !== false && $tokens[$statementStart]['code'] === T_CONST;
+        return $statementStart !== false
+            && $tokens[$statementStart]['code'] === T_CONST;
     }
 
     private function signedLiteral(File $phpcsFile, int $stackPtr): string

@@ -238,7 +238,8 @@ class MappingArrayCandidateSniff implements Sniff
 
     private function isPlainVariable(array $tokens, array $pointers): bool
     {
-        return count($pointers) === 1 && $tokens[$pointers[0]]['code'] === T_VARIABLE;
+        return count($pointers) === 1
+            && $tokens[$pointers[0]]['code'] === T_VARIABLE;
     }
 
     private function isScalarLiteral(array $tokens, array $pointers): bool
@@ -344,7 +345,8 @@ class MappingArrayCandidateSniff implements Sniff
 
     private function isStatementHead(int|string $code): bool
     {
-        return $code === T_RETURN || $code === T_VARIABLE;
+        return $code === T_RETURN
+            || $code === T_VARIABLE;
     }
 
     private function isValueExpression(File $phpcsFile, int $start, int $end): bool

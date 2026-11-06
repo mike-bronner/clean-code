@@ -81,6 +81,17 @@ class MultiLineStatementIndentSniff implements Sniff
         T_DOUBLE_QUOTED_STRING,
     ];
 
+    private const LOGICAL_KEYWORDS = [
+        T_LOGICAL_AND,
+        T_LOGICAL_OR,
+        T_LOGICAL_XOR,
+    ];
+
+    private const TERNARY_OPERATORS = [
+        T_INLINE_THEN,
+        T_INLINE_ELSE,
+    ];
+
     private const TRAILING_OPERATORS = [
         T_DOUBLE_ARROW,
         T_FN_ARROW,
@@ -195,7 +206,8 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $isBracket = $code === T_OPEN_SQUARE_BRACKET || $code === T_OPEN_SHORT_ARRAY;
+            $isBracket = $code === T_OPEN_SQUARE_BRACKET
+                || $code === T_OPEN_SHORT_ARRAY;
 
             if (
                 $isBracket === true
@@ -213,7 +225,8 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $isRawString = $code === T_START_HEREDOC || $code === T_START_NOWDOC;
+            $isRawString = $code === T_START_HEREDOC
+                || $code === T_START_NOWDOC;
 
             if (
                 $isRawString === true
@@ -249,6 +262,7 @@ class MultiLineStatementIndentSniff implements Sniff
         $continuation = $this->continuationTokens();
         $exprStart = $start;
         $stack = [];
+        $ternaries = [];
         $line = $tokens[$start]['line'];
         $commentOpen = false;
 
@@ -262,11 +276,13 @@ class MultiLineStatementIndentSniff implements Sniff
 
             $isRawContent = in_array($code, self::RAW_CONTENT, true) === true
                 || $this->isStringTail($tokens, $i) === true;
-            $isComment = isset(Tokens::$emptyTokens[$code]) === true && $isRawContent === false;
+            $isComment = isset(Tokens::$emptyTokens[$code]) === true
+                && $isRawContent === false;
             $isLineFirst = $token['line'] > $line;
             $lastLine = $token['line'] + substr_count(rtrim($token['content'], "\n"), "\n");
 
-            $holdsLastLine = $isComment === false || $commentOpen === true;
+            $holdsLastLine = $isComment === false
+                || $commentOpen === true;
             $commentOpen = $this->commentStaysOpen($commentOpen, $code, $token['content']);
             $line = max($line, $holdsLastLine === true ? $lastLine : $lastLine - 1);
 
@@ -277,14 +293,20 @@ class MultiLineStatementIndentSniff implements Sniff
                 continue;
             }
 
-            $isStatementScopeOpener = $i === $end && ($code === T_OPEN_CURLY_BRACKET || $code === T_COLON);
+            $isStatementScopeOpener = $i === $end
+                && ($code === T_OPEN_CURLY_BRACKET || $code === T_COLON);
 
             if (
                 $isLineFirst === true
                 && $isStatementScopeOpener === false
             ) {
-                $this->checkLine($phpcsFile, $i, $stack, $exprStart, $baseIndent, $continuation);
+                $ternary = in_array($code, self::LOGICAL_KEYWORDS, true) === true
+                    ? null
+                    : $ternaries[count($stack)] ?? null;
+                $this->checkLine($phpcsFile, $i, $stack, $exprStart, $baseIndent, $continuation, $ternary);
             }
+
+            $this->trackTernary($ternaries, count($stack), $code, $i);
 
             $expression = $this->beginExpression($stack, $exprStart, $i);
 
@@ -302,11 +324,13 @@ class MultiLineStatementIndentSniff implements Sniff
                 && $stack[count($stack) - 1]['opener'] === $opener
             ) {
                 array_pop($stack);
+                unset($ternaries[count($stack) + 1]);
                 continue;
             }
 
             if ($code === T_COMMA) {
                 $this->endExpression($stack, $exprStart);
+                unset($ternaries[count($stack)]);
 
                 continue;
             }
@@ -333,7 +357,8 @@ class MultiLineStatementIndentSniff implements Sniff
         array $stack,
         ?int $exprStart,
         int $baseIndent,
-        array $continuation
+        array $continuation,
+        ?int $ternary
     ): void {
         $tokens = $phpcsFile->getTokens();
         $lineStart = $this->lineFirstToken($phpcsFile, $ptr);
@@ -354,7 +379,7 @@ class MultiLineStatementIndentSniff implements Sniff
             return;
         }
 
-        $anchor = $this->continuationAnchor($phpcsFile, $ptr, $stack, $exprStart, $continuation);
+        $anchor = $this->continuationAnchor($phpcsFile, $ptr, $stack, $exprStart, $continuation, $ternary);
         $anchorIndent = $anchor === null ? $baseIndent : $this->anchorIndent($phpcsFile, $anchor);
 
         $this->reportIndent(
@@ -373,9 +398,18 @@ class MultiLineStatementIndentSniff implements Sniff
         int $ptr,
         array $stack,
         ?int $exprStart,
-        array $continuation
+        array $continuation,
+        ?int $ternary
     ): ?int {
         $code = $phpcsFile->getTokens()[$ptr]['code'];
+
+        if (
+            $ternary !== null
+            && in_array($code, self::SIBLING_OPERATORS, true) === true
+        ) {
+            return $ternary;
+        }
+
         $opener = $stack === [] ? null : $stack[count($stack) - 1]['opener'];
         $continues = in_array($code, self::CHAIN_OPERATORS, true) === true
             || $this->isContinuationOperator($code, $continuation) === true
@@ -419,6 +453,17 @@ class MultiLineStatementIndentSniff implements Sniff
 
         $phpcsFile->fixer
             ->replaceToken($lineStart - 1, $padding);
+    }
+
+    private function trackTernary(array &$ternaries, int $depth, int|string $code, int $pointer): void
+    {
+        if (in_array($code, self::TERNARY_OPERATORS, true) === true) {
+            $ternaries[$depth] = $pointer;
+        }
+
+        if (in_array($code, self::LOGICAL_KEYWORDS, true) === true) {
+            unset($ternaries[$depth]);
+        }
     }
 
     private function beginExpression(array &$stack, ?int &$exprStart, int $pointer): int
@@ -498,10 +543,12 @@ class MultiLineStatementIndentSniff implements Sniff
             $open === false
             && str_starts_with($content, '/*') === true
         ) {
-            return strlen($content) < 4 || str_ends_with($content, '*/') === false;
+            return strlen($content) < 4
+                || str_ends_with($content, '*/') === false;
         }
 
-        return $open === true && str_ends_with($content, '*/') === false;
+        return $open === true
+            && str_ends_with($content, '*/') === false;
     }
 
     private function closedOpener(array $tokens, int $ptr, array $stack): ?int

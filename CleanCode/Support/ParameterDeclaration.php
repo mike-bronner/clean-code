@@ -18,7 +18,8 @@ final class ParameterDeclaration
 
         $parameter = $this->parameterAt($phpcsFile, $ownerPtr, $variablePtr);
 
-        return $parameter === null || isset($parameter['property_visibility']) === false;
+        return $parameter === null
+            || isset($parameter['property_visibility']) === false;
     }
 
     public function isPromotedParameter(File $phpcsFile, int $variablePtr): bool
@@ -31,7 +32,8 @@ final class ParameterDeclaration
 
         $parameter = $this->parameterAt($phpcsFile, $ownerPtr, $variablePtr);
 
-        return $parameter !== null && isset($parameter['property_visibility']) === true;
+        return $parameter !== null
+            && isset($parameter['property_visibility']) === true;
     }
 
     private function owningFunction(File $phpcsFile, int $variablePtr): ?int

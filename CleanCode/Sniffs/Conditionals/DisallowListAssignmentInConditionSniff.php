@@ -87,7 +87,8 @@ class DisallowListAssignmentInConditionSniff implements Sniff
             return false;
         }
 
-        return $stackPtr > $separators[0] && $stackPtr < $separators[1];
+        return $stackPtr > $separators[0]
+            && $stackPtr < $separators[1];
     }
 
     private function headerSeparators(File $phpcsFile, int $forPtr): array

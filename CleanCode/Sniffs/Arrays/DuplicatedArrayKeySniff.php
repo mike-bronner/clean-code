@@ -117,7 +117,8 @@ class DuplicatedArrayKeySniff implements Sniff
 
     private function keyValue(array $tokens, array $keyPtrs): int|string|null
     {
-        $isNegated = count($keyPtrs) === 2 && $tokens[$keyPtrs[0]]['code'] === T_MINUS;
+        $isNegated = count($keyPtrs) === 2
+            && $tokens[$keyPtrs[0]]['code'] === T_MINUS;
 
         if (
             count($keyPtrs) !== 1

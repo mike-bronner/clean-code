@@ -94,7 +94,10 @@ class ShortMethodNameSniff implements Sniff
     {
         $configured = filter_var($this->minimum, FILTER_VALIDATE_INT);
 
-        return $configured === false || $configured < 1 ? self::DEFAULT_MINIMUM : $configured;
+        return $configured === false
+            || $configured < 1
+            ? self::DEFAULT_MINIMUM
+            : $configured;
     }
 
     private function exceptions(): array

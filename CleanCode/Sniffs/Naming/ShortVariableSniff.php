@@ -329,7 +329,8 @@ class ShortVariableSniff implements Sniff
                 continue;
             }
 
-            return $depth === 0 && $this->isByReference($phpcsFile, $current) === false;
+            return $depth === 0
+                && $this->isByReference($phpcsFile, $current) === false;
         }
 
         return false;
@@ -364,14 +365,18 @@ class ShortVariableSniff implements Sniff
     {
         $previous = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($pointer - 1), null, true);
 
-        return $previous !== false && $phpcsFile->getTokens()[$previous]['code'] === T_BITWISE_AND;
+        return $previous !== false
+            && $phpcsFile->getTokens()[$previous]['code'] === T_BITWISE_AND;
     }
 
     private function minimum(): int
     {
         $configured = filter_var($this->minimum, FILTER_VALIDATE_INT);
 
-        return $configured === false || $configured < 1 ? self::DEFAULT_MINIMUM : $configured;
+        return $configured === false
+            || $configured < 1
+            ? self::DEFAULT_MINIMUM
+            : $configured;
     }
 
     private function exceptions(): array

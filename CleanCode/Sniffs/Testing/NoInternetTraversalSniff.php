@@ -145,7 +145,8 @@ class NoInternetTraversalSniff implements Sniff
 
         $afterPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsisPtr + 1), null, true);
 
-        return $afterPtr !== false && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
+        return $afterPtr !== false
+            && $tokens[$afterPtr]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     private function readsNetworkUrl(File $phpcsFile, int $stackPtr): bool
@@ -169,7 +170,8 @@ class NoInternetTraversalSniff implements Sniff
 
         $url = $this->wholeLiteral($phpcsFile, $urlPtr, $closePtr);
 
-        return $url !== null && $this->namesNetworkScheme($url);
+        return $url !== null
+            && $this->namesNetworkScheme($url);
     }
 
     private function wholeLiteral(File $phpcsFile, int $urlPtr, int $closePtr): ?string
@@ -211,7 +213,8 @@ class NoInternetTraversalSniff implements Sniff
         $indent = substr($marker, 0, strspn($marker, " \t"));
         $body = rtrim($tokens[$openerPtr + 1]['content'], "\r\n");
 
-        return $indent !== '' && str_starts_with($body, $indent)
+        return $indent !== ''
+            && str_starts_with($body, $indent)
             ? substr($body, strlen($indent))
             : $body;
     }

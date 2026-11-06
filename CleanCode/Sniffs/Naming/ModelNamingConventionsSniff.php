@@ -303,7 +303,8 @@ class ModelNamingConventionsSniff implements Sniff
 
         $parts = array_values(array_filter(
                 array_map('trim', explode('|', $type)),
-                static fn (string $part): bool => $part !== '' && strtolower($part) !== 'null'
+                static fn (string $part): bool => $part !== ''
+                && strtolower($part) !== 'null'
             ));
 
         return (count($parts) === 1) ? $parts[0] : '';
@@ -335,7 +336,8 @@ class ModelNamingConventionsSniff implements Sniff
 
         $next = substr($name, strlen($prefix), 1);
 
-        return $next === '' || $next === strtoupper($next);
+        return $next === ''
+            || $next === strtoupper($next);
     }
 
     private function endOfMethod(File $phpcsFile, int $stackPtr): int

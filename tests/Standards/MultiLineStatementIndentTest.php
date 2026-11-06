@@ -481,6 +481,37 @@ it('anchors sibling lines on a long opener line in linear time', function (): vo
         );
 });
 
+it('indents a ternary branch condition one level past its operator line', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'ternary-branches.php');
+
+    expect($file->getErrors())->toBe([]);
+});
+
+it('reports a ternary branch condition anchored anywhere else', function (int $line, int $expected, int $found): void {
+    $errors = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'ternary-branches-misindented.php')->getErrors();
+
+    expect(array_keys($errors))->toBe([5, 7, 11, 15, 20, 25, 31, 37, 42])
+        ->and(current(current($errors[$line]))['message'])
+        ->toContain("expected {$expected} spaces but found {$found}");
+})->with([
+    'then branch, anchored on its "?" line' => [5, 8, 4],
+    'else branch, anchored on its ":" line' => [7, 8, 4],
+    'else branch after an inline "?"' => [11, 8, 4],
+    'elvis branch' => [15, 8, 4],
+    'a later array item forgets the ternary before its comma' => [20, 4, 8],
+    'a later bracket forgets the ternary inside a closed one' => [25, 8, 12],
+    'an "or" after the else branch stays at statement level' => [31, 4, 8],
+    'a condition after an "and" forgets the ternary' => [37, 4, 8],
+    'a "xor" after the else branch stays at statement level' => [42, 4, 8],
+]);
+
+it('rewrites misindented ternary branch conditions into the compliant layout', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'ternary-branches-misindented.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('MultiLineStatementIndentSniff', 'ternary-branches.php')));
+});
+
 it('stays silent on this package\'s own source', function (): void {
     $root = dirname(__DIR__, 2);
     $files = [];

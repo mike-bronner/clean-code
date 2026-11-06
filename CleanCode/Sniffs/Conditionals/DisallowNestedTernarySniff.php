@@ -149,7 +149,8 @@ class DisallowNestedTernarySniff implements Sniff
             }
 
             if ($code === T_INLINE_THEN) {
-                return $direction < 0 || $unwrappedGrouping === true;
+                return $direction < 0
+                    || $unwrappedGrouping === true;
             }
 
             $i += $direction;

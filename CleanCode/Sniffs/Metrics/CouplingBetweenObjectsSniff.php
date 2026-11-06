@@ -183,7 +183,8 @@ class CouplingBetweenObjectsSniff implements Sniff
             return true;
         }
 
-        return $code === T_USE && array_key_last($tokens[$ptr]['conditions']) === $stackPtr;
+        return $code === T_USE
+            && array_key_last($tokens[$ptr]['conditions']) === $stackPtr;
     }
 
     private function endOfSkippableRegion(File $phpcsFile, int $ptr): int

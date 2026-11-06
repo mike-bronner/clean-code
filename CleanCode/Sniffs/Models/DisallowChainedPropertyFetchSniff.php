@@ -376,7 +376,8 @@ class DisallowChainedPropertyFetchSniff implements Sniff
 
         $previousPtr = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($receiverPtr - 1), null, true);
 
-        return $previousPtr !== false && $this->isObjectOperator($tokens, $previousPtr) === true;
+        return $previousPtr !== false
+            && $this->isObjectOperator($tokens, $previousPtr) === true;
     }
 
     private function isObjectOperator(array $tokens, int $ptr): bool
