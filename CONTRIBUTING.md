@@ -348,6 +348,11 @@ beside them, for the two things only the real file type can assert:
   `.php` fixture carries a trailing open tag instead, because that suppression
   deliberately does not cover `.php`.
 
+`CleanCode.WhiteSpace.BladeDirectiveBlankLines` reads Blade views too, and
+follows the same rule. Its one extra fixture, `upsell-message.blade.php`, runs
+through the whole master ruleset and has no `<?php` tag, so it covers both
+points above.
+
 A sniff that reads an ancestor through reflection needs that ancestor to
 load the way a consumer's vendor parent loads, through Composer. A fixture
 class never autoloads, so the sniff would take its unresolvable-ancestor path

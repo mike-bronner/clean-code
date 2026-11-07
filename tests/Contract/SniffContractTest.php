@@ -18,6 +18,7 @@ const TOTAL_FIXER_SNIFFS = [
     'CleanCode.Operators.BooleanOperatorSpacing',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Strings.MultilineStrings',
+    'CleanCode.WhiteSpace.BladeDirectiveBlankLines',
     'CleanCode.WhiteSpace.BlankLines',
     'CleanCode.WhiteSpace.MultiLineStatementIndent',
     'CleanCode.WhiteSpace.PassiveOperatorSpacing',

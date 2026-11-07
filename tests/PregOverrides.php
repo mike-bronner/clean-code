@@ -235,4 +235,11 @@ namespace MikeBronner\CleanCode\Sniffs\WhiteSpace {
             ? null
             : \preg_replace($pattern, $replacement, $subject, $limit, $count);
     }
+
+    function preg_replace_callback($pattern, $callback, $subject, $limit = -1, &$count = null, $flags = 0)
+    {
+        return pregArmed('preg_replace_callback', $pattern)
+            ? null
+            : \preg_replace_callback($pattern, $callback, $subject, $limit, $count, $flags);
+    }
 }
