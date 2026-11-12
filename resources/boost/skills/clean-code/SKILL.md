@@ -75,6 +75,7 @@ no sniff. Apply it anyway.
 - [Conditionals: Ternary Conditionals](references/conditionals-ternary-conditionals.md)
 - [Operators: Active](references/operators-active.md)
 - [Operators: Evaluative](references/operators-evaluative.md)
+- [Operators: Logical Keywords After an Assignment](references/operators-logical-keywords-after-assignment.md)
 - [Operators: Manipulative](references/operators-manipulative.md)
 - [Operators: Passive](references/operators-passive.md)
 
