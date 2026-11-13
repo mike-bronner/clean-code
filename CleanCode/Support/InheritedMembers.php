@@ -172,7 +172,8 @@ class InheritedMembers
     private function reflect(string $name): ?ReflectionClass
     {
         try {
-            $exists = class_exists($name) || interface_exists($name);
+            $exists = class_exists($name)
+                || interface_exists($name);
         } catch (Throwable) {
             return null;
         }

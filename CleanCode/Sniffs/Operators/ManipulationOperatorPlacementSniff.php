@@ -268,7 +268,8 @@ class ManipulationOperatorPlacementSniff implements Sniff
         if ($code === T_COLON) {
             $label = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($before - 1), null, true);
 
-            return $label !== false && $tokens[$label]['code'] === T_PARAM_NAME;
+            return $label !== false
+                && $tokens[$label]['code'] === T_PARAM_NAME;
         }
 
         if ($code === T_SEMICOLON) {
@@ -301,7 +302,8 @@ class ManipulationOperatorPlacementSniff implements Sniff
 
         $dividers = (new ConditionOperatorOwnership)->checkedRegion($phpcsFile, $owner);
 
-        return $dividers !== null && in_array($stackPtr, $dividers, true);
+        return $dividers !== null
+            && in_array($stackPtr, $dividers, true);
     }
 
     private function continuationIndent(File $phpcsFile, int $stackPtr): string

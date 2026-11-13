@@ -180,7 +180,8 @@ class NoProceduralCodeSniff implements Sniff
                 continue;
             }
 
-            $isDoWhileTail = $code === T_WHILE && isset($tokens[$next]['scope_opener']) === false;
+            $isDoWhileTail = $code === T_WHILE
+                && isset($tokens[$next]['scope_opener']) === false;
 
             if (
                 in_array($code, self::CONTINUATION_TOKENS, true) === false

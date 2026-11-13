@@ -419,7 +419,10 @@ class TypeDiscriminatorDispatchSniff implements Sniff
 
         $subject = $this->discriminator($tokens, $right);
 
-        return $subject !== null && $this->isScalarLiteral($tokens, $left) === true ? $subject : null;
+        return $subject !== null
+            && $this->isScalarLiteral($tokens, $left) === true
+            ? $subject
+            : null;
     }
 
     private function discriminator(array $tokens, array $pointers): ?string

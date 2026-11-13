@@ -198,7 +198,8 @@ class PrimaryConstructorDelegationSniff implements Sniff
 
         $parenthesisPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($calleePtr + 1), null, true);
 
-        return $parenthesisPtr !== false && $tokens[$parenthesisPtr]['code'] === T_OPEN_PARENTHESIS;
+        return $parenthesisPtr !== false
+            && $tokens[$parenthesisPtr]['code'] === T_OPEN_PARENTHESIS;
     }
 
     private function namesDeclaringClass(File $phpcsFile, int $pointer, ?string $className): bool
@@ -230,6 +231,7 @@ class PrimaryConstructorDelegationSniff implements Sniff
             return true;
         }
 
-        return substr_count($name, '\\') === 1 && $this->inGlobalNamespace($phpcsFile);
+        return substr_count($name, '\\') === 1
+            && $this->inGlobalNamespace($phpcsFile);
     }
 }

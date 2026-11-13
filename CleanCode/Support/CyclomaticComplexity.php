@@ -68,6 +68,7 @@ final class CyclomaticComplexity
 
         $owner = $tokens[$ptr]['scope_condition'] ?? null;
 
-        return $owner !== null && $tokens[$owner]['code'] === T_ANON_CLASS;
+        return $owner !== null
+            && $tokens[$owner]['code'] === T_ANON_CLASS;
     }
 }

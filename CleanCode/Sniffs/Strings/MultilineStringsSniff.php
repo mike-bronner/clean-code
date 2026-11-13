@@ -212,7 +212,8 @@ class MultilineStringsSniff implements Sniff
 
     private function isStringLiteral(array $tokens, int $ptr): bool
     {
-        return isset($tokens[$ptr]) && in_array($tokens[$ptr]['code'], self::STRING_TOKENS, true);
+        return isset($tokens[$ptr])
+            && in_array($tokens[$ptr]['code'], self::STRING_TOKENS, true);
     }
 
     private function docStringParts(string $raw, string $prefix, string $inner): array
@@ -263,7 +264,8 @@ class MultilineStringsSniff implements Sniff
 
         $after = $trimmed[strlen(self::MARKER)] ?? '';
 
-        return $after === '' || preg_match('/[A-Za-z0-9_]/', $after) !== 1;
+        return $after === ''
+            || preg_match('/[A-Za-z0-9_]/', $after) !== 1;
     }
 
     private function docStringBody(string $inner, string $resolved): string

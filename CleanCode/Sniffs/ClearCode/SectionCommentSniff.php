@@ -135,7 +135,8 @@ class SectionCommentSniff implements Sniff
             return true;
         }
 
-        return str_starts_with($written, '/*') === true && str_ends_with($written, '*/') === true;
+        return str_starts_with($written, '/*') === true
+            && str_ends_with($written, '*/') === true;
     }
 
     private function isExempt(File $phpcsFile, string $content): bool
@@ -206,7 +207,8 @@ class SectionCommentSniff implements Sniff
 
         $after = $phpcsFile->findNext(T_WHITESPACE, ($stackPtr + 1), null, true);
 
-        return $after === false || $tokens[$after]['line'] !== $commentLine;
+        return $after === false
+            || $tokens[$after]['line'] !== $commentLine;
     }
 
     private function headsARunAtAStatementBoundary(File $phpcsFile, int $stackPtr, array $conditions): bool

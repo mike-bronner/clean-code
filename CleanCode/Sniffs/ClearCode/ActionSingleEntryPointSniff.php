@@ -129,6 +129,7 @@ class ActionSingleEntryPointSniff implements Sniff
 
         $name = (new Declarations)->name($phpcsFile, $methodPtr);
 
-        return $name !== null && strtolower($name) !== self::CONSTRUCTOR;
+        return $name !== null
+            && strtolower($name) !== self::CONSTRUCTOR;
     }
 }

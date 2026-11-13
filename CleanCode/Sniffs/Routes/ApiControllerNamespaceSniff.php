@@ -46,8 +46,10 @@ class ApiControllerNamespaceSniff implements Sniff
             return;
         }
 
-        $namespaceIsApi = $namespaceTail !== null && in_array(self::API_SEGMENT, $namespaceTail, true);
-        $pathIsApi = $pathTail !== null && in_array(self::API_SEGMENT, $pathTail, true);
+        $namespaceIsApi = $namespaceTail !== null
+            && in_array(self::API_SEGMENT, $namespaceTail, true);
+        $pathIsApi = $pathTail !== null
+            && in_array(self::API_SEGMENT, $pathTail, true);
 
         if ($namespaceIsApi === $pathIsApi) {
             return;

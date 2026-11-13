@@ -132,6 +132,7 @@ class DeclaredParametersSniff implements Sniff
 
         $name = (new Declarations)->name($phpcsFile, $functionPtr);
 
-        return $name !== null && in_array(strtolower($name), self::MAGIC_METHODS, true);
+        return $name !== null
+            && in_array(strtolower($name), self::MAGIC_METHODS, true);
     }
 }

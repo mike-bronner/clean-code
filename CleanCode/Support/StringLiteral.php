@@ -27,7 +27,9 @@ final class StringLiteral
         $body = $this->body($content);
         $delimiter = $this->delimiter($content);
 
-        return $delimiter !== null && strlen($body) >= 2 && substr($body, -1) === $delimiter;
+        return $delimiter !== null
+            && strlen($body) >= 2
+            && substr($body, -1) === $delimiter;
     }
 
     public function inner(string $content): string

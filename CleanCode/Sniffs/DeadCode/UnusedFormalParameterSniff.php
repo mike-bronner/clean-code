@@ -245,7 +245,8 @@ class UnusedFormalParameterSniff implements Sniff
 
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, $argument + 1, null, true);
 
-        return $after !== false && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
+        return $after !== false
+            && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     private function compactedNames(File $phpcsFile, int $pointer): array

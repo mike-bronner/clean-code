@@ -233,7 +233,8 @@ class DisallowCombinedConstructorSniff implements Sniff
             && $owner !== null
             && $phpcsFile->getTokens()[$owner]['code'] === T_ANON_CLASS;
 
-        return in_array($token['code'], self::NESTED_DECLARATIONS, true) || $anonymousClassBody
+        return in_array($token['code'], self::NESTED_DECLARATIONS, true)
+            || $anonymousClassBody
             ? (int) $token['scope_closer']
             : null;
     }
@@ -288,7 +289,8 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $pointer + 1, null, true);
 
-        return $next !== false && $phpcsFile->getTokens()[$next]['code'] === T_VARIABLE;
+        return $next !== false
+            && $phpcsFile->getTokens()[$next]['code'] === T_VARIABLE;
     }
 
     private function boundNames(File $phpcsFile, int $from, int $to): array
@@ -355,7 +357,8 @@ class DisallowCombinedConstructorSniff implements Sniff
             return false;
         }
 
-        return $tokens[$after]['code'] !== T_DOUBLE_ARROW || $depth === 0;
+        return $tokens[$after]['code'] !== T_DOUBLE_ARROW
+            || $depth === 0;
     }
 
     private function parameterTypes(File $phpcsFile, int $stackPtr): array
@@ -493,7 +496,8 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, $end + 1, null, true);
 
-        return $next !== false && $phpcsFile->getTokens()[$next]['code'] === T_INSTANCEOF;
+        return $next !== false
+            && $phpcsFile->getTokens()[$next]['code'] === T_INSTANCEOF;
     }
 
     private function opensGrouping(File $phpcsFile, int $opener): bool
@@ -593,7 +597,8 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $after = $phpcsFile->findNext(Tokens::$emptyTokens, $ellipsis + 1, null, true);
 
-        return $after !== false && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
+        return $after !== false
+            && $tokens[$after]['code'] === T_CLOSE_PARENTHESIS;
     }
 
     private function branchOwner(File $phpcsFile, int $pointer, int $closer): ?int
@@ -637,7 +642,8 @@ class DisallowCombinedConstructorSniff implements Sniff
 
             if ($code === T_INLINE_THEN) {
                 $following = $phpcsFile->findNext(Tokens::$emptyTokens, $next + 1, null, true);
-                $elvis = $following !== false && $tokens[$following]['code'] === T_INLINE_ELSE;
+                $elvis = $following !== false
+                    && $tokens[$following]['code'] === T_INLINE_ELSE;
 
                 return $this->remember($visited, $elvis ? null : $next);
             }
@@ -761,7 +767,10 @@ class DisallowCombinedConstructorSniff implements Sniff
 
         $end = $token['parenthesis_closer'] ?? $token['bracket_closer'] ?? null;
 
-        return $end !== null && $end > $pointer ? (int) $end : null;
+        return $end !== null
+            && $end > $pointer
+            ? (int) $end
+            : null;
     }
 
     private function opensMatchArms(File $phpcsFile, int $pointer): bool
@@ -769,7 +778,8 @@ class DisallowCombinedConstructorSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $owner = $tokens[$pointer]['scope_condition'] ?? null;
 
-        return $owner !== null && $tokens[$owner]['code'] === T_MATCH;
+        return $owner !== null
+            && $tokens[$owner]['code'] === T_MATCH;
     }
 
     private function groupEnd(File $phpcsFile, int $pointer): ?int
@@ -793,7 +803,8 @@ class DisallowCombinedConstructorSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $owner = $tokens[$pointer]['scope_condition'] ?? null;
 
-        return $owner !== null && in_array($tokens[$owner]['code'], [T_CASE, T_DEFAULT], true);
+        return $owner !== null
+            && in_array($tokens[$owner]['code'], [T_CASE, T_DEFAULT], true);
     }
 
     private function isGuardClause(File $phpcsFile, int $branch, int $closer): bool
@@ -805,9 +816,11 @@ class DisallowCombinedConstructorSniff implements Sniff
         }
 
         $verdicts = $this->branchVerdicts($phpcsFile, $construct, $closer);
-        $ownThrows = $own !== null && ($verdicts['throws'][$own] ?? false);
+        $ownThrows = $own !== null
+            && ($verdicts['throws'][$own] ?? false);
 
-        return $verdicts['throwing'] > 0 && ($ownThrows || $verdicts['surviving'] <= 1);
+        return $verdicts['throwing'] > 0
+            && ($ownThrows || $verdicts['surviving'] <= 1);
     }
 
     private function branchVerdicts(File $phpcsFile, int $construct, int $closer): array
@@ -1117,7 +1130,8 @@ class DisallowCombinedConstructorSniff implements Sniff
     {
         $first = $phpcsFile->findNext(Tokens::$emptyTokens, $from + 1, null, true);
 
-        return $first !== false && $phpcsFile->getTokens()[$first]['code'] === T_THROW;
+        return $first !== false
+            && $phpcsFile->getTokens()[$first]['code'] === T_THROW;
     }
 
     private function isDirectBranchOf(File $phpcsFile, int $pointer, int $owner): bool

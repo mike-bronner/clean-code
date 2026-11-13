@@ -239,7 +239,8 @@ class NPathComplexitySniff implements Sniff
 
         $owner = $tokens[$ptr]['scope_condition'] ?? null;
 
-        return $owner !== null && $tokens[$owner]['code'] === T_ANON_CLASS;
+        return $owner !== null
+            && $tokens[$owner]['code'] === T_ANON_CLASS;
     }
 
     private function ifComplexity(File $phpcsFile, array $tokens, int &$ptr, int $end): int

@@ -332,7 +332,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
 
         $conditions = $token['conditions'];
 
-        return $conditions !== [] && in_array(end($conditions), self::OO_SCOPES, true);
+        return $conditions !== []
+            && in_array(end($conditions), self::OO_SCOPES, true);
     }
 
     private function hookBodies(File $phpcsFile, int $listPtr): array
@@ -593,7 +594,8 @@ class DisallowTypeIntrospectionSniff implements Sniff
         if ($code === T_CLOSE_CURLY_BRACKET) {
             $opener = $tokens[$stackPtr]['bracket_opener'] ?? null;
 
-            return $opener !== null && $this->opensAnExpressionBody($tokens, $opener)
+            return $opener !== null
+                && $this->opensAnExpressionBody($tokens, $opener)
                 ? $opener
                 : $stackPtr;
         }

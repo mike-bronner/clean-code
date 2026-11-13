@@ -12,7 +12,8 @@ final class PathPatterns
         $matched = false;
 
         foreach ($patterns as $pattern) {
-            $matched = $matched || fnmatch(str_replace('\\', '/', $pattern), $normalized);
+            $matched = $matched
+                || fnmatch(str_replace('\\', '/', $pattern), $normalized);
         }
 
         return $matched;

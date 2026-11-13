@@ -427,7 +427,8 @@ class NumberOfChildrenSniff implements Sniff
 
         $name = $this->significantAfter($tokens, $index);
 
-        return is_array($name) === true && $name[0] === T_STRING;
+        return is_array($name) === true
+            && $name[0] === T_STRING;
     }
 
     private function isAnonymous(array $tokens, int $index): bool

@@ -225,7 +225,8 @@ class LogicalKeywordAfterAssignmentSniff implements Sniff
     {
         $token = $phpcsFile->getTokens()[$stackPtr];
 
-        return $token['code'] === T_COLON && isset($token['scope_condition']) === true;
+        return $token['code'] === T_COLON
+            && isset($token['scope_condition']) === true;
     }
 
     private function closesBracelessCondition(File $phpcsFile, int $stackPtr): bool
@@ -243,7 +244,8 @@ class LogicalKeywordAfterAssignmentSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $condition = $tokens[$opener]['scope_condition'] ?? null;
 
-        return $condition !== null && $tokens[$condition]['code'] === T_MATCH;
+        return $condition !== null
+            && $tokens[$condition]['code'] === T_MATCH;
     }
 
     private function expressionOpener(File $phpcsFile, int $closer): ?int

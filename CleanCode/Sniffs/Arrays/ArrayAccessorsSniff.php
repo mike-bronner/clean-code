@@ -548,7 +548,8 @@ class ArrayAccessorsSniff implements Sniff
 
         while (in_array($tokens[$cursorPtr]['code'], self::OBJECT_OPERATORS, true) === true) {
             $memberPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($cursorPtr + 1), null, true);
-            $memberEndPtr = $memberPtr === false || $tokens[$memberPtr]['code'] !== T_OPEN_CURLY_BRACKET
+            $memberEndPtr = $memberPtr === false
+                || $tokens[$memberPtr]['code'] !== T_OPEN_CURLY_BRACKET
                 ? $memberPtr
                 : ($tokens[$memberPtr]['bracket_closer'] ?? false);
 
@@ -767,7 +768,8 @@ class ArrayAccessorsSniff implements Sniff
     {
         $asPtr = $this->foreachClauseAs($phpcsFile, $closerPtr);
 
-        return $asPtr !== null && $asPtr < $rootPtr;
+        return $asPtr !== null
+            && $asPtr < $rootPtr;
     }
 
     private function foreachClauseAs(File $phpcsFile, int $closerPtr): ?int
@@ -815,7 +817,8 @@ class ArrayAccessorsSniff implements Sniff
 
         $nextPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($closerPtr + 1), null, true);
 
-        return $nextPtr !== false && $tokens[$nextPtr]['code'] === T_EQUAL;
+        return $nextPtr !== false
+            && $tokens[$nextPtr]['code'] === T_EQUAL;
     }
 
     private function isDynamicMemberBrace(File $phpcsFile, int $openerPtr): bool
@@ -838,7 +841,8 @@ class ArrayAccessorsSniff implements Sniff
 
         $ownerPtr = $tokens[$closerPtr]['parenthesis_owner'] ?? null;
 
-        return $ownerPtr !== null && $tokens[$ownerPtr]['code'] === T_LIST;
+        return $ownerPtr !== null
+            && $tokens[$ownerPtr]['code'] === T_LIST;
     }
 
     private function buildEnclosureMap(File $phpcsFile): void

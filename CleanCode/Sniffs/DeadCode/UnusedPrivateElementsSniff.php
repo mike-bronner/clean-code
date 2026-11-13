@@ -221,6 +221,7 @@ class UnusedPrivateElementsSniff implements Sniff
         $tokens = $phpcsFile->getTokens();
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($stackPtr + 1), null, true);
 
-        return $next !== false && $tokens[$next]['code'] === T_OPEN_PARENTHESIS;
+        return $next !== false
+            && $tokens[$next]['code'] === T_OPEN_PARENTHESIS;
     }
 }

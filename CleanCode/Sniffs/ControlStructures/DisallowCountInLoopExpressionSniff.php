@@ -192,6 +192,7 @@ class DisallowCountInLoopExpressionSniff implements Sniff
 
         $afterEllipsis = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsis + 1), null, true);
 
-        return $afterEllipsis !== false && $tokens[$afterEllipsis]['code'] === T_CLOSE_PARENTHESIS;
+        return $afterEllipsis !== false
+            && $tokens[$afterEllipsis]['code'] === T_CLOSE_PARENTHESIS;
     }
 }

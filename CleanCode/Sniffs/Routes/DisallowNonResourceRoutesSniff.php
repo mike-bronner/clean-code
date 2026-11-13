@@ -132,6 +132,7 @@ class DisallowNonResourceRoutesSniff implements Sniff
 
         $afterEllipsisPtr = $phpcsFile->findNext(Tokens::$emptyTokens, ($ellipsisPtr + 1), null, true);
 
-        return $afterEllipsisPtr !== false && $tokens[$afterEllipsisPtr]['code'] === T_CLOSE_PARENTHESIS;
+        return $afterEllipsisPtr !== false
+            && $tokens[$afterEllipsisPtr]['code'] === T_CLOSE_PARENTHESIS;
     }
 }

@@ -98,7 +98,8 @@ final class FunctionCalls
     {
         $before = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($ampersandPtr - 1), null, true);
 
-        return $before !== false && $phpcsFile->getTokens()[$before]['code'] === T_FUNCTION;
+        return $before !== false
+            && $phpcsFile->getTokens()[$before]['code'] === T_FUNCTION;
     }
 
     private function isInsideNamedNamespace(File $phpcsFile, int $stackPtr): bool
@@ -106,7 +107,8 @@ final class FunctionCalls
         $declarations = $this->namespaceDeclarations($phpcsFile);
         $block = $this->namespaceBlockOf($declarations, $stackPtr);
 
-        return $block !== 0 && $this->isNamedDeclaration($phpcsFile, $block);
+        return $block !== 0
+            && $this->isNamedDeclaration($phpcsFile, $block);
     }
 
     private function isNamedDeclaration(File $phpcsFile, int $namespacePtr): bool
@@ -300,7 +302,8 @@ final class FunctionCalls
 
         $source = $this->sourceName($phpcsFile, $start, $end);
 
-        return $source !== '' && $source === $this->boundName($phpcsFile, $start, $end);
+        return $source !== ''
+            && $source === $this->boundName($phpcsFile, $start, $end);
     }
 
     private function sourceName(File $phpcsFile, int $start, int $end): string

@@ -1040,7 +1040,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $next = $phpcsFile->findNext(Tokens::$emptyTokens, ($name['end'] + 1), ($end + 1), true);
 
-        return $next !== false && $tokens[$next]['code'] === T_OPEN_PARENTHESIS
+        return $next !== false
+            && $tokens[$next]['code'] === T_OPEN_PARENTHESIS
             ? $tokens[$next]['parenthesis_closer']
             : $name['end'];
     }
@@ -1063,7 +1064,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $parenthesis = $phpcsFile->findNext(Tokens::$emptyTokens, ($method + 1), ($end + 1), true);
 
-        return $parenthesis !== false && $tokens[$parenthesis]['code'] === T_OPEN_PARENTHESIS
+        return $parenthesis !== false
+            && $tokens[$parenthesis]['code'] === T_OPEN_PARENTHESIS
             ? $tokens[$parenthesis]['parenthesis_closer']
             : null;
     }
@@ -1159,7 +1161,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $tracked = $variables[$this->scopeOf($phpcsFile, $ptr)][$name] ?? null;
 
-        return $tracked !== null && ($provable === false || $tracked === true);
+        return $tracked !== null
+            && ($provable === false || $tracked === true);
     }
 
     // phpcs:ignore CleanCode.Functions.DisallowBooleanArgumentFlag -- $provable is threaded down one walk, not a call-site mode
@@ -1222,7 +1225,8 @@ class OnlyUseCollectionMethodsSniff implements Sniff
 
         $prev = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($target - 1), null, true);
 
-        return $prev === false || $tokens[$prev]['code'] !== T_DOUBLE_COLON;
+        return $prev === false
+            || $tokens[$prev]['code'] !== T_DOUBLE_COLON;
     }
 
     private function isUnconditionalAssignment(File $phpcsFile, int $target, int $scope): bool

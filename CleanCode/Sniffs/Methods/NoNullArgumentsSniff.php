@@ -411,7 +411,8 @@ class NoNullArgumentsSniff implements Sniff
             return true;
         }
 
-        return $callee['binding'] === self::BIND_THIS && $properties['scope'] === 'private';
+        return $callee['binding'] === self::BIND_THIS
+            && $properties['scope'] === 'private';
     }
 
     private function getEnclosingClass(File $phpcsFile, int $stackPtr): ?int
