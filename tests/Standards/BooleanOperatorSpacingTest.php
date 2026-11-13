@@ -136,6 +136,7 @@ it('shares these tokens in the master ruleset only with sniffs reporting another
 
     expect($sharing)->toBe([
         BOOLEAN_OPERATOR_SPACING,
+        'CleanCode.Operators.LogicalKeywordAfterAssignment',
         'CleanCode.Operators.OperatorLineBreak',
         'Generic.PHP.LowerCaseKeyword',
     ]);
