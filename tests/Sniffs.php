@@ -53,6 +53,7 @@ const SWEPT_SNIFFS = [
     'CleanCode.Naming.ShortVariable',
     'CleanCode.Operators.BinaryOperatorSpacing',
     'CleanCode.Operators.BooleanOperatorSpacing',
+    'CleanCode.Operators.LogicalKeywordAfterAssignment',
     'CleanCode.Operators.ManipulationOperatorPlacement',
     'CleanCode.Operators.NotOperatorSpacing',
     'CleanCode.Operators.OperatorLineBreak',
