@@ -110,12 +110,43 @@ it('flags every top-level keyword of an assignment statement at the keyword itse
                 [81, 13],
                 [85, 13],
                 [90, 15],
+                [93, 34],
+                [94, 21],
+                [95, 19],
+                [96, 18],
+                [99, 14],
+                [102, 21],
+                [104, 28],
+                [105, 20],
+                [106, 18],
+                [107, 12],
+                [108, 26],
+                [111, 13],
+                [115, 13],
+                [121, 13],
+                [124, 10],
+                [125, 13],
+                [126, 15],
+                [127, 17],
+                [128, 18],
+                [129, 19],
+                [130, 24],
             ]
         );
 
     expect(violationTuples($file))->toBe($expected)
         ->and($file->getWarnings())->toBe([]);
 });
+
+it('stops at an unmatched closer without reporting', function (string $fixture): void {
+    $file = analyzeFixture(LOGICAL_KEYWORD_AFTER_ASSIGNMENT, $fixture);
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+})->with([
+    'parenthesis' => ['stray-parenthesis.php'],
+    'square bracket' => ['stray-bracket.php'],
+]);
 
 it('names the keyword in lower case and suggests its replacement', function (
     int $line,

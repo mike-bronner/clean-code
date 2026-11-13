@@ -89,3 +89,42 @@ usort($items, function ($left, $right) {
 ?>
 <?php $a = $b or $c ?>
 <?php
+
+$x = match ($a) { default => 1 } or $b;
+$f = function () {} or $b;
+$o = new class {} or $b;
+$a = $o->{$name} or $b;
+
+if ($c) $x = 1;
+else $a = $b or $d;
+
+if ($c) $x = 1;
+elseif ($c) $a = $b or $d;
+
+foreach ($l as $i) $a = $b or $d;
+while ($c) $a = $b or $d;
+for (;;) $a = $b or $d;
+do $a = $b or $d; while ($c);
+declare(ticks=1) $a = $b or $d;
+
+foreach ($l as $i):
+    $a = $b or $d;
+endforeach;
+
+while ($c):
+    $a = $b or $d;
+endwhile;
+
+if ($c):
+    $x = 1;
+else:
+    $a = $b or $d;
+endif;
+
+$$a = $b or $c;
+${'a'} = $b or $c;
+self::$p = $b or $c;
+parent::$p = $b or $c;
+Foo\Bar::$p = $b or $c;
+\Foo\Bar::$p = $b or $c;
+namespace\Foo::$p = $b or $c;

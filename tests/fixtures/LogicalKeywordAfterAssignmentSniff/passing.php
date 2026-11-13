@@ -161,3 +161,42 @@ enum Suit: int
 <?php $a = $b || $c ?>
 <?= $a = $b or $c ?>
 <?php
+
+$x = match ($a) { default => 1 } || $b;
+$f = function () {} || $b;
+$o = new class {} || $b;
+$a = $o->{$name} || $b;
+
+if ($c) $x = 1;
+else $a = $b || $d;
+
+if ($c) $x = 1;
+elseif ($c) $a = $b || $d;
+
+foreach ($l as $i) $a = $b || $d;
+while ($c) $a = $b || $d;
+for (;;) $a = $b || $d;
+do $a = $b || $d; while ($c);
+declare(ticks=1) $a = $b || $d;
+
+foreach ($l as $i):
+    $a = $b || $d;
+endforeach;
+
+while ($c):
+    $a = $b || $d;
+endwhile;
+
+if ($c):
+    $x = 1;
+else:
+    $a = $b || $d;
+endif;
+
+$$a = $b || $c;
+${'a'} = $b || $c;
+self::$p = $b || $c;
+parent::$p = $b || $c;
+Foo\Bar::$p = $b || $c;
+\Foo\Bar::$p = $b || $c;
+namespace\Foo::$p = $b || $c;

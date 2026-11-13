@@ -181,7 +181,13 @@ class LogicalKeywordAfterAssignmentSniff implements Sniff
             }
 
             if (in_array($code, self::BRACKET_CLOSERS, true) === true) {
-                $i = $token['parenthesis_opener'] ?? $token['bracket_opener'];
+                $opener = $token['parenthesis_opener'] ?? $token['bracket_opener'] ?? null;
+
+                if ($opener === null) {
+                    return null;
+                }
+
+                $i = $opener;
 
                 continue;
             }
