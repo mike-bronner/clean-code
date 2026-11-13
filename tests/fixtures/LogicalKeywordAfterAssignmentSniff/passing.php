@@ -200,3 +200,31 @@ parent::$p = $b || $c;
 Foo\Bar::$p = $b || $c;
 \Foo\Bar::$p = $b || $c;
 namespace\Foo::$p = $b || $c;
+
+$f = function (): bool {} || $b;
+$f = function () use ($x): ?bool {} || $b;
+$f = static function (): bool {} || $b;
+$f = #[Pure] function () {} || $b;
+
+start: $a = $b || $c;
+
+function gotoLabelInBody()
+{
+    retry:
+    $a = $b || $c;
+}
+
+@$a = f() || die();
+@$a['k'] = f() || die();
+@foo() or bar();
+
+function forConditionInBody()
+{
+    for ($i = 0; $a = $b or $c; $i++) {
+    }
+}
+
+$f = function () {
+    for ($i = 0; $a = $b or $c; $i++) {
+    }
+};

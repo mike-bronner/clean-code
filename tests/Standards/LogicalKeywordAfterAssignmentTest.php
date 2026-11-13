@@ -131,6 +131,14 @@ it('flags every top-level keyword of an assignment statement at the keyword itse
                 [128, 18],
                 [129, 19],
                 [130, 24],
+                [132, 27],
+                [133, 37],
+                [134, 34],
+                [135, 29],
+                [137, 16],
+                [142, 13],
+                [145, 11],
+                [146, 16],
             ]
         );
 

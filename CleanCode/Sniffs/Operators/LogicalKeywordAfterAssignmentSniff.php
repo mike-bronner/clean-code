@@ -113,6 +113,7 @@ class LogicalKeywordAfterAssignmentSniff implements Sniff
         T_SEMICOLON,
         T_OPEN_TAG,
         T_CLOSE_TAG,
+        T_GOTO_COLON,
     ];
 
     private const SUGGESTIONS = [
@@ -268,7 +269,10 @@ class LogicalKeywordAfterAssignmentSniff implements Sniff
         for ($i = $start; $i < $end; $i++) {
             $code = $tokens[$i]['code'];
 
-            if (isset(Tokens::EMPTY_TOKENS[$code]) === true) {
+            if (
+                isset(Tokens::EMPTY_TOKENS[$code]) === true
+                || $code === T_ASPERAND
+            ) {
                 continue;
             }
 

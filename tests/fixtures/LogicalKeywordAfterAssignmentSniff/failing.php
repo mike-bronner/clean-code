@@ -128,3 +128,19 @@ parent::$p = $b or $c;
 Foo\Bar::$p = $b or $c;
 \Foo\Bar::$p = $b or $c;
 namespace\Foo::$p = $b or $c;
+
+$f = function (): bool {} or $b;
+$f = function () use ($x): ?bool {} or $b;
+$f = static function (): bool {} or $b;
+$f = #[Pure] function () {} or $b;
+
+start: $a = $b or $c;
+
+function gotoLabelInBody()
+{
+    retry:
+    $a = $b or $c;
+}
+
+@$a = f() or die();
+@$a['k'] = f() or die();
