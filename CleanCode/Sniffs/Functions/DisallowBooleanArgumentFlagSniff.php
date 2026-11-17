@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace MikeBronner\CleanCode\Sniffs\Functions;
 
 use MikeBronner\CleanCode\Helpers\Declarations;
+use MikeBronner\CleanCode\Helpers\FunctionCalls;
+use MikeBronner\CleanCode\Support\ConditionOperatorOwnership;
 use PHP_CodeSniffer\Files\File;
 use PHP_CodeSniffer\Sniffs\Sniff;
+use PHP_CodeSniffer\Util\Tokens;
 
 class DisallowBooleanArgumentFlagSniff implements Sniff
 {
@@ -22,6 +25,13 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
         T_TRAIT,
     ];
 
+    private const PEST_TEST_FUNCTIONS = ['it', 'test'];
+
+    public function __construct(
+        private FunctionCalls $functionCalls = new FunctionCalls
+    ) {
+    }
+
     public function register(): array
     {
         return [T_CLOSURE, T_FN, T_FUNCTION];
@@ -34,7 +44,10 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
 
         $name = $code === T_FUNCTION ? (new Declarations)->name($phpcsFile, $stackPtr) : null;
 
-        if ($this->isIgnoredName($name) === true) {
+        if (
+            $this->isIgnoredName($name) === true
+            || $this->isPestTestBody($phpcsFile, $stackPtr) === true
+        ) {
             return;
         }
 
@@ -74,6 +87,51 @@ class DisallowBooleanArgumentFlagSniff implements Sniff
         return $name !== null
             && $pattern !== ''
             && preg_match($pattern, $name) === 1;
+    }
+
+    private function isPestTestBody(File $phpcsFile, int $stackPtr): bool
+    {
+        $tokens = $phpcsFile->getTokens();
+        $opener = array_key_last($tokens[$stackPtr]['nested_parenthesis'] ?? []);
+
+        if (
+            $opener === null
+            || $this->isPestTestCall($phpcsFile, $opener) === false
+        ) {
+            return false;
+        }
+
+        $closer = $tokens[$opener]['parenthesis_closer'];
+        $commas = (new ConditionOperatorOwnership)->findTopLevelTokens(
+                $phpcsFile,
+                ($opener + 1),
+                ($closer - 1),
+                [T_COMMA]
+            );
+        $bodyStart = $phpcsFile->findNext(
+                [...Tokens::$emptyTokens, T_STATIC],
+                (($commas[0] ?? $closer) + 1),
+                null,
+                true
+            );
+
+        return $bodyStart === $stackPtr;
+    }
+
+    private function isPestTestCall(File $phpcsFile, int $opener): bool
+    {
+        $callee = $phpcsFile->findPrevious(Tokens::$emptyTokens, ($opener - 1), null, true);
+
+        if (
+            $callee === false
+            || $this->functionCalls->isGlobalFunctionCall($phpcsFile, $callee) === false
+        ) {
+            return false;
+        }
+
+        $calleeName = strtolower($this->functionCalls->calleeName($phpcsFile, $callee));
+
+        return in_array($calleeName, self::PEST_TEST_FUNCTIONS, true);
     }
 
     private function isExceptedClass(string $className): bool

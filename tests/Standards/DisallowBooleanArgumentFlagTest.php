@@ -60,6 +60,21 @@ it('reports the two shapes PHPMD misses', function (): void {
     ]);
 });
 
+it('exempts the test body of a Pest it() or test() call and nothing else', function (): void {
+    $file = analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'pest.php');
+
+    expect(violationTuples($file))->toBe([
+        ['line' => 23, 'column' => 36, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 27, 'column' => 30, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 29, 'column' => 50, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 34, 'column' => 23, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 39, 'column' => 65, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 41, 'column' => 22, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 48, 'column' => 38, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+        ['line' => 54, 'column' => 19, 'source' => BOOLEAN_ARGUMENT_FLAG_ERROR],
+    ]);
+});
+
 it('exempts nothing by default', function (): void {
     $file = analyzeFixture(BOOLEAN_ARGUMENT_FLAG, 'configured.php');
 
