@@ -184,9 +184,12 @@ it('matches PHPMD on a real source file in this repository', function (): void {
         );
 
     expect(measuredComplexities($file))->toBe([
+        'method __construct()' => 1,
         'method register()' => 1,
-        'method process()' => 7,
+        'method process()' => 8,
         'method isIgnoredName()' => 3,
+        'method isPestTestBody()' => 3,
+        'method isPestTestCall()' => 3,
         'method isExceptedClass()' => 1,
         'method enclosingClassName()' => 3,
         'method describe()' => 1,

@@ -4,6 +4,10 @@
   parameter.
 - A flag means the callee holds two behaviours and the caller picks one. Extract
   each branch the flag selects into its own method.
+- The closure or arrow function passed as the test body to a Pest `it()` or
+  `test()` call is exempt. Its parameters receive dataset values, so a `bool`
+  there is an expected value, not a flag. A closure passed to any other
+  function is still checked.
 
 ## Compliant
 
