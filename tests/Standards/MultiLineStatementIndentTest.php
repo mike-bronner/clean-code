@@ -512,6 +512,48 @@ it('rewrites misindented ternary branch conditions into the compliant layout', f
         ->toBe(file_get_contents(fixturePath('MultiLineStatementIndentSniff', 'ternary-branches.php')));
 });
 
+it('accepts an anonymous class brace at the indent of its class line', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'anonymous-classes.php');
+
+    expect($file->getErrors())->toBe([])
+        ->and($file->getWarnings())->toBe([]);
+});
+
+it('leaves the anonymous class layout nothing to fix under the master ruleset', function (): void {
+    $file = analyzeWithMasterRuleset(fixturePath('MultiLineStatementIndentSniff', 'anonymous-classes.php'));
+
+    expect($file->getErrorCount())->toBe(0)
+        ->and($file->getFixableCount())->toBe(0);
+});
+
+it('reports anonymous class braces and continuation lines anchored anywhere else', function (
+    int $line,
+    string $code,
+    int $expected,
+    int $found
+): void {
+    $errors = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'anonymous-classes-misindented.php')->getErrors();
+    $error = current(current($errors[$line]));
+
+    expect(array_keys($errors))->toBe([12, 16, 28, 38, 62, 66])
+        ->and($error['source'])->toBe(MULTI_LINE_STATEMENT_INDENT . '.' . $code)
+        ->and($error['message'])->toContain("expected {$expected} spaces but found {$found}");
+})->with([
+    'an assigned class brace one level past its class line' => [12, 'IncorrectIndent', 8, 12],
+    'its closing brace follows the misplaced opener' => [16, 'CloseBracketIndent', 12, 8],
+    'an under-indented continuation inside the class body' => [28, 'IncorrectIndent', 20, 16],
+    'an under-indented continuation of the class header' => [38, 'IncorrectIndent', 12, 8],
+    'an argument class brace one level short of its class line' => [62, 'IncorrectIndent', 16, 12],
+    'its closing brace follows the misplaced opener too' => [66, 'CloseBracketIndent', 12, 16],
+]);
+
+it('rewrites misindented anonymous class braces into the compliant layout', function (): void {
+    $file = analyzeFixture(MULTI_LINE_STATEMENT_INDENT, 'anonymous-classes-misindented.php');
+
+    expect(autofixedContents($file))
+        ->toBe(file_get_contents(fixturePath('MultiLineStatementIndentSniff', 'anonymous-classes.php')));
+});
+
 it('stays silent on this package\'s own source', function (): void {
     $root = dirname(__DIR__, 2);
     $files = [];

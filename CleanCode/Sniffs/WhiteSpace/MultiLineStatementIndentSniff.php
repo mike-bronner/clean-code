@@ -381,16 +381,28 @@ class MultiLineStatementIndentSniff implements Sniff
 
         $anchor = $this->continuationAnchor($phpcsFile, $ptr, $stack, $exprStart, $continuation, $ternary);
         $anchorIndent = $anchor === null ? $baseIndent : $this->anchorIndent($phpcsFile, $anchor);
+        $expected = $this->isAnonymousClassOpener($tokens, $ptr) === true
+            ? $this->lineIndent($phpcsFile, $tokens[$ptr]['scope_condition'])
+            : $anchorIndent + $this->indent;
 
         $this->reportIndent(
                 $phpcsFile,
                 $lineStart,
-                $anchorIndent + $this->indent,
+                $expected,
                 $actual,
                 'IncorrectIndent',
                 'Line in multi-line statement not indented correctly;'
                     . ' expected %s spaces but found %s'
             );
+    }
+
+    private function isAnonymousClassOpener(array $tokens, int $ptr): bool
+    {
+        $condition = $tokens[$ptr]['scope_condition'] ?? null;
+
+        return $tokens[$ptr]['code'] === T_OPEN_CURLY_BRACKET
+            && $condition !== null
+            && $tokens[$condition]['code'] === T_ANON_CLASS;
     }
 
     private function continuationAnchor(
